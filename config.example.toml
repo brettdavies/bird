@@ -1,0 +1,10 @@
+# Copy to ~/.config/bird/config.toml and set client_id / client_secret.
+# Or set X_API_CLIENT_ID and X_API_CLIENT_SECRET in the environment.
+#
+# redirect_uri must be http://127.0.0.1:8765/callback in the X Developer Portal.
+# username is optional; used to select which stored account to use.
+
+# client_id = "your_app_client_id"
+# client_secret = "your_app_client_secret"
+# redirect_uri = "http://127.0.0.1:8765/callback"
+# username = "your_handle"
