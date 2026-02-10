@@ -5,15 +5,15 @@ use crate::config::ResolvedConfig;
 
 /// Fetch all bookmarks for the authenticated user (id from /2/users/me), paginating with max_results=100.
 pub async fn run_bookmarks(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
     pretty: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = resolve_token_for_command(config, "bookmarks").await?;
+    let token = resolve_token_for_command(client, config, "bookmarks").await?;
     let access = match token {
         CommandToken::Bearer(t) => t,
         CommandToken::OAuth1 => unreachable!("bookmarks accepts OAuth2 user only per spec"),
     };
-    let client = reqwest::Client::new();
 
     let me_res = client
         .get("https://api.x.com/2/users/me")

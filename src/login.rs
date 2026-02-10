@@ -25,6 +25,7 @@ fn parse_query(query: &str) -> HashMap<String, String> {
 
 /// Run login flow: start server, open browser, wait for callback, exchange, fetch me, save.
 pub async fn run_login(
+    client: &reqwest::Client,
     config: ResolvedConfig,
     use_color: bool,
     use_hyperlinks: bool,
@@ -113,9 +114,8 @@ pub async fn run_login(
     tokio::spawn(server);
     let (code, _) = rx.await.map_err(|_| "callback channel closed")??;
 
-    let client = reqwest::Client::new();
     let token: TokenResponse = exchange_code(
-        &client,
+        client,
         client_id,
         config.client_secret.as_deref(),
         &config.redirect_uri,
@@ -124,7 +124,7 @@ pub async fn run_login(
     )
     .await?;
 
-    let username = fetch_me(&client, &token.access_token).await?;
+    let username = fetch_me(client, &token.access_token).await?;
 
     config.ensure_config_dir()?;
     let mut stored = crate::auth::load_stored_tokens(&config.tokens_path).unwrap_or_else(StoredTokens::new);

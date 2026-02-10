@@ -278,6 +278,7 @@ pub enum CommandToken {
 /// Resolve a valid token for a command, trying accepted auth types in order (Bearer, OAuth1, OAuth2User).
 /// Returns a structured auth-required error with hints when no valid auth is found.
 pub async fn resolve_token_for_command(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
     command_name: &str,
 ) -> Result<CommandToken, requirements::AuthRequiredError> {
@@ -300,7 +301,7 @@ pub async fn resolve_token_for_command(
         }
     }
     if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
-        if let Ok(t) = ensure_access_token(config).await {
+        if let Ok(t) = ensure_access_token(client, config).await {
             return Ok(CommandToken::Bearer(t));
         }
     }
@@ -309,6 +310,7 @@ pub async fn resolve_token_for_command(
 
 /// Resolve a valid OAuth2 access token, refreshing if we have refresh_token and token is expired.
 pub async fn ensure_access_token(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let stored = load_stored_tokens(&config.tokens_path);
@@ -334,7 +336,7 @@ pub async fn ensure_access_token(
     if expired && refresh_opt.is_some() {
         let client_id = config.client_id.as_ref().ok_or("client_id required to refresh")?;
         let refreshed = refresh_access_token(
-            &reqwest::Client::new(),
+            client,
             client_id,
             config.client_secret.as_deref(),
             refresh_opt.as_ref().unwrap(),

@@ -17,6 +17,7 @@ use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
+use std::time::Duration;
 
 fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
     let stderr_tty = std::io::stderr().is_terminal();
@@ -190,49 +191,55 @@ async fn main() -> ExitCode {
         }
     };
 
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("failed to build HTTP client");
+
     match cli.command {
         Command::Login => {
-            if let Err(e) = login::run_login(config, use_color, use_hyperlinks).await {
+            if let Err(e) = login::run_login(&client, config, use_color, use_hyperlinks).await {
                 eprint_command_error("login", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Me { pretty } => {
-            if let Err(e) = run_me(&config, pretty).await {
+            if let Err(e) = run_me(&client, &config, pretty).await {
                 eprint_command_error("me", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Bookmarks { pretty } => {
-            if let Err(e) = bookmarks::run_bookmarks(&config, pretty).await {
+            if let Err(e) = bookmarks::run_bookmarks(&client, &config, pretty).await {
                 eprint_command_error("bookmarks", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Get { path, param, query, pretty } => {
             let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&config, "GET", &path, &params, &query, None, pretty).await {
+            if let Err(e) = raw::run_raw(&client, &config, "GET", &path, &params, &query, None, pretty).await {
                 eprint_command_error("get", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Post { path, param, query, body, pretty } => {
             let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&config, "POST", &path, &params, &query, body.as_deref(), pretty).await {
+            if let Err(e) = raw::run_raw(&client, &config, "POST", &path, &params, &query, body.as_deref(), pretty).await {
                 eprint_command_error("post", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Put { path, param, query, body, pretty } => {
             let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&config, "PUT", &path, &params, &query, body.as_deref(), pretty).await {
+            if let Err(e) = raw::run_raw(&client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty).await {
                 eprint_command_error("put", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
         }
         Command::Delete { path, param, query, pretty } => {
             let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&config, "DELETE", &path, &params, &query, None, pretty).await {
+            if let Err(e) = raw::run_raw(&client, &config, "DELETE", &path, &params, &query, None, pretty).await {
                 eprint_command_error("delete", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
@@ -251,11 +258,11 @@ async fn main() -> ExitCode {
 }
 
 async fn run_me(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
     pretty: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = auth::resolve_token_for_command(config, "me").await?;
-    let client = reqwest::Client::new();
+    let token = auth::resolve_token_for_command(client, config, "me").await?;
     let (status, text) = match token {
         auth::CommandToken::Bearer(access) => {
             let res = client
@@ -271,7 +278,7 @@ async fn run_me(
             let at = config.oauth1_access_token.as_ref().unwrap();
             let ats = config.oauth1_access_token_secret.as_ref().unwrap();
             let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
-            let res = client
+            let res = client.clone()
                 .oauth1(secrets)
                 .get("https://api.x.com/2/users/me")
                 .send()
