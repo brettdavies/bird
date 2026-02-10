@@ -3,7 +3,7 @@
 use crate::auth::{resolve_token_for_command, CommandToken};
 use crate::config::ResolvedConfig;
 
-/// Fetch all bookmarks for the authenticated user (id from /2/users/me), paginating with max_results=100.
+/// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
 pub async fn run_bookmarks(
     client: &reqwest::Client,
     config: &ResolvedConfig,
@@ -32,8 +32,15 @@ pub async fn run_bookmarks(
         .and_then(|id| id.as_str())
         .ok_or("no data.id in /2/users/me response")?;
 
-    let mut all_data: Vec<serde_json::Value> = Vec::new();
     let mut pagination_token: Option<String> = None;
+    let mut first_item = true;
+
+    // Open the JSON array wrapper
+    if pretty {
+        println!("{{\n  \"data\": [");
+    } else {
+        print!("{{\"data\":[");
+    }
 
     loop {
         let mut url = format!(
@@ -57,7 +64,23 @@ pub async fn run_bookmarks(
         let page: serde_json::Value = serde_json::from_str(&text)?;
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {
-                all_data.push(item.clone());
+                if !first_item {
+                    if pretty {
+                        println!(",");
+                    } else {
+                        print!(",");
+                    }
+                }
+                first_item = false;
+                if pretty {
+                    // Indent each item by 4 spaces
+                    let s = serde_json::to_string_pretty(item)?;
+                    for line in s.lines() {
+                        println!("    {}", line);
+                    }
+                } else {
+                    print!("{}", serde_json::to_string(item)?);
+                }
             }
         }
         pagination_token = page
@@ -70,11 +93,11 @@ pub async fn run_bookmarks(
         }
     }
 
-    let out = serde_json::json!({ "data": all_data });
+    // Close the JSON array wrapper
     if pretty {
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        println!("\n  ]\n}}");
     } else {
-        println!("{}", serde_json::to_string(&out)?);
+        println!("]}}");
     }
     Ok(())
 }
