@@ -35,7 +35,6 @@ pub struct ConfigSecret {
 #[serde(rename_all = "snake_case")]
 pub enum AuthSource {
     Env,
-    Config,
     Stored,
 }
 
