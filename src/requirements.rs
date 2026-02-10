@@ -2,11 +2,17 @@
 //! Used by execution (resolve token), errors (format auth-required message), and doctor (availability/reasons).
 
 /// Auth types that a command can accept. Matches OpenAPI spec (OAuth2UserToken, UserToken, BearerToken).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The None variant indicates no authentication is available.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum AuthType {
+    #[serde(rename = "oauth2_user")]
     OAuth2User,
+    #[serde(rename = "oauth1")]
     OAuth1,
+    #[serde(rename = "bearer")]
     Bearer,
+    #[serde(rename = "none")]
+    None,
 }
 
 /// Per-command auth requirements: which auth types are accepted and hint strings for errors/doctor.
@@ -93,6 +99,7 @@ pub fn format_auth_required_error(command_name: &str) -> String {
             AuthType::OAuth2User => reqs.oauth2_hint,
             AuthType::OAuth1 => reqs.oauth1_hint,
             AuthType::Bearer => reqs.bearer_hint,
+            AuthType::None => continue,
         };
         out.push_str(if first { "  " } else { "  Or " });
         out.push_str(hint);
@@ -124,10 +131,11 @@ pub fn reason_for_unavailable(reqs: &CommandReqs) -> String {
     let hints: Vec<&str> = reqs
         .accepted
         .iter()
-        .map(|at| match at {
-            AuthType::OAuth2User => reqs.oauth2_hint,
-            AuthType::OAuth1 => reqs.oauth1_hint,
-            AuthType::Bearer => reqs.bearer_hint,
+        .filter_map(|at| match at {
+            AuthType::OAuth2User => Some(reqs.oauth2_hint),
+            AuthType::OAuth1 => Some(reqs.oauth1_hint),
+            AuthType::Bearer => Some(reqs.bearer_hint),
+            AuthType::None => Option::None,
         })
         .collect();
     hints.join(" Or ")

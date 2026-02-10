@@ -18,17 +18,56 @@ use std::io::IsTerminal;
 use std::process::ExitCode;
 use std::time::Duration;
 
+/// Structured error for the CLI. Each variant carries the command name and maps to a distinct exit code.
+enum BirdError {
+    /// Configuration error (exit code 78 — EX_CONFIG)
+    Config(Box<dyn std::error::Error + Send + Sync>),
+    /// Auth error — no valid credentials for the command (exit code 77 — EX_NOPERM)
+    Auth(requirements::AuthRequiredError),
+    /// Command execution error — API, network, I/O (exit code 1)
+    Command {
+        name: &'static str,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
+
+impl BirdError {
+    fn exit_code(&self) -> u8 {
+        match self {
+            BirdError::Config(_) => 78,
+            BirdError::Auth(_) => 77,
+            BirdError::Command { .. } => 1,
+        }
+    }
+
+    fn print(&self, use_color: bool) {
+        match self {
+            BirdError::Config(e) => {
+                eprintln!("{}{}", output::error("config failed: ", use_color), e);
+            }
+            BirdError::Auth(e) => {
+                eprintln!("{}{}", output::error("auth failed: ", use_color), e);
+            }
+            BirdError::Command { name, source } => {
+                let prefix = format!("{} failed: ", name);
+                eprintln!("{}{}", output::error(&prefix, use_color), source);
+            }
+        }
+    }
+}
+
+impl From<requirements::AuthRequiredError> for BirdError {
+    fn from(e: requirements::AuthRequiredError) -> Self {
+        BirdError::Auth(e)
+    }
+}
+
 fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
     let stderr_tty = std::io::stderr().is_terminal();
     let no_color_env = std::env::var("NO_COLOR").is_ok();
     let term_dumb = std::env::var("TERM").as_deref() == Ok("dumb");
     let default_on = stderr_tty && !no_color_env && !term_dumb;
     default_on && !plain && !no_color
-}
-
-fn eprint_command_error(cmd: &str, e: &dyn std::error::Error, use_color: bool) {
-    let prefix = format!("{} failed: ", cmd);
-    eprintln!("{}{}", output::error(&prefix, use_color), e);
 }
 
 fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
@@ -151,6 +190,64 @@ enum Command {
     },
 }
 
+async fn run(
+    command: Command,
+    config: ResolvedConfig,
+    client: &reqwest::Client,
+    use_color: bool,
+    use_hyperlinks: bool,
+) -> Result<(), BirdError> {
+    match command {
+        Command::Login => {
+            login::run_login(client, config, use_color, use_hyperlinks)
+                .await
+                .map_err(|e| BirdError::Command { name: "login", source: e })?;
+        }
+        Command::Me { pretty } => {
+            let params = HashMap::new();
+            raw::run_raw(client, &config, "GET", "/2/users/me", &params, &[], None, pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "me", source: e })?;
+        }
+        Command::Bookmarks { pretty } => {
+            bookmarks::run_bookmarks(client, &config, pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "bookmarks", source: e })?;
+        }
+        Command::Get { path, param, query, pretty } => {
+            let params = parse_param_vec(&param);
+            raw::run_raw(client, &config, "GET", &path, &params, &query, None, pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "get", source: e })?;
+        }
+        Command::Post { path, param, query, body, pretty } => {
+            let params = parse_param_vec(&param);
+            raw::run_raw(client, &config, "POST", &path, &params, &query, body.as_deref(), pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "post", source: e })?;
+        }
+        Command::Put { path, param, query, body, pretty } => {
+            let params = parse_param_vec(&param);
+            raw::run_raw(client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "put", source: e })?;
+        }
+        Command::Delete { path, param, query, pretty } => {
+            let params = parse_param_vec(&param);
+            raw::run_raw(client, &config, "DELETE", &path, &params, &query, None, pretty)
+                .await
+                .map_err(|e| BirdError::Command { name: "delete", source: e })?;
+        }
+        Command::Doctor { command, pretty } => {
+            let scope = command.as_deref();
+            let use_emoji = use_color && pretty;
+            doctor::run_doctor(&config, pretty, scope, use_color, use_emoji)
+                .map_err(|e| BirdError::Command { name: "doctor", source: e })?;
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     tracing_subscriber::fmt()
@@ -166,6 +263,10 @@ async fn main() -> ExitCode {
             e.exit();
         }
     };
+
+    let use_color = use_color_from_cli(cli.plain, cli.no_color);
+    let use_hyperlinks = use_color && std::io::stderr().is_terminal();
+
     let overrides = ArgOverrides {
         client_id: cli.client_id.or_else(|| std::env::var("X_API_CLIENT_ID").ok()),
         client_secret: cli.client_secret.or_else(|| std::env::var("X_API_CLIENT_SECRET").ok()),
@@ -179,14 +280,12 @@ async fn main() -> ExitCode {
         oauth1_access_token_secret: None,
     };
 
-    let use_color = use_color_from_cli(cli.plain, cli.no_color);
-    let use_hyperlinks = use_color && std::io::stderr().is_terminal();
-
     let config = match ResolvedConfig::load(overrides) {
         Ok(c) => c,
         Err(e) => {
-            eprint_command_error("config", e.as_ref(), use_color);
-            return ExitCode::from(1);
+            let err = BirdError::Config(e);
+            err.print(use_color);
+            return ExitCode::from(err.exit_code());
         }
     };
 
@@ -196,63 +295,11 @@ async fn main() -> ExitCode {
         .build()
         .expect("failed to build HTTP client");
 
-    match cli.command {
-        Command::Login => {
-            if let Err(e) = login::run_login(&client, config, use_color, use_hyperlinks).await {
-                eprint_command_error("login", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Me { pretty } => {
-            let params = HashMap::new();
-            if let Err(e) = raw::run_raw(&client, &config, "GET", "/2/users/me", &params, &[], None, pretty).await {
-                eprint_command_error("me", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Bookmarks { pretty } => {
-            if let Err(e) = bookmarks::run_bookmarks(&client, &config, pretty).await {
-                eprint_command_error("bookmarks", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Get { path, param, query, pretty } => {
-            let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&client, &config, "GET", &path, &params, &query, None, pretty).await {
-                eprint_command_error("get", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Post { path, param, query, body, pretty } => {
-            let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&client, &config, "POST", &path, &params, &query, body.as_deref(), pretty).await {
-                eprint_command_error("post", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Put { path, param, query, body, pretty } => {
-            let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty).await {
-                eprint_command_error("put", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Delete { path, param, query, pretty } => {
-            let params = parse_param_vec(&param);
-            if let Err(e) = raw::run_raw(&client, &config, "DELETE", &path, &params, &query, None, pretty).await {
-                eprint_command_error("delete", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
-        }
-        Command::Doctor { command, pretty } => {
-            let scope = command.as_deref();
-            let use_emoji = use_color && pretty;
-            if let Err(e) = doctor::run_doctor(&config, pretty, scope, use_color, use_emoji) {
-                eprint_command_error("doctor", e.as_ref(), use_color);
-                return ExitCode::from(1);
-            }
+    match run(cli.command, config, &client, use_color, use_hyperlinks).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            e.print(use_color);
+            ExitCode::from(e.exit_code())
         }
     }
-
-    ExitCode::SUCCESS
 }
