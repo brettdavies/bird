@@ -8,11 +8,9 @@ pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:8765/callback";
 const OAUTH2_CLIENT_ID_DEV: &str = "Mkt1TFoyazFqdkpiSFJRdHVqVGw6MTpjaQ";
 pub const AUTHORIZE_URL: &str = "https://x.com/i/oauth2/authorize";
 pub const TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
-#[allow(dead_code)]
-pub const API_BASE: &str = "https://api.x.com";
 
 /// Resolved config after applying priority: args > config file > env > default.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ResolvedConfig {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
@@ -31,6 +29,26 @@ pub struct ResolvedConfig {
     pub oauth1_access_token_secret: Option<String>,
     pub config_dir: PathBuf,
     pub tokens_path: PathBuf,
+}
+
+impl std::fmt::Debug for ResolvedConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedConfig")
+            .field("client_id", &self.client_id.as_ref().map(|_| "[REDACTED]"))
+            .field("client_secret", &self.client_secret.as_ref().map(|_| "[REDACTED]"))
+            .field("redirect_uri", &self.redirect_uri)
+            .field("access_token", &self.access_token.as_ref().map(|_| "[REDACTED]"))
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
+            .field("bearer_token", &self.bearer_token.as_ref().map(|_| "[REDACTED]"))
+            .field("username", &self.username)
+            .field("oauth1_consumer_key", &self.oauth1_consumer_key.as_ref().map(|_| "[REDACTED]"))
+            .field("oauth1_consumer_secret", &self.oauth1_consumer_secret.as_ref().map(|_| "[REDACTED]"))
+            .field("oauth1_access_token", &self.oauth1_access_token.as_ref().map(|_| "[REDACTED]"))
+            .field("oauth1_access_token_secret", &self.oauth1_access_token_secret.as_ref().map(|_| "[REDACTED]"))
+            .field("config_dir", &self.config_dir)
+            .field("tokens_path", &self.tokens_path)
+            .finish()
+    }
 }
 
 /// File-backed config (what we read from ~/.config/bird/config.toml).

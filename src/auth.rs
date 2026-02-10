@@ -16,12 +16,22 @@ pub struct StoredTokens {
     pub accounts: HashMap<String, OAuth2Account>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OAuth2Account {
     pub access_token: String,
     pub refresh_token: Option<String>,
     #[serde(default)]
     pub expires_at_secs: Option<u64>,
+}
+
+impl std::fmt::Debug for OAuth2Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuth2Account")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
+            .field("expires_at_secs", &self.expires_at_secs)
+            .finish()
+    }
 }
 
 /// Resolve effective OAuth2 access token: args > config > env > stored (by username).
@@ -49,7 +59,6 @@ pub fn resolve_oauth2_token(
 }
 
 /// Resolve bearer (app-only) token: args > config > env.
-#[allow(dead_code)]
 pub fn resolve_bearer_token(config: &ResolvedConfig) -> Option<String> {
     config
         .bearer_token
@@ -105,7 +114,66 @@ fn url_encode(s: &str) -> String {
     percent_encoding::percent_encode(s.as_bytes(), percent_encoding::NON_ALPHANUMERIC).to_string()
 }
 
-/// Exchange authorization code for tokens. Uses public client (no secret) or confidential client (Basic auth).
+#[derive(Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u64>,
+}
+
+impl std::fmt::Debug for TokenResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenResponse")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
+}
+
+/// Post form body to TOKEN_URL with optional Basic auth (confidential client) or client_id in body (public client).
+async fn post_token(
+    client: &reqwest::Client,
+    client_id: &str,
+    client_secret: Option<&str>,
+    body: &[(&str, &str)],
+    error_label: &str,
+) -> Result<TokenResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let req = client
+        .post(TOKEN_URL)
+        .header("Content-Type", "application/x-www-form-urlencoded");
+    let req = if let Some(secret) = client_secret {
+        let creds = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("{}:{}", client_id, secret),
+        );
+        req.header("Authorization", format!("Basic {}", creds))
+            .body(
+                body.iter()
+                    .filter(|(k, _)| *k != "client_id")
+                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+                    .collect::<Vec<_>>()
+                    .join("&"),
+            )
+    } else {
+        req.body(
+            body.iter()
+                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+                .collect::<Vec<_>>()
+                .join("&"),
+        )
+    };
+    let res = req.send().await?;
+    let status = res.status();
+    let text = res.text().await?;
+    if !status.is_success() {
+        return Err(format!("{} failed {}: {}", error_label, status, text).into());
+    }
+    let token: TokenResponse = serde_json::from_str(&text)?;
+    Ok(token)
+}
+
+/// Exchange authorization code for tokens.
 pub async fn exchange_code(
     client: &reqwest::Client,
     client_id: &str,
@@ -121,48 +189,10 @@ pub async fn exchange_code(
         ("redirect_uri", redirect_uri),
         ("code_verifier", code_verifier),
     ];
-    let req = client
-        .post(TOKEN_URL)
-        .header("Content-Type", "application/x-www-form-urlencoded");
-    let req = if let Some(secret) = client_secret {
-        let creds = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            format!("{}:{}", client_id, secret),
-        );
-        req.header("Authorization", format!("Basic {}", creds))
-            .body(
-                body.iter()
-                    .filter(|(k, _)| *k != "client_id")
-                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                    .collect::<Vec<_>>()
-                    .join("&"),
-            )
-    } else {
-        req.body(
-            body.iter()
-                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                .collect::<Vec<_>>()
-                .join("&"),
-        )
-    };
-    let res = req.send().await?;
-    let status = res.status();
-    let text = res.text().await?;
-    if !status.is_success() {
-        return Err(format!("token exchange failed {}: {}", status, text).into());
-    }
-    let token: TokenResponse = serde_json::from_str(&text)?;
-    Ok(token)
+    post_token(client, client_id, client_secret, &body, "token exchange").await
 }
 
-#[derive(Debug, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_in: Option<u64>,
-}
-
-/// Refresh OAuth2 access token. Uses public client (client_id in body only) or confidential client (Basic auth).
+/// Refresh OAuth2 access token.
 pub async fn refresh_access_token(
     client: &reqwest::Client,
     client_id: &str,
@@ -174,38 +204,7 @@ pub async fn refresh_access_token(
         ("refresh_token", refresh_token),
         ("client_id", client_id),
     ];
-    let req = client
-        .post(TOKEN_URL)
-        .header("Content-Type", "application/x-www-form-urlencoded");
-    let req = if let Some(secret) = client_secret {
-        let creds = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            format!("{}:{}", client_id, secret),
-        );
-        req.header("Authorization", format!("Basic {}", creds))
-            .body(
-                body.iter()
-                    .filter(|(k, _)| *k != "client_id")
-                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                    .collect::<Vec<_>>()
-                    .join("&"),
-            )
-    } else {
-        req.body(
-            body.iter()
-                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                .collect::<Vec<_>>()
-                .join("&"),
-        )
-    };
-    let res = req.send().await?;
-    let status = res.status();
-    let text = res.text().await?;
-    if !status.is_success() {
-        return Err(format!("refresh failed {}: {}", status, text).into());
-    }
-    let token: TokenResponse = serde_json::from_str(&text)?;
-    Ok(token)
+    post_token(client, client_id, client_secret, &body, "refresh").await
 }
 
 /// Fetch current user (GET /2/users/me) to get username.
@@ -242,7 +241,25 @@ pub fn save_stored_tokens(path: &Path, tokens: &StoredTokens) -> Result<(), std:
         std::fs::create_dir_all(parent)?;
     }
     let s = serde_json::to_string_pretty(tokens).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    std::fs::write(path, s)
+
+    #[cfg(unix)]
+    {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(s.as_bytes())?;
+        return Ok(());
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, s)
+    }
 }
 
 impl StoredTokens {
@@ -279,6 +296,7 @@ pub enum CommandToken {
 /// Resolve a valid token for a command, trying accepted auth types in order (Bearer, OAuth1, OAuth2User).
 /// Returns a structured auth-required error with hints when no valid auth is found.
 pub async fn resolve_token_for_command(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
     command_name: &str,
 ) -> Result<CommandToken, requirements::AuthRequiredError> {
@@ -301,7 +319,7 @@ pub async fn resolve_token_for_command(
         }
     }
     if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
-        if let Ok(t) = ensure_access_token(config).await {
+        if let Ok(t) = ensure_access_token(client, config).await {
             return Ok(CommandToken::Bearer(t));
         }
     }
@@ -310,6 +328,7 @@ pub async fn resolve_token_for_command(
 
 /// Resolve a valid OAuth2 access token, refreshing if we have refresh_token and token is expired.
 pub async fn ensure_access_token(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let stored = load_stored_tokens(&config.tokens_path);
@@ -335,7 +354,7 @@ pub async fn ensure_access_token(
     if expired && refresh_opt.is_some() {
         let client_id = config.client_id.as_ref().ok_or("client_id required to refresh")?;
         let refreshed = refresh_access_token(
-            &reqwest::Client::new(),
+            client,
             client_id,
             config.client_secret.as_deref(),
             refresh_opt.as_ref().unwrap(),

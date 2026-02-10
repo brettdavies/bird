@@ -33,15 +33,6 @@ pub fn command(s: &str, use_color: bool) -> String {
     }
 }
 
-/// Option/flag (cyan).
-pub fn option(s: &str, use_color: bool) -> String {
-    if use_color {
-        s.cyan().to_string()
-    } else {
-        s.to_string()
-    }
-}
-
 /// Muted/secondary text (dim gray).
 pub fn muted(s: &str, use_color: bool) -> String {
     if use_color {
@@ -64,15 +55,6 @@ pub fn error(s: &str, use_color: bool) -> String {
 pub fn success(s: &str, use_color: bool) -> String {
     if use_color {
         s.green().to_string()
-    } else {
-        s.to_string()
-    }
-}
-
-/// Accent (e.g. URL when colored).
-pub fn accent(s: &str, use_color: bool) -> String {
-    if use_color {
-        s.cyan().to_string()
     } else {
         s.to_string()
     }

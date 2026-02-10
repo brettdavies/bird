@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
 pub async fn run_raw(
+    client: &reqwest::Client,
     config: &ResolvedConfig,
     method: &str,
     path: &str,
@@ -27,10 +28,9 @@ pub async fn run_raw(
     let url = url_builder.to_string();
 
     let method_upper = method.to_uppercase();
-    let client = reqwest::Client::new();
     let command_name = method.to_lowercase();
 
-    let token = resolve_token_for_command(config, &command_name).await?;
+    let token = resolve_token_for_command(client, config, &command_name).await?;
 
     let (status, text) = match token {
         CommandToken::Bearer(access) => {
@@ -55,10 +55,10 @@ pub async fn run_raw(
             let ats = config.oauth1_access_token_secret.as_ref().unwrap();
             let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
             let mut req = match method_upper.as_str() {
-                "GET" => client.oauth1(secrets).get(&url),
-                "POST" => client.oauth1(secrets).post(&url),
-                "PUT" => client.oauth1(secrets).put(&url),
-                "DELETE" => client.oauth1(secrets).delete(&url),
+                "GET" => client.clone().oauth1(secrets).get(&url),
+                "POST" => client.clone().oauth1(secrets).post(&url),
+                "PUT" => client.clone().oauth1(secrets).put(&url),
+                "DELETE" => client.clone().oauth1(secrets).delete(&url),
                 _ => return Err(format!("unsupported method: {}", method).into()),
             };
             if let Some(b) = body {

@@ -2,7 +2,7 @@
 
 use crate::auth::{load_stored_tokens, resolve_bearer_token, resolve_oauth2_token};
 use crate::config::{FileConfig, ResolvedConfig, DEFAULT_REDIRECT_URI};
-use crate::requirements::{requirements_for_command, AuthType as ReqAuthType, command_names_with_auth, reason_for_unavailable};
+use crate::requirements::{requirements_for_command, AuthType, command_names_with_auth, reason_for_unavailable};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -30,23 +30,11 @@ pub struct ConfigSecret {
     pub source: Option<ConfigSource>,
 }
 
-/// Auth type that would be used for API calls.
-#[derive(Clone, Debug, Serialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthType {
-    Oauth2User,
-    Bearer,
-    Oauth1,
-    None,
-}
-
 /// Where the active auth came from.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthSource {
     Env,
-    #[allow(dead_code)]
-    Config,
     Stored,
 }
 
@@ -270,7 +258,7 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
         )
     } else if oauth1_all {
         (
-            AuthType::Oauth1,
+            AuthType::OAuth1,
             Some(AuthSource::Env),
             config.username.clone(),
             false,
@@ -289,7 +277,7 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
             .clone()
             .or_else(|| stored.as_ref().and_then(|s| s.accounts.keys().next().cloned()));
         let can_refresh = refresh_opt.is_some() && config.client_id.is_some();
-        (AuthType::Oauth2User, source, username, can_refresh)
+        (AuthType::OAuth2User, source, username, can_refresh)
     } else {
         (
             AuthType::None,
@@ -309,8 +297,8 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
 
 /// Command availability from centralized requirements (openapi/x-api-openapi.json).
 fn build_commands_section(config: &ResolvedConfig, auth: &AuthState) -> HashMap<String, CommandStatus> {
-    let has_oauth2_user = auth.auth_type == AuthType::Oauth2User;
-    let has_oauth1 = auth.auth_type == AuthType::Oauth1;
+    let has_oauth2_user = auth.auth_type == AuthType::OAuth2User;
+    let has_oauth1 = auth.auth_type == AuthType::OAuth1;
     let has_bearer = auth.auth_type == AuthType::Bearer;
 
     let mut cmds = HashMap::new();
@@ -335,9 +323,10 @@ fn build_commands_section(config: &ResolvedConfig, auth: &AuthState) -> HashMap<
             None => continue,
         };
         let available = reqs.accepted.iter().any(|at| match at {
-            ReqAuthType::OAuth2User => has_oauth2_user,
-            ReqAuthType::OAuth1 => has_oauth1,
-            ReqAuthType::Bearer => has_bearer,
+            AuthType::OAuth2User => has_oauth2_user,
+            AuthType::OAuth1 => has_oauth1,
+            AuthType::Bearer => has_bearer,
+            AuthType::None => false,
         });
         cmds.insert(
             name.to_string(),
@@ -495,7 +484,7 @@ mod tests {
         let mut config = minimal_config_no_auth();
         config.access_token = Some("test-token".to_string());
         let r = report(&config, None);
-        assert_eq!(r.auth.auth_type, AuthType::Oauth2User);
+        assert_eq!(r.auth.auth_type, AuthType::OAuth2User);
         assert!(r.commands.get("me").unwrap().available);
         assert!(r.commands.get("bookmarks").unwrap().available);
     }
@@ -509,7 +498,7 @@ mod tests {
         config.oauth1_access_token = Some("at".into());
         config.oauth1_access_token_secret = Some("ats".into());
         let r = report(&config, None);
-        assert_eq!(r.auth.auth_type, AuthType::Oauth1);
+        assert_eq!(r.auth.auth_type, AuthType::OAuth1);
         assert!(r.commands.get("me").unwrap().available, "me accepts OAuth 1.0a per spec");
         assert!(
             !r.commands.get("bookmarks").unwrap().available,
