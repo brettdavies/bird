@@ -45,7 +45,6 @@ pub enum AuthType {
 #[serde(rename_all = "snake_case")]
 pub enum AuthSource {
     Env,
-    #[allow(dead_code)]
     Config,
     Stored,
 }

@@ -8,8 +8,6 @@ pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:8765/callback";
 const OAUTH2_CLIENT_ID_DEV: &str = "Mkt1TFoyazFqdkpiSFJRdHVqVGw6MTpjaQ";
 pub const AUTHORIZE_URL: &str = "https://x.com/i/oauth2/authorize";
 pub const TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
-#[allow(dead_code)]
-pub const API_BASE: &str = "https://api.x.com";
 
 /// Resolved config after applying priority: args > config file > env > default.
 #[derive(Clone, Debug)]

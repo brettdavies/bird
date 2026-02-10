@@ -12,7 +12,6 @@ pub enum AuthType {
 /// Per-command auth requirements: which auth types are accepted and hint strings for errors/doctor.
 #[derive(Clone, Debug)]
 pub struct CommandReqs {
-    pub command_name: &'static str,
     /// Auth types this command accepts (any one is sufficient).
     pub accepted: &'static [AuthType],
     /// Human-readable hint for OAuth 2.0 user (when accepted).
@@ -35,42 +34,36 @@ const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, Auth
 pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
     Some(match name {
         "me" => CommandReqs {
-            command_name: "me",
             accepted: ME_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
         "bookmarks" => CommandReqs {
-            command_name: "bookmarks",
             accepted: BOOKMARKS_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
         "get" => CommandReqs {
-            command_name: "get",
             accepted: RAW_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
         "post" => CommandReqs {
-            command_name: "post",
             accepted: RAW_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
         "put" => CommandReqs {
-            command_name: "put",
             accepted: RAW_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
         "delete" => CommandReqs {
-            command_name: "delete",
             accepted: RAW_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
@@ -124,11 +117,6 @@ impl std::fmt::Display for AuthRequiredError {
 /// Build an AuthRequiredError for a command (used by auth layer when resolve fails).
 pub fn auth_required_error(command_name: &str) -> AuthRequiredError {
     AuthRequiredError(format_auth_required_error(command_name))
-}
-
-/// Check if an auth type is in the accepted list.
-pub fn accepts(reqs: &CommandReqs, auth: AuthType) -> bool {
-    reqs.accepted.contains(&auth)
 }
 
 /// One-line reason for doctor when command is unavailable (hints joined by " Or ").

@@ -49,7 +49,6 @@ pub fn resolve_oauth2_token(
 }
 
 /// Resolve bearer (app-only) token: args > config > env.
-#[allow(dead_code)]
 pub fn resolve_bearer_token(config: &ResolvedConfig) -> Option<String> {
     config
         .bearer_token

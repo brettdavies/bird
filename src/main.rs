@@ -42,7 +42,7 @@ fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
 }
 
 #[derive(clap::Parser)]
-#[command(name = "bird", about = "X API CLI")]
+#[command(name = "bird", about = "X API CLI", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -151,7 +151,7 @@ enum Command {
     },
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("bird=info".parse().unwrap()))
