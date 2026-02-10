@@ -13,7 +13,6 @@ mod schema;
 use clap::CommandFactory;
 use clap::FromArgMatches;
 use config::{ArgOverrides, ResolvedConfig};
-use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
@@ -205,7 +204,8 @@ async fn main() -> ExitCode {
             }
         }
         Command::Me { pretty } => {
-            if let Err(e) = run_me(&client, &config, pretty).await {
+            let params = HashMap::new();
+            if let Err(e) = raw::run_raw(&client, &config, "GET", "/2/users/me", &params, &[], None, pretty).await {
                 eprint_command_error("me", e.as_ref(), use_color);
                 return ExitCode::from(1);
             }
@@ -255,45 +255,4 @@ async fn main() -> ExitCode {
     }
 
     ExitCode::SUCCESS
-}
-
-async fn run_me(
-    client: &reqwest::Client,
-    config: &ResolvedConfig,
-    pretty: bool,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = auth::resolve_token_for_command(client, config, "me").await?;
-    let (status, text) = match token {
-        auth::CommandToken::Bearer(access) => {
-            let res = client
-                .get("https://api.x.com/2/users/me")
-                .header("Authorization", format!("Bearer {}", access))
-                .send()
-                .await?;
-            (res.status(), res.text().await?)
-        }
-        auth::CommandToken::OAuth1 => {
-            let ck = config.oauth1_consumer_key.as_ref().unwrap();
-            let cs = config.oauth1_consumer_secret.as_ref().unwrap();
-            let at = config.oauth1_access_token.as_ref().unwrap();
-            let ats = config.oauth1_access_token_secret.as_ref().unwrap();
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
-            let res = client.clone()
-                .oauth1(secrets)
-                .get("https://api.x.com/2/users/me")
-                .send()
-                .await?;
-            (res.status(), res.text().await?)
-        }
-    };
-    if !status.is_success() {
-        return Err(format!("GET /2/users/me failed {}: {}", status, text).into());
-    }
-    let json: serde_json::Value = serde_json::from_str(&text)?;
-    if pretty {
-        println!("{}", serde_json::to_string_pretty(&json)?);
-    } else {
-        println!("{}", serde_json::to_string(&json)?);
-    }
-    Ok(())
 }

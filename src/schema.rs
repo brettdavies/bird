@@ -2,6 +2,20 @@
 
 use std::collections::HashMap;
 
+/// Validate that a path parameter value contains only safe characters.
+fn validate_param_value(name: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if value.is_empty() {
+        return Err(format!("path parameter '{}' must not be empty", name).into());
+    }
+    if !value.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+        return Err(format!(
+            "path parameter '{}' contains invalid characters (only alphanumeric, underscore, hyphen, dot allowed): {}",
+            name, value
+        ).into());
+    }
+    Ok(())
+}
+
 /// Resolve path template into concrete path by substituting {param} with values.
 /// Values come from params map (CLI -p), then env X_API_<PARAM_NAME> (uppercase, - → _).
 pub fn resolve_path(
@@ -24,6 +38,7 @@ pub fn resolve_path(
                         std::env::var(&env_key).ok()
                     });
                 let value = value.ok_or_else(|| format!("missing path parameter: {}", name))?;
+                validate_param_value(name, &value)?;
                 out.replace_range(start..end, &value);
                 i = start + value.len();
                 continue;
