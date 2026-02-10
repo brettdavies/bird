@@ -86,7 +86,7 @@ pub async fn run_login(
                         None => {
                             let err = params.get("error").cloned().unwrap_or_else(|| "unknown".into());
                             let _ = tx_clone.lock().ok().and_then(|mut g| g.take()).map(|t| t.send(Err(format!("error={}", err))));
-                            format!("<html><body>Authorization failed: {}</body></html>", err)
+                            "<html><body>Authorization failed. Check the terminal for details.</body></html>".to_string()
                         }
                     }
                 } else {
@@ -112,7 +112,13 @@ pub async fn run_login(
     };
 
     tokio::spawn(server);
-    let (code, _) = rx.await.map_err(|_| "callback channel closed")??;
+    let (code, _) = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        rx,
+    )
+    .await
+    .map_err(|_| "login timed out after 120s — no callback received (is a browser available?)")?
+    .map_err(|_| "callback channel closed")??;
 
     let token: TokenResponse = exchange_code(
         client,
