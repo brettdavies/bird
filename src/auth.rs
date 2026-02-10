@@ -16,12 +16,22 @@ pub struct StoredTokens {
     pub accounts: HashMap<String, OAuth2Account>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OAuth2Account {
     pub access_token: String,
     pub refresh_token: Option<String>,
     #[serde(default)]
     pub expires_at_secs: Option<u64>,
+}
+
+impl std::fmt::Debug for OAuth2Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuth2Account")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
+            .field("expires_at_secs", &self.expires_at_secs)
+            .finish()
+    }
 }
 
 /// Resolve effective OAuth2 access token: args > config > env > stored (by username).
@@ -104,7 +114,66 @@ fn url_encode(s: &str) -> String {
     percent_encoding::percent_encode(s.as_bytes(), percent_encoding::NON_ALPHANUMERIC).to_string()
 }
 
-/// Exchange authorization code for tokens. Uses public client (no secret) or confidential client (Basic auth).
+#[derive(Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u64>,
+}
+
+impl std::fmt::Debug for TokenResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenResponse")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
+}
+
+/// Post form body to TOKEN_URL with optional Basic auth (confidential client) or client_id in body (public client).
+async fn post_token(
+    client: &reqwest::Client,
+    client_id: &str,
+    client_secret: Option<&str>,
+    body: &[(&str, &str)],
+    error_label: &str,
+) -> Result<TokenResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let req = client
+        .post(TOKEN_URL)
+        .header("Content-Type", "application/x-www-form-urlencoded");
+    let req = if let Some(secret) = client_secret {
+        let creds = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("{}:{}", client_id, secret),
+        );
+        req.header("Authorization", format!("Basic {}", creds))
+            .body(
+                body.iter()
+                    .filter(|(k, _)| *k != "client_id")
+                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+                    .collect::<Vec<_>>()
+                    .join("&"),
+            )
+    } else {
+        req.body(
+            body.iter()
+                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
+                .collect::<Vec<_>>()
+                .join("&"),
+        )
+    };
+    let res = req.send().await?;
+    let status = res.status();
+    let text = res.text().await?;
+    if !status.is_success() {
+        return Err(format!("{} failed {}: {}", error_label, status, text).into());
+    }
+    let token: TokenResponse = serde_json::from_str(&text)?;
+    Ok(token)
+}
+
+/// Exchange authorization code for tokens.
 pub async fn exchange_code(
     client: &reqwest::Client,
     client_id: &str,
@@ -120,48 +189,10 @@ pub async fn exchange_code(
         ("redirect_uri", redirect_uri),
         ("code_verifier", code_verifier),
     ];
-    let req = client
-        .post(TOKEN_URL)
-        .header("Content-Type", "application/x-www-form-urlencoded");
-    let req = if let Some(secret) = client_secret {
-        let creds = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            format!("{}:{}", client_id, secret),
-        );
-        req.header("Authorization", format!("Basic {}", creds))
-            .body(
-                body.iter()
-                    .filter(|(k, _)| *k != "client_id")
-                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                    .collect::<Vec<_>>()
-                    .join("&"),
-            )
-    } else {
-        req.body(
-            body.iter()
-                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                .collect::<Vec<_>>()
-                .join("&"),
-        )
-    };
-    let res = req.send().await?;
-    let status = res.status();
-    let text = res.text().await?;
-    if !status.is_success() {
-        return Err(format!("token exchange failed {}: {}", status, text).into());
-    }
-    let token: TokenResponse = serde_json::from_str(&text)?;
-    Ok(token)
+    post_token(client, client_id, client_secret, &body, "token exchange").await
 }
 
-#[derive(Debug, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_in: Option<u64>,
-}
-
-/// Refresh OAuth2 access token. Uses public client (client_id in body only) or confidential client (Basic auth).
+/// Refresh OAuth2 access token.
 pub async fn refresh_access_token(
     client: &reqwest::Client,
     client_id: &str,
@@ -173,38 +204,7 @@ pub async fn refresh_access_token(
         ("refresh_token", refresh_token),
         ("client_id", client_id),
     ];
-    let req = client
-        .post(TOKEN_URL)
-        .header("Content-Type", "application/x-www-form-urlencoded");
-    let req = if let Some(secret) = client_secret {
-        let creds = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            format!("{}:{}", client_id, secret),
-        );
-        req.header("Authorization", format!("Basic {}", creds))
-            .body(
-                body.iter()
-                    .filter(|(k, _)| *k != "client_id")
-                    .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                    .collect::<Vec<_>>()
-                    .join("&"),
-            )
-    } else {
-        req.body(
-            body.iter()
-                .map(|(k, v)| format!("{}={}", url_encode(k), url_encode(v)))
-                .collect::<Vec<_>>()
-                .join("&"),
-        )
-    };
-    let res = req.send().await?;
-    let status = res.status();
-    let text = res.text().await?;
-    if !status.is_success() {
-        return Err(format!("refresh failed {}: {}", status, text).into());
-    }
-    let token: TokenResponse = serde_json::from_str(&text)?;
-    Ok(token)
+    post_token(client, client_id, client_secret, &body, "refresh").await
 }
 
 /// Fetch current user (GET /2/users/me) to get username.
@@ -241,7 +241,25 @@ pub fn save_stored_tokens(path: &Path, tokens: &StoredTokens) -> Result<(), std:
         std::fs::create_dir_all(parent)?;
     }
     let s = serde_json::to_string_pretty(tokens).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    std::fs::write(path, s)
+
+    #[cfg(unix)]
+    {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        f.write_all(s.as_bytes())?;
+        return Ok(());
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, s)
+    }
 }
 
 impl StoredTokens {
