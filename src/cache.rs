@@ -485,7 +485,8 @@ impl CachedClient {
 
     fn effective_ttl(&self, url: &str) -> i64 {
         if let Some(ttl) = self.cache_opts.cache_ttl {
-            return ttl as i64;
+            // Cap at 24 hours to prevent stale-forever entries; safe i64 conversion
+            return ttl.min(86400) as i64;
         }
         default_ttl_for_endpoint(url)
     }
