@@ -115,6 +115,18 @@ struct Cli {
     /// Disable ANSI colors (or set NO_COLOR)
     #[arg(long, global = true)]
     no_color: bool,
+
+    /// Bypass cache read, still write response to cache
+    #[arg(long, global = true)]
+    refresh: bool,
+
+    /// Disable cache entirely (no read, no write)
+    #[arg(long, global = true)]
+    no_cache: bool,
+
+    /// Override cache TTL for this request (seconds)
+    #[arg(long, global = true, value_name = "SECONDS")]
+    cache_ttl: Option<u64>,
 }
 
 #[derive(clap::Subcommand)]
@@ -195,48 +207,48 @@ enum Command {
 async fn run(
     command: Command,
     config: ResolvedConfig,
-    client: &reqwest::Client,
+    client: &mut cache::CachedClient,
     use_color: bool,
     use_hyperlinks: bool,
 ) -> Result<(), BirdError> {
     match command {
         Command::Login => {
-            login::run_login(client, config, use_color, use_hyperlinks)
+            login::run_login(client.http(), config, use_color, use_hyperlinks)
                 .await
                 .map_err(|e| BirdError::Command { name: "login", source: e })?;
         }
         Command::Me { pretty } => {
             let params = HashMap::new();
-            raw::run_raw(client, &config, "GET", "/2/users/me", &params, &[], None, pretty)
+            raw::run_raw(client, &config, "GET", "/2/users/me", &params, &[], None, pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "me", source: e })?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, &config, pretty)
+            bookmarks::run_bookmarks(client, &config, pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "bookmarks", source: e })?;
         }
         Command::Get { path, param, query, pretty } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "GET", &path, &params, &query, None, pretty)
+            raw::run_raw(client, &config, "GET", &path, &params, &query, None, pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "get", source: e })?;
         }
         Command::Post { path, param, query, body, pretty } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "POST", &path, &params, &query, body.as_deref(), pretty)
+            raw::run_raw(client, &config, "POST", &path, &params, &query, body.as_deref(), pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "post", source: e })?;
         }
         Command::Put { path, param, query, body, pretty } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty)
+            raw::run_raw(client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "put", source: e })?;
         }
         Command::Delete { path, param, query, pretty } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "DELETE", &path, &params, &query, None, pretty)
+            raw::run_raw(client, &config, "DELETE", &path, &params, &query, None, pretty, use_color)
                 .await
                 .map_err(|e| BirdError::Command { name: "delete", source: e })?;
         }
@@ -291,13 +303,25 @@ async fn main() -> ExitCode {
         }
     };
 
-    let client = reqwest::Client::builder()
+    let http_client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(30))
         .build()
         .expect("failed to build HTTP client");
 
-    match run(cli.command, config, &client, use_color, use_hyperlinks).await {
+    let cache_opts = cache::CacheOpts {
+        no_cache: cli.no_cache || !config.cache_enabled,
+        refresh: cli.refresh,
+        cache_ttl: cli.cache_ttl,
+    };
+    let mut client = cache::CachedClient::new(
+        http_client,
+        &config.cache_path,
+        cache_opts,
+        config.cache_max_size_mb,
+    );
+
+    match run(cli.command, config, &mut client, use_color, use_hyperlinks).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             e.print(use_color);

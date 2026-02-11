@@ -455,6 +455,9 @@ mod tests {
             oauth1_access_token_secret: None,
             config_dir: config_dir.clone(),
             tokens_path: config_dir.join("tokens.json"),
+            cache_path: config_dir.join("cache.db"),
+            cache_enabled: true,
+            cache_max_size_mb: 100,
         }
     }
 

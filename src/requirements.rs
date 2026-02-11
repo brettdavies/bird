@@ -15,6 +15,17 @@ pub enum AuthType {
     None,
 }
 
+impl std::fmt::Display for AuthType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AuthType::OAuth2User => write!(f, "oauth2_user"),
+            AuthType::OAuth1 => write!(f, "oauth1"),
+            AuthType::Bearer => write!(f, "bearer"),
+            AuthType::None => write!(f, "none"),
+        }
+    }
+}
+
 /// Per-command auth requirements: which auth types are accepted and hint strings for errors/doctor.
 #[derive(Clone, Debug)]
 pub struct CommandReqs {
