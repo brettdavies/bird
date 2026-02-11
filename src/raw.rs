@@ -11,6 +11,7 @@ use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_raw(
     client: &mut CachedClient,
     config: &ResolvedConfig,

@@ -138,7 +138,7 @@ impl BirdDb {
         stmt.execute(params![key, url, status_code, body, body_size, now, ttl_seconds])?;
 
         self.write_count += 1;
-        if self.write_count % 20 == 0 {
+        if self.write_count.is_multiple_of(20) {
             self.prune_if_needed()?;
         }
         Ok(())
@@ -238,10 +238,13 @@ impl Drop for BirdDb {
 /// A cached response entry.
 #[derive(Debug)]
 pub struct CacheEntry {
+    #[allow(dead_code)] // used for debugging/logging
     pub url: String,
     pub status_code: i64,
     pub body: Vec<u8>,
+    #[allow(dead_code)] // available for future cache inspection
     pub created_at: i64,
+    #[allow(dead_code)] // available for future cache inspection
     pub ttl_seconds: i64,
 }
 
@@ -276,26 +279,20 @@ pub struct CacheContext<'a> {
 }
 
 /// Cache control options from CLI flags.
+#[derive(Default)]
 pub struct CacheOpts {
     pub no_cache: bool,
     pub refresh: bool,
     pub cache_ttl: Option<u64>,
 }
 
-impl Default for CacheOpts {
-    fn default() -> Self {
-        Self {
-            no_cache: false,
-            refresh: false,
-            cache_ttl: None,
-        }
-    }
-}
+// CacheOpts uses Default derive — all fields default to false/None
 
 /// Response from CachedClient (covers both cache hits and fresh responses).
 pub struct ApiResponse {
     pub status: reqwest::StatusCode,
     pub body: String,
+    #[allow(dead_code)] // available for rate limit header inspection in Plans 2-4
     pub headers: reqwest::header::HeaderMap,
     pub cache_hit: bool,
 }
