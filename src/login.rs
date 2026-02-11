@@ -146,8 +146,7 @@ pub async fn run_login(
     let username = fetch_me(client, &token.access_token).await?;
 
     config.ensure_config_dir()?;
-    let mut stored =
-        crate::auth::load_stored_tokens(&config.tokens_path).unwrap_or_else(StoredTokens::new);
+    let mut stored = crate::auth::load_stored_tokens(&config.tokens_path).unwrap_or_default();
     let expires_at = StoredTokens::expires_at(token.expires_in);
     stored.add_account(
         username.clone(),

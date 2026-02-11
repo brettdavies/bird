@@ -73,7 +73,7 @@ pub fn resolve_bearer_token(config: &ResolvedConfig) -> Option<String> {
 pub fn make_code_verifier() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
-    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &bytes)
+    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
 }
 
 /// PKCE S256 code_challenge = base64url(SHA256(verifier)).
@@ -258,7 +258,7 @@ pub fn save_stored_tokens(path: &Path, tokens: &StoredTokens) -> Result<(), std:
             .mode(0o600)
             .open(path)?;
         f.write_all(s.as_bytes())?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(unix))]
     {
@@ -340,7 +340,7 @@ pub async fn ensure_access_token(
         .ok_or("no access token (run bird login or set X_API_ACCESS_TOKEN)")?;
 
     let stored_path = &config.tokens_path;
-    let mut tokens = stored.unwrap_or_else(StoredTokens::new);
+    let mut tokens = stored.unwrap_or_default();
     let username = config
         .username
         .clone()
@@ -355,7 +355,7 @@ pub async fn ensure_access_token(
         .as_secs();
     let expired = expires_at.map(|e| now_secs >= e).unwrap_or(false);
 
-    if expired && refresh_opt.is_some() {
+    if let (true, Some(ref refresh_token)) = (expired, &refresh_opt) {
         let client_id = config
             .client_id
             .as_ref()
@@ -364,7 +364,7 @@ pub async fn ensure_access_token(
             client,
             client_id,
             config.client_secret.as_deref(),
-            refresh_opt.as_ref().unwrap(),
+            refresh_token,
         )
         .await?;
         if let Some(ref u) = username {
