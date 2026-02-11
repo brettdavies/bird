@@ -95,21 +95,14 @@ pub async fn run_thread(
     }
 
     // Step 2: Search for conversation tweets (paginated)
-    let mut all_tweets: Vec<serde_json::Value> = Vec::new();
+    let mut all_tweets: Vec<serde_json::Value> = Vec::with_capacity(100);
     let mut seen_ids: HashSet<String> = HashSet::new();
-    let mut seen_user_ids: HashSet<String> = HashSet::new();
-    let mut all_users: Vec<serde_json::Value> = Vec::new();
     let mut next_token: Option<String> = None;
     let mut pages_fetched: u32 = 0;
 
     // Seed seen_ids with root tweet to avoid duplicate
     if let Some(root_id) = root_tweet.get("id").and_then(|i| i.as_str()) {
         seen_ids.insert(root_id.to_string());
-    }
-
-    // Collect users from root tweet includes
-    if let Some(includes) = root_response.get("includes") {
-        collect_users(includes, &mut all_users, &mut seen_user_ids);
     }
 
     for page_num in 1..=max_pages {
@@ -135,10 +128,6 @@ pub async fn run_thread(
             if !id.is_empty() && seen_ids.insert(id.to_string()) {
                 all_tweets.push(tweet.clone());
             }
-        }
-
-        if let Some(includes) = page.get("includes") {
-            collect_users(includes, &mut all_users, &mut seen_user_ids);
         }
 
         pages_fetched = page_num;
@@ -261,7 +250,7 @@ async fn fetch(
                 .await?;
             let status = res.status();
             let text = res.text().await?;
-            Ok((status, text, false))
+            Ok((status, text, false)) // OAuth1 bypasses cache
         }
     }
 }
@@ -305,25 +294,8 @@ fn build_search_url(conversation_id: &str, next_token: Option<&str>) -> String {
     url.to_string()
 }
 
-fn collect_users(
-    includes: &serde_json::Value,
-    all_users: &mut Vec<serde_json::Value>,
-    seen_user_ids: &mut HashSet<String>,
-) {
-    if let Some(users) = includes.get("users").and_then(|u| u.as_array()) {
-        for user in users {
-            let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
-                all_users.push(user.clone());
-            }
-        }
-    }
-}
-
 struct ThreadNode {
     tweet: serde_json::Value,
-    #[allow(dead_code)]
-    tweet_id: String,
     parent_id: Option<String>,
     depth: usize,
     children: Vec<usize>,
@@ -333,7 +305,7 @@ fn build_thread_tree(
     root_tweet: &serde_json::Value,
     search_tweets: &[serde_json::Value],
 ) -> Vec<ThreadNode> {
-    let mut nodes: Vec<ThreadNode> = Vec::new();
+    let mut nodes: Vec<ThreadNode> = Vec::with_capacity(search_tweets.len() + 1);
     let mut id_to_index: HashMap<String, usize> = HashMap::new();
 
     // Insert root tweet at index 0
@@ -344,7 +316,6 @@ fn build_thread_tree(
         .to_string();
     nodes.push(ThreadNode {
         tweet: root_tweet.clone(),
-        tweet_id: root_id.clone(),
         parent_id: None,
         depth: 0,
         children: vec![],
@@ -374,7 +345,6 @@ fn build_thread_tree(
         let idx = nodes.len();
         nodes.push(ThreadNode {
             tweet: tweet.clone(),
-            tweet_id: id.clone(),
             parent_id,
             depth: 0,
             children: vec![],
@@ -393,25 +363,26 @@ fn build_thread_tree(
 
     // Compute depths via BFS from root (with circular reference guard)
     let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
-    let mut visited: HashSet<usize> = HashSet::new();
+    let mut visited = vec![false; nodes.len()];
     queue.push_back((0, 0));
-    visited.insert(0);
+    visited[0] = true;
     while let Some((idx, depth)) = queue.pop_front() {
         nodes[idx].depth = depth;
         // Sort children by created_at (lexicographic works for ISO 8601)
-        // Clone children to avoid borrow conflict with nodes
-        let mut children: Vec<usize> = nodes[idx].children.clone();
+        // Take children to avoid borrow conflict with nodes, then put back
+        let mut children = std::mem::take(&mut nodes[idx].children);
         children.sort_by(|&a, &b| {
             let a_time = nodes[a].tweet.get("created_at").and_then(|t| t.as_str()).unwrap_or("");
             let b_time = nodes[b].tweet.get("created_at").and_then(|t| t.as_str()).unwrap_or("");
             a_time.cmp(b_time)
         });
-        nodes[idx].children = children.clone();
-        for child_idx in children {
-            if visited.insert(child_idx) {
+        for &child_idx in &children {
+            if !visited[child_idx] {
+                visited[child_idx] = true;
                 queue.push_back((child_idx, depth + 1));
             }
         }
+        nodes[idx].children = children;
     }
 
     nodes
@@ -580,6 +551,30 @@ mod tests {
     fn flatten_empty() {
         let nodes: Vec<ThreadNode> = vec![];
         assert_eq!(flatten_thread(&nodes), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn parse_age_days_recent() {
+        let result = parse_age_days("2026-02-11T10:00:00.000Z");
+        assert!(result.is_some());
+        let age = result.unwrap();
+        // Should be within a reasonable range (test may run in 2026 or later)
+        assert!(age < 365 * 10, "age {} seems unreasonably large", age);
+    }
+
+    #[test]
+    fn parse_age_days_old_tweet() {
+        // A date from 2020 should be clearly older than 7 days
+        let result = parse_age_days("2020-01-15T12:00:00.000Z");
+        assert!(result.is_some());
+        assert!(result.unwrap() > 7, "2020 tweet should be > 7 days old");
+    }
+
+    #[test]
+    fn parse_age_days_invalid() {
+        assert!(parse_age_days("").is_none());
+        assert!(parse_age_days("not-a-date").is_none());
+        assert!(parse_age_days("short").is_none());
     }
 
     #[test]
