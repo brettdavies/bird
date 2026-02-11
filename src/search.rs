@@ -45,13 +45,14 @@ pub async fn run_search(
     let mut all_tweets: Vec<serde_json::Value> = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
     let mut all_users: Vec<serde_json::Value> = Vec::new();
+    let mut seen_user_ids: HashSet<String> = HashSet::new();
     let mut next_token: Option<String> = None;
     let mut pages_fetched: u32 = 0;
 
     for page_num in 1..=opts.pages {
         let url = build_search_url(&effective_query, opts.max_results, next_token.as_deref());
 
-        let (_auth_type, status, body) = match &token {
+        let (status, body, cache_hit) = match &token {
             CommandToken::Bearer(access) => {
                 let mut headers = HeaderMap::new();
                 headers.insert("Authorization", format!("Bearer {}", access).parse()?);
@@ -60,13 +61,25 @@ pub async fn run_search(
                     username: config.username.as_deref(),
                 };
                 let response = client.get(&url, &ctx, headers).await?;
-                (AuthType::OAuth2User, response.status, response.body)
+                (response.status, response.body, response.cache_hit)
             }
             CommandToken::OAuth1 => {
-                let ck = config.oauth1_consumer_key.as_ref().unwrap();
-                let cs = config.oauth1_consumer_secret.as_ref().unwrap();
-                let at = config.oauth1_access_token.as_ref().unwrap();
-                let ats = config.oauth1_access_token_secret.as_ref().unwrap();
+                let ck = config
+                    .oauth1_consumer_key
+                    .as_ref()
+                    .ok_or("OAuth1 consumer key missing")?;
+                let cs = config
+                    .oauth1_consumer_secret
+                    .as_ref()
+                    .ok_or("OAuth1 consumer secret missing")?;
+                let at = config
+                    .oauth1_access_token
+                    .as_ref()
+                    .ok_or("OAuth1 access token missing")?;
+                let ats = config
+                    .oauth1_access_token_secret
+                    .as_ref()
+                    .ok_or("OAuth1 access token secret missing")?;
                 let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
                     .token(at.as_str(), ats.as_str());
                 let res = client
@@ -78,7 +91,7 @@ pub async fn run_search(
                     .await?;
                 let status = res.status();
                 let text = res.text().await?;
-                (AuthType::OAuth1, status, text)
+                (status, text, false) // OAuth1 bypasses cache
             }
         };
 
@@ -86,11 +99,10 @@ pub async fn run_search(
             return Err(format!("GET search {}: {}", status, body).into());
         }
 
-        let page: serde_json::Value =
-            serde_json::from_str(&body).unwrap_or(serde_json::Value::Null);
+        let page: serde_json::Value = serde_json::from_str(&body)?;
 
         // Manual cost display per page
-        let estimate = cost::estimate_cost(&page, &url, false);
+        let estimate = cost::estimate_cost(&page, &url, cache_hit);
         cost::display_cost(&estimate, use_color);
 
         // Break on empty data (handles phantom next_token)
@@ -120,10 +132,15 @@ pub async fn run_search(
         let passed = all_tweets.len() - before;
         pages_fetched = page_num;
 
-        // Collect included users
+        // Collect included users (deduplicated across pages)
         if let Some(includes) = page.get("includes") {
             if let Some(users) = includes.get("users").and_then(|u| u.as_array()) {
-                all_users.extend(users.iter().cloned());
+                for user in users {
+                    let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                    if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
+                        all_users.push(user.clone());
+                    }
+                }
             }
         }
 
@@ -192,7 +209,10 @@ fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> 
 }
 
 fn apply_noise_reduction(query: &str) -> String {
-    if query.contains("is:retweet") {
+    let has_retweet_op = query
+        .split_whitespace()
+        .any(|t| t == "is:retweet" || t == "-is:retweet");
+    if has_retweet_op {
         query.to_string()
     } else {
         format!("{} -is:retweet", query)
@@ -337,12 +357,11 @@ mod tests {
     }
 
     #[test]
-    fn dedup_by_id() {
-        let mut seen = HashSet::new();
-        let tweet = serde_json::json!({"id": "123"});
-        let id = tweet.get("id").and_then(|v| v.as_str()).unwrap();
-        assert!(!seen.contains(id));
-        seen.insert(id.to_string());
-        assert!(seen.contains(id));
+    fn noise_reduction_ignores_substrings() {
+        // "crisis:retweet" contains "is:retweet" as a substring but is NOT the operator
+        assert_eq!(
+            apply_noise_reduction("crisis:retweet analysis"),
+            "crisis:retweet analysis -is:retweet"
+        );
     }
 }
