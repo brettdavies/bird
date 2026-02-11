@@ -4,7 +4,7 @@ This document describes how auth requirements, errors, and the doctor command ar
 
 ## Doctor: full and scoped reports
 
-- **`bird doctor`** — Full report: auth state, effective config (with source), and availability plus reasons for all commands (login, me, bookmarks, get, post, put, delete).
+- **`bird doctor`** — Full report: auth state, effective config (with source), and availability plus reasons for all commands (login, me, bookmarks, search, get, post, put, delete).
 - **`bird doctor <command>`** — Scoped report: same auth and config, but the commands section lists only the given command (e.g. `bird doctor me`). Lets humans and agents ask “what do I need to run `bird me`?” without parsing the full JSON.
 
 Use **`--pretty`** for a human-readable summary in either case.
@@ -17,6 +17,7 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 
 - **me**: OAuth 2.0 user token or OAuth 1.0a (not app-only bearer).
 - **bookmarks**: OAuth 2.0 user token only.
+- **search**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same as raw commands).
 - **login**: N/A (uses default client_id; optional client_secret for your own app).
 - **get / post / put / delete** (raw): any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 

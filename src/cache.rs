@@ -4,7 +4,7 @@
 
 use crate::requirements::AuthType;
 use rusqlite::{params, Connection};
-use rusqlite_migration::{M, Migrations};
+use rusqlite_migration::{Migrations, M};
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -51,8 +51,11 @@ impl BirdDb {
         )?;
 
         // Reject tampered databases with triggers
-        let trigger_count: i64 =
-            conn.query_row("SELECT count(*) FROM sqlite_master WHERE type='trigger'", [], |r| r.get(0))?;
+        let trigger_count: i64 = conn.query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='trigger'",
+            [],
+            |r| r.get(0),
+        )?;
         if trigger_count > 0 {
             return Err(rusqlite::Error::SqliteFailure(
                 rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
@@ -60,12 +63,12 @@ impl BirdDb {
             ));
         }
 
-        migrations()
-            .to_latest(&mut conn)
-            .map_err(|e| rusqlite::Error::SqliteFailure(
+        migrations().to_latest(&mut conn).map_err(|e| {
+            rusqlite::Error::SqliteFailure(
                 rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
                 Some(format!("migration failed: {}", e)),
-            ))?;
+            )
+        })?;
 
         Ok(Self {
             conn,
@@ -128,14 +131,29 @@ impl BirdDb {
     }
 
     /// Insert or replace a cache entry.
-    pub fn put(&mut self, key: &str, url: &str, status_code: u16, body: &[u8], ttl_seconds: i64) -> Result<(), rusqlite::Error> {
+    pub fn put(
+        &mut self,
+        key: &str,
+        url: &str,
+        status_code: u16,
+        body: &[u8],
+        ttl_seconds: i64,
+    ) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let body_size = body.len() as i64;
         let mut stmt = self.conn.prepare_cached(
             "INSERT OR REPLACE INTO cache (key, url, status_code, body, body_size, created_at, ttl_seconds)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
-        stmt.execute(params![key, url, status_code, body, body_size, now, ttl_seconds])?;
+        stmt.execute(params![
+            key,
+            url,
+            status_code,
+            body,
+            body_size,
+            now,
+            ttl_seconds
+        ])?;
 
         self.write_count += 1;
         if self.write_count.is_multiple_of(20) {
@@ -158,11 +176,11 @@ impl BirdDb {
         // First expire anything past TTL
         self.delete_expired()?;
 
-        let total: i64 = self.conn.query_row(
-            "SELECT COALESCE(SUM(body_size), 0) FROM cache",
-            [],
-            |r| r.get(0),
-        )?;
+        let total: i64 =
+            self.conn
+                .query_row("SELECT COALESCE(SUM(body_size), 0) FROM cache", [], |r| {
+                    r.get(0)
+                })?;
 
         if total as u64 <= self.max_bytes {
             return Ok(());
@@ -188,13 +206,14 @@ impl BirdDb {
 
     /// Cache statistics for `bird cache stats` and `bird doctor`.
     pub fn stats(&self) -> Result<CacheStats, rusqlite::Error> {
-        let entry_count: i64 =
-            self.conn.query_row("SELECT count(*) FROM cache", [], |r| r.get(0))?;
-        let total_size: i64 = self.conn.query_row(
-            "SELECT COALESCE(SUM(body_size), 0) FROM cache",
-            [],
-            |r| r.get(0),
-        )?;
+        let entry_count: i64 = self
+            .conn
+            .query_row("SELECT count(*) FROM cache", [], |r| r.get(0))?;
+        let total_size: i64 =
+            self.conn
+                .query_row("SELECT COALESCE(SUM(body_size), 0) FROM cache", [], |r| {
+                    r.get(0)
+                })?;
         let now = unix_now();
         let oldest: Option<i64> = self
             .conn
@@ -216,8 +235,9 @@ impl BirdDb {
 
     /// Delete all cache entries and reclaim space.
     pub fn clear(&self) -> Result<u64, rusqlite::Error> {
-        let count: i64 =
-            self.conn.query_row("SELECT count(*) FROM cache", [], |r| r.get(0))?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT count(*) FROM cache", [], |r| r.get(0))?;
         self.conn.execute("DELETE FROM cache", [])?;
         let _ = self.conn.execute_batch("PRAGMA incremental_vacuum;");
         Ok(count as u64)
@@ -317,9 +337,18 @@ pub struct CachedClient {
 
 impl CachedClient {
     /// Create a new CachedClient. If cache DB cannot be opened, degrades to no-cache.
-    pub fn new(http: reqwest::Client, cache_path: &Path, cache_opts: CacheOpts, max_size_mb: u64) -> Self {
+    pub fn new(
+        http: reqwest::Client,
+        cache_path: &Path,
+        cache_opts: CacheOpts,
+        max_size_mb: u64,
+    ) -> Self {
         if cache_opts.no_cache {
-            return Self { http, db: None, cache_opts };
+            return Self {
+                http,
+                db: None,
+                cache_opts,
+            };
         }
         let db = match BirdDb::open(cache_path, max_size_mb) {
             Ok(db) => Some(db),
@@ -329,7 +358,11 @@ impl CachedClient {
                 None
             }
         };
-        Self { http, db, cache_opts }
+        Self {
+            http,
+            db,
+            cache_opts,
+        }
     }
 
     /// GET request with transparent caching.
@@ -374,7 +407,13 @@ impl CachedClient {
         // Write to cache (only 2xx responses)
         if response.status.is_success() {
             if let Some(ref mut db) = self.db {
-                if let Err(e) = db.put(&key, url, response.status.as_u16(), response.body.as_bytes(), ttl) {
+                if let Err(e) = db.put(
+                    &key,
+                    url,
+                    response.status.as_u16(),
+                    response.body.as_bytes(),
+                    ttl,
+                ) {
                     eprintln!("[cache] warning: write failed: {}", e);
                 }
             }
@@ -480,7 +519,10 @@ fn normalize_url(url: &str) -> String {
         parsed.host_str()
     );
 
-    let mut pairs: Vec<(String, String)> = parsed.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+    let mut pairs: Vec<(String, String)> = parsed
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
 
     // Sort comma-separated values for known ID parameters
     for (key, value) in &mut pairs {
@@ -496,20 +538,33 @@ fn normalize_url(url: &str) -> String {
 
     let path = parsed.path();
     if pairs.is_empty() {
-        format!("{}://{}{}", parsed.scheme(), parsed.host_str().unwrap_or(""), path)
+        format!(
+            "{}://{}{}",
+            parsed.scheme(),
+            parsed.host_str().unwrap_or(""),
+            path
+        )
     } else {
         let query: String = pairs
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect::<Vec<_>>()
             .join("&");
-        format!("{}://{}{}?{}", parsed.scheme(), parsed.host_str().unwrap_or(""), path, query)
+        format!(
+            "{}://{}{}?{}",
+            parsed.scheme(),
+            parsed.host_str().unwrap_or(""),
+            path,
+            query
+        )
     }
 }
 
 /// Whether to skip caching for this URL.
 fn should_skip_cache(url: &str) -> bool {
-    url.contains("/oauth2/token") || url.contains("pagination_token=")
+    url.contains("/oauth2/token")
+        || url.contains("pagination_token=")
+        || url.contains("next_token=")
 }
 
 /// Per-endpoint TTL defaults (seconds). Most-specific pattern wins.
@@ -584,7 +639,14 @@ mod tests {
     #[test]
     fn put_and_get() {
         let mut db = in_memory_db();
-        db.put("key1", "https://api.x.com/2/tweets/123", 200, b"hello", 3600).unwrap();
+        db.put(
+            "key1",
+            "https://api.x.com/2/tweets/123",
+            200,
+            b"hello",
+            3600,
+        )
+        .unwrap();
         let entry = db.get("key1").unwrap().expect("should find entry");
         assert_eq!(entry.status_code, 200);
         assert_eq!(entry.body, b"hello");
@@ -601,15 +663,18 @@ mod tests {
     fn expired_entries_not_returned() {
         let mut db = in_memory_db();
         // Insert with TTL of 0 (already expired)
-        db.put("expired", "https://api.x.com/test", 200, b"old", 0).unwrap();
+        db.put("expired", "https://api.x.com/test", 200, b"old", 0)
+            .unwrap();
         assert!(db.get("expired").unwrap().is_none());
     }
 
     #[test]
     fn delete_expired() {
         let mut db = in_memory_db();
-        db.put("expired", "https://api.x.com/test", 200, b"old", 0).unwrap();
-        db.put("fresh", "https://api.x.com/test2", 200, b"new", 3600).unwrap();
+        db.put("expired", "https://api.x.com/test", 200, b"old", 0)
+            .unwrap();
+        db.put("fresh", "https://api.x.com/test2", 200, b"new", 3600)
+            .unwrap();
         let deleted = db.delete_expired().unwrap();
         assert_eq!(deleted, 1);
         assert!(db.get("fresh").unwrap().is_some());
@@ -618,8 +683,10 @@ mod tests {
     #[test]
     fn clear_removes_all() {
         let mut db = in_memory_db();
-        db.put("a", "https://api.x.com/1", 200, b"data1", 3600).unwrap();
-        db.put("b", "https://api.x.com/2", 200, b"data2", 3600).unwrap();
+        db.put("a", "https://api.x.com/1", 200, b"data1", 3600)
+            .unwrap();
+        db.put("b", "https://api.x.com/2", 200, b"data2", 3600)
+            .unwrap();
         let count = db.clear().unwrap();
         assert_eq!(count, 2);
         assert!(db.get("a").unwrap().is_none());
@@ -629,7 +696,8 @@ mod tests {
     #[test]
     fn stats_reports_correctly() {
         let mut db = in_memory_db();
-        db.put("a", "https://api.x.com/1", 200, b"hello", 3600).unwrap();
+        db.put("a", "https://api.x.com/1", 200, b"hello", 3600)
+            .unwrap();
         let stats = db.stats().unwrap();
         assert_eq!(stats.entry_count, 1);
         assert_eq!(stats.total_size_bytes, 5);
@@ -656,8 +724,14 @@ mod tests {
         let key3 = compute_cache_key("GET", "https://api.x.com/2/users/me", &ctx3);
 
         // All should be different
-        assert_ne!(key1, key2, "different auth_type should produce different keys");
-        assert_ne!(key1, key3, "different username should produce different keys");
+        assert_ne!(
+            key1, key2,
+            "different auth_type should produce different keys"
+        );
+        assert_ne!(
+            key1, key3,
+            "different username should produce different keys"
+        );
     }
 
     #[test]
@@ -689,17 +763,37 @@ mod tests {
     #[test]
     fn should_skip_oauth_and_pagination() {
         assert!(should_skip_cache("https://api.x.com/2/oauth2/token"));
-        assert!(should_skip_cache("https://api.x.com/2/users/123/bookmarks?pagination_token=abc"));
+        assert!(should_skip_cache(
+            "https://api.x.com/2/users/123/bookmarks?pagination_token=abc"
+        ));
+        assert!(should_skip_cache(
+            "https://api.x.com/2/tweets/search/recent?query=test&next_token=abc123"
+        ));
         assert!(!should_skip_cache("https://api.x.com/2/users/me"));
     }
 
     #[test]
     fn ttl_defaults() {
-        assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/users/me"), 3600);
-        assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/users/by/username/jack"), 3600);
-        assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/tweets/search/recent?query=test"), 900);
-        assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/tweets/123"), 900);
-        assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/users/123/bookmarks"), 900);
+        assert_eq!(
+            default_ttl_for_endpoint("https://api.x.com/2/users/me"),
+            3600
+        );
+        assert_eq!(
+            default_ttl_for_endpoint("https://api.x.com/2/users/by/username/jack"),
+            3600
+        );
+        assert_eq!(
+            default_ttl_for_endpoint("https://api.x.com/2/tweets/search/recent?query=test"),
+            900
+        );
+        assert_eq!(
+            default_ttl_for_endpoint("https://api.x.com/2/tweets/123"),
+            900
+        );
+        assert_eq!(
+            default_ttl_for_endpoint("https://api.x.com/2/users/123/bookmarks"),
+            900
+        );
         assert_eq!(default_ttl_for_endpoint("https://api.x.com/2/unknown"), 900);
     }
 
@@ -725,7 +819,8 @@ mod tests {
     #[test]
     fn pruning_respects_size_limit() {
         let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;").unwrap();
+        conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
+            .unwrap();
         migrations().to_latest(&mut conn).unwrap();
         let mut db = BirdDb {
             conn,
@@ -734,14 +829,20 @@ mod tests {
         };
 
         // Insert entries totaling > 100 bytes
-        db.put("a", "https://api.x.com/1", 200, &[0u8; 40], 3600).unwrap();
-        db.put("b", "https://api.x.com/2", 200, &[0u8; 40], 3600).unwrap();
-        db.put("c", "https://api.x.com/3", 200, &[0u8; 40], 3600).unwrap();
+        db.put("a", "https://api.x.com/1", 200, &[0u8; 40], 3600)
+            .unwrap();
+        db.put("b", "https://api.x.com/2", 200, &[0u8; 40], 3600)
+            .unwrap();
+        db.put("c", "https://api.x.com/3", 200, &[0u8; 40], 3600)
+            .unwrap();
 
         // Manually trigger prune
         db.prune_if_needed().unwrap();
 
         let stats = db.stats().unwrap();
-        assert!(stats.total_size_bytes <= 100, "should be under limit after prune");
+        assert!(
+            stats.total_size_bytes <= 100,
+            "should be under limit after prune"
+        );
     }
 }

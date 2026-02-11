@@ -39,7 +39,8 @@ pub struct CommandReqs {
     pub bearer_hint: &'static str,
 }
 
-pub const OAUTH2_HINT: &str = "Run `bird login` or set X_API_ACCESS_TOKEN (and optionally X_API_REFRESH_TOKEN).";
+pub const OAUTH2_HINT: &str =
+    "Run `bird login` or set X_API_ACCESS_TOKEN (and optionally X_API_REFRESH_TOKEN).";
 pub const OAUTH1_HINT: &str = "set X_API_CONSUMER_KEY, X_API_CONSUMER_SECRET, X_API_OAUTH1_ACCESS_TOKEN, X_API_OAUTH1_ACCESS_TOKEN_SECRET.";
 pub const BEARER_HINT: &str = "set X_API_BEARER_TOKEN.";
 
@@ -86,6 +87,12 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
+        "search" => CommandReqs {
+            accepted: RAW_ACCEPTED,
+            oauth2_hint: OAUTH2_HINT,
+            oauth1_hint: OAUTH1_HINT,
+            bearer_hint: BEARER_HINT,
+        },
         "login" => return None,
         _ => return None,
     })
@@ -93,7 +100,16 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
 
 /// All command names that have auth requirements (for doctor full report).
 pub fn command_names_with_auth() -> &'static [&'static str] {
-    &["login", "me", "bookmarks", "get", "post", "put", "delete"]
+    &[
+        "login",
+        "me",
+        "bookmarks",
+        "search",
+        "get",
+        "post",
+        "put",
+        "delete",
+    ]
 }
 
 /// Format a multi-line "auth required" error for a command, listing what to do for each accepted auth type.
