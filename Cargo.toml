@@ -25,3 +25,9 @@ percent-encoding = "2.3"
 url = "2.5"
 reqwest-oauth1 = "0.3"
 owo-colors = { version = "4", features = ["supports-color"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+rusqlite_migration = "2.4"
+
+[profile.release]
+strip = true
+lto = true

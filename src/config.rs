@@ -29,6 +29,9 @@ pub struct ResolvedConfig {
     pub oauth1_access_token_secret: Option<String>,
     pub config_dir: PathBuf,
     pub tokens_path: PathBuf,
+    pub cache_path: PathBuf,
+    pub cache_enabled: bool,
+    pub cache_max_size_mb: u64,
 }
 
 impl std::fmt::Debug for ResolvedConfig {
@@ -47,6 +50,9 @@ impl std::fmt::Debug for ResolvedConfig {
             .field("oauth1_access_token_secret", &self.oauth1_access_token_secret.as_ref().map(|_| "[REDACTED]"))
             .field("config_dir", &self.config_dir)
             .field("tokens_path", &self.tokens_path)
+            .field("cache_path", &self.cache_path)
+            .field("cache_enabled", &self.cache_enabled)
+            .field("cache_max_size_mb", &self.cache_max_size_mb)
             .finish()
     }
 }
@@ -140,6 +146,9 @@ impl ResolvedConfig {
             .oauth1_access_token_secret
             .or_else(|| std::env::var("X_API_OAUTH1_ACCESS_TOKEN_SECRET").ok());
 
+        let cache_path = config_dir.join("cache.db");
+        let cache_enabled = std::env::var("BIRD_NO_CACHE").as_deref() != Ok("1");
+
         Ok(ResolvedConfig {
             client_id,
             client_secret,
@@ -154,6 +163,9 @@ impl ResolvedConfig {
             oauth1_access_token_secret,
             config_dir: config_dir.clone(),
             tokens_path,
+            cache_path,
+            cache_enabled,
+            cache_max_size_mb: 100,
         })
     }
 

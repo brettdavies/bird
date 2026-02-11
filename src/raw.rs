@@ -1,14 +1,19 @@
 //! Raw request layer: HTTP method + path (with param substitution), query/body, auth, output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
+use crate::cache::{CacheContext, CachedClient};
 use crate::config::ResolvedConfig;
+use crate::cost;
+use crate::requirements::AuthType;
 use crate::schema::resolve_path;
+use reqwest::header::HeaderMap;
 use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_raw(
-    client: &reqwest::Client,
+    client: &mut CachedClient,
     config: &ResolvedConfig,
     method: &str,
     path: &str,
@@ -16,6 +21,7 @@ pub async fn run_raw(
     query: &[String],
     body: Option<&str>,
     pretty: bool,
+    use_color: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = resolve_path(path, params)?;
     let url = format!("https://api.x.com{}", path);
@@ -30,42 +36,62 @@ pub async fn run_raw(
     let method_upper = method.to_uppercase();
     let command_name = method.to_lowercase();
 
-    let token = resolve_token_for_command(client, config, &command_name).await?;
+    let token = resolve_token_for_command(client.http(), config, &command_name).await?;
 
-    let (status, text) = match token {
+    let (_auth_type, status, text) = match token {
         CommandToken::Bearer(access) => {
-            let mut req = match method_upper.as_str() {
-                "GET" => client.get(&url),
-                "POST" => client.post(&url),
-                "PUT" => client.put(&url),
-                "DELETE" => client.delete(&url),
-                _ => return Err(format!("unsupported method: {}", method).into()),
-            };
-            req = req.header("Authorization", format!("Bearer {}", access));
-            if let Some(b) = body {
-                req = req.header("Content-Type", "application/json").body(b.to_string());
+            let mut headers = HeaderMap::new();
+            headers.insert("Authorization", format!("Bearer {}", access).parse()?);
+
+            if method_upper == "GET" {
+                let ctx = CacheContext {
+                    auth_type: &AuthType::OAuth2User,
+                    username: config.username.as_deref(),
+                };
+                let response = client.get(&url, &ctx, headers).await?;
+                let estimate = cost::estimate_cost(
+                    &serde_json::from_str(&response.body).unwrap_or(serde_json::Value::Null),
+                    &url,
+                    response.cache_hit,
+                );
+                cost::display_cost(&estimate, use_color);
+                (AuthType::OAuth2User, response.status, response.body)
+            } else {
+                let reqwest_method = match method_upper.as_str() {
+                    "POST" => reqwest::Method::POST,
+                    "PUT" => reqwest::Method::PUT,
+                    "DELETE" => reqwest::Method::DELETE,
+                    _ => return Err(format!("unsupported method: {}", method).into()),
+                };
+                if body.is_some() {
+                    headers.insert("Content-Type", "application/json".parse()?);
+                }
+                let response = client.request(reqwest_method, &url, headers, body.map(String::from)).await?;
+                (AuthType::OAuth2User, response.status, response.body)
             }
-            let res = req.send().await?;
-            (res.status(), res.text().await?)
         }
         CommandToken::OAuth1 => {
+            // OAuth1 uses reqwest_oauth1 which needs the raw reqwest::Client.
+            // Cannot go through CachedClient.get() because oauth1 signs the request internally.
             let ck = config.oauth1_consumer_key.as_ref().unwrap();
             let cs = config.oauth1_consumer_secret.as_ref().unwrap();
             let at = config.oauth1_access_token.as_ref().unwrap();
             let ats = config.oauth1_access_token_secret.as_ref().unwrap();
             let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
             let mut req = match method_upper.as_str() {
-                "GET" => client.clone().oauth1(secrets).get(&url),
-                "POST" => client.clone().oauth1(secrets).post(&url),
-                "PUT" => client.clone().oauth1(secrets).put(&url),
-                "DELETE" => client.clone().oauth1(secrets).delete(&url),
+                "GET" => client.http().clone().oauth1(secrets).get(&url),
+                "POST" => client.http().clone().oauth1(secrets).post(&url),
+                "PUT" => client.http().clone().oauth1(secrets).put(&url),
+                "DELETE" => client.http().clone().oauth1(secrets).delete(&url),
                 _ => return Err(format!("unsupported method: {}", method).into()),
             };
             if let Some(b) = body {
                 req = req.header("Content-Type", "application/json").body(b.to_string());
             }
             let res = req.send().await?;
-            (res.status(), res.text().await?)
+            let status = res.status();
+            let text = res.text().await?;
+            (AuthType::OAuth1, status, text)
         }
     };
 
