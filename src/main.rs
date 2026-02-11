@@ -72,6 +72,18 @@ fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
     default_on && !plain && !no_color
 }
 
+fn format_duration(secs: i64) -> String {
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        format!("{}m", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h", secs / 3600)
+    } else {
+        format!("{}d", secs / 86400)
+    }
+}
+
 fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
     let mut m = HashMap::new();
     for p in param {
@@ -202,6 +214,23 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+
+    /// Manage the HTTP response cache
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum CacheAction {
+    /// Delete all cache entries
+    Clear,
+    /// Show cache status (JSON default, --pretty for human-readable)
+    Stats {
+        #[arg(long)]
+        pretty: bool,
+    },
 }
 
 async fn run(
@@ -216,6 +245,12 @@ async fn run(
             login::run_login(client.http(), config, use_color, use_hyperlinks)
                 .await
                 .map_err(|e| BirdError::Command { name: "login", source: e })?;
+            // Security: clear cache after re-auth to prevent stale data from previous context
+            if let Some(Ok(count)) = client.cache_clear() {
+                if count > 0 {
+                    eprintln!("[cache] Cleared {} cached entries after login.", count);
+                }
+            }
         }
         Command::Me { pretty } => {
             let params = HashMap::new();
@@ -255,8 +290,75 @@ async fn run(
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
-            doctor::run_doctor(&config, pretty, scope, use_color, use_emoji)
+            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji)
                 .map_err(|e| BirdError::Command { name: "doctor", source: e })?;
+        }
+        Command::Cache { action } => {
+            match action {
+                CacheAction::Clear => {
+                    match client.cache_clear() {
+                        Some(Ok(count)) => {
+                            let stats = client.cache_stats().and_then(|r| r.ok());
+                            let size_str = stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
+                            eprintln!("Cleared {} cache entries ({} MB).", count, size_str);
+                        }
+                        Some(Err(e)) => {
+                            return Err(BirdError::Command {
+                                name: "cache",
+                                source: format!("failed to clear cache: {}", e).into(),
+                            });
+                        }
+                        None => {
+                            eprintln!("Cache is not available.");
+                        }
+                    }
+                }
+                CacheAction::Stats { pretty } => {
+                    match client.cache_stats() {
+                        Some(Ok(stats)) => {
+                            if pretty {
+                                let path = client.cache_path()
+                                    .map(|p| p.display().to_string())
+                                    .unwrap_or_else(|| "unknown".to_string());
+                                println!("Cache: {}", path);
+                                println!("Size:  {:.1} MB / {:.0} MB limit", stats.size_mb(), stats.max_size_mb());
+                                println!("Entries: {}", stats.entry_count);
+                                if let (Some(oldest), Some(newest)) = (stats.oldest_seconds_ago, stats.newest_seconds_ago) {
+                                    println!("Oldest: {} ago | Newest: {} ago",
+                                        format_duration(oldest),
+                                        format_duration(newest));
+                                }
+                            } else {
+                                let path = client.cache_path()
+                                    .map(|p| p.display().to_string())
+                                    .unwrap_or_else(|| "unknown".to_string());
+                                let json = serde_json::json!({
+                                    "path": path,
+                                    "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
+                                    "max_size_mb": stats.max_size_mb() as u64,
+                                    "entries": stats.entry_count,
+                                    "oldest_seconds_ago": stats.oldest_seconds_ago,
+                                    "newest_seconds_ago": stats.newest_seconds_ago,
+                                    "healthy": stats.healthy(),
+                                });
+                                println!("{}", serde_json::to_string(&json).map_err(|e| BirdError::Command {
+                                    name: "cache",
+                                    source: e.into(),
+                                })?);
+                            }
+                        }
+                        Some(Err(e)) => {
+                            return Err(BirdError::Command {
+                                name: "cache",
+                                source: format!("failed to read cache stats: {}", e).into(),
+                            });
+                        }
+                        None => {
+                            eprintln!("Cache is not available.");
+                        }
+                    }
+                }
+            }
         }
     }
     Ok(())

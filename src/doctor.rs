@@ -1,6 +1,7 @@
 //! bird doctor: living view of auth state, effective config (with source), and which commands are usable.
 
 use crate::auth::{load_stored_tokens, resolve_bearer_token, resolve_oauth2_token};
+use crate::cache::CachedClient;
 use crate::config::{FileConfig, ResolvedConfig, DEFAULT_REDIRECT_URI};
 use crate::requirements::{requirements_for_command, AuthType, command_names_with_auth, reason_for_unavailable};
 use serde::Serialize;
@@ -54,10 +55,22 @@ pub struct CommandStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct CacheStatus {
+    pub path: String,
+    pub exists: bool,
+    pub size_mb: f64,
+    pub max_size_mb: u64,
+    pub entries: u64,
+    pub healthy: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct DoctorReport {
     pub auth: AuthState,
     pub config: HashMap<String, serde_json::Value>,
     pub commands: HashMap<String, CommandStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<CacheStatus>,
 }
 
 fn env_set(key: &str) -> bool {
@@ -344,7 +357,7 @@ fn build_commands_section(config: &ResolvedConfig, auth: &AuthState) -> HashMap<
 }
 
 /// Build full or scoped report. When scope is Some("me"), only that command appears in report.commands.
-pub(crate) fn report(config: &ResolvedConfig, scope: Option<&str>) -> DoctorReport {
+pub(crate) fn report(config: &ResolvedConfig, client: &CachedClient, scope: Option<&str>) -> DoctorReport {
     let file = file_config(&config.config_dir);
     let auth = build_auth_state(config);
     let mut commands = build_commands_section(config, &auth);
@@ -354,10 +367,40 @@ pub(crate) fn report(config: &ResolvedConfig, scope: Option<&str>) -> DoctorRepo
             commands.insert(cmd.to_string(), status);
         }
     }
+
+    let cache = match client.cache_stats() {
+        Some(Ok(stats)) => {
+            let path = client.cache_path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| config.cache_path.display().to_string());
+            Some(CacheStatus {
+                path,
+                exists: true,
+                size_mb: (stats.size_mb() * 10.0).round() / 10.0,
+                max_size_mb: stats.max_size_mb() as u64,
+                entries: stats.entry_count,
+                healthy: stats.healthy(),
+            })
+        }
+        Some(Err(_)) => {
+            let path = config.cache_path.display().to_string();
+            Some(CacheStatus {
+                path,
+                exists: config.cache_path.exists(),
+                size_mb: 0.0,
+                max_size_mb: config.cache_max_size_mb,
+                entries: 0,
+                healthy: false,
+            })
+        }
+        None => None,
+    };
+
     DoctorReport {
         auth: auth.clone(),
         config: build_config_section(config, &file),
         commands,
+        cache,
     }
 }
 
@@ -403,18 +446,33 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
         };
         out.push_str(&format!("  {}: {}{}\n", output::command(name, use_color), emoji, r));
     }
+
+    if let Some(ref cache) = report.cache {
+        out.push_str(&format!("\n{}\n", output::section("Cache", use_color)));
+        out.push_str(&format!("  path: {}\n", output::muted(&cache.path, use_color)));
+        out.push_str(&format!("  size: {}\n", output::muted(&format!("{:.1} MB / {} MB", cache.size_mb, cache.max_size_mb), use_color)));
+        out.push_str(&format!("  entries: {}\n", output::muted(&cache.entries.to_string(), use_color)));
+        let status = if cache.healthy { "healthy" } else { "unhealthy" };
+        out.push_str(&format!("  status: {}\n", if cache.healthy {
+            output::success(status, use_color)
+        } else {
+            output::error(status, use_color)
+        }));
+    }
+
     out
 }
 
 /// Run doctor: build report and print JSON (compact) or human summary. When scope is Some("me"), report only that command.
 pub fn run_doctor(
     config: &ResolvedConfig,
+    client: &CachedClient,
     pretty: bool,
     scope: Option<&str>,
     use_color: bool,
     use_emoji: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let r = report(config, scope);
+    let r = report(config, client, scope);
     if pretty {
         println!("{}", format_pretty(&r, use_color, use_emoji));
     } else {
@@ -426,6 +484,7 @@ pub fn run_doctor(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::{CacheOpts, CachedClient};
     use crate::config::DEFAULT_REDIRECT_URI;
 
     /// Unset auth-related env vars so report() only sees the config we pass (no env leakage).
@@ -461,11 +520,22 @@ mod tests {
         }
     }
 
+    fn no_cache_client() -> CachedClient {
+        let http = reqwest::Client::new();
+        CachedClient::new(
+            http,
+            Path::new("/dev/null"),
+            CacheOpts { no_cache: true, refresh: false, cache_ttl: None },
+            100,
+        )
+    }
+
     #[test]
     fn doctor_report_no_auth_has_none_type_and_me_unavailable() {
         clear_auth_env();
         let config = minimal_config_no_auth();
-        let r = report(&config, None);
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
         assert_eq!(r.auth.auth_type, AuthType::None);
         assert!(!r.commands.get("me").unwrap().available);
         assert!(!r.commands.get("login").unwrap().available);
@@ -475,7 +545,8 @@ mod tests {
     fn doctor_report_json_contains_no_secret_values() {
         let mut config = minimal_config_no_auth();
         config.access_token = Some("secret-token-value".to_string());
-        let r = report(&config, None);
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
         let json = serde_json::to_string(&r).unwrap();
         assert!(!json.contains("secret-token-value"));
         assert!(!json.contains("Bearer "));
@@ -486,7 +557,8 @@ mod tests {
         clear_auth_env();
         let mut config = minimal_config_no_auth();
         config.access_token = Some("test-token".to_string());
-        let r = report(&config, None);
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
         assert_eq!(r.auth.auth_type, AuthType::OAuth2User);
         assert!(r.commands.get("me").unwrap().available);
         assert!(r.commands.get("bookmarks").unwrap().available);
@@ -500,7 +572,8 @@ mod tests {
         config.oauth1_consumer_secret = Some("cs".into());
         config.oauth1_access_token = Some("at".into());
         config.oauth1_access_token_secret = Some("ats".into());
-        let r = report(&config, None);
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
         assert_eq!(r.auth.auth_type, AuthType::OAuth1);
         assert!(r.commands.get("me").unwrap().available, "me accepts OAuth 1.0a per spec");
         assert!(
@@ -513,7 +586,8 @@ mod tests {
     fn doctor_report_bearer_me_and_bookmarks_unavailable() {
         let mut config = minimal_config_no_auth();
         config.bearer_token = Some("bearer".into());
-        let r = report(&config, None);
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
         assert_eq!(r.auth.auth_type, AuthType::Bearer);
         assert!(!r.commands.get("me").unwrap().available);
         assert!(!r.commands.get("bookmarks").unwrap().available);
@@ -522,7 +596,8 @@ mod tests {
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
         let config = minimal_config_no_auth();
-        let r = report(&config, Some("me"));
+        let client = no_cache_client();
+        let r = report(&config, &client, Some("me"));
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
     }
