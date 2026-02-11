@@ -46,6 +46,8 @@ pub const BEARER_HINT: &str = "set X_API_BEARER_TOKEN.";
 
 const ME_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1];
 const BOOKMARKS_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User];
+// Search: OAuth 2.0 User, OAuth 1.0a, Bearer per X API spec for GET /2/tweets/search/recent
+const SEARCH_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 
 /// Returns requirements for a command by name. Used by execution, errors, and doctor.
@@ -88,7 +90,7 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
             bearer_hint: BEARER_HINT,
         },
         "search" => CommandReqs {
-            accepted: RAW_ACCEPTED,
+            accepted: SEARCH_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
