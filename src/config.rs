@@ -38,16 +38,43 @@ impl std::fmt::Debug for ResolvedConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResolvedConfig")
             .field("client_id", &self.client_id.as_ref().map(|_| "[REDACTED]"))
-            .field("client_secret", &self.client_secret.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "client_secret",
+                &self.client_secret.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("redirect_uri", &self.redirect_uri)
-            .field("access_token", &self.access_token.as_ref().map(|_| "[REDACTED]"))
-            .field("refresh_token", &self.refresh_token.as_ref().map(|_| "[REDACTED]"))
-            .field("bearer_token", &self.bearer_token.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "access_token",
+                &self.access_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "refresh_token",
+                &self.refresh_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "bearer_token",
+                &self.bearer_token.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("username", &self.username)
-            .field("oauth1_consumer_key", &self.oauth1_consumer_key.as_ref().map(|_| "[REDACTED]"))
-            .field("oauth1_consumer_secret", &self.oauth1_consumer_secret.as_ref().map(|_| "[REDACTED]"))
-            .field("oauth1_access_token", &self.oauth1_access_token.as_ref().map(|_| "[REDACTED]"))
-            .field("oauth1_access_token_secret", &self.oauth1_access_token_secret.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "oauth1_consumer_key",
+                &self.oauth1_consumer_key.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "oauth1_consumer_secret",
+                &self.oauth1_consumer_secret.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "oauth1_access_token",
+                &self.oauth1_access_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "oauth1_access_token_secret",
+                &self
+                    .oauth1_access_token_secret
+                    .as_ref()
+                    .map(|_| "[REDACTED]"),
+            )
             .field("config_dir", &self.config_dir)
             .field("tokens_path", &self.tokens_path)
             .field("cache_path", &self.cache_path)
@@ -83,10 +110,10 @@ pub struct ArgOverrides {
 
 impl ResolvedConfig {
     /// Build config with priority: args > file > env > default.
-    pub fn load(arg_overrides: ArgOverrides) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let config_dir = dirs::config_dir()
-            .ok_or("no config dir")?
-            .join("bird");
+    pub fn load(
+        arg_overrides: ArgOverrides,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let config_dir = dirs::config_dir().ok_or("no config dir")?.join("bird");
         let tokens_path = config_dir.join("tokens.json");
         let config_path = config_dir.join("config.toml");
 

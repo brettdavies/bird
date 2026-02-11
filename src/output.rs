@@ -1,7 +1,7 @@
 //! Terminal output: color choice for clap, styled helpers, and hyperlinks.
 
-use std::io::IsTerminal;
 use owo_colors::OwoColorize;
+use std::io::IsTerminal;
 
 /// Color choice for clap help/errors: respect NO_COLOR and TERM=dumb, and TTY.
 pub fn color_choice_for_clap() -> clap::ColorChoice {

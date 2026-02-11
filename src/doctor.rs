@@ -3,7 +3,9 @@
 use crate::auth::{load_stored_tokens, resolve_bearer_token, resolve_oauth2_token};
 use crate::cache::CachedClient;
 use crate::config::{FileConfig, ResolvedConfig, DEFAULT_REDIRECT_URI};
-use crate::requirements::{requirements_for_command, AuthType, command_names_with_auth, reason_for_unavailable};
+use crate::requirements::{
+    command_names_with_auth, reason_for_unavailable, requirements_for_command, AuthType,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -133,7 +135,10 @@ fn source_username(file: &FileConfig) -> (Option<String>, Option<ConfigSource>) 
     }
 }
 
-fn build_config_section(config: &ResolvedConfig, file: &FileConfig) -> HashMap<String, serde_json::Value> {
+fn build_config_section(
+    config: &ResolvedConfig,
+    file: &FileConfig,
+) -> HashMap<String, serde_json::Value> {
     let mut out = HashMap::new();
 
     let (redirect_uri, redirect_source) = source_redirect_uri(file);
@@ -285,19 +290,15 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
         } else {
             Some(AuthSource::Env)
         };
-        let username = config
-            .username
-            .clone()
-            .or_else(|| stored.as_ref().and_then(|s| s.accounts.keys().next().cloned()));
+        let username = config.username.clone().or_else(|| {
+            stored
+                .as_ref()
+                .and_then(|s| s.accounts.keys().next().cloned())
+        });
         let can_refresh = refresh_opt.is_some() && config.client_id.is_some();
         (AuthType::OAuth2User, source, username, can_refresh)
     } else {
-        (
-            AuthType::None,
-            None,
-            None,
-            false,
-        )
+        (AuthType::None, None, None, false)
     };
 
     AuthState {
@@ -309,7 +310,10 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
 }
 
 /// Command availability from centralized requirements (openapi/x-api-openapi.json).
-fn build_commands_section(config: &ResolvedConfig, auth: &AuthState) -> HashMap<String, CommandStatus> {
+fn build_commands_section(
+    config: &ResolvedConfig,
+    auth: &AuthState,
+) -> HashMap<String, CommandStatus> {
     let has_oauth2_user = auth.auth_type == AuthType::OAuth2User;
     let has_oauth1 = auth.auth_type == AuthType::OAuth1;
     let has_bearer = auth.auth_type == AuthType::Bearer;
@@ -357,7 +361,11 @@ fn build_commands_section(config: &ResolvedConfig, auth: &AuthState) -> HashMap<
 }
 
 /// Build full or scoped report. When scope is Some("me"), only that command appears in report.commands.
-pub(crate) fn report(config: &ResolvedConfig, client: &CachedClient, scope: Option<&str>) -> DoctorReport {
+pub(crate) fn report(
+    config: &ResolvedConfig,
+    client: &CachedClient,
+    scope: Option<&str>,
+) -> DoctorReport {
     let file = file_config(&config.config_dir);
     let auth = build_auth_state(config);
     let mut commands = build_commands_section(config, &auth);
@@ -370,7 +378,8 @@ pub(crate) fn report(config: &ResolvedConfig, client: &CachedClient, scope: Opti
 
     let cache = match client.cache_stats() {
         Some(Ok(stats)) => {
-            let path = client.cache_path()
+            let path = client
+                .cache_path()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| config.cache_path.display().to_string());
             Some(CacheStatus {
@@ -408,11 +417,18 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     use crate::output;
     let mut out = String::new();
     out.push_str(&format!("{}\n", output::section("Auth", use_color)));
-    let type_str = serde_json::to_string(&report.auth.auth_type).unwrap_or_else(|_| "unknown".into());
-    out.push_str(&format!("  type: {}\n", output::muted(type_str.trim_matches('"'), use_color)));
+    let type_str =
+        serde_json::to_string(&report.auth.auth_type).unwrap_or_else(|_| "unknown".into());
+    out.push_str(&format!(
+        "  type: {}\n",
+        output::muted(type_str.trim_matches('"'), use_color)
+    ));
     if let Some(ref s) = report.auth.source {
         let src_str = serde_json::to_string(s).unwrap_or_else(|_| "?".into());
-        out.push_str(&format!("  source: {}\n", output::muted(src_str.trim_matches('"'), use_color)));
+        out.push_str(&format!(
+            "  source: {}\n",
+            output::muted(src_str.trim_matches('"'), use_color)
+        ));
     }
     if let Some(ref u) = report.auth.username {
         out.push_str(&format!("  username: {}\n", output::muted(u, use_color)));
@@ -422,9 +438,16 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
         output::muted(&report.auth.can_refresh.to_string(), use_color)
     ));
 
-    out.push_str(&format!("\n{}\n", output::section("Config (sources)", use_color)));
+    out.push_str(&format!(
+        "\n{}\n",
+        output::section("Config (sources)", use_color)
+    ));
     for (k, v) in &report.config {
-        out.push_str(&format!("  {}: {}\n", k, serde_json::to_string(v).unwrap_or_default()));
+        out.push_str(&format!(
+            "  {}: {}\n",
+            k,
+            serde_json::to_string(v).unwrap_or_default()
+        ));
     }
 
     out.push_str(&format!("\n{}\n", output::section("Commands", use_color)));
@@ -441,23 +464,51 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             let reason = status.reason.as_deref().unwrap_or("");
             (
                 output::emoji_unavailable(use_emoji),
-                format!("{}{}", output::error("unavailable: ", use_color), output::muted(reason, use_color)),
+                format!(
+                    "{}{}",
+                    output::error("unavailable: ", use_color),
+                    output::muted(reason, use_color)
+                ),
             )
         };
-        out.push_str(&format!("  {}: {}{}\n", output::command(name, use_color), emoji, r));
+        out.push_str(&format!(
+            "  {}: {}{}\n",
+            output::command(name, use_color),
+            emoji,
+            r
+        ));
     }
 
     if let Some(ref cache) = report.cache {
         out.push_str(&format!("\n{}\n", output::section("Cache", use_color)));
-        out.push_str(&format!("  path: {}\n", output::muted(&cache.path, use_color)));
-        out.push_str(&format!("  size: {}\n", output::muted(&format!("{:.1} MB / {} MB", cache.size_mb, cache.max_size_mb), use_color)));
-        out.push_str(&format!("  entries: {}\n", output::muted(&cache.entries.to_string(), use_color)));
-        let status = if cache.healthy { "healthy" } else { "unhealthy" };
-        out.push_str(&format!("  status: {}\n", if cache.healthy {
-            output::success(status, use_color)
+        out.push_str(&format!(
+            "  path: {}\n",
+            output::muted(&cache.path, use_color)
+        ));
+        out.push_str(&format!(
+            "  size: {}\n",
+            output::muted(
+                &format!("{:.1} MB / {} MB", cache.size_mb, cache.max_size_mb),
+                use_color
+            )
+        ));
+        out.push_str(&format!(
+            "  entries: {}\n",
+            output::muted(&cache.entries.to_string(), use_color)
+        ));
+        let status = if cache.healthy {
+            "healthy"
         } else {
-            output::error(status, use_color)
-        }));
+            "unhealthy"
+        };
+        out.push_str(&format!(
+            "  status: {}\n",
+            if cache.healthy {
+                output::success(status, use_color)
+            } else {
+                output::error(status, use_color)
+            }
+        ));
     }
 
     out
@@ -525,7 +576,11 @@ mod tests {
         CachedClient::new(
             http,
             Path::new("/dev/null"),
-            CacheOpts { no_cache: true, refresh: false, cache_ttl: None },
+            CacheOpts {
+                no_cache: true,
+                refresh: false,
+                cache_ttl: None,
+            },
             100,
         )
     }
@@ -575,7 +630,10 @@ mod tests {
         let client = no_cache_client();
         let r = report(&config, &client, None);
         assert_eq!(r.auth.auth_type, AuthType::OAuth1);
-        assert!(r.commands.get("me").unwrap().available, "me accepts OAuth 1.0a per spec");
+        assert!(
+            r.commands.get("me").unwrap().available,
+            "me accepts OAuth 1.0a per spec"
+        );
         assert!(
             !r.commands.get("bookmarks").unwrap().available,
             "bookmarks requires OAuth 2.0 user only per spec"

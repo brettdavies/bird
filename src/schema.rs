@@ -3,11 +3,17 @@
 use std::collections::HashMap;
 
 /// Validate that a path parameter value contains only safe characters.
-fn validate_param_value(name: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn validate_param_value(
+    name: &str,
+    value: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if value.is_empty() {
         return Err(format!("path parameter '{}' must not be empty", name).into());
     }
-    if !value.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+    if !value
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
         return Err(format!(
             "path parameter '{}' contains invalid characters (only alphanumeric, underscore, hyphen, dot allowed): {}",
             name, value
@@ -30,13 +36,10 @@ pub fn resolve_path(
             if let Some(end) = out[start..].find('}') {
                 let end = start + end + 1;
                 let name = &out[start + 1..end - 1];
-                let value = params
-                    .get(name)
-                    .cloned()
-                    .or_else(|| {
-                        let env_key = format!("X_API_{}", name.to_uppercase().replace('-', "_"));
-                        std::env::var(&env_key).ok()
-                    });
+                let value = params.get(name).cloned().or_else(|| {
+                    let env_key = format!("X_API_{}", name.to_uppercase().replace('-', "_"));
+                    std::env::var(&env_key).ok()
+                });
                 let value = value.ok_or_else(|| format!("missing path parameter: {}", name))?;
                 validate_param_value(name, &value)?;
                 out.replace_range(start..end, &value);
