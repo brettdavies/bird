@@ -46,8 +46,12 @@ pub const BEARER_HINT: &str = "set X_API_BEARER_TOKEN.";
 
 const ME_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1];
 const BOOKMARKS_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User];
+// Profile: all three auth types per X API spec for GET /2/users/by/username/{username}
+const PROFILE_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 // Search: OAuth 2.0 User, OAuth 1.0a, Bearer per X API spec for GET /2/tweets/search/recent
 const SEARCH_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
+// Thread: same auth as search (uses /2/tweets/{id} + /2/tweets/search/recent)
+const THREAD_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 
 /// Returns requirements for a command by name. Used by execution, errors, and doctor.
@@ -89,8 +93,20 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
+        "profile" => CommandReqs {
+            accepted: PROFILE_ACCEPTED,
+            oauth2_hint: OAUTH2_HINT,
+            oauth1_hint: OAUTH1_HINT,
+            bearer_hint: BEARER_HINT,
+        },
         "search" => CommandReqs {
             accepted: SEARCH_ACCEPTED,
+            oauth2_hint: OAUTH2_HINT,
+            oauth1_hint: OAUTH1_HINT,
+            bearer_hint: BEARER_HINT,
+        },
+        "thread" => CommandReqs {
+            accepted: THREAD_ACCEPTED,
             oauth2_hint: OAUTH2_HINT,
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
@@ -106,7 +122,9 @@ pub fn command_names_with_auth() -> &'static [&'static str] {
         "login",
         "me",
         "bookmarks",
+        "profile",
         "search",
+        "thread",
         "get",
         "post",
         "put",

@@ -8,10 +8,12 @@ mod cost;
 mod doctor;
 mod login;
 mod output;
+mod profile;
 mod raw;
 mod requirements;
 mod schema;
 mod search;
+mod thread;
 
 use clap::CommandFactory;
 use clap::FromArgMatches;
@@ -197,6 +199,15 @@ enum Command {
         pretty: bool,
     },
 
+    /// Look up a user profile by username
+    Profile {
+        /// X/Twitter username (with or without @)
+        username: String,
+        /// Pretty-print JSON output
+        #[arg(long)]
+        pretty: bool,
+    },
+
     /// Search recent tweets (GET /2/tweets/search/recent)
     Search {
         /// Search query (X API search syntax)
@@ -221,6 +232,18 @@ enum Command {
         /// Number of pages to fetch (1-10, default: 1)
         #[arg(long)]
         pages: Option<u32>,
+    },
+
+    /// Reconstruct a conversation thread from a tweet
+    Thread {
+        /// Tweet ID (root tweet or any reply in the thread)
+        tweet_id: String,
+        /// Pretty-print JSON output
+        #[arg(long)]
+        pretty: bool,
+        /// Maximum number of search result pages (default: 10, max: 25)
+        #[arg(long, default_value = "10")]
+        max_pages: u32,
     },
 
     /// DELETE request to path
@@ -309,6 +332,22 @@ async fn run(
                     source: e,
                 })?;
         }
+        Command::Profile { username, pretty } => {
+            profile::run_profile(
+                client,
+                &config,
+                profile::ProfileOpts {
+                    username: &username,
+                    pretty,
+                },
+                use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "profile",
+                source: e,
+            })?;
+        }
         Command::Search {
             query,
             pretty,
@@ -331,6 +370,27 @@ async fn run(
                     name: "search",
                     source: e,
                 })?;
+        }
+        Command::Thread {
+            tweet_id,
+            pretty,
+            max_pages,
+        } => {
+            thread::run_thread(
+                client,
+                &config,
+                thread::ThreadOpts {
+                    tweet_id: &tweet_id,
+                    pretty,
+                    max_pages,
+                },
+                use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "thread",
+                source: e,
+            })?;
         }
         Command::Get {
             path,
