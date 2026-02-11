@@ -66,7 +66,9 @@ pub async fn run_raw(
                 if body.is_some() {
                     headers.insert("Content-Type", "application/json".parse()?);
                 }
-                let response = client.request(reqwest_method, &url, headers, body.map(String::from)).await?;
+                let response = client
+                    .request(reqwest_method, &url, headers, body.map(String::from))
+                    .await?;
                 (AuthType::OAuth2User, response.status, response.body)
             }
         }
@@ -77,7 +79,8 @@ pub async fn run_raw(
             let cs = config.oauth1_consumer_secret.as_ref().unwrap();
             let at = config.oauth1_access_token.as_ref().unwrap();
             let ats = config.oauth1_access_token_secret.as_ref().unwrap();
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
+            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
+                .token(at.as_str(), ats.as_str());
             let mut req = match method_upper.as_str() {
                 "GET" => client.http().clone().oauth1(secrets).get(&url),
                 "POST" => client.http().clone().oauth1(secrets).post(&url),
@@ -86,7 +89,9 @@ pub async fn run_raw(
                 _ => return Err(format!("unsupported method: {}", method).into()),
             };
             if let Some(b) = body {
-                req = req.header("Content-Type", "application/json").body(b.to_string());
+                req = req
+                    .header("Content-Type", "application/json")
+                    .body(b.to_string());
             }
             let res = req.send().await?;
             let status = res.status();
@@ -98,7 +103,8 @@ pub async fn run_raw(
     if !status.is_success() {
         return Err(format!("{} {}: {}", method, status, text).into());
     }
-    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
+    let json: serde_json::Value =
+        serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
     if pretty {
         println!("{}", serde_json::to_string_pretty(&json)?);
     } else {

@@ -80,17 +80,33 @@ pub async fn run_login(
                 if path == "/callback" && state == *expected_state_clone {
                     match &code {
                         Some(c) => {
-                            let _ = tx_clone.lock().ok().and_then(|mut g| g.take()).map(|t| t.send(Ok((c.clone(), state))));
-                            "<html><body>Authorized. You can close this tab.</body></html>".to_string()
+                            let _ = tx_clone
+                                .lock()
+                                .ok()
+                                .and_then(|mut g| g.take())
+                                .map(|t| t.send(Ok((c.clone(), state))));
+                            "<html><body>Authorized. You can close this tab.</body></html>"
+                                .to_string()
                         }
                         None => {
-                            let err = params.get("error").cloned().unwrap_or_else(|| "unknown".into());
-                            let _ = tx_clone.lock().ok().and_then(|mut g| g.take()).map(|t| t.send(Err(format!("error={}", err))));
+                            let err = params
+                                .get("error")
+                                .cloned()
+                                .unwrap_or_else(|| "unknown".into());
+                            let _ = tx_clone
+                                .lock()
+                                .ok()
+                                .and_then(|mut g| g.take())
+                                .map(|t| t.send(Err(format!("error={}", err))));
                             "<html><body>Authorization failed. Check the terminal for details.</body></html>".to_string()
                         }
                     }
                 } else {
-                    let _ = tx_clone.lock().ok().and_then(|mut g| g.take()).map(|t| t.send(Err("state mismatch".into())));
+                    let _ = tx_clone
+                        .lock()
+                        .ok()
+                        .and_then(|mut g| g.take())
+                        .map(|t| t.send(Err("state mismatch".into())));
                     "<html><body>State mismatch. Please try again.</body></html>".to_string()
                 }
             } else {
@@ -112,13 +128,10 @@ pub async fn run_login(
     };
 
     tokio::spawn(server);
-    let (code, _) = tokio::time::timeout(
-        std::time::Duration::from_secs(120),
-        rx,
-    )
-    .await
-    .map_err(|_| "login timed out after 120s — no callback received (is a browser available?)")?
-    .map_err(|_| "callback channel closed")??;
+    let (code, _) = tokio::time::timeout(std::time::Duration::from_secs(120), rx)
+        .await
+        .map_err(|_| "login timed out after 120s — no callback received (is a browser available?)")?
+        .map_err(|_| "callback channel closed")??;
 
     let token: TokenResponse = exchange_code(
         client,
@@ -133,7 +146,7 @@ pub async fn run_login(
     let username = fetch_me(client, &token.access_token).await?;
 
     config.ensure_config_dir()?;
-    let mut stored = crate::auth::load_stored_tokens(&config.tokens_path).unwrap_or_else(StoredTokens::new);
+    let mut stored = crate::auth::load_stored_tokens(&config.tokens_path).unwrap_or_default();
     let expires_at = StoredTokens::expires_at(token.expires_in);
     stored.add_account(
         username.clone(),
@@ -145,6 +158,9 @@ pub async fn run_login(
     );
     save_stored_tokens(&config.tokens_path, &stored)?;
 
-    println!("{}", crate::output::success(&format!("Logged in as @{}", username), use_color));
+    println!(
+        "{}",
+        crate::output::success(&format!("Logged in as @{}", username), use_color)
+    );
     Ok(())
 }

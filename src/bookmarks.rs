@@ -28,7 +28,9 @@ pub async fn run_bookmarks(
     // Fetch user ID via /2/users/me (goes through cache)
     let mut me_headers = HeaderMap::new();
     me_headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-    let me_response = client.get("https://api.x.com/2/users/me", &ctx, me_headers).await?;
+    let me_response = client
+        .get("https://api.x.com/2/users/me", &ctx, me_headers)
+        .await?;
     if !me_response.status.is_success() {
         return Err(format!("GET /2/users/me failed: {}", me_response.body).into());
     }
@@ -39,7 +41,11 @@ pub async fn run_bookmarks(
         .and_then(|id| id.as_str())
         .ok_or("no data.id in /2/users/me response")?;
 
-    let me_estimate = cost::estimate_cost(&me_json, "https://api.x.com/2/users/me", me_response.cache_hit);
+    let me_estimate = cost::estimate_cost(
+        &me_json,
+        "https://api.x.com/2/users/me",
+        me_response.cache_hit,
+    );
     cost::display_cost(&me_estimate, use_color);
 
     let mut pagination_token: Option<String> = None;

@@ -1,16 +1,17 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
 mod auth;
+mod bookmarks;
 mod cache;
 mod config;
 mod cost;
 mod doctor;
-mod output;
-mod requirements;
 mod login;
-mod bookmarks;
+mod output;
 mod raw;
+mod requirements;
 mod schema;
+mod search;
 
 use clap::CommandFactory;
 use clap::FromArgMatches;
@@ -196,6 +197,32 @@ enum Command {
         pretty: bool,
     },
 
+    /// Search recent tweets (GET /2/tweets/search/recent)
+    Search {
+        /// Search query (X API search syntax)
+        query: String,
+
+        /// Pretty-print JSON output
+        #[arg(long)]
+        pretty: bool,
+
+        /// Sort results: recent (default), likes
+        #[arg(long, default_value = "recent")]
+        sort: String,
+
+        /// Minimum like count threshold
+        #[arg(long)]
+        min_likes: Option<u64>,
+
+        /// Maximum results per page (10-100, default: 100)
+        #[arg(long)]
+        max_results: Option<u32>,
+
+        /// Number of pages to fetch (1-10, default: 1)
+        #[arg(long)]
+        pages: Option<u32>,
+    },
+
     /// DELETE request to path
     Delete {
         path: String,
@@ -244,7 +271,10 @@ async fn run(
         Command::Login => {
             login::run_login(client.http(), config, use_color, use_hyperlinks)
                 .await
-                .map_err(|e| BirdError::Command { name: "login", source: e })?;
+                .map_err(|e| BirdError::Command {
+                    name: "login",
+                    source: e,
+                })?;
             // Security: clear cache after re-auth to prevent stale data from previous context
             if let Some(Ok(count)) = client.cache_clear() {
                 if count > 0 {
@@ -254,112 +284,221 @@ async fn run(
         }
         Command::Me { pretty } => {
             let params = HashMap::new();
-            raw::run_raw(client, &config, "GET", "/2/users/me", &params, &[], None, pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command { name: "me", source: e })?;
+            raw::run_raw(
+                client,
+                &config,
+                "GET",
+                "/2/users/me",
+                &params,
+                &[],
+                None,
+                pretty,
+                use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "me",
+                source: e,
+            })?;
         }
         Command::Bookmarks { pretty } => {
             bookmarks::run_bookmarks(client, &config, pretty, use_color)
                 .await
-                .map_err(|e| BirdError::Command { name: "bookmarks", source: e })?;
+                .map_err(|e| BirdError::Command {
+                    name: "bookmarks",
+                    source: e,
+                })?;
         }
-        Command::Get { path, param, query, pretty } => {
-            let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "GET", &path, &params, &query, None, pretty, use_color)
+        Command::Search {
+            query,
+            pretty,
+            sort,
+            min_likes,
+            max_results,
+            pages,
+        } => {
+            let opts = search::SearchOpts {
+                query: &query,
+                pretty,
+                sort: &sort,
+                min_likes,
+                max_results: max_results.unwrap_or(100).clamp(10, 100),
+                pages: pages.unwrap_or(1).clamp(1, 10),
+            };
+            search::run_search(client, &config, opts, use_color)
                 .await
-                .map_err(|e| BirdError::Command { name: "get", source: e })?;
+                .map_err(|e| BirdError::Command {
+                    name: "search",
+                    source: e,
+                })?;
         }
-        Command::Post { path, param, query, body, pretty } => {
+        Command::Get {
+            path,
+            param,
+            query,
+            pretty,
+        } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "POST", &path, &params, &query, body.as_deref(), pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command { name: "post", source: e })?;
+            raw::run_raw(
+                client, &config, "GET", &path, &params, &query, None, pretty, use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "get",
+                source: e,
+            })?;
         }
-        Command::Put { path, param, query, body, pretty } => {
+        Command::Post {
+            path,
+            param,
+            query,
+            body,
+            pretty,
+        } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "PUT", &path, &params, &query, body.as_deref(), pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command { name: "put", source: e })?;
+            raw::run_raw(
+                client,
+                &config,
+                "POST",
+                &path,
+                &params,
+                &query,
+                body.as_deref(),
+                pretty,
+                use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "post",
+                source: e,
+            })?;
         }
-        Command::Delete { path, param, query, pretty } => {
+        Command::Put {
+            path,
+            param,
+            query,
+            body,
+            pretty,
+        } => {
             let params = parse_param_vec(&param);
-            raw::run_raw(client, &config, "DELETE", &path, &params, &query, None, pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command { name: "delete", source: e })?;
+            raw::run_raw(
+                client,
+                &config,
+                "PUT",
+                &path,
+                &params,
+                &query,
+                body.as_deref(),
+                pretty,
+                use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "put",
+                source: e,
+            })?;
+        }
+        Command::Delete {
+            path,
+            param,
+            query,
+            pretty,
+        } => {
+            let params = parse_param_vec(&param);
+            raw::run_raw(
+                client, &config, "DELETE", &path, &params, &query, None, pretty, use_color,
+            )
+            .await
+            .map_err(|e| BirdError::Command {
+                name: "delete",
+                source: e,
+            })?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
-            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji)
-                .map_err(|e| BirdError::Command { name: "doctor", source: e })?;
+            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji).map_err(
+                |e| BirdError::Command {
+                    name: "doctor",
+                    source: e,
+                },
+            )?;
         }
-        Command::Cache { action } => {
-            match action {
-                CacheAction::Clear => {
-                    match client.cache_clear() {
-                        Some(Ok(count)) => {
-                            let stats = client.cache_stats().and_then(|r| r.ok());
-                            let size_str = stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                            eprintln!("Cleared {} cache entries ({} MB).", count, size_str);
+        Command::Cache { action } => match action {
+            CacheAction::Clear => match client.cache_clear() {
+                Some(Ok(count)) => {
+                    let stats = client.cache_stats().and_then(|r| r.ok());
+                    let size_str =
+                        stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
+                    eprintln!("Cleared {} cache entries ({} MB).", count, size_str);
+                }
+                Some(Err(e)) => {
+                    return Err(BirdError::Command {
+                        name: "cache",
+                        source: format!("failed to clear cache: {}", e).into(),
+                    });
+                }
+                None => {
+                    eprintln!("Cache is not available.");
+                }
+            },
+            CacheAction::Stats { pretty } => match client.cache_stats() {
+                Some(Ok(stats)) => {
+                    if pretty {
+                        let path = client
+                            .cache_path()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        println!("Cache: {}", path);
+                        println!(
+                            "Size:  {:.1} MB / {:.0} MB limit",
+                            stats.size_mb(),
+                            stats.max_size_mb()
+                        );
+                        println!("Entries: {}", stats.entry_count);
+                        if let (Some(oldest), Some(newest)) =
+                            (stats.oldest_seconds_ago, stats.newest_seconds_ago)
+                        {
+                            println!(
+                                "Oldest: {} ago | Newest: {} ago",
+                                format_duration(oldest),
+                                format_duration(newest)
+                            );
                         }
-                        Some(Err(e)) => {
-                            return Err(BirdError::Command {
+                    } else {
+                        let path = client
+                            .cache_path()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+                        let json = serde_json::json!({
+                            "path": path,
+                            "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
+                            "max_size_mb": stats.max_size_mb() as u64,
+                            "entries": stats.entry_count,
+                            "oldest_seconds_ago": stats.oldest_seconds_ago,
+                            "newest_seconds_ago": stats.newest_seconds_ago,
+                            "healthy": stats.healthy(),
+                        });
+                        println!(
+                            "{}",
+                            serde_json::to_string(&json).map_err(|e| BirdError::Command {
                                 name: "cache",
-                                source: format!("failed to clear cache: {}", e).into(),
-                            });
-                        }
-                        None => {
-                            eprintln!("Cache is not available.");
-                        }
+                                source: e.into(),
+                            })?
+                        );
                     }
                 }
-                CacheAction::Stats { pretty } => {
-                    match client.cache_stats() {
-                        Some(Ok(stats)) => {
-                            if pretty {
-                                let path = client.cache_path()
-                                    .map(|p| p.display().to_string())
-                                    .unwrap_or_else(|| "unknown".to_string());
-                                println!("Cache: {}", path);
-                                println!("Size:  {:.1} MB / {:.0} MB limit", stats.size_mb(), stats.max_size_mb());
-                                println!("Entries: {}", stats.entry_count);
-                                if let (Some(oldest), Some(newest)) = (stats.oldest_seconds_ago, stats.newest_seconds_ago) {
-                                    println!("Oldest: {} ago | Newest: {} ago",
-                                        format_duration(oldest),
-                                        format_duration(newest));
-                                }
-                            } else {
-                                let path = client.cache_path()
-                                    .map(|p| p.display().to_string())
-                                    .unwrap_or_else(|| "unknown".to_string());
-                                let json = serde_json::json!({
-                                    "path": path,
-                                    "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
-                                    "max_size_mb": stats.max_size_mb() as u64,
-                                    "entries": stats.entry_count,
-                                    "oldest_seconds_ago": stats.oldest_seconds_ago,
-                                    "newest_seconds_ago": stats.newest_seconds_ago,
-                                    "healthy": stats.healthy(),
-                                });
-                                println!("{}", serde_json::to_string(&json).map_err(|e| BirdError::Command {
-                                    name: "cache",
-                                    source: e.into(),
-                                })?);
-                            }
-                        }
-                        Some(Err(e)) => {
-                            return Err(BirdError::Command {
-                                name: "cache",
-                                source: format!("failed to read cache stats: {}", e).into(),
-                            });
-                        }
-                        None => {
-                            eprintln!("Cache is not available.");
-                        }
-                    }
+                Some(Err(e)) => {
+                    return Err(BirdError::Command {
+                        name: "cache",
+                        source: format!("failed to read cache stats: {}", e).into(),
+                    });
                 }
-            }
-        }
+                None => {
+                    eprintln!("Cache is not available.");
+                }
+            },
+        },
     }
     Ok(())
 }
@@ -367,7 +506,10 @@ async fn run(
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("bird=info".parse().unwrap()))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("bird=info".parse().unwrap()),
+        )
         .with_writer(std::io::stderr)
         .init();
 
@@ -384,12 +526,22 @@ async fn main() -> ExitCode {
     let use_hyperlinks = use_color && std::io::stderr().is_terminal();
 
     let overrides = ArgOverrides {
-        client_id: cli.client_id.or_else(|| std::env::var("X_API_CLIENT_ID").ok()),
-        client_secret: cli.client_secret.or_else(|| std::env::var("X_API_CLIENT_SECRET").ok()),
-        access_token: cli.access_token.or_else(|| std::env::var("X_API_ACCESS_TOKEN").ok()),
-        refresh_token: cli.refresh_token.or_else(|| std::env::var("X_API_REFRESH_TOKEN").ok()),
+        client_id: cli
+            .client_id
+            .or_else(|| std::env::var("X_API_CLIENT_ID").ok()),
+        client_secret: cli
+            .client_secret
+            .or_else(|| std::env::var("X_API_CLIENT_SECRET").ok()),
+        access_token: cli
+            .access_token
+            .or_else(|| std::env::var("X_API_ACCESS_TOKEN").ok()),
+        refresh_token: cli
+            .refresh_token
+            .or_else(|| std::env::var("X_API_REFRESH_TOKEN").ok()),
         bearer_token: std::env::var("X_API_BEARER_TOKEN").ok(),
-        username: cli.username.or_else(|| std::env::var("X_API_USERNAME").ok()),
+        username: cli
+            .username
+            .or_else(|| std::env::var("X_API_USERNAME").ok()),
         oauth1_consumer_key: None,
         oauth1_consumer_secret: None,
         oauth1_access_token: None,

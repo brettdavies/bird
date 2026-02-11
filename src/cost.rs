@@ -71,13 +71,25 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
 pub fn display_cost(estimate: &CostEstimate, use_color: bool) {
     let mut parts = Vec::new();
     if estimate.tweets_read > 0 {
-        parts.push(format!("{} tweet{}", estimate.tweets_read, if estimate.tweets_read == 1 { "" } else { "s" }));
+        parts.push(format!(
+            "{} tweet{}",
+            estimate.tweets_read,
+            if estimate.tweets_read == 1 { "" } else { "s" }
+        ));
     }
     if estimate.users_read > 0 {
-        parts.push(format!("{} user{}", estimate.users_read, if estimate.users_read == 1 { "" } else { "s" }));
+        parts.push(format!(
+            "{} user{}",
+            estimate.users_read,
+            if estimate.users_read == 1 { "" } else { "s" }
+        ));
     }
 
-    let hit_miss = if estimate.cache_hit { "cache hit" } else { "cache miss" };
+    let hit_miss = if estimate.cache_hit {
+        "cache hit"
+    } else {
+        "cache miss"
+    };
 
     let msg = if estimate.cache_hit {
         format!("[cost] $0.00 ({})", hit_miss)

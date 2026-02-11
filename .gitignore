@@ -8,3 +8,5 @@ Cargo.lock
 config.local.toml
 tokens.json
 /todos
+/docs/brainstorms
+/docs/plans

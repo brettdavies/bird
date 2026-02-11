@@ -1,7 +1,7 @@
 //! Terminal output: color choice for clap, styled helpers, and hyperlinks.
 
-use std::io::IsTerminal;
 use owo_colors::OwoColorize;
+use std::io::IsTerminal;
 
 /// Color choice for clap help/errors: respect NO_COLOR and TERM=dumb, and TTY.
 pub fn color_choice_for_clap() -> clap::ColorChoice {
@@ -67,8 +67,8 @@ pub fn hyperlink(url: &str, display_text: Option<&str>, use_hyperlinks: bool) ->
         return display_text.unwrap_or(url).to_string();
     }
     let display = display_text.unwrap_or(url);
-    let safe_url = url.replace('\x1b', "").replace('\x07', "");
-    let safe_text = display.replace('\x1b', "").replace('\x07', "");
+    let safe_url = url.replace(['\x1b', '\x07'], "");
+    let safe_text = display.replace(['\x1b', '\x07'], "");
     format!("\x1b]8;;{}\x07{}\x1b]8;;\x07", safe_url, safe_text)
 }
 

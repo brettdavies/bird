@@ -39,12 +39,15 @@ pub struct CommandReqs {
     pub bearer_hint: &'static str,
 }
 
-pub const OAUTH2_HINT: &str = "Run `bird login` or set X_API_ACCESS_TOKEN (and optionally X_API_REFRESH_TOKEN).";
+pub const OAUTH2_HINT: &str =
+    "Run `bird login` or set X_API_ACCESS_TOKEN (and optionally X_API_REFRESH_TOKEN).";
 pub const OAUTH1_HINT: &str = "set X_API_CONSUMER_KEY, X_API_CONSUMER_SECRET, X_API_OAUTH1_ACCESS_TOKEN, X_API_OAUTH1_ACCESS_TOKEN_SECRET.";
 pub const BEARER_HINT: &str = "set X_API_BEARER_TOKEN.";
 
 const ME_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1];
 const BOOKMARKS_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User];
+// Search: OAuth 2.0 User, OAuth 1.0a, Bearer per X API spec for GET /2/tweets/search/recent
+const SEARCH_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 
 /// Returns requirements for a command by name. Used by execution, errors, and doctor.
@@ -86,6 +89,12 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
+        "search" => CommandReqs {
+            accepted: SEARCH_ACCEPTED,
+            oauth2_hint: OAUTH2_HINT,
+            oauth1_hint: OAUTH1_HINT,
+            bearer_hint: BEARER_HINT,
+        },
         "login" => return None,
         _ => return None,
     })
@@ -93,7 +102,16 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
 
 /// All command names that have auth requirements (for doctor full report).
 pub fn command_names_with_auth() -> &'static [&'static str] {
-    &["login", "me", "bookmarks", "get", "post", "put", "delete"]
+    &[
+        "login",
+        "me",
+        "bookmarks",
+        "search",
+        "get",
+        "post",
+        "put",
+        "delete",
+    ]
 }
 
 /// Format a multi-line "auth required" error for a command, listing what to do for each accepted auth type.
