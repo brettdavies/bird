@@ -1,7 +1,9 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
 mod auth;
+mod cache;
 mod config;
+mod cost;
 mod doctor;
 mod output;
 mod requirements;
