@@ -11,18 +11,46 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(
-        "CREATE TABLE IF NOT EXISTS cache (
-            key         TEXT PRIMARY KEY,
-            url         TEXT NOT NULL,
-            status_code INTEGER NOT NULL,
-            body        BLOB NOT NULL,
-            body_size   INTEGER NOT NULL,
-            created_at  INTEGER NOT NULL,
-            ttl_seconds INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_cache_created ON cache(created_at);",
-    )])
+    // IMPORTANT: Never modify existing migrations. Only append new ones.
+    Migrations::new(vec![
+        M::up(
+            "CREATE TABLE IF NOT EXISTS cache (
+                key         TEXT PRIMARY KEY,
+                url         TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                body        BLOB NOT NULL,
+                body_size   INTEGER NOT NULL,
+                created_at  INTEGER NOT NULL,
+                ttl_seconds INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_cache_created ON cache(created_at);",
+        ),
+        // Migration 2: usage tracking table (per-API-call cost logging)
+        M::up(
+            "CREATE TABLE IF NOT EXISTS usage (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp      INTEGER NOT NULL,
+                date_ymd       INTEGER NOT NULL,
+                endpoint       TEXT NOT NULL,
+                method         TEXT NOT NULL,
+                object_type    TEXT,
+                object_count   INTEGER NOT NULL DEFAULT 0,
+                estimated_cost REAL NOT NULL DEFAULT 0.0,
+                cache_hit      INTEGER NOT NULL DEFAULT 0,
+                username       TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_usage_ymd_endpoint_cache ON usage(date_ymd, endpoint, cache_hit);
+            CREATE INDEX IF NOT EXISTS idx_usage_endpoint ON usage(endpoint);",
+        ),
+        // Migration 3: actual usage from X API (for --sync comparison)
+        M::up(
+            "CREATE TABLE IF NOT EXISTS usage_actual (
+                date         TEXT PRIMARY KEY,
+                tweet_count  INTEGER NOT NULL,
+                synced_at    INTEGER NOT NULL
+            );",
+        ),
+    ])
 }
 
 /// Application database: cache storage + future usage tracking (Plan 4).
@@ -247,6 +275,210 @@ impl BirdDb {
     pub fn path(&self) -> Option<PathBuf> {
         self.conn.path().map(PathBuf::from)
     }
+
+    // -- Usage tracking methods --
+
+    /// Log an API call to the usage table for cost tracking.
+    #[allow(dead_code)] // Public API for Plan 4 integration with CachedClient::get()
+    pub fn log_usage(&mut self, entry: &UsageLogEntry<'_>) -> Result<(), rusqlite::Error> {
+        let now = unix_now();
+        let date_ymd = {
+            let dt = chrono::DateTime::from_timestamp(now, 0).unwrap();
+            dt.format("%Y%m%d")
+                .to_string()
+                .parse::<i64>()
+                .unwrap()
+        };
+        self.maybe_prune_usage(now)?;
+        self.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                now,
+                date_ymd,
+                entry.endpoint,
+                entry.method,
+                entry.object_type,
+                entry.object_count,
+                entry.estimated_cost,
+                entry.cache_hit as i32,
+                entry.username
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Prune usage rows older than 90 days. Called opportunistically every ~50 writes.
+    fn maybe_prune_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
+        let row_count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM usage", [], |row| row.get(0))?;
+        if row_count > 0 && row_count % 50 == 0 {
+            let cutoff = now_ts - (90 * 24 * 60 * 60);
+            self.conn
+                .execute("DELETE FROM usage WHERE timestamp < ?1", [cutoff])?;
+        }
+        Ok(())
+    }
+
+    /// Query usage summary (totals) since a given YYYYMMDD date.
+    pub fn query_usage_summary(&self, since_ymd: i64) -> Result<UsageSummary, rusqlite::Error> {
+        self.conn.query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN cache_hit = 0 THEN estimated_cost ELSE 0 END), 0.0),
+                COUNT(*),
+                COALESCE(SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN cache_hit = 1 THEN estimated_cost ELSE 0 END), 0.0)
+             FROM usage WHERE date_ymd >= ?1",
+            [since_ymd],
+            |row| {
+                Ok(UsageSummary {
+                    total_cost: row.get(0)?,
+                    total_calls: row.get(1)?,
+                    cache_hits: row.get(2)?,
+                    estimated_savings: row.get(3)?,
+                })
+            },
+        )
+    }
+
+    /// Query daily usage breakdown since a given YYYYMMDD date.
+    pub fn query_daily_usage(&self, since_ymd: i64) -> Result<Vec<DailyUsage>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT
+                date_ymd,
+                SUM(CASE WHEN cache_hit = 0 THEN estimated_cost ELSE 0 END),
+                COUNT(*),
+                SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END)
+             FROM usage
+             WHERE date_ymd >= ?1
+             GROUP BY date_ymd
+             ORDER BY date_ymd DESC",
+        )?;
+        let rows = stmt.query_map([since_ymd], |row| {
+            Ok(DailyUsage {
+                date_ymd: row.get(0)?,
+                cost: row.get(1)?,
+                calls: row.get(2)?,
+                cache_hits: row.get(3)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Query top endpoints by cost since a given YYYYMMDD date.
+    pub fn query_top_endpoints(
+        &self,
+        since_ymd: i64,
+    ) -> Result<Vec<EndpointUsage>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT endpoint, SUM(estimated_cost), COUNT(*)
+             FROM usage
+             WHERE date_ymd >= ?1 AND cache_hit = 0
+             GROUP BY endpoint
+             ORDER BY SUM(estimated_cost) DESC
+             LIMIT 10",
+        )?;
+        let rows = stmt.query_map([since_ymd], |row| {
+            Ok(EndpointUsage {
+                endpoint: row.get(0)?,
+                cost: row.get(1)?,
+                calls: row.get(2)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Upsert actual usage from X API (for --sync comparison).
+    pub fn upsert_actual_usage(
+        &self,
+        date: &str,
+        tweet_count: u64,
+    ) -> Result<(), rusqlite::Error> {
+        let now = unix_now();
+        self.conn.execute(
+            "INSERT OR REPLACE INTO usage_actual (date, tweet_count, synced_at)
+             VALUES (?1, ?2, ?3)",
+            params![date, tweet_count as i64, now],
+        )?;
+        Ok(())
+    }
+
+    /// Query actual usage data (from previous --sync operations).
+    pub fn query_actual_usage(
+        &self,
+        since_ymd: i64,
+    ) -> Result<Option<Vec<ActualUsageDay>>, rusqlite::Error> {
+        let since_date = format!(
+            "{}-{:02}-{:02}",
+            since_ymd / 10000,
+            (since_ymd % 10000) / 100,
+            since_ymd % 100
+        );
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT date, tweet_count, synced_at FROM usage_actual
+             WHERE date >= ?1
+             ORDER BY date DESC",
+        )?;
+        let rows: Vec<ActualUsageDay> = stmt
+            .query_map([&since_date], |row| {
+                Ok(ActualUsageDay {
+                    date: row.get(0)?,
+                    tweet_count: row.get::<_, i64>(1)? as u64,
+                    synced_at: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(rows))
+        }
+    }
+}
+
+// -- Usage data structures --
+
+/// Entry for logging an API call to the usage table.
+#[allow(dead_code)] // Public API for Plan 4 integration
+pub struct UsageLogEntry<'a> {
+    pub endpoint: &'a str,
+    pub method: &'a str,
+    pub object_type: Option<&'a str>,
+    pub object_count: i64,
+    pub estimated_cost: f64,
+    pub cache_hit: bool,
+    pub username: Option<&'a str>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct UsageSummary {
+    pub total_cost: f64,
+    pub total_calls: i64,
+    pub cache_hits: i64,
+    pub estimated_savings: f64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DailyUsage {
+    pub date_ymd: i64,
+    pub cost: f64,
+    pub calls: i64,
+    pub cache_hits: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct EndpointUsage {
+    pub endpoint: String,
+    pub cost: f64,
+    pub calls: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ActualUsageDay {
+    pub date: String,
+    pub tweet_count: u64,
+    pub synced_at: Option<i64>,
 }
 
 impl Drop for BirdDb {
@@ -466,7 +698,19 @@ impl CachedClient {
         self.db.as_ref().and_then(|db| db.path())
     }
 
-    async fn http_get(
+    /// Access the underlying BirdDb (for usage queries).
+    pub fn db(&self) -> Option<&BirdDb> {
+        self.db.as_ref()
+    }
+
+    /// Mutable access to the underlying BirdDb (for usage logging/writes).
+    #[allow(dead_code)] // Public API for future usage logging integration
+    pub fn db_mut(&mut self) -> Option<&mut BirdDb> {
+        self.db.as_mut()
+    }
+
+    /// Direct HTTP GET (bypasses cache). Used for endpoints where fresh data is required.
+    pub async fn http_get(
         &self,
         url: &str,
         headers: reqwest::header::HeaderMap,

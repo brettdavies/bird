@@ -27,6 +27,9 @@ reqwest-oauth1 = "0.3"
 owo-colors = { version = "4", features = ["supports-color"] }
 rusqlite = { version = "0.38", features = ["bundled"] }
 rusqlite_migration = "2.4"
+toml_edit = "0.22"
+tempfile = "3"
+chrono = { version = "0.4", default-features = false, features = ["now"] }
 
 [profile.release]
 strip = true
