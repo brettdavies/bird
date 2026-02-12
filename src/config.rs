@@ -91,6 +91,7 @@ pub struct FileConfig {
     pub client_secret: Option<String>,
     pub redirect_uri: Option<String>,
     pub username: Option<String>,
+    pub watchlist: Option<Vec<String>>,
 }
 
 /// Overrides from CLI args (highest priority).

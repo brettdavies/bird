@@ -14,6 +14,8 @@ mod requirements;
 mod schema;
 mod search;
 mod thread;
+mod usage;
+mod watchlist;
 
 use clap::CommandFactory;
 use clap::FromArgMatches;
@@ -257,6 +259,28 @@ enum Command {
         pretty: bool,
     },
 
+    /// Monitor accounts: check recent activity, manage watchlist
+    Watchlist {
+        #[command(subcommand)]
+        action: WatchlistCommand,
+        /// Pretty-print JSON output
+        #[arg(long)]
+        pretty: bool,
+    },
+
+    /// View API usage and costs
+    Usage {
+        /// Show usage since this date (YYYY-MM-DD; default: 30 days ago)
+        #[arg(long)]
+        since: Option<String>,
+        /// Sync actual usage from X API (requires Bearer token)
+        #[arg(long)]
+        sync: bool,
+        /// Pretty-print output
+        #[arg(long)]
+        pretty: bool,
+    },
+
     /// Show what is available: auth state, effective config, and which commands can run (JSON by default; --pretty for human summary). Optional command name for scoped report (e.g. bird doctor me).
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get)
@@ -281,6 +305,24 @@ enum CacheAction {
         #[arg(long)]
         pretty: bool,
     },
+}
+
+#[derive(clap::Subcommand)]
+enum WatchlistCommand {
+    /// Check recent activity for all watched accounts
+    Check,
+    /// Add an account to the watchlist
+    Add {
+        /// X/Twitter username (with or without @)
+        username: String,
+    },
+    /// Remove an account from the watchlist
+    Remove {
+        /// X/Twitter username to remove
+        username: String,
+    },
+    /// Show the current watchlist
+    List,
 }
 
 async fn run(
@@ -473,6 +515,44 @@ async fn run(
                 name: "delete",
                 source: e,
             })?;
+        }
+        Command::Watchlist { action, pretty } => match action {
+            WatchlistCommand::Check => {
+                watchlist::run_watchlist_check(client, &config, pretty, use_color)
+                    .await
+                    .map_err(|e| BirdError::Command {
+                        name: "watchlist",
+                        source: e,
+                    })?;
+            }
+            WatchlistCommand::Add { username } => {
+                watchlist::run_watchlist_add(&config, &username)
+                    .map_err(BirdError::Config)?;
+            }
+            WatchlistCommand::Remove { username } => {
+                watchlist::run_watchlist_remove(&config, &username)
+                    .map_err(BirdError::Config)?;
+            }
+            WatchlistCommand::List => {
+                watchlist::run_watchlist_list(&config, pretty).map_err(|e| {
+                    BirdError::Command {
+                        name: "watchlist",
+                        source: e,
+                    }
+                })?;
+            }
+        },
+        Command::Usage {
+            since,
+            sync,
+            pretty,
+        } => {
+            usage::run_usage(client, &config, since.as_deref(), sync, pretty)
+                .await
+                .map_err(|e| BirdError::Command {
+                    name: "usage",
+                    source: e,
+                })?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();

@@ -111,6 +111,34 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
             oauth1_hint: OAUTH1_HINT,
             bearer_hint: BEARER_HINT,
         },
+        // Watchlist check uses search endpoint (requires auth)
+        "watchlist_check" => CommandReqs {
+            accepted: SEARCH_ACCEPTED,
+            oauth2_hint: OAUTH2_HINT,
+            oauth1_hint: OAUTH1_HINT,
+            bearer_hint: BEARER_HINT,
+        },
+        // Watchlist add/remove/list are local config operations (no auth needed)
+        "watchlist_add" | "watchlist_remove" | "watchlist_list" => CommandReqs {
+            accepted: &[AuthType::None],
+            oauth2_hint: "",
+            oauth1_hint: "",
+            bearer_hint: "",
+        },
+        // Usage reads local SQLite (no auth)
+        "usage" => CommandReqs {
+            accepted: &[AuthType::None],
+            oauth2_hint: "",
+            oauth1_hint: "",
+            bearer_hint: "",
+        },
+        // Usage --sync needs Bearer for GET /2/usage/tweets
+        "usage_sync" => CommandReqs {
+            accepted: &[AuthType::Bearer],
+            oauth2_hint: "",
+            oauth1_hint: "",
+            bearer_hint: BEARER_HINT,
+        },
         "login" => return None,
         _ => return None,
     })
@@ -125,6 +153,12 @@ pub fn command_names_with_auth() -> &'static [&'static str] {
         "profile",
         "search",
         "thread",
+        "watchlist_check",
+        "watchlist_add",
+        "watchlist_remove",
+        "watchlist_list",
+        "usage",
+        "usage_sync",
         "get",
         "post",
         "put",
