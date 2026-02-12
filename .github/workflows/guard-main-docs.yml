@@ -1,0 +1,38 @@
+# Block compound-engineering docs (plans, solutions, brainstorms) from being
+# merged into main. These files belong in development only.
+name: Guard main from engineering docs
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-forbidden-docs:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Get changed files
+        id: changed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const forbidden = files
+              .map(f => f.filename)
+              .filter(f =>
+                f.startsWith('docs/plans/') ||
+                f.startsWith('docs/solutions/') ||
+                f.startsWith('docs/brainstorms/')
+              );
+            if (forbidden.length > 0) {
+              core.setFailed(
+                `Compound-engineering docs must not be merged into main:\n` +
+                forbidden.map(f => `  - ${f}`).join('\n')
+              );
+            } else {
+              core.info('No forbidden docs found. OK.');
+            }
