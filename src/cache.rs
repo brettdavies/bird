@@ -544,7 +544,6 @@ pub struct CacheOpts {
 pub struct ApiResponse {
     pub status: reqwest::StatusCode,
     pub body: String,
-    #[allow(dead_code)] // available for rate limit header inspection in Plans 2-4
     pub headers: reqwest::header::HeaderMap,
     pub cache_hit: bool,
 }
@@ -606,7 +605,9 @@ impl CachedClient {
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         // Never cache auth endpoints or paginated requests
         if should_skip_cache(url) || self.cache_opts.no_cache {
-            return self.http_get(url, headers).await;
+            let response = self.http_get(url, headers).await?;
+            self.log_api_call(url, "GET", &response.body, false, ctx.username);
+            return Ok(response);
         }
 
         let key = compute_cache_key("GET", url, ctx);
@@ -617,10 +618,12 @@ impl CachedClient {
             if let Some(ref db) = self.db {
                 match db.get(&key) {
                     Ok(Some(entry)) => {
+                        let body = String::from_utf8_lossy(&entry.body).into_owned();
+                        self.log_api_call(url, "GET", &body, true, ctx.username);
                         return Ok(ApiResponse {
                             status: reqwest::StatusCode::from_u16(entry.status_code as u16)
                                 .unwrap_or(reqwest::StatusCode::OK),
-                            body: String::from_utf8_lossy(&entry.body).into_owned(),
+                            body,
                             headers: reqwest::header::HeaderMap::new(),
                             cache_hit: true,
                         });
@@ -651,17 +654,20 @@ impl CachedClient {
             }
         }
 
+        self.log_api_call(url, "GET", &response.body, false, ctx.username);
         Ok(response)
     }
 
     /// POST/PUT/DELETE — pass-through, no caching.
     pub async fn request(
-        &self,
+        &mut self,
         method: reqwest::Method,
         url: &str,
+        ctx: &RequestContext<'_>,
         headers: reqwest::header::HeaderMap,
         body: Option<String>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
+        let method_str = method.as_str().to_string();
         let mut req = self.http.request(method, url).headers(headers);
         if let Some(b) = body {
             req = req.body(b);
@@ -670,6 +676,7 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
+        self.log_api_call(url, &method_str, &text, false, ctx.username);
         Ok(ApiResponse {
             status,
             body: text,

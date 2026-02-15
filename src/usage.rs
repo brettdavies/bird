@@ -214,6 +214,8 @@ async fn sync_actual_usage(
     // Bypass cache — always want fresh usage data from X
     let response = client.http_get(url, headers).await?;
 
+    client.log_api_call(url, "GET", &response.body, false, None);
+
     if !response.status.is_success() {
         return Err(format!(
             "GET /2/usage/tweets {}: {}",

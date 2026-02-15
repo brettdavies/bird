@@ -316,6 +316,7 @@ async fn execute_check(
                 .await?;
             let status = res.status();
             let text = res.text().await?;
+            client.log_api_call(url, "GET", &text, false, config.username.as_deref());
             (status, text, false)
         }
     };

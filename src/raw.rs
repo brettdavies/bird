@@ -43,11 +43,11 @@ pub async fn run_raw(
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
 
+            let ctx = RequestContext {
+                auth_type: &AuthType::OAuth2User,
+                username: config.username.as_deref(),
+            };
             if method_upper == "GET" {
-                let ctx = RequestContext {
-                    auth_type: &AuthType::OAuth2User,
-                    username: config.username.as_deref(),
-                };
                 let response = client.get(&url, &ctx, headers).await?;
                 let estimate = cost::estimate_cost(
                     &serde_json::from_str(&response.body).unwrap_or(serde_json::Value::Null),
@@ -67,7 +67,7 @@ pub async fn run_raw(
                     headers.insert("Content-Type", "application/json".parse()?);
                 }
                 let response = client
-                    .request(reqwest_method, &url, headers, body.map(String::from))
+                    .request(reqwest_method, &url, &ctx, headers, body.map(String::from))
                     .await?;
                 (AuthType::OAuth2User, response.status, response.body)
             }
@@ -96,6 +96,7 @@ pub async fn run_raw(
             let res = req.send().await?;
             let status = res.status();
             let text = res.text().await?;
+            client.log_api_call(&url, &method_upper, &text, false, config.username.as_deref());
             (AuthType::OAuth1, status, text)
         }
     };

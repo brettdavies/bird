@@ -71,6 +71,7 @@ pub async fn run_profile(
                 .await?;
             let status = res.status();
             let text = res.text().await?;
+            client.log_api_call(&url, "GET", &text, false, config.username.as_deref());
             (status, text, false)
         }
     };

@@ -250,6 +250,7 @@ async fn fetch(
                 .await?;
             let status = res.status();
             let text = res.text().await?;
+            client.log_api_call(url, "GET", &text, false, config.username.as_deref());
             Ok((status, text, false)) // OAuth1 bypasses cache
         }
     }
