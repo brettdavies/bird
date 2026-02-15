@@ -1,7 +1,7 @@
 //! Raw request layer: HTTP method + path (with param substitution), query/body, auth, output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CacheContext, CachedClient};
+use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::requirements::AuthType;
@@ -44,7 +44,7 @@ pub async fn run_raw(
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
 
             if method_upper == "GET" {
-                let ctx = CacheContext {
+                let ctx = RequestContext {
                     auth_type: &AuthType::OAuth2User,
                     username: config.username.as_deref(),
                 };

@@ -2,6 +2,7 @@
 //! BirdDb is the application database — cache now, usage tracking in Plan 4.
 //! Cache failures are never fatal: the Option<BirdDb> pattern degrades to no-cache mode.
 
+use crate::cost;
 use crate::requirements::AuthType;
 use rusqlite::{params, Connection};
 use rusqlite_migration::{Migrations, M};
@@ -279,7 +280,6 @@ impl BirdDb {
     // -- Usage tracking methods --
 
     /// Log an API call to the usage table for cost tracking.
-    #[allow(dead_code)] // Public API for Plan 4 integration with CachedClient::get()
     pub fn log_usage(&mut self, entry: &UsageLogEntry<'_>) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let date_ymd = {
@@ -289,57 +289,58 @@ impl BirdDb {
                 .parse::<i64>()
                 .unwrap()
         };
-        self.maybe_prune_usage(now)?;
-        self.conn.execute(
+        let mut stmt = self.conn.prepare_cached(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                now,
-                date_ymd,
-                entry.endpoint,
-                entry.method,
-                entry.object_type,
-                entry.object_count,
-                entry.estimated_cost,
-                entry.cache_hit as i32,
-                entry.username
-            ],
         )?;
+        stmt.execute(params![
+            now,
+            date_ymd,
+            entry.endpoint,
+            entry.method,
+            entry.object_type,
+            entry.object_count,
+            entry.estimated_cost,
+            entry.cache_hit as i32,
+            entry.username
+        ])?;
+
+        // Shared write_count: both cache writes (put) and usage writes trigger periodic cleanup.
+        // This is intentional — both are write operations, and the counter just needs to
+        // trigger cleanup at a reasonable interval.
+        self.write_count += 1;
+        if self.write_count % 50 == 0 {
+            self.prune_old_usage(now)?;
+        }
         Ok(())
     }
 
-    /// Prune usage rows older than 90 days. Called opportunistically every ~50 writes.
-    fn maybe_prune_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
-        let row_count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM usage", [], |row| row.get(0))?;
-        if row_count > 0 && row_count % 50 == 0 {
-            let cutoff = now_ts - (90 * 24 * 60 * 60);
-            self.conn
-                .execute("DELETE FROM usage WHERE timestamp < ?1", [cutoff])?;
-        }
+    /// Delete usage rows older than 90 days.
+    fn prune_old_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
+        let cutoff = now_ts - (90 * 24 * 60 * 60);
+        self.conn
+            .execute("DELETE FROM usage WHERE timestamp < ?1", [cutoff])?;
         Ok(())
     }
 
     /// Query usage summary (totals) since a given YYYYMMDD date.
     pub fn query_usage_summary(&self, since_ymd: i64) -> Result<UsageSummary, rusqlite::Error> {
-        self.conn.query_row(
+        let mut stmt = self.conn.prepare_cached(
             "SELECT
                 COALESCE(SUM(CASE WHEN cache_hit = 0 THEN estimated_cost ELSE 0 END), 0.0),
                 COUNT(*),
                 COALESCE(SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN cache_hit = 1 THEN estimated_cost ELSE 0 END), 0.0)
              FROM usage WHERE date_ymd >= ?1",
-            [since_ymd],
-            |row| {
-                Ok(UsageSummary {
-                    total_cost: row.get(0)?,
-                    total_calls: row.get(1)?,
-                    cache_hits: row.get(2)?,
-                    estimated_savings: row.get(3)?,
-                })
-            },
-        )
+        )?;
+        stmt.query_row([since_ymd], |row| {
+            Ok(UsageSummary {
+                total_cost: row.get(0)?,
+                total_calls: row.get(1)?,
+                cache_hits: row.get(2)?,
+                estimated_savings: row.get(3)?,
+            })
+        })
     }
 
     /// Query daily usage breakdown since a given YYYYMMDD date.
@@ -396,11 +397,11 @@ impl BirdDb {
         tweet_count: u64,
     ) -> Result<(), rusqlite::Error> {
         let now = unix_now();
-        self.conn.execute(
+        let mut stmt = self.conn.prepare_cached(
             "INSERT OR REPLACE INTO usage_actual (date, tweet_count, synced_at)
              VALUES (?1, ?2, ?3)",
-            params![date, tweet_count as i64, now],
         )?;
+        stmt.execute(params![date, tweet_count as i64, now])?;
         Ok(())
     }
 
@@ -440,7 +441,6 @@ impl BirdDb {
 // -- Usage data structures --
 
 /// Entry for logging an API call to the usage table.
-#[allow(dead_code)] // Public API for Plan 4 integration
 pub struct UsageLogEntry<'a> {
     pub endpoint: &'a str,
     pub method: &'a str,
@@ -525,7 +525,7 @@ impl CacheStats {
 }
 
 /// Cache context for key computation (type-safe, not strings).
-pub struct CacheContext<'a> {
+pub struct RequestContext<'a> {
     pub auth_type: &'a AuthType,
     pub username: Option<&'a str>,
 }
@@ -601,7 +601,7 @@ impl CachedClient {
     pub async fn get(
         &mut self,
         url: &str,
-        ctx: &CacheContext<'_>,
+        ctx: &RequestContext<'_>,
         headers: reqwest::header::HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         // Never cache auth endpoints or paginated requests
@@ -704,9 +704,46 @@ impl CachedClient {
     }
 
     /// Mutable access to the underlying BirdDb (for usage logging/writes).
-    #[allow(dead_code)] // Public API for future usage logging integration
     pub fn db_mut(&mut self) -> Option<&mut BirdDb> {
         self.db.as_mut()
+    }
+
+    /// Whether caching is explicitly disabled (--no-cache flag).
+    pub fn cache_disabled(&self) -> bool {
+        self.cache_opts.no_cache
+    }
+
+    /// Log an API call to the usage database. Non-fatal: errors are warned to stderr.
+    /// Handles JSON parsing, endpoint normalization, cost estimation (raw per D3), and DB insert.
+    pub fn log_api_call(
+        &mut self,
+        url: &str,
+        method: &str,
+        body: &str,
+        cache_hit: bool,
+        username: Option<&str>,
+    ) {
+        let Some(ref mut db) = self.db else { return };
+        let endpoint = normalize_endpoint(url);
+        let json: serde_json::Value =
+            serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
+        let estimate = cost::estimate_raw_cost(&json, &endpoint);
+        let object_type = if estimate.users_read > 0 && estimate.tweets_read == 0 {
+            Some("user")
+        } else {
+            Some("tweet")
+        };
+        if let Err(e) = db.log_usage(&UsageLogEntry {
+            endpoint: &endpoint,
+            method,
+            object_type,
+            object_count: (estimate.tweets_read + estimate.users_read) as i64,
+            estimated_cost: estimate.estimated_usd,
+            cache_hit,
+            username,
+        }) {
+            eprintln!("[usage] warning: failed to log API call: {e}");
+        }
     }
 
     /// Direct HTTP GET (bypasses cache). Used for endpoints where fresh data is required.
@@ -737,7 +774,7 @@ impl CachedClient {
 }
 
 /// Compute SHA-256 cache key from method + normalized URL + auth_type + username.
-fn compute_cache_key(method: &str, url: &str, ctx: &CacheContext<'_>) -> String {
+fn compute_cache_key(method: &str, url: &str, ctx: &RequestContext<'_>) -> String {
     let normalized = normalize_url(url);
     let auth_str = match ctx.auth_type {
         AuthType::OAuth2User => "oauth2_user",
@@ -803,6 +840,48 @@ fn normalize_url(url: &str) -> String {
             query
         )
     }
+}
+
+/// Known literal path segments that should never be replaced with `:id`.
+const KNOWN_LITERALS: &[&str] = &[
+    "2", "tweets", "users", "search", "recent", "bookmarks", "me", "by", "username", "usage",
+    "oauth2", "token", "compliance", "lists", "spaces", "dm_conversations",
+];
+
+/// Normalize a URL to an endpoint pattern for usage grouping.
+/// Replaces numeric ID segments (4+ digits) with `:id` and the parameter after
+/// `/by/username/` with `:username`. Returns the path only (strips scheme, host, query params).
+pub fn normalize_endpoint(url: &str) -> String {
+    let path = url::Url::parse(url)
+        .map(|u| u.path().to_string())
+        .unwrap_or_else(|_| url.to_string());
+
+    let segments: Vec<&str> = path.split('/').collect();
+    let mut normalized = Vec::with_capacity(segments.len());
+    let mut prev_two: (Option<&str>, Option<&str>) = (None, None); // (prev-prev, prev)
+
+    for seg in &segments {
+        if seg.is_empty() {
+            normalized.push(*seg);
+            continue;
+        }
+        // After "/by/username/", the next segment is a username parameter
+        if prev_two == (Some("by"), Some("username")) {
+            normalized.push(":username");
+        } else if KNOWN_LITERALS.contains(seg) {
+            // Known literal path components (checked before numeric to preserve "2")
+            normalized.push(seg);
+        } else if seg.len() >= 2 && seg.chars().all(|c| c.is_ascii_digit()) {
+            // Numeric ID segments (2+ digits to avoid matching version numbers like "2")
+            normalized.push(":id");
+        } else {
+            // Unknown non-numeric segment — keep as-is (future-proofs new endpoints)
+            normalized.push(seg);
+        }
+        prev_two = (prev_two.1, Some(seg));
+    }
+
+    normalized.join("/")
 }
 
 /// Whether to skip caching for this URL.
@@ -951,15 +1030,15 @@ mod tests {
 
     #[test]
     fn cache_key_includes_all_components() {
-        let ctx1 = CacheContext {
+        let ctx1 = RequestContext {
             auth_type: &AuthType::OAuth2User,
             username: Some("alice"),
         };
-        let ctx2 = CacheContext {
+        let ctx2 = RequestContext {
             auth_type: &AuthType::Bearer,
             username: Some("alice"),
         };
-        let ctx3 = CacheContext {
+        let ctx3 = RequestContext {
             auth_type: &AuthType::OAuth2User,
             username: Some("bob"),
         };
@@ -1046,6 +1125,60 @@ mod tests {
     fn hex_encode() {
         assert_eq!(hex::encode([0xde, 0xad, 0xbe, 0xef]), "deadbeef");
         assert_eq!(hex::encode([]), "");
+    }
+
+    #[test]
+    fn normalize_endpoint_search_recent() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/tweets/search/recent?query=test"),
+            "/2/tweets/search/recent"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_users_me() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/users/me"),
+            "/2/users/me"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_tweet_by_id() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/tweets/1234567890"),
+            "/2/tweets/:id"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_user_bookmarks() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/users/123/bookmarks"),
+            "/2/users/:id/bookmarks"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_username_lookup() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/users/by/username/jack"),
+            "/2/users/by/username/:username"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_usage_tweets() {
+        assert_eq!(
+            normalize_endpoint("https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage"),
+            "/2/usage/tweets"
+        );
+    }
+
+    #[test]
+    fn normalize_endpoint_full_url_strips_query() {
+        let url = "https://api.x.com/2/tweets/search/recent?query=rust&max_results=100";
+        assert_eq!(normalize_endpoint(url), "/2/tweets/search/recent");
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CacheContext, CachedClient};
+use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::requirements::AuthType;
@@ -215,7 +215,7 @@ async fn fetch(
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-            let ctx = CacheContext {
+            let ctx = RequestContext {
                 auth_type: &AuthType::OAuth2User,
                 username: config.username.as_deref(),
             };

@@ -62,15 +62,17 @@ pub async fn run_usage(
     // Optionally: sync actual usage from X API
     let actuals = if sync {
         // Validate --since with --sync: warn if older than 90 days
-        let now_ymd = chrono::Utc::now()
-            .format("%Y%m%d")
-            .to_string()
-            .parse::<i64>()
-            .unwrap();
-        let days_back = now_ymd - since_ymd;
-        if days_back > 90_00_00 {
-            // More than ~90 days difference in YYYYMMDD space
-            eprintln!("[usage] warning: X API only returns 90 days of history; --since may exceed that range");
+        let now = chrono::Utc::now().date_naive();
+        let since_date = chrono::NaiveDate::from_ymd_opt(
+            (since_ymd / 10000) as i32,
+            ((since_ymd % 10000) / 100) as u32,
+            (since_ymd % 100) as u32,
+        );
+        if let Some(since_date) = since_date {
+            let days_back = (now - since_date).num_days();
+            if days_back > 90 {
+                eprintln!("[usage] warning: X API only returns 90 days of history; --since may exceed that range");
+            }
         }
 
         let token =

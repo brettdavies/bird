@@ -272,7 +272,7 @@ async fn execute_check(
     use_color: bool,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
     use crate::auth::CommandToken;
-    use crate::cache::CacheContext;
+    use crate::cache::RequestContext;
     use crate::requirements::AuthType;
     use reqwest::header::HeaderMap;
     use reqwest_oauth1::OAuthClientProvider;
@@ -281,7 +281,7 @@ async fn execute_check(
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-            let ctx = CacheContext {
+            let ctx = RequestContext {
                 auth_type: &AuthType::OAuth2User,
                 username: config.username.as_deref(),
             };

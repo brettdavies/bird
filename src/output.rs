@@ -72,6 +72,15 @@ pub fn hyperlink(url: &str, display_text: Option<&str>, use_hyperlinks: bool) ->
     format!("\x1b]8;;{}\x07{}\x1b]8;;\x07", safe_url, safe_text)
 }
 
+/// Sanitize untrusted text for stderr display: replace control chars with '?', truncate.
+/// Prevents terminal escape injection from API response bodies.
+pub fn sanitize_for_stderr(s: &str, max_chars: usize) -> String {
+    s.chars()
+        .take(max_chars)
+        .map(|c| if c.is_control() && c != '\n' { '?' } else { c })
+        .collect()
+}
+
 /// Emoji for "available" when use_emoji; otherwise empty string.
 pub fn emoji_available(use_emoji: bool) -> &'static str {
     if use_emoji {

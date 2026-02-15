@@ -1,7 +1,7 @@
 //! Curated bookmarks command: GET /2/users/{id}/bookmarks with pagination, max_results=100.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CacheContext, CachedClient};
+use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::requirements::AuthType;
@@ -20,7 +20,7 @@ pub async fn run_bookmarks(
         CommandToken::OAuth1 => unreachable!("bookmarks accepts OAuth2 user only per spec"),
     };
 
-    let ctx = CacheContext {
+    let ctx = RequestContext {
         auth_type: &AuthType::OAuth2User,
         username: config.username.as_deref(),
     };
