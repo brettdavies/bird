@@ -284,10 +284,9 @@ impl BirdDb {
         let now = unix_now();
         let date_ymd = {
             let dt = chrono::DateTime::from_timestamp(now, 0).unwrap();
-            dt.format("%Y%m%d")
-                .to_string()
-                .parse::<i64>()
-                .unwrap()
+            let d = dt.date_naive();
+            use chrono::Datelike;
+            d.year() as i64 * 10000 + d.month() as i64 * 100 + d.day() as i64
         };
         let mut stmt = self.conn.prepare_cached(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
@@ -444,7 +443,7 @@ impl BirdDb {
 pub struct UsageLogEntry<'a> {
     pub endpoint: &'a str,
     pub method: &'a str,
-    pub object_type: Option<&'a str>,
+    pub object_type: &'a str,
     pub object_count: i64,
     pub estimated_cost: f64,
     pub cache_hit: bool,
@@ -731,9 +730,11 @@ impl CachedClient {
             serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
         let estimate = cost::estimate_raw_cost(&json, &endpoint);
         let object_type = if estimate.users_read > 0 && estimate.tweets_read == 0 {
-            Some("user")
+            "user"
+        } else if estimate.tweets_read > 0 {
+            "tweet"
         } else {
-            Some("tweet")
+            "none"
         };
         if let Err(e) = db.log_usage(&UsageLogEntry {
             endpoint: &endpoint,
@@ -851,7 +852,7 @@ const KNOWN_LITERALS: &[&str] = &[
 ];
 
 /// Normalize a URL to an endpoint pattern for usage grouping.
-/// Replaces numeric ID segments (4+ digits) with `:id` and the parameter after
+/// Replaces numeric ID segments (2+ digits) with `:id` and the parameter after
 /// `/by/username/` with `:username`. Returns the path only (strips scheme, host, query params).
 pub fn normalize_endpoint(url: &str) -> String {
     let path = url::Url::parse(url)
@@ -1233,7 +1234,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: Some("tweet"),
+            object_type: "tweet",
             object_count: 3,
             estimated_cost: 0.015,
             cache_hit: false,
@@ -1243,7 +1244,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: Some("tweet"),
+            object_type: "tweet",
             object_count: 3,
             estimated_cost: 0.015,
             cache_hit: true,
@@ -1339,7 +1340,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: Some("tweet"),
+            object_type: "tweet",
             object_count: 1,
             estimated_cost: 0.005,
             cache_hit: false,
