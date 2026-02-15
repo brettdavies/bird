@@ -3,6 +3,7 @@
 
 use crate::cache::{ActualUsageDay, CachedClient, DailyUsage, EndpointUsage, UsageSummary};
 use crate::config::ResolvedConfig;
+use crate::output;
 
 /// Parse --since into a YYYYMMDD integer for date_ymd column filtering.
 fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
@@ -51,13 +52,33 @@ pub async fn run_usage(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let since_ymd = parse_since(since)?;
 
-    let db = client
-        .db()
-        .ok_or("cache database is not available (usage tracking requires cache)")?;
+    // Check DB availability (graceful degradation per D5)
+    if client.db().is_none() {
+        let msg = if client.cache_disabled() {
+            "Usage tracking requires the cache. Remove --no-cache to enable."
+        } else {
+            "Cache database is unavailable. Run `bird cache clear` to reset."
+        };
+        eprintln!("[usage] {}", msg);
+        if !pretty {
+            println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
+        }
+        return Ok(());
+    }
 
-    let summary = db.query_usage_summary(since_ymd)?;
-    let daily = db.query_daily_usage(since_ymd)?;
-    let top_endpoints = db.query_top_endpoints(since_ymd)?;
+    // Query local data (db() is Some, verified above; re-borrow scoped to avoid conflict with sync)
+    let (summary, daily, top_endpoints) = {
+        let db = client.db().unwrap();
+        (
+            db.query_usage_summary(since_ymd)?,
+            db.query_daily_usage(since_ymd)?,
+            db.query_top_endpoints(since_ymd)?,
+        )
+    };
+
+    if summary.total_calls == 0 && !sync {
+        eprintln!("[usage] No usage data recorded yet. Run some API commands first.");
+    }
 
     // Optionally: sync actual usage from X API
     let actuals = if sync {
@@ -77,10 +98,12 @@ pub async fn run_usage(
 
         let token =
             crate::auth::resolve_token_for_command(client.http(), config, "usage_sync").await?;
-        Some(sync_actual_usage(client, &token).await?)
+        match sync_actual_usage(client, &token).await? {
+            Some(actuals) => Some(actuals),
+            None => client.db().and_then(|db| db.query_actual_usage(since_ymd).ok()).flatten(),
+        }
     } else {
-        // Load existing actuals if available
-        db.query_actual_usage(since_ymd)?
+        client.db().and_then(|db| db.query_actual_usage(since_ymd).ok()).flatten()
     };
 
     let since_display = since
@@ -197,7 +220,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 async fn sync_actual_usage(
     client: &mut CachedClient,
     token: &crate::auth::CommandToken,
-) -> Result<Vec<ActualUsageDay>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
     use reqwest::header::HeaderMap;
 
     let access = match token {
@@ -216,12 +239,25 @@ async fn sync_actual_usage(
 
     client.log_api_call(url, "GET", &response.body, false, None);
 
+    // Graceful degradation: show local data on sync failure (D5)
+    if response.status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let reset_msg = parse_rate_limit_reset(&response.headers)
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
+            .map(|dt| format!("Resets at {}.", dt.format("%H:%M UTC")))
+            .unwrap_or_default();
+        eprintln!(
+            "[usage] Rate limited (429). {} Showing local data only.",
+            reset_msg
+        );
+        return Ok(None);
+    }
     if !response.status.is_success() {
-        return Err(format!(
-            "GET /2/usage/tweets {}: {}",
-            response.status, response.body
-        )
-        .into());
+        eprintln!(
+            "[usage] Sync failed ({}: {}). Showing local data only.",
+            response.status,
+            output::sanitize_for_stderr(&response.body, 100)
+        );
+        return Ok(None);
     }
 
     let body: serde_json::Value = serde_json::from_str(&response.body)?;
@@ -230,9 +266,13 @@ async fn sync_actual_usage(
         .and_then(|d| d.as_array())
         .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage)")?;
 
-    let db = client
-        .db()
-        .ok_or("cache database not available for storing actuals")?;
+    let db = match client.db() {
+        Some(db) => db,
+        None => {
+            eprintln!("[usage] Cache database unavailable for storing actuals. Showing local data only.");
+            return Ok(None);
+        }
+    };
 
     let mut results = Vec::new();
     for day_entry in daily {
@@ -264,8 +304,47 @@ async fn sync_actual_usage(
         });
     }
 
-    eprintln!("[usage] synced {} days of actual usage from X API", results.len());
-    Ok(results)
+    eprintln!(
+        "[usage] synced {} days of actual usage from X API",
+        results.len()
+    );
+    Ok(Some(results))
+}
+
+/// Parse x-rate-limit-reset header and validate bounds.
+fn parse_rate_limit_reset(headers: &reqwest::header::HeaderMap) -> Option<i64> {
+    let ts: i64 = headers
+        .get("x-rate-limit-reset")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    // Reject timestamps in the past or more than 1 hour in the future
+    if ts < now || ts > now + 3600 {
+        return None;
+    }
+    Some(ts)
+}
+
+/// Build an empty report for machine consumers when DB is unavailable.
+fn empty_report(since_ymd: i64) -> UsageReport {
+    let since_display = ymd_to_display(since_ymd);
+    let until_display = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    UsageReport {
+        since: since_display,
+        until: until_display,
+        summary: UsageSummary {
+            total_cost: 0.0,
+            total_calls: 0,
+            cache_hits: 0,
+            estimated_savings: 0.0,
+        },
+        daily: vec![],
+        top_endpoints: vec![],
+        comparison: None,
+    }
 }
 
 #[derive(serde::Serialize)]
