@@ -710,11 +710,6 @@ impl CachedClient {
         self.db.as_ref()
     }
 
-    /// Mutable access to the underlying BirdDb (for usage logging/writes).
-    pub fn db_mut(&mut self) -> Option<&mut BirdDb> {
-        self.db.as_mut()
-    }
-
     /// Whether caching is explicitly disabled (--no-cache flag).
     pub fn cache_disabled(&self) -> bool {
         self.cache_opts.no_cache
@@ -1229,5 +1224,130 @@ mod tests {
             stats.total_size_bytes <= 100,
             "should be under limit after prune"
         );
+    }
+
+    #[test]
+    fn log_usage_and_query_summary() {
+        let mut db = in_memory_db();
+        // Log a cache miss (cost should be counted)
+        db.log_usage(&UsageLogEntry {
+            endpoint: "/2/tweets/search/recent",
+            method: "GET",
+            object_type: Some("tweet"),
+            object_count: 3,
+            estimated_cost: 0.015,
+            cache_hit: false,
+            username: Some("alice"),
+        }).unwrap();
+        // Log a cache hit (cost recorded for savings calculation per D3)
+        db.log_usage(&UsageLogEntry {
+            endpoint: "/2/tweets/search/recent",
+            method: "GET",
+            object_type: Some("tweet"),
+            object_count: 3,
+            estimated_cost: 0.015,
+            cache_hit: true,
+            username: Some("alice"),
+        }).unwrap();
+
+        let summary = db.query_usage_summary(0).unwrap();
+        assert_eq!(summary.total_calls, 2);
+        assert_eq!(summary.cache_hits, 1);
+        assert!((summary.total_cost - 0.015).abs() < f64::EPSILON);
+        assert!((summary.estimated_savings - 0.015).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn query_daily_usage_groups_by_day() {
+        let db = in_memory_db();
+        // Insert entries for different "days" by manipulating date_ymd directly
+        // Since log_usage uses current time, we insert directly via SQL
+        db.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+             VALUES (1000, 20260210, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
+            [],
+        ).unwrap();
+        db.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+             VALUES (2000, 20260211, '/2/tweets/search/recent', 'GET', 2, 0.010, 0)",
+            [],
+        ).unwrap();
+        db.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+             VALUES (3000, 20260211, '/2/users/me', 'GET', 1, 0.010, 1)",
+            [],
+        ).unwrap();
+
+        let daily = db.query_daily_usage(20260210).unwrap();
+        assert_eq!(daily.len(), 2);
+        // Results are ordered by date_ymd DESC
+        assert_eq!(daily[0].date_ymd, 20260211);
+        assert_eq!(daily[0].calls, 2);
+        assert_eq!(daily[0].cache_hits, 1);
+        assert_eq!(daily[1].date_ymd, 20260210);
+        assert_eq!(daily[1].calls, 1);
+    }
+
+    #[test]
+    fn query_top_endpoints_aggregates() {
+        let db = in_memory_db();
+        // Insert multiple entries for different endpoints
+        for _ in 0..3 {
+            db.conn.execute(
+                "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+                 VALUES (1000, 20260211, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
+                [],
+            ).unwrap();
+        }
+        db.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+             VALUES (2000, 20260211, '/2/users/me', 'GET', 1, 0.010, 0)",
+            [],
+        ).unwrap();
+
+        let top = db.query_top_endpoints(20260210).unwrap();
+        assert_eq!(top.len(), 2);
+        // Ordered by cost DESC: tweets (3 * 0.005 = 0.015) > users (0.010)
+        assert_eq!(top[0].endpoint, "/2/tweets/search/recent");
+        assert_eq!(top[0].calls, 3);
+        assert!((top[0].cost - 0.015).abs() < f64::EPSILON);
+        assert_eq!(top[1].endpoint, "/2/users/me");
+    }
+
+    #[test]
+    fn empty_usage_returns_zero_summary() {
+        let db = in_memory_db();
+        let summary = db.query_usage_summary(0).unwrap();
+        assert_eq!(summary.total_calls, 0);
+        assert_eq!(summary.total_cost, 0.0);
+        assert_eq!(summary.cache_hits, 0);
+        assert_eq!(summary.estimated_savings, 0.0);
+    }
+
+    #[test]
+    fn usage_pruning_via_write_count() {
+        let mut db = in_memory_db();
+        // Insert an "old" entry (timestamp = 1, well beyond 90-day cutoff)
+        db.conn.execute(
+            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
+             VALUES (1, 20200101, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
+            [],
+        ).unwrap();
+
+        // Set write_count to 49 so the next log_usage call hits the 50-write boundary
+        db.write_count = 49;
+        db.log_usage(&UsageLogEntry {
+            endpoint: "/2/tweets/search/recent",
+            method: "GET",
+            object_type: Some("tweet"),
+            object_count: 1,
+            estimated_cost: 0.005,
+            cache_hit: false,
+            username: None,
+        }).unwrap();
+
+        // The old entry (timestamp=1) should have been pruned; only the fresh entry remains
+        let summary = db.query_usage_summary(0).unwrap();
+        assert_eq!(summary.total_calls, 1, "old entry should be pruned, leaving only the fresh one");
     }
 }
