@@ -4,10 +4,10 @@ use crate::auth::{resolve_token_for_command, CommandToken};
 use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::output;
 use crate::requirements::AuthType;
 use crate::schema::resolve_path;
 use reqwest::header::HeaderMap;
-use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
@@ -73,36 +73,21 @@ pub async fn run_raw(
             }
         }
         CommandToken::OAuth1 => {
-            // OAuth1 uses reqwest_oauth1 which needs the raw reqwest::Client.
-            // Cannot go through CachedClient.get() because oauth1 signs the request internally.
-            let ck = config.oauth1_consumer_key.as_ref().unwrap();
-            let cs = config.oauth1_consumer_secret.as_ref().unwrap();
-            let at = config.oauth1_access_token.as_ref().unwrap();
-            let ats = config.oauth1_access_token_secret.as_ref().unwrap();
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-                .token(at.as_str(), ats.as_str());
-            let mut req = match method_upper.as_str() {
-                "GET" => client.http().clone().oauth1(secrets).get(&url),
-                "POST" => client.http().clone().oauth1(secrets).post(&url),
-                "PUT" => client.http().clone().oauth1(secrets).put(&url),
-                "DELETE" => client.http().clone().oauth1(secrets).delete(&url),
-                _ => return Err(format!("unsupported method: {}", method).into()),
-            };
-            if let Some(b) = body {
-                req = req
-                    .header("Content-Type", "application/json")
-                    .body(b.to_string());
-            }
-            let res = req.send().await?;
-            let status = res.status();
-            let text = res.text().await?;
-            client.log_api_call(&url, &method_upper, &text, false, config.username.as_deref());
-            (AuthType::OAuth1, status, text)
+            let response = client
+                .oauth1_request(&method_upper, &url, config, body)
+                .await?;
+            (AuthType::OAuth1, response.status, response.body)
         }
     };
 
     if !status.is_success() {
-        return Err(format!("{} {}: {}", method, status, text).into());
+        return Err(format!(
+            "{} {}: {}",
+            method,
+            status,
+            output::sanitize_for_stderr(&text, 200)
+        )
+        .into());
     }
     let json: serde_json::Value =
         serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));

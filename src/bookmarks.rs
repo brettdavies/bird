@@ -4,6 +4,7 @@ use crate::auth::{resolve_token_for_command, CommandToken};
 use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::output;
 use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
 
@@ -32,7 +33,11 @@ pub async fn run_bookmarks(
         .get("https://api.x.com/2/users/me", &ctx, me_headers)
         .await?;
     if !me_response.status.is_success() {
-        return Err(format!("GET /2/users/me failed: {}", me_response.body).into());
+        return Err(format!(
+            "GET /2/users/me failed: {}",
+            output::sanitize_for_stderr(&me_response.body, 200)
+        )
+        .into());
     }
     let me_json: serde_json::Value = serde_json::from_str(&me_response.body)?;
     let user_id = me_json
@@ -74,7 +79,11 @@ pub async fn run_bookmarks(
         headers.insert("Authorization", format!("Bearer {}", access).parse()?);
         let response = client.get(&url, &ctx, headers).await?;
         if !response.status.is_success() {
-            return Err(format!("GET bookmarks failed: {}", response.body).into());
+            return Err(format!(
+                "GET bookmarks failed: {}",
+                output::sanitize_for_stderr(&response.body, 200)
+            )
+            .into());
         }
 
         let page: serde_json::Value = serde_json::from_str(&response.body)?;

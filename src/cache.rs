@@ -2,8 +2,10 @@
 //! BirdDb is the application database — cache now, usage tracking in Plan 4.
 //! Cache failures are never fatal: the Option<BirdDb> pattern degrades to no-cache mode.
 
+use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::requirements::AuthType;
+use reqwest_oauth1::OAuthClientProvider;
 use rusqlite::{params, Connection};
 use rusqlite_migration::{Migrations, M};
 use sha2::{Digest, Sha256};
@@ -750,8 +752,9 @@ impl CachedClient {
     }
 
     /// Direct HTTP GET (bypasses cache). Used for endpoints where fresh data is required.
+    /// Logs the API call automatically.
     pub async fn http_get(
-        &self,
+        &mut self,
         url: &str,
         headers: reqwest::header::HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
@@ -759,6 +762,59 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
+        self.log_api_call(url, "GET", &text, false, None);
+        Ok(ApiResponse {
+            status,
+            body: text,
+            headers: resp_headers,
+            cache_hit: false,
+        })
+    }
+
+    /// OAuth1-signed HTTP request. Handles credential extraction, signing, logging.
+    /// Use for commands that require OAuth 1.0a authentication.
+    pub async fn oauth1_request(
+        &mut self,
+        method: &str,
+        url: &str,
+        config: &ResolvedConfig,
+        body: Option<&str>,
+    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
+        let ck = config
+            .oauth1_consumer_key
+            .as_ref()
+            .ok_or("OAuth1 consumer key missing")?;
+        let cs = config
+            .oauth1_consumer_secret
+            .as_ref()
+            .ok_or("OAuth1 consumer secret missing")?;
+        let at = config
+            .oauth1_access_token
+            .as_ref()
+            .ok_or("OAuth1 access token missing")?;
+        let ats = config
+            .oauth1_access_token_secret
+            .as_ref()
+            .ok_or("OAuth1 access token secret missing")?;
+        let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
+            .token(at.as_str(), ats.as_str());
+        let mut req = match method {
+            "GET" => self.http.clone().oauth1(secrets).get(url),
+            "POST" => self.http.clone().oauth1(secrets).post(url),
+            "PUT" => self.http.clone().oauth1(secrets).put(url),
+            "DELETE" => self.http.clone().oauth1(secrets).delete(url),
+            _ => return Err(format!("unsupported method: {}", method).into()),
+        };
+        if let Some(b) = body {
+            req = req
+                .header("Content-Type", "application/json")
+                .body(b.to_string());
+        }
+        let res = req.send().await?;
+        let status = res.status();
+        let resp_headers = res.headers().clone();
+        let text = res.text().await?;
+        self.log_api_call(url, method, &text, false, config.username.as_deref());
         Ok(ApiResponse {
             status,
             body: text,

@@ -5,9 +5,9 @@ use crate::auth::{resolve_token_for_command, CommandToken};
 use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::output;
 use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
-use reqwest_oauth1::OAuthClientProvider;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const TWEET_FIELDS: &str =
@@ -42,7 +42,12 @@ pub async fn run_thread(
 
     let (status, body, cache_hit) = fetch(&token, client, config, &root_url).await?;
     if !status.is_success() {
-        return Err(format!("GET tweet {}: {}", status, body).into());
+        return Err(format!(
+            "GET tweet {}: {}",
+            status,
+            output::sanitize_for_stderr(&body, 200)
+        )
+        .into());
     }
 
     let root_response: serde_json::Value = serde_json::from_str(&body)?;
@@ -110,7 +115,13 @@ pub async fn run_thread(
 
         let (status, body, cache_hit) = fetch(&token, client, config, &search_url).await?;
         if !status.is_success() {
-            return Err(format!("GET search page {} {}: {}", page_num, status, body).into());
+            return Err(format!(
+                "GET search page {} {}: {}",
+                page_num,
+                status,
+                output::sanitize_for_stderr(&body, 200)
+            )
+            .into());
         }
 
         let page: serde_json::Value = serde_json::from_str(&body)?;
@@ -223,35 +234,8 @@ async fn fetch(
             Ok((response.status, response.body, response.cache_hit))
         }
         CommandToken::OAuth1 => {
-            let ck = config
-                .oauth1_consumer_key
-                .as_ref()
-                .ok_or("OAuth1 consumer key missing")?;
-            let cs = config
-                .oauth1_consumer_secret
-                .as_ref()
-                .ok_or("OAuth1 consumer secret missing")?;
-            let at = config
-                .oauth1_access_token
-                .as_ref()
-                .ok_or("OAuth1 access token missing")?;
-            let ats = config
-                .oauth1_access_token_secret
-                .as_ref()
-                .ok_or("OAuth1 access token secret missing")?;
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-                .token(at.as_str(), ats.as_str());
-            let res = client
-                .http()
-                .clone()
-                .oauth1(secrets)
-                .get(url)
-                .send()
-                .await?;
-            let status = res.status();
-            let text = res.text().await?;
-            client.log_api_call(url, "GET", &text, false, config.username.as_deref());
-            Ok((status, text, false)) // OAuth1 bypasses cache
+            let response = client.oauth1_request("GET", url, config, None).await?;
+            Ok((response.status, response.body, false))
         }
     }
 }

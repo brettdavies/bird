@@ -234,10 +234,8 @@ async fn sync_actual_usage(
     let mut headers = HeaderMap::new();
     headers.insert("Authorization", format!("Bearer {}", access).parse()?);
 
-    // Bypass cache — always want fresh usage data from X
+    // Bypass cache — always want fresh usage data from X (http_get logs automatically)
     let response = client.http_get(url, headers).await?;
-
-    client.log_api_call(url, "GET", &response.body, false, None);
 
     // Graceful degradation: show local data on sync failure (D5)
     if response.status == reqwest::StatusCode::TOO_MANY_REQUESTS {

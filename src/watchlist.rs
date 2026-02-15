@@ -275,7 +275,6 @@ async fn execute_check(
     use crate::cache::RequestContext;
     use crate::requirements::AuthType;
     use reqwest::header::HeaderMap;
-    use reqwest_oauth1::OAuthClientProvider;
 
     let (status, body, cache_hit) = match token {
         CommandToken::Bearer(access) => {
@@ -289,40 +288,18 @@ async fn execute_check(
             (response.status, response.body, response.cache_hit)
         }
         CommandToken::OAuth1 => {
-            let ck = config
-                .oauth1_consumer_key
-                .as_ref()
-                .ok_or("OAuth1 consumer key missing")?;
-            let cs = config
-                .oauth1_consumer_secret
-                .as_ref()
-                .ok_or("OAuth1 consumer secret missing")?;
-            let at = config
-                .oauth1_access_token
-                .as_ref()
-                .ok_or("OAuth1 access token missing")?;
-            let ats = config
-                .oauth1_access_token_secret
-                .as_ref()
-                .ok_or("OAuth1 access token secret missing")?;
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-                .token(at.as_str(), ats.as_str());
-            let res = client
-                .http()
-                .clone()
-                .oauth1(secrets)
-                .get(url)
-                .send()
-                .await?;
-            let status = res.status();
-            let text = res.text().await?;
-            client.log_api_call(url, "GET", &text, false, config.username.as_deref());
-            (status, text, false)
+            let response = client.oauth1_request("GET", url, config, None).await?;
+            (response.status, response.body, false)
         }
     };
 
     if !status.is_success() {
-        return Err(format!("GET search {}: {}", status, body).into());
+        return Err(format!(
+            "GET search {}: {}",
+            status,
+            crate::output::sanitize_for_stderr(&body, 200)
+        )
+        .into());
     }
 
     let json: serde_json::Value = serde_json::from_str(&body)?;
