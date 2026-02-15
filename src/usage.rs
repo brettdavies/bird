@@ -81,6 +81,7 @@ pub async fn run_usage(
     }
 
     // Optionally: sync actual usage from X API
+    let mut sync_status = if sync { "failed" } else { "skipped" };
     let actuals = if sync {
         // Validate --since with --sync: warn if older than 90 days
         let now = chrono::Utc::now().date_naive();
@@ -99,7 +100,10 @@ pub async fn run_usage(
         let token =
             crate::auth::resolve_token_for_command(client.http(), config, "usage_sync").await?;
         match sync_actual_usage(client, &token).await? {
-            Some(actuals) => Some(actuals),
+            Some(actuals) => {
+                sync_status = "success";
+                Some(actuals)
+            }
             None => client.db().and_then(|db| db.query_actual_usage(since_ymd).ok()).flatten(),
         }
     } else {
@@ -118,6 +122,7 @@ pub async fn run_usage(
         daily,
         top_endpoints,
         comparison: actuals,
+        sync_status,
     };
 
     if pretty {
@@ -342,6 +347,7 @@ fn empty_report(since_ymd: i64) -> UsageReport {
         daily: vec![],
         top_endpoints: vec![],
         comparison: None,
+        sync_status: "skipped",
     }
 }
 
@@ -354,6 +360,8 @@ struct UsageReport {
     top_endpoints: Vec<EndpointUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     comparison: Option<Vec<ActualUsageDay>>,
+    /// Machine-readable sync status: "success", "failed", or "skipped".
+    sync_status: &'static str,
 }
 
 #[cfg(test)]

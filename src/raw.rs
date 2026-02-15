@@ -38,7 +38,7 @@ pub async fn run_raw(
 
     let token = resolve_token_for_command(client.http(), config, &command_name).await?;
 
-    let (_auth_type, status, text) = match token {
+    let response = match token {
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
@@ -50,12 +50,12 @@ pub async fn run_raw(
             if method_upper == "GET" {
                 let response = client.get(&url, &ctx, headers).await?;
                 let estimate = cost::estimate_cost(
-                    &serde_json::from_str(&response.body).unwrap_or(serde_json::Value::Null),
+                    response.json.as_ref().unwrap_or(&serde_json::Value::Null),
                     &url,
                     response.cache_hit,
                 );
                 cost::display_cost(&estimate, use_color);
-                (AuthType::OAuth2User, response.status, response.body)
+                response
             } else {
                 let reqwest_method = match method_upper.as_str() {
                     "POST" => reqwest::Method::POST,
@@ -66,31 +66,32 @@ pub async fn run_raw(
                 if body.is_some() {
                     headers.insert("Content-Type", "application/json".parse()?);
                 }
-                let response = client
+                client
                     .request(reqwest_method, &url, &ctx, headers, body.map(String::from))
-                    .await?;
-                (AuthType::OAuth2User, response.status, response.body)
+                    .await?
             }
         }
         CommandToken::OAuth1 => {
-            let response = client
+            client
                 .oauth1_request(&method_upper, &url, config, body)
-                .await?;
-            (AuthType::OAuth1, response.status, response.body)
+                .await?
         }
     };
 
-    if !status.is_success() {
+    if !response.status.is_success() {
         return Err(format!(
             "{} {}: {}",
             method,
-            status,
-            output::sanitize_for_stderr(&text, 200)
+            response.status,
+            output::sanitize_for_stderr(&response.body, 200)
         )
         .into());
     }
-    let json: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
+    // Use pre-parsed JSON; fall back to wrapping raw body as a JSON string
+    let json = match response.json {
+        Some(j) => j,
+        None => serde_json::Value::String(response.body),
+    };
     if pretty {
         println!("{}", serde_json::to_string_pretty(&json)?);
     } else {

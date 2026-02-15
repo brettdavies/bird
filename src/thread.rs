@@ -2,7 +2,7 @@
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{RequestContext, CachedClient};
+use crate::cache::{ApiResponse, RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
@@ -40,18 +40,18 @@ pub async fn run_thread(
         opts.tweet_id, TWEET_FIELDS, EXPANSIONS, USER_FIELDS
     );
 
-    let (status, body, cache_hit) = fetch(&token, client, config, &root_url).await?;
-    if !status.is_success() {
+    let response = fetch(&token, client, config, &root_url).await?;
+    if !response.status.is_success() {
         return Err(format!(
             "GET tweet {}: {}",
-            status,
-            output::sanitize_for_stderr(&body, 200)
+            response.status,
+            output::sanitize_for_stderr(&response.body, 200)
         )
         .into());
     }
 
-    let root_response: serde_json::Value = serde_json::from_str(&body)?;
-    let estimate = cost::estimate_cost(&root_response, &root_url, cache_hit);
+    let root_response = response.json.ok_or("invalid JSON from tweet lookup")?;
+    let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
     cost::display_cost(&estimate, use_color);
 
     // Check for errors array (X API returns 200 + errors for not-found)
@@ -113,19 +113,19 @@ pub async fn run_thread(
     for page_num in 1..=max_pages {
         let search_url = build_search_url(conversation_id, next_token.as_deref());
 
-        let (status, body, cache_hit) = fetch(&token, client, config, &search_url).await?;
-        if !status.is_success() {
+        let response = fetch(&token, client, config, &search_url).await?;
+        if !response.status.is_success() {
             return Err(format!(
                 "GET search page {} {}: {}",
                 page_num,
-                status,
-                output::sanitize_for_stderr(&body, 200)
+                response.status,
+                output::sanitize_for_stderr(&response.body, 200)
             )
             .into());
         }
 
-        let page: serde_json::Value = serde_json::from_str(&body)?;
-        let estimate = cost::estimate_cost(&page, &search_url, cache_hit);
+        let page = response.json.ok_or("invalid JSON from search")?;
+        let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
         // Break on empty data (phantom next_token defense)
@@ -221,7 +221,7 @@ async fn fetch(
     client: &mut CachedClient,
     config: &ResolvedConfig,
     url: &str,
-) -> Result<(reqwest::StatusCode, String, bool), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
     match token {
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
@@ -230,13 +230,9 @@ async fn fetch(
                 auth_type: &AuthType::OAuth2User,
                 username: config.username.as_deref(),
             };
-            let response = client.get(url, &ctx, headers).await?;
-            Ok((response.status, response.body, response.cache_hit))
+            Ok(client.get(url, &ctx, headers).await?)
         }
-        CommandToken::OAuth1 => {
-            let response = client.oauth1_request("GET", url, config, None).await?;
-            Ok((response.status, response.body, false))
-        }
+        CommandToken::OAuth1 => Ok(client.oauth1_request("GET", url, config, None).await?),
     }
 }
 

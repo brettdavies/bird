@@ -547,6 +547,8 @@ pub struct ApiResponse {
     pub body: String,
     pub headers: reqwest::header::HeaderMap,
     pub cache_hit: bool,
+    /// Pre-parsed JSON body (populated by transport methods to avoid double-parse).
+    pub json: Option<serde_json::Value>,
 }
 
 impl fmt::Debug for ApiResponse {
@@ -607,8 +609,9 @@ impl CachedClient {
         // Never cache auth endpoints or paginated requests
         if should_skip_cache(url) || self.cache_opts.no_cache {
             let response = self.http_get(url, headers).await?;
-            self.log_api_call(url, "GET", &response.body, false, ctx.username);
-            return Ok(response);
+            let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+            self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
+            return Ok(ApiResponse { json, ..response });
         }
 
         let key = compute_cache_key("GET", url, ctx);
@@ -620,13 +623,16 @@ impl CachedClient {
                 match db.get(&key) {
                     Ok(Some(entry)) => {
                         let body = String::from_utf8_lossy(&entry.body).into_owned();
-                        self.log_api_call(url, "GET", &body, true, ctx.username);
+                        let json: Option<serde_json::Value> =
+                            serde_json::from_str(&body).ok();
+                        self.log_api_call(url, "GET", json.as_ref(), true, ctx.username);
                         return Ok(ApiResponse {
                             status: reqwest::StatusCode::from_u16(entry.status_code as u16)
                                 .unwrap_or(reqwest::StatusCode::OK),
                             body,
                             headers: reqwest::header::HeaderMap::new(),
                             cache_hit: true,
+                            json,
                         });
                     }
                     Ok(None) => {}
@@ -655,8 +661,9 @@ impl CachedClient {
             }
         }
 
-        self.log_api_call(url, "GET", &response.body, false, ctx.username);
-        Ok(response)
+        let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+        self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
+        Ok(ApiResponse { json, ..response })
     }
 
     /// POST/PUT/DELETE — pass-through, no caching.
@@ -677,12 +684,14 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
-        self.log_api_call(url, &method_str, &text, false, ctx.username);
+        let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
+        self.log_api_call(url, &method_str, json.as_ref(), false, ctx.username);
         Ok(ApiResponse {
             status,
             body: text,
             headers: resp_headers,
             cache_hit: false,
+            json,
         })
     }
 
@@ -717,20 +726,20 @@ impl CachedClient {
     }
 
     /// Log an API call to the usage database. Non-fatal: errors are warned to stderr.
-    /// Handles JSON parsing, endpoint normalization, cost estimation (raw per D3), and DB insert.
+    /// Accepts pre-parsed JSON to avoid redundant deserialization (callers parse once).
     pub fn log_api_call(
         &mut self,
         url: &str,
         method: &str,
-        body: &str,
+        json: Option<&serde_json::Value>,
         cache_hit: bool,
         username: Option<&str>,
     ) {
         let Some(ref mut db) = self.db else { return };
         let endpoint = normalize_endpoint(url);
-        let json: serde_json::Value =
-            serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
-        let estimate = cost::estimate_raw_cost(&json, &endpoint);
+        let null = serde_json::Value::Null;
+        let json = json.unwrap_or(&null);
+        let estimate = cost::estimate_raw_cost(json, &endpoint);
         let object_type = if estimate.users_read > 0 && estimate.tweets_read == 0 {
             "user"
         } else if estimate.tweets_read > 0 {
@@ -752,9 +761,9 @@ impl CachedClient {
     }
 
     /// Direct HTTP GET (bypasses cache). Used for endpoints where fresh data is required.
-    /// Logs the API call automatically.
+    /// Does NOT log — callers (e.g. `get()`) handle logging with pre-parsed JSON.
     pub async fn http_get(
-        &mut self,
+        &self,
         url: &str,
         headers: reqwest::header::HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
@@ -762,12 +771,12 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
-        self.log_api_call(url, "GET", &text, false, None);
         Ok(ApiResponse {
             status,
             body: text,
             headers: resp_headers,
             cache_hit: false,
+            json: None,
         })
     }
 
@@ -814,12 +823,14 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
-        self.log_api_call(url, method, &text, false, config.username.as_deref());
+        let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
+        self.log_api_call(url, method, json.as_ref(), false, config.username.as_deref());
         Ok(ApiResponse {
             status,
             body: text,
             headers: resp_headers,
             cache_hit: false,
+            json,
         })
     }
 
@@ -1247,6 +1258,7 @@ mod tests {
             body: "sensitive data here".to_string(),
             headers: reqwest::header::HeaderMap::new(),
             cache_hit: true,
+            json: None,
         };
         let debug = format!("{:?}", response);
         assert!(!debug.contains("sensitive data here"));

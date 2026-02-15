@@ -52,7 +52,7 @@ pub async fn run_search(
     for page_num in 1..=opts.pages {
         let url = build_search_url(&effective_query, opts.max_results, next_token.as_deref());
 
-        let (status, body, cache_hit) = match &token {
+        let response = match &token {
             CommandToken::Bearer(access) => {
                 let mut headers = HeaderMap::new();
                 headers.insert("Authorization", format!("Bearer {}", access).parse()?);
@@ -60,28 +60,24 @@ pub async fn run_search(
                     auth_type: &AuthType::OAuth2User,
                     username: config.username.as_deref(),
                 };
-                let response = client.get(&url, &ctx, headers).await?;
-                (response.status, response.body, response.cache_hit)
+                client.get(&url, &ctx, headers).await?
             }
-            CommandToken::OAuth1 => {
-                let response = client.oauth1_request("GET", &url, config, None).await?;
-                (response.status, response.body, false)
-            }
+            CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
         };
 
-        if !status.is_success() {
+        if !response.status.is_success() {
             return Err(format!(
                 "GET search {}: {}",
-                status,
-                output::sanitize_for_stderr(&body, 200)
+                response.status,
+                output::sanitize_for_stderr(&response.body, 200)
             )
             .into());
         }
 
-        let page: serde_json::Value = serde_json::from_str(&body)?;
+        let page = response.json.ok_or("invalid JSON from search")?;
 
         // Manual cost display per page
-        let estimate = cost::estimate_cost(&page, &url, cache_hit);
+        let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
         // Break on empty data (handles phantom next_token)

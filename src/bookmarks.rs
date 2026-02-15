@@ -39,7 +39,9 @@ pub async fn run_bookmarks(
         )
         .into());
     }
-    let me_json: serde_json::Value = serde_json::from_str(&me_response.body)?;
+    let me_json = me_response
+        .json
+        .ok_or("invalid JSON from /2/users/me")?;
     let user_id = me_json
         .get("data")
         .and_then(|d| d.get("id"))
@@ -86,7 +88,7 @@ pub async fn run_bookmarks(
             .into());
         }
 
-        let page: serde_json::Value = serde_json::from_str(&response.body)?;
+        let page = response.json.ok_or("invalid JSON from bookmarks")?;
         let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
         cost::display_cost(&page_estimate, use_color);
 

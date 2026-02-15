@@ -276,7 +276,7 @@ async fn execute_check(
     use crate::requirements::AuthType;
     use reqwest::header::HeaderMap;
 
-    let (status, body, cache_hit) = match token {
+    let response = match token {
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
@@ -284,28 +284,24 @@ async fn execute_check(
                 auth_type: &AuthType::OAuth2User,
                 username: config.username.as_deref(),
             };
-            let response = client.get(url, &ctx, headers).await?;
-            (response.status, response.body, response.cache_hit)
+            client.get(url, &ctx, headers).await?
         }
-        CommandToken::OAuth1 => {
-            let response = client.oauth1_request("GET", url, config, None).await?;
-            (response.status, response.body, false)
-        }
+        CommandToken::OAuth1 => client.oauth1_request("GET", url, config, None).await?,
     };
 
-    if !status.is_success() {
+    if !response.status.is_success() {
         return Err(format!(
             "GET search {}: {}",
-            status,
-            crate::output::sanitize_for_stderr(&body, 200)
+            response.status,
+            crate::output::sanitize_for_stderr(&response.body, 200)
         )
         .into());
     }
 
-    let json: serde_json::Value = serde_json::from_str(&body)?;
+    let json = response.json.ok_or("invalid JSON from search")?;
 
     // Cost display per account
-    let estimate = crate::cost::estimate_cost(&json, url, cache_hit);
+    let estimate = crate::cost::estimate_cost(&json, url, response.cache_hit);
     crate::cost::display_cost(&estimate, use_color);
 
     let tweet_count = json
@@ -316,7 +312,7 @@ async fn execute_check(
 
     let latest_tweet = extract_latest_tweet(&json);
 
-    Ok((tweet_count, latest_tweet, cache_hit))
+    Ok((tweet_count, latest_tweet, response.cache_hit))
 }
 
 fn extract_latest_tweet(body: &serde_json::Value) -> Option<LatestTweet> {
