@@ -72,6 +72,55 @@ pub fn hyperlink(url: &str, display_text: Option<&str>, use_hyperlinks: bool) ->
     format!("\x1b]8;;{}\x07{}\x1b]8;;\x07", safe_url, safe_text)
 }
 
+/// Sanitize untrusted text for stderr display: replace control chars with '?', truncate.
+/// Prevents terminal escape injection from API response bodies.
+pub fn sanitize_for_stderr(s: &str, max_chars: usize) -> String {
+    s.chars()
+        .take(max_chars)
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_normal_text() {
+        assert_eq!(sanitize_for_stderr("hello world", 100), "hello world");
+    }
+
+    #[test]
+    fn sanitize_strips_escape() {
+        assert_eq!(sanitize_for_stderr("a\x1b[31mred\x1b[0m", 100), "a?[31mred?[0m");
+    }
+
+    #[test]
+    fn sanitize_strips_bel() {
+        assert_eq!(sanitize_for_stderr("a\x07b", 100), "a?b");
+    }
+
+    #[test]
+    fn sanitize_strips_newlines() {
+        assert_eq!(sanitize_for_stderr("line1\nline2", 100), "line1?line2");
+    }
+
+    #[test]
+    fn sanitize_truncates() {
+        assert_eq!(sanitize_for_stderr("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn sanitize_empty() {
+        assert_eq!(sanitize_for_stderr("", 100), "");
+    }
+
+    #[test]
+    fn sanitize_at_exact_limit() {
+        assert_eq!(sanitize_for_stderr("abc", 3), "abc");
+    }
+}
+
 /// Emoji for "available" when use_emoji; otherwise empty string.
 pub fn emoji_available(use_emoji: bool) -> &'static str {
     if use_emoji {

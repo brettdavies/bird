@@ -11,6 +11,12 @@ pub struct CostEstimate {
     pub cache_hit: bool,
 }
 
+/// Estimate cost assuming a fresh (non-cached) request.
+/// Eliminates the "magic false" from D3 by giving the intent a name.
+pub fn estimate_raw_cost(body: &serde_json::Value, endpoint: &str) -> CostEstimate {
+    estimate_cost(body, endpoint, false)
+}
+
 /// Count objects in a JSON response body and estimate cost.
 /// Pure function — no I/O.
 pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) -> CostEstimate {

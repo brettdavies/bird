@@ -1,12 +1,12 @@
 //! Profile command: look up an X user by username, display JSON.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CacheContext, CachedClient};
+use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::output;
 use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
-use reqwest_oauth1::OAuthClientProvider;
 
 const USER_FIELDS: &str =
     "created_at,public_metrics,description,profile_image_url,location,verified,url";
@@ -32,54 +32,29 @@ pub async fn run_profile(
 
     let token = resolve_token_for_command(client.http(), config, "profile").await?;
 
-    let (status, body, cache_hit) = match &token {
+    let response = match &token {
         CommandToken::Bearer(access) => {
             let mut headers = HeaderMap::new();
             headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-            let ctx = CacheContext {
+            let ctx = RequestContext {
                 auth_type: &AuthType::OAuth2User,
                 username: config.username.as_deref(),
             };
-            let response = client.get(&url, &ctx, headers).await?;
-            (response.status, response.body, response.cache_hit)
+            client.get(&url, &ctx, headers).await?
         }
-        CommandToken::OAuth1 => {
-            let ck = config
-                .oauth1_consumer_key
-                .as_ref()
-                .ok_or("OAuth1 consumer key missing")?;
-            let cs = config
-                .oauth1_consumer_secret
-                .as_ref()
-                .ok_or("OAuth1 consumer secret missing")?;
-            let at = config
-                .oauth1_access_token
-                .as_ref()
-                .ok_or("OAuth1 access token missing")?;
-            let ats = config
-                .oauth1_access_token_secret
-                .as_ref()
-                .ok_or("OAuth1 access token secret missing")?;
-            let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-                .token(at.as_str(), ats.as_str());
-            let res = client
-                .http()
-                .clone()
-                .oauth1(secrets)
-                .get(&url)
-                .send()
-                .await?;
-            let status = res.status();
-            let text = res.text().await?;
-            (status, text, false)
-        }
+        CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
     };
 
-    if !status.is_success() {
-        return Err(format!("GET profile {}: {}", status, body).into());
+    if !response.status.is_success() {
+        return Err(format!(
+            "GET profile {}: {}",
+            response.status,
+            output::sanitize_for_stderr(&response.body, 200)
+        )
+        .into());
     }
 
-    let json: serde_json::Value = serde_json::from_str(&body)?;
+    let json = response.json.ok_or("invalid JSON in API response")?;
 
     // X API returns HTTP 200 with errors array for not-found users (not 404)
     if let Some(errors) = json.get("errors").and_then(|e| e.as_array()) {
@@ -92,7 +67,7 @@ pub async fn run_profile(
         }
     }
 
-    let estimate = cost::estimate_cost(&json, &url, cache_hit);
+    let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
     cost::display_cost(&estimate, use_color);
 
     if opts.pretty {

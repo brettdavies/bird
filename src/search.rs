@@ -1,12 +1,12 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CacheContext, CachedClient};
+use crate::cache::{RequestContext, CachedClient};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::output;
 use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
-use reqwest_oauth1::OAuthClientProvider;
 use std::collections::HashSet;
 
 // Sensible defaults for research workflows. Extract to shared module when Plan 3 needs it.
@@ -52,57 +52,32 @@ pub async fn run_search(
     for page_num in 1..=opts.pages {
         let url = build_search_url(&effective_query, opts.max_results, next_token.as_deref());
 
-        let (status, body, cache_hit) = match &token {
+        let response = match &token {
             CommandToken::Bearer(access) => {
                 let mut headers = HeaderMap::new();
                 headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-                let ctx = CacheContext {
+                let ctx = RequestContext {
                     auth_type: &AuthType::OAuth2User,
                     username: config.username.as_deref(),
                 };
-                let response = client.get(&url, &ctx, headers).await?;
-                (response.status, response.body, response.cache_hit)
+                client.get(&url, &ctx, headers).await?
             }
-            CommandToken::OAuth1 => {
-                let ck = config
-                    .oauth1_consumer_key
-                    .as_ref()
-                    .ok_or("OAuth1 consumer key missing")?;
-                let cs = config
-                    .oauth1_consumer_secret
-                    .as_ref()
-                    .ok_or("OAuth1 consumer secret missing")?;
-                let at = config
-                    .oauth1_access_token
-                    .as_ref()
-                    .ok_or("OAuth1 access token missing")?;
-                let ats = config
-                    .oauth1_access_token_secret
-                    .as_ref()
-                    .ok_or("OAuth1 access token secret missing")?;
-                let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-                    .token(at.as_str(), ats.as_str());
-                let res = client
-                    .http()
-                    .clone()
-                    .oauth1(secrets)
-                    .get(&url)
-                    .send()
-                    .await?;
-                let status = res.status();
-                let text = res.text().await?;
-                (status, text, false) // OAuth1 bypasses cache
-            }
+            CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
         };
 
-        if !status.is_success() {
-            return Err(format!("GET search {}: {}", status, body).into());
+        if !response.status.is_success() {
+            return Err(format!(
+                "GET search {}: {}",
+                response.status,
+                output::sanitize_for_stderr(&response.body, 200)
+            )
+            .into());
         }
 
-        let page: serde_json::Value = serde_json::from_str(&body)?;
+        let page = response.json.ok_or("invalid JSON from search")?;
 
         // Manual cost display per page
-        let estimate = cost::estimate_cost(&page, &url, cache_hit);
+        let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
         // Break on empty data (handles phantom next_token)
