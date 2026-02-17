@@ -311,8 +311,9 @@ impl std::fmt::Debug for CommandToken {
     }
 }
 
-/// Resolve a valid token for a command, trying accepted auth types in order (Bearer, OAuth1, OAuth2User).
-/// Returns a structured auth-required error with hints when no valid auth is found.
+/// Resolve a valid token for a command, trying accepted auth types in priority order:
+/// OAuth2User (richest user context) → OAuth1 (user context, no expiry) → Bearer (app-only fallback).
+/// Skips auth methods that aren't configured to avoid wasted work (e.g., no `ensure_access_token()` disk I/O).
 pub async fn resolve_token_for_command(
     client: &reqwest::Client,
     config: &ResolvedConfig,
@@ -322,6 +323,28 @@ pub async fn resolve_token_for_command(
         Some(r) => r,
         None => return Err(requirements::auth_required_error(command_name)),
     };
+
+    // 1. OAuth2User (preferred — user context, richest data)
+    if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
+        if has_oauth2_available(config) {
+            if let Ok(t) = ensure_access_token(client, config).await {
+                return Ok(CommandToken::Bearer {
+                    token: t,
+                    auth_type: ReqAuthType::OAuth2User,
+                });
+            }
+            // Full auth failed (expired + no refresh) — fall through
+        }
+    }
+
+    // 2. OAuth1 (user context, no expiry)
+    if reqs.accepted.contains(&ReqAuthType::OAuth1) {
+        if has_oauth1_available(config) {
+            return Ok(CommandToken::OAuth1);
+        }
+    }
+
+    // 3. Bearer (app-only, fallback)
     if reqs.accepted.contains(&ReqAuthType::Bearer) {
         if let Some(t) = resolve_bearer_token(config) {
             return Ok(CommandToken::Bearer {
@@ -330,20 +353,16 @@ pub async fn resolve_token_for_command(
             });
         }
     }
-    if reqs.accepted.contains(&ReqAuthType::OAuth1) {
-        if has_oauth1_available(config) {
-            return Ok(CommandToken::OAuth1);
-        }
-    }
-    if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
-        if let Ok(t) = ensure_access_token(client, config).await {
-            return Ok(CommandToken::Bearer {
-                token: t,
-                auth_type: ReqAuthType::OAuth2User,
-            });
-        }
-    }
+
     Err(requirements::auth_required_error(command_name))
+}
+
+/// Quick check: is there any OAuth2 credential source available?
+/// Does NOT load tokens.json, does NOT check expiry, does NOT refresh.
+pub fn has_oauth2_available(config: &ResolvedConfig) -> bool {
+    config.access_token.is_some()
+        || std::env::var("X_API_ACCESS_TOKEN").is_ok()
+        || config.tokens_path.exists()
 }
 
 /// Quick check: are all four OAuth1 credentials available?

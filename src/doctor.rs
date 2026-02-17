@@ -262,26 +262,10 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
     let stored = load_stored_tokens(&config.tokens_path);
     let oauth2 = resolve_oauth2_token(config, stored.as_ref());
     let bearer = resolve_bearer_token(config);
-    let oauth1_all = config.oauth1_consumer_key.is_some()
-        && config.oauth1_consumer_secret.is_some()
-        && config.oauth1_access_token.is_some()
-        && config.oauth1_access_token_secret.is_some();
+    let oauth1_all = crate::auth::has_oauth1_available(config);
 
-    let (auth_type, source, username, can_refresh) = if bearer.is_some() {
-        (
-            AuthType::Bearer,
-            Some(AuthSource::Env),
-            config.username.clone(),
-            false,
-        )
-    } else if oauth1_all {
-        (
-            AuthType::OAuth1,
-            Some(AuthSource::Env),
-            config.username.clone(),
-            false,
-        )
-    } else if let Some((_, refresh_opt)) = oauth2 {
+    // Match resolution order: OAuth2User → OAuth1 → Bearer (STAR: single truth for auth priority)
+    let (auth_type, source, username, can_refresh) = if let Some((_, refresh_opt)) = oauth2 {
         let from_stored = config.access_token.is_none() && !env_set("X_API_ACCESS_TOKEN");
         let source = if config.access_token.is_some() || env_set("X_API_ACCESS_TOKEN") {
             Some(AuthSource::Env)
@@ -297,6 +281,20 @@ fn build_auth_state(config: &ResolvedConfig) -> AuthState {
         });
         let can_refresh = refresh_opt.is_some() && config.client_id.is_some();
         (AuthType::OAuth2User, source, username, can_refresh)
+    } else if oauth1_all {
+        (
+            AuthType::OAuth1,
+            Some(AuthSource::Env),
+            config.username.clone(),
+            false,
+        )
+    } else if bearer.is_some() {
+        (
+            AuthType::Bearer,
+            Some(AuthSource::Env),
+            config.username.clone(),
+            false,
+        )
     } else {
         (AuthType::None, None, None, false)
     };
@@ -642,6 +640,7 @@ mod tests {
 
     #[test]
     fn doctor_report_bearer_me_and_bookmarks_unavailable() {
+        clear_auth_env();
         let mut config = minimal_config_no_auth();
         config.bearer_token = Some("bearer".into());
         let client = no_cache_client();
