@@ -5,7 +5,6 @@ use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
-use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
 
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
@@ -16,13 +15,13 @@ pub async fn run_bookmarks(
     use_color: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let token = resolve_token_for_command(client.http(), config, "bookmarks").await?;
-    let access = match token {
-        CommandToken::Bearer(t) => t,
+    let (access, resolved_auth_type) = match token {
+        CommandToken::Bearer { token, auth_type } => (token, auth_type),
         CommandToken::OAuth1 => unreachable!("bookmarks accepts OAuth2 user only per spec"),
     };
 
     let ctx = RequestContext {
-        auth_type: &AuthType::OAuth2User,
+        auth_type: &resolved_auth_type,
         username: config.username.as_deref(),
     };
 

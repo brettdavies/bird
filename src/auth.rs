@@ -291,10 +291,24 @@ impl Default for StoredTokens {
 }
 
 /// Token for authenticating a request: either Bearer (OAuth2 or app-only) or OAuth 1.0a (caller uses reqwest_oauth1).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum CommandToken {
-    Bearer(String),
+    Bearer { token: String, auth_type: ReqAuthType },
     OAuth1,
+}
+
+// Custom Debug impl to redact bearer token (every other secret-carrying struct already does this).
+impl std::fmt::Debug for CommandToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommandToken::Bearer { auth_type, .. } => f
+                .debug_struct("Bearer")
+                .field("token", &"[REDACTED]")
+                .field("auth_type", auth_type)
+                .finish(),
+            CommandToken::OAuth1 => write!(f, "OAuth1"),
+        }
+    }
 }
 
 /// Resolve a valid token for a command, trying accepted auth types in order (Bearer, OAuth1, OAuth2User).
@@ -310,24 +324,34 @@ pub async fn resolve_token_for_command(
     };
     if reqs.accepted.contains(&ReqAuthType::Bearer) {
         if let Some(t) = resolve_bearer_token(config) {
-            return Ok(CommandToken::Bearer(t));
+            return Ok(CommandToken::Bearer {
+                token: t,
+                auth_type: ReqAuthType::Bearer,
+            });
         }
     }
     if reqs.accepted.contains(&ReqAuthType::OAuth1) {
-        let has_oauth1 = config.oauth1_consumer_key.is_some()
-            && config.oauth1_consumer_secret.is_some()
-            && config.oauth1_access_token.is_some()
-            && config.oauth1_access_token_secret.is_some();
-        if has_oauth1 {
+        if has_oauth1_available(config) {
             return Ok(CommandToken::OAuth1);
         }
     }
     if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
         if let Ok(t) = ensure_access_token(client, config).await {
-            return Ok(CommandToken::Bearer(t));
+            return Ok(CommandToken::Bearer {
+                token: t,
+                auth_type: ReqAuthType::OAuth2User,
+            });
         }
     }
     Err(requirements::auth_required_error(command_name))
+}
+
+/// Quick check: are all four OAuth1 credentials available?
+pub fn has_oauth1_available(config: &ResolvedConfig) -> bool {
+    config.oauth1_consumer_key.is_some()
+        && config.oauth1_consumer_secret.is_some()
+        && config.oauth1_access_token.is_some()
+        && config.oauth1_access_token_secret.is_some()
 }
 
 /// Resolve a valid OAuth2 access token, refreshing if we have refresh_token and token is expired.

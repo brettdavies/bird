@@ -218,7 +218,7 @@ async fn sync_actual_usage(
     use reqwest::header::HeaderMap;
 
     let access = match token {
-        crate::auth::CommandToken::Bearer(t) => t,
+        crate::auth::CommandToken::Bearer { token, .. } => token,
         crate::auth::CommandToken::OAuth1 => {
             return Err("--sync requires a Bearer token".into());
         }

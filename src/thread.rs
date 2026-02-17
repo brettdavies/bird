@@ -6,7 +6,6 @@ use crate::cache::{ApiResponse, CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
-use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -223,11 +222,13 @@ async fn fetch(
     url: &str,
 ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
     match token {
-        CommandToken::Bearer(access) => {
+        CommandToken::Bearer {
+            token, auth_type, ..
+        } => {
             let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", access).parse()?);
+            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
             let ctx = RequestContext {
-                auth_type: &AuthType::OAuth2User,
+                auth_type,
                 username: config.username.as_deref(),
             };
             Ok(client.get(url, &ctx, headers).await?)
