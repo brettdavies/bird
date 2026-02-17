@@ -752,6 +752,25 @@ mod tests {
     }
 
     #[test]
+    fn oauth1_cache_key_differs_from_oauth2() {
+        let url = "https://api.x.com/2/users/me";
+        let oauth1_ctx = RequestContext {
+            auth_type: &AuthType::OAuth1,
+            username: Some("alice"),
+        };
+        let oauth2_ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: Some("alice"),
+        };
+        let key_oauth1 = compute_cache_key("GET", url, &oauth1_ctx);
+        let key_oauth2 = compute_cache_key("GET", url, &oauth2_ctx);
+        assert_ne!(
+            key_oauth1, key_oauth2,
+            "OAuth1 and OAuth2 should produce different cache keys for the same URL"
+        );
+    }
+
+    #[test]
     fn api_response_debug_redacts_body() {
         let response = ApiResponse {
             status: reqwest::StatusCode::OK,
