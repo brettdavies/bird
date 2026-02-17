@@ -422,3 +422,83 @@ pub async fn ensure_access_token(
 
     Ok(access)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::DEFAULT_REDIRECT_URI;
+
+    fn minimal_config() -> ResolvedConfig {
+        let config_dir = std::env::temp_dir().join("bird-auth-test");
+        ResolvedConfig {
+            client_id: None,
+            client_secret: None,
+            redirect_uri: DEFAULT_REDIRECT_URI.to_string(),
+            access_token: None,
+            refresh_token: None,
+            bearer_token: None,
+            username: None,
+            oauth1_consumer_key: None,
+            oauth1_consumer_secret: None,
+            oauth1_access_token: None,
+            oauth1_access_token_secret: None,
+            config_dir: config_dir.clone(),
+            tokens_path: config_dir.join("tokens-nonexistent.json"),
+            cache_path: config_dir.join("cache.db"),
+            cache_enabled: true,
+            cache_max_size_mb: 100,
+        }
+    }
+
+    #[test]
+    fn has_oauth2_available_false_when_no_sources() {
+        std::env::remove_var("X_API_ACCESS_TOKEN");
+        let config = minimal_config();
+        assert!(!has_oauth2_available(&config));
+    }
+
+    #[test]
+    fn has_oauth2_available_true_with_access_token() {
+        let mut config = minimal_config();
+        config.access_token = Some("test".into());
+        assert!(has_oauth2_available(&config));
+    }
+
+    #[test]
+    fn has_oauth1_available_false_when_partial() {
+        let mut config = minimal_config();
+        config.oauth1_consumer_key = Some("ck".into());
+        config.oauth1_consumer_secret = Some("cs".into());
+        // Missing access_token and access_token_secret
+        assert!(!has_oauth1_available(&config));
+    }
+
+    #[test]
+    fn has_oauth1_available_true_when_all_set() {
+        let mut config = minimal_config();
+        config.oauth1_consumer_key = Some("ck".into());
+        config.oauth1_consumer_secret = Some("cs".into());
+        config.oauth1_access_token = Some("at".into());
+        config.oauth1_access_token_secret = Some("ats".into());
+        assert!(has_oauth1_available(&config));
+    }
+
+    #[test]
+    fn command_token_debug_redacts_bearer() {
+        let token = CommandToken::Bearer {
+            token: "super-secret-token".into(),
+            auth_type: ReqAuthType::OAuth2User,
+        };
+        let debug = format!("{:?}", token);
+        assert!(!debug.contains("super-secret-token"));
+        assert!(debug.contains("[REDACTED]"));
+        assert!(debug.contains("OAuth2User"));
+    }
+
+    #[test]
+    fn command_token_debug_oauth1() {
+        let token = CommandToken::OAuth1;
+        let debug = format!("{:?}", token);
+        assert_eq!(debug, "OAuth1");
+    }
+}
