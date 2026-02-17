@@ -116,8 +116,7 @@ impl CachedClient {
                 match db.get(&key) {
                     Ok(Some(entry)) => {
                         let body = String::from_utf8_lossy(&entry.body).into_owned();
-                        let json: Option<serde_json::Value> =
-                            serde_json::from_str(&body).ok();
+                        let json: Option<serde_json::Value> = serde_json::from_str(&body).ok();
                         self.log_api_call(url, "GET", json.as_ref(), true, ctx.username);
                         return Ok(ApiResponse {
                             status: reqwest::StatusCode::from_u16(entry.status_code as u16)
@@ -298,8 +297,8 @@ impl CachedClient {
             .oauth1_access_token_secret
             .as_ref()
             .ok_or("OAuth1 access token secret missing")?;
-        let secrets = reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str())
-            .token(at.as_str(), ats.as_str());
+        let secrets =
+            reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
         let mut req = match method {
             "GET" => self.http.clone().oauth1(secrets).get(url),
             "POST" => self.http.clone().oauth1(secrets).post(url),
@@ -317,7 +316,13 @@ impl CachedClient {
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
         let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
-        self.log_api_call(url, method, json.as_ref(), false, config.username.as_deref());
+        self.log_api_call(
+            url,
+            method,
+            json.as_ref(),
+            false,
+            config.username.as_deref(),
+        );
         Ok(ApiResponse {
             status,
             body: text,
@@ -407,8 +412,22 @@ fn normalize_url(url: &str) -> String {
 
 /// Known literal path segments that should never be replaced with `:id`.
 const KNOWN_LITERALS: &[&str] = &[
-    "2", "tweets", "users", "search", "recent", "bookmarks", "me", "by", "username", "usage",
-    "oauth2", "token", "compliance", "lists", "spaces", "dm_conversations",
+    "2",
+    "tweets",
+    "users",
+    "search",
+    "recent",
+    "bookmarks",
+    "me",
+    "by",
+    "username",
+    "usage",
+    "oauth2",
+    "token",
+    "compliance",
+    "lists",
+    "spaces",
+    "dm_conversations",
 ];
 
 /// Normalize a URL to an endpoint pattern for usage grouping.

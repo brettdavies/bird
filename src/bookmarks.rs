@@ -1,7 +1,7 @@
 //! Curated bookmarks command: GET /2/users/{id}/bookmarks with pagination, max_results=100.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{RequestContext, CachedClient};
+use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
@@ -39,9 +39,7 @@ pub async fn run_bookmarks(
         )
         .into());
     }
-    let me_json = me_response
-        .json
-        .ok_or("invalid JSON from /2/users/me")?;
+    let me_json = me_response.json.ok_or("invalid JSON from /2/users/me")?;
     let user_id = me_json
         .get("data")
         .and_then(|d| d.get("id"))

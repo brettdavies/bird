@@ -1,7 +1,7 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{RequestContext, CachedClient};
+use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;

@@ -2,7 +2,7 @@
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{ApiResponse, RequestContext, CachedClient};
+use crate::cache::{ApiResponse, CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
@@ -353,8 +353,16 @@ fn build_thread_tree(
         // Take children to avoid borrow conflict with nodes, then put back
         let mut children = std::mem::take(&mut nodes[idx].children);
         children.sort_by(|&a, &b| {
-            let a_time = nodes[a].tweet.get("created_at").and_then(|t| t.as_str()).unwrap_or("");
-            let b_time = nodes[b].tweet.get("created_at").and_then(|t| t.as_str()).unwrap_or("");
+            let a_time = nodes[a]
+                .tweet
+                .get("created_at")
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
+            let b_time = nodes[b]
+                .tweet
+                .get("created_at")
+                .and_then(|t| t.as_str())
+                .unwrap_or("");
             a_time.cmp(b_time)
         });
         for &child_idx in &children {
@@ -421,8 +429,7 @@ mod tests {
             "created_at": created_at,
         });
         if let Some(parent) = replied_to {
-            tweet["referenced_tweets"] =
-                serde_json::json!([{"type": "replied_to", "id": parent}]);
+            tweet["referenced_tweets"] = serde_json::json!([{"type": "replied_to", "id": parent}]);
         }
         tweet
     }

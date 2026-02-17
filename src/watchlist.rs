@@ -11,9 +11,7 @@ fn validate_username(username: &str) -> Result<(), Box<dyn std::error::Error + S
         return Err("username must not be empty".into());
     }
     if username.len() > 15 {
-        return Err(
-            format!("username '{}' exceeds X's 15-character limit", username).into(),
-        );
+        return Err(format!("username '{}' exceeds X's 15-character limit", username).into());
     }
     if !username
         .chars()
@@ -255,10 +253,7 @@ fn build_check_url(query: &str) -> String {
     url.query_pairs_mut()
         .append_pair("query", query)
         .append_pair("max_results", "10")
-        .append_pair(
-            "tweet.fields",
-            "created_at,public_metrics,author_id",
-        )
+        .append_pair("tweet.fields", "created_at,public_metrics,author_id")
         .append_pair("expansions", "author_id")
         .append_pair("user.fields", "username,name,public_metrics");
     url.to_string()
@@ -511,7 +506,8 @@ mod tests {
     fn add_preserves_comments() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let original = "# My bird config\nclient_id = \"abc\"\n# secret stuff\nclient_secret = \"xyz\"\n";
+        let original =
+            "# My bird config\nclient_id = \"abc\"\n# secret stuff\nclient_secret = \"xyz\"\n";
         fs::write(&path, original).unwrap();
         add_to_watchlist(&path, "alice").unwrap();
         let content = fs::read_to_string(&path).unwrap();
@@ -525,8 +521,7 @@ mod tests {
     fn remove_preserves_comments() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let original =
-            "# My config\nclient_id = \"abc\"\nwatchlist = [\"alice\", \"bob\"]\n";
+        let original = "# My config\nclient_id = \"abc\"\nwatchlist = [\"alice\", \"bob\"]\n";
         fs::write(&path, original).unwrap();
         remove_from_watchlist(&path, "alice").unwrap();
         let content = fs::read_to_string(&path).unwrap();

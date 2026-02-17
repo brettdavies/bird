@@ -9,17 +9,9 @@ use crate::output;
 fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
     match since {
         Some(date_str) => {
-            let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|e| {
-                format!(
-                    "invalid date '{}': {} (expected YYYY-MM-DD)",
-                    date_str, e
-                )
-            })?;
-            Ok(date
-                .format("%Y%m%d")
-                .to_string()
-                .parse::<i64>()
-                .unwrap())
+            let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                .map_err(|e| format!("invalid date '{}': {} (expected YYYY-MM-DD)", date_str, e))?;
+            Ok(date.format("%Y%m%d").to_string().parse::<i64>().unwrap())
         }
         None => {
             let now = chrono::Utc::now();
@@ -104,10 +96,16 @@ pub async fn run_usage(
                 sync_status = "success";
                 Some(actuals)
             }
-            None => client.db().and_then(|db| db.query_actual_usage(since_ymd).ok()).flatten(),
+            None => client
+                .db()
+                .and_then(|db| db.query_actual_usage(since_ymd).ok())
+                .flatten(),
         }
     } else {
-        client.db().and_then(|db| db.query_actual_usage(since_ymd).ok()).flatten()
+        client
+            .db()
+            .and_then(|db| db.query_actual_usage(since_ymd).ok())
+            .flatten()
     };
 
     let since_display = since
@@ -134,10 +132,7 @@ pub async fn run_usage(
 }
 
 fn print_usage_pretty(report: &UsageReport) {
-    println!(
-        "API Usage ({} to {})",
-        report.since, report.until
-    );
+    println!("API Usage ({} to {})", report.since, report.until);
     println!("{}", "-".repeat(45));
 
     let total_calls = report.summary.total_calls;
@@ -147,10 +142,7 @@ fn print_usage_pretty(report: &UsageReport) {
         0
     };
 
-    println!(
-        "Total estimated cost:  ${:.2}",
-        report.summary.total_cost
-    );
+    println!("Total estimated cost:  ${:.2}", report.summary.total_cost);
     println!("Total API calls:       {}", total_calls);
     println!("Cache hit rate:        {}%", cache_rate);
     println!(
@@ -180,10 +172,7 @@ fn print_usage_pretty(report: &UsageReport) {
     if !report.top_endpoints.is_empty() {
         println!("\nTop endpoints:");
         for ep in &report.top_endpoints {
-            println!(
-                "  {}  ${:.2}  ({} calls)",
-                ep.endpoint, ep.cost, ep.calls
-            );
+            println!("  {}  ${:.2}  ({} calls)", ep.endpoint, ep.cost, ep.calls);
         }
     }
 
@@ -199,12 +188,12 @@ fn print_usage_pretty(report: &UsageReport) {
                 })
                 .unwrap_or_else(|| "unknown".to_string());
 
-            println!(
-                "\nEstimated vs Actual (synced {})",
-                synced_at
-            );
+            println!("\nEstimated vs Actual (synced {})", synced_at);
             println!("{}", "-".repeat(50));
-            println!("  {:<12} {:<14} {:<8} Diff", "Date", "Est. tweets", "Actual");
+            println!(
+                "  {:<12} {:<14} {:<8} Diff",
+                "Date", "Est. tweets", "Actual"
+            );
             for actual in actuals {
                 println!(
                     "  {:<12} {:<14} {:<8}",
@@ -272,7 +261,9 @@ async fn sync_actual_usage(
     let db = match client.db() {
         Some(db) => db,
         None => {
-            eprintln!("[usage] Cache database unavailable for storing actuals. Showing local data only.");
+            eprintln!(
+                "[usage] Cache database unavailable for storing actuals. Showing local data only."
+            );
             return Ok(None);
         }
     };

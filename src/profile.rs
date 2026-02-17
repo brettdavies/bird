@@ -1,7 +1,7 @@
 //! Profile command: look up an X user by username, display JSON.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{RequestContext, CachedClient};
+use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
@@ -83,15 +83,16 @@ pub async fn run_profile(
 fn validate_username(username: &str) -> Result<&str, Box<dyn std::error::Error + Send + Sync>> {
     let username = username.strip_prefix('@').unwrap_or(username);
     if username.is_empty() || username.len() > 15 {
-        return Err(
-            format!("username must be 1-15 characters, got {}", username.len()).into(),
-        );
+        return Err(format!("username must be 1-15 characters, got {}", username.len()).into());
     }
     if !username
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_')
     {
-        return Err("username contains invalid characters (only alphanumeric and underscore allowed)".into());
+        return Err(
+            "username contains invalid characters (only alphanumeric and underscore allowed)"
+                .into(),
+        );
     }
     Ok(username)
 }

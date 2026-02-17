@@ -526,19 +526,15 @@ async fn run(
                     })?;
             }
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, &username)
-                    .map_err(BirdError::Config)?;
+                watchlist::run_watchlist_add(&config, &username).map_err(BirdError::Config)?;
             }
             WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, &username)
-                    .map_err(BirdError::Config)?;
+                watchlist::run_watchlist_remove(&config, &username).map_err(BirdError::Config)?;
             }
             WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty).map_err(|e| {
-                    BirdError::Command {
-                        name: "watchlist",
-                        source: e,
-                    }
+                watchlist::run_watchlist_list(&config, pretty).map_err(|e| BirdError::Command {
+                    name: "watchlist",
+                    source: e,
                 })?;
             }
         },

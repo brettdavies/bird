@@ -80,7 +80,7 @@ impl BirdDb {
         // This is intentional — both are write operations, and the counter just needs to
         // trigger cleanup at a reasonable interval.
         self.write_count += 1;
-        if self.write_count % 50 == 0 {
+        if self.write_count.is_multiple_of(50) {
             self.prune_old_usage(now)?;
         }
         Ok(())
@@ -162,11 +162,7 @@ impl BirdDb {
     }
 
     /// Upsert actual usage from X API (for --sync comparison).
-    pub fn upsert_actual_usage(
-        &self,
-        date: &str,
-        tweet_count: u64,
-    ) -> Result<(), rusqlite::Error> {
+    pub fn upsert_actual_usage(&self, date: &str, tweet_count: u64) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let mut stmt = self.conn.prepare_cached(
             "INSERT OR REPLACE INTO usage_actual (date, tweet_count, synced_at)
@@ -211,8 +207,8 @@ impl BirdDb {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::db::in_memory_db;
+    use super::*;
 
     #[test]
     fn log_usage_and_query_summary() {
@@ -226,7 +222,8 @@ mod tests {
             estimated_cost: 0.015,
             cache_hit: false,
             username: Some("alice"),
-        }).unwrap();
+        })
+        .unwrap();
         // Log a cache hit (cost recorded for savings calculation per D3)
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
@@ -236,7 +233,8 @@ mod tests {
             estimated_cost: 0.015,
             cache_hit: true,
             username: Some("alice"),
-        }).unwrap();
+        })
+        .unwrap();
 
         let summary = db.query_usage_summary(0).unwrap();
         assert_eq!(summary.total_calls, 2);
@@ -332,10 +330,14 @@ mod tests {
             estimated_cost: 0.005,
             cache_hit: false,
             username: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         // The old entry (timestamp=1) should have been pruned; only the fresh entry remains
         let summary = db.query_usage_summary(0).unwrap();
-        assert_eq!(summary.total_calls, 1, "old entry should be pruned, leaving only the fresh one");
+        assert_eq!(
+            summary.total_calls, 1,
+            "old entry should be pruned, leaving only the fresh one"
+        );
     }
 }
