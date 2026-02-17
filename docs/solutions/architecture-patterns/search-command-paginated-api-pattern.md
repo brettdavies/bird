@@ -109,7 +109,7 @@ fn is_retweet(tweet: &serde_json::Value) -> bool {
 - First page (no `next_token`) is cacheable through `CachedClient`
 - Subsequent pages skipped via `should_skip_cache()` checking `next_token=`
 - `cache_hit` propagated from `ApiResponse` to cost estimation
-- OAuth1 bypasses cache (reqwest_oauth1 signs requests internally)
+- OAuth1 GET requests go through the cache (signing deferred until cache miss)
 
 ### 7. Dedicated Auth Constant
 

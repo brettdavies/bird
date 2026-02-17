@@ -121,9 +121,9 @@ struct Cli {
     #[arg(long, global = true)]
     refresh_token: Option<String>,
 
-    /// Username for multi-account selection
+    /// Account name for multi-account token selection (matches stored token key)
     #[arg(long, global = true)]
-    username: Option<String>,
+    account: Option<String>,
 
     /// Plain output (no color, no hyperlinks; script-friendly)
     #[arg(long, global = true)]
@@ -675,9 +675,7 @@ async fn main() -> ExitCode {
             .refresh_token
             .or_else(|| std::env::var("X_API_REFRESH_TOKEN").ok()),
         bearer_token: std::env::var("X_API_BEARER_TOKEN").ok(),
-        username: cli
-            .username
-            .or_else(|| std::env::var("X_API_USERNAME").ok()),
+        username: cli.account.or_else(|| std::env::var("X_API_USERNAME").ok()),
         oauth1_consumer_key: None,
         oauth1_consumer_secret: None,
         oauth1_access_token: None,

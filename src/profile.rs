@@ -5,7 +5,6 @@ use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::output;
-use crate::requirements::AuthType;
 use reqwest::header::HeaderMap;
 
 const USER_FIELDS: &str =
@@ -33,11 +32,11 @@ pub async fn run_profile(
     let token = resolve_token_for_command(client.http(), config, "profile").await?;
 
     let response = match &token {
-        CommandToken::Bearer(access) => {
+        CommandToken::Bearer { token, auth_type } => {
             let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", access).parse()?);
+            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
             let ctx = RequestContext {
-                auth_type: &AuthType::OAuth2User,
+                auth_type,
                 username: config.username.as_deref(),
             };
             client.get(&url, &ctx, headers).await?

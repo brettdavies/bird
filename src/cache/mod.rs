@@ -273,9 +273,85 @@ impl CachedClient {
     }
 
     /// OAuth1-signed HTTP request. Handles credential extraction, signing, logging.
-    /// Use for commands that require OAuth 1.0a authentication.
+    /// GET requests go through the cache layer; POST/PUT/DELETE bypass it (mutations must never be cached).
     pub async fn oauth1_request(
         &mut self,
+        method: &str,
+        url: &str,
+        config: &ResolvedConfig,
+        body: Option<&str>,
+    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth1,
+            username: config.username.as_deref(),
+        };
+
+        // Only cache GET requests; skip cache for mutations, pagination, and --no-cache
+        let use_cache = method == "GET" && !should_skip_cache(url) && !self.cache_opts.no_cache;
+
+        if use_cache {
+            let key = compute_cache_key("GET", url, &ctx);
+            let ttl = self.effective_ttl(url);
+
+            // Try cache read (unless --refresh)
+            if !self.cache_opts.refresh {
+                if let Some(ref db) = self.db {
+                    match db.get(&key) {
+                        Ok(Some(entry)) => {
+                            let body = String::from_utf8_lossy(&entry.body).into_owned();
+                            let json: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+                            self.log_api_call(url, "GET", json.as_ref(), true, ctx.username);
+                            return Ok(ApiResponse {
+                                status: reqwest::StatusCode::from_u16(entry.status_code as u16)
+                                    .unwrap_or(reqwest::StatusCode::OK),
+                                body,
+                                headers: reqwest::header::HeaderMap::new(),
+                                cache_hit: true,
+                                json,
+                            });
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            eprintln!("[cache] warning: read failed: {}", e);
+                        }
+                    }
+                }
+            }
+
+            // Cache miss — extract credentials, sign, and send
+            let response = self.oauth1_http(method, url, config, body).await?;
+
+            // Write to cache (only 2xx responses)
+            if response.status.is_success() {
+                if let Some(ref mut db) = self.db {
+                    if let Err(e) = db.put(
+                        &key,
+                        url,
+                        response.status.as_u16(),
+                        response.body.as_bytes(),
+                        ttl,
+                    ) {
+                        eprintln!("[cache] warning: write failed: {}", e);
+                    }
+                }
+            }
+
+            let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+            self.log_api_call(url, method, json.as_ref(), false, ctx.username);
+            Ok(ApiResponse { json, ..response })
+        } else {
+            // Non-cacheable path: mutations, pagination, --no-cache
+            let response = self.oauth1_http(method, url, config, body).await?;
+            let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+            self.log_api_call(url, method, json.as_ref(), false, ctx.username);
+            Ok(ApiResponse { json, ..response })
+        }
+    }
+
+    /// Inner OAuth1-signed HTTP call. Extracts credentials, signs, sends.
+    /// Does NOT log or cache — callers handle that.
+    async fn oauth1_http(
+        &self,
         method: &str,
         url: &str,
         config: &ResolvedConfig,
@@ -315,20 +391,12 @@ impl CachedClient {
         let status = res.status();
         let resp_headers = res.headers().clone();
         let text = res.text().await?;
-        let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
-        self.log_api_call(
-            url,
-            method,
-            json.as_ref(),
-            false,
-            config.username.as_deref(),
-        );
         Ok(ApiResponse {
             status,
             body: text,
             headers: resp_headers,
             cache_hit: false,
-            json,
+            json: None,
         })
     }
 
@@ -672,6 +740,25 @@ mod tests {
     fn normalize_endpoint_full_url_strips_query() {
         let url = "https://api.x.com/2/tweets/search/recent?query=rust&max_results=100";
         assert_eq!(normalize_endpoint(url), "/2/tweets/search/recent");
+    }
+
+    #[test]
+    fn oauth1_cache_key_differs_from_oauth2() {
+        let url = "https://api.x.com/2/users/me";
+        let oauth1_ctx = RequestContext {
+            auth_type: &AuthType::OAuth1,
+            username: Some("alice"),
+        };
+        let oauth2_ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: Some("alice"),
+        };
+        let key_oauth1 = compute_cache_key("GET", url, &oauth1_ctx);
+        let key_oauth2 = compute_cache_key("GET", url, &oauth2_ctx);
+        assert_ne!(
+            key_oauth1, key_oauth2,
+            "OAuth1 and OAuth2 should produce different cache keys for the same URL"
+        );
     }
 
     #[test]
