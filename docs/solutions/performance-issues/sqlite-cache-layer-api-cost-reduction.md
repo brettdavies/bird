@@ -132,7 +132,7 @@ The cache DB file is pre-created with `0o600` permissions before SQLite opens it
 
 2. **`rusqlite_migration 2.4` requires `&mut Connection`** — The `to_latest()` method takes `&mut conn`, not `&conn`. Easy to miss since older versions accepted `&conn`.
 
-3. **OAuth1 bypasses cache by design** — OAuth1 requests use `reqwest_oauth1` which signs the request internally. These go through `client.http().clone().oauth1(secrets)` directly, not through `CachedClient.get()`.
+3. **OAuth1 GET requests go through the cache** — Since the cache-auth-layer-unification refactor, `oauth1_request()` checks the cache before OAuth1 signing for GET requests. POST/PUT/DELETE remain uncached. Cache check happens before credential extraction and HMAC-SHA1 signing to avoid wasted crypto on cache hits.
 
 4. **`?` operator doesn't auto-convert to `BirdError`** — When using `serde_json::to_string()` inside `run()`, the error type doesn't implement `From<serde_json::Error>` for `BirdError`. Wrap with `.map_err(|e| BirdError::Command { name: "cache", source: e.into() })`.
 
