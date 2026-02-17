@@ -76,8 +76,11 @@ Redirect URI must be `http://127.0.0.1:8765/callback` in the X Developer Portal 
 ```bash
 git clone https://github.com/brettdavies/bird
 cd bird
+git config core.hooksPath .githooks
 cargo build --release
 ```
+
+The `git config` command activates the local git hooks (see below).
 
 Run tests:
 
@@ -92,6 +95,38 @@ cargo run --release -- me --pretty
 # or
 ./target/release/bird me --pretty
 ```
+
+---
+
+## Git hooks
+
+The repo includes a `.githooks/` directory with local git hooks. After cloning, activate them:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**`pre-push`** — Prevents direct pushes to `main`. All changes to main should go through a PR.
+
+---
+
+## Branching workflow
+
+```
+main              ← releases tagged here, no engineering docs
+  │
+development       ← integration branch, all feature PRs target here
+  ├── feat/...       (short-lived, PR to development)
+  ├── fix/...        (short-lived, PR to development)
+  └── chore/...      (short-lived, PR to development)
+```
+
+1. Create a feature branch from `development`
+2. Open a PR targeting `development`
+3. CI runs on the PR (fmt, clippy, test)
+4. Merge to `development`
+
+When ready to release, merge `development` into `main` via a release branch that strips `docs/plans/`, `docs/solutions/`, and `docs/brainstorms/` (the guard workflow enforces this). Tag on `main`.
 
 ---
 
