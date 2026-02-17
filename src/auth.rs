@@ -293,7 +293,10 @@ impl Default for StoredTokens {
 /// Token for authenticating a request: either Bearer (OAuth2 or app-only) or OAuth 1.0a (caller uses reqwest_oauth1).
 #[derive(Clone)]
 pub enum CommandToken {
-    Bearer { token: String, auth_type: ReqAuthType },
+    Bearer {
+        token: String,
+        auth_type: ReqAuthType,
+    },
     OAuth1,
 }
 
@@ -325,23 +328,19 @@ pub async fn resolve_token_for_command(
     };
 
     // 1. OAuth2User (preferred — user context, richest data)
-    if reqs.accepted.contains(&ReqAuthType::OAuth2User) {
-        if has_oauth2_available(config) {
-            if let Ok(t) = ensure_access_token(client, config).await {
-                return Ok(CommandToken::Bearer {
-                    token: t,
-                    auth_type: ReqAuthType::OAuth2User,
-                });
-            }
-            // Full auth failed (expired + no refresh) — fall through
+    if reqs.accepted.contains(&ReqAuthType::OAuth2User) && has_oauth2_available(config) {
+        if let Ok(t) = ensure_access_token(client, config).await {
+            return Ok(CommandToken::Bearer {
+                token: t,
+                auth_type: ReqAuthType::OAuth2User,
+            });
         }
+        // Full auth failed (expired + no refresh) — fall through
     }
 
     // 2. OAuth1 (user context, no expiry)
-    if reqs.accepted.contains(&ReqAuthType::OAuth1) {
-        if has_oauth1_available(config) {
-            return Ok(CommandToken::OAuth1);
-        }
+    if reqs.accepted.contains(&ReqAuthType::OAuth1) && has_oauth1_available(config) {
+        return Ok(CommandToken::OAuth1);
     }
 
     // 3. Bearer (app-only, fallback)

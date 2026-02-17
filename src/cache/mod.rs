@@ -299,20 +299,11 @@ impl CachedClient {
                     match db.get(&key) {
                         Ok(Some(entry)) => {
                             let body = String::from_utf8_lossy(&entry.body).into_owned();
-                            let json: Option<serde_json::Value> =
-                                serde_json::from_str(&body).ok();
-                            self.log_api_call(
-                                url,
-                                "GET",
-                                json.as_ref(),
-                                true,
-                                ctx.username,
-                            );
+                            let json: Option<serde_json::Value> = serde_json::from_str(&body).ok();
+                            self.log_api_call(url, "GET", json.as_ref(), true, ctx.username);
                             return Ok(ApiResponse {
-                                status: reqwest::StatusCode::from_u16(
-                                    entry.status_code as u16,
-                                )
-                                .unwrap_or(reqwest::StatusCode::OK),
+                                status: reqwest::StatusCode::from_u16(entry.status_code as u16)
+                                    .unwrap_or(reqwest::StatusCode::OK),
                                 body,
                                 headers: reqwest::header::HeaderMap::new(),
                                 cache_hit: true,
