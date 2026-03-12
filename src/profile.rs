@@ -1,14 +1,12 @@
 //! Profile command: look up an X user by username, display JSON.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, RequestContext};
+use crate::fields;
 use crate::output;
 use reqwest::header::HeaderMap;
-
-const USER_FIELDS: &str =
-    "created_at,public_metrics,description,profile_image_url,location,verified,url";
 
 /// Profile options bundled to avoid clippy::too_many_arguments.
 pub struct ProfileOpts<'a> {
@@ -17,17 +15,27 @@ pub struct ProfileOpts<'a> {
 }
 
 pub async fn run_profile(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     opts: ProfileOpts<'_>,
     use_color: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let username = validate_username(opts.username)?;
 
-    let url = format!(
-        "https://api.x.com/2/users/by/username/{}?user.fields={}",
-        username, USER_FIELDS
-    );
+    let url = {
+        let mut u = url::Url::parse(&format!(
+            "https://api.x.com/2/users/by/username/{}",
+            username
+        ))
+        .unwrap();
+        {
+            let mut pairs = u.query_pairs_mut();
+            for (key, value) in fields::user_query_params() {
+                pairs.append_pair(key, value);
+            }
+        }
+        u.to_string()
+    };
 
     let token = resolve_token_for_command(client.http(), config, "profile").await?;
 

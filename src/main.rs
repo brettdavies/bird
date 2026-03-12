@@ -2,10 +2,11 @@
 
 mod auth;
 mod bookmarks;
-mod cache;
 mod config;
 mod cost;
+mod db;
 mod doctor;
+mod fields;
 mod login;
 mod output;
 mod profile;
@@ -14,6 +15,7 @@ mod requirements;
 mod schema;
 mod search;
 mod thread;
+mod types;
 mod usage;
 mod watchlist;
 
@@ -77,18 +79,6 @@ fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
     default_on && !plain && !no_color
 }
 
-fn format_duration(secs: i64) -> String {
-    if secs < 60 {
-        format!("{}s", secs)
-    } else if secs < 3600 {
-        format!("{}m", secs / 60)
-    } else if secs < 86400 {
-        format!("{}h", secs / 3600)
-    } else {
-        format!("{}d", secs / 86400)
-    }
-}
-
 fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
     let mut m = HashMap::new();
     for p in param {
@@ -133,17 +123,17 @@ struct Cli {
     #[arg(long, global = true)]
     no_color: bool,
 
-    /// Bypass cache read, still write response to cache
+    /// Bypass store read, still write response to store
     #[arg(long, global = true)]
     refresh: bool,
 
-    /// Disable cache entirely (no read, no write)
+    /// Disable entity store entirely (no read, no write)
     #[arg(long, global = true)]
     no_cache: bool,
 
-    /// Override cache TTL for this request (seconds)
-    #[arg(long, global = true, value_name = "SECONDS")]
-    cache_ttl: Option<u64>,
+    /// Only serve from local store; never make API requests
+    #[arg(long, global = true)]
+    cache_only: bool,
 }
 
 #[derive(clap::Subcommand)]
@@ -328,7 +318,7 @@ enum WatchlistCommand {
 async fn run(
     command: Command,
     config: ResolvedConfig,
-    client: &mut cache::CachedClient,
+    client: &mut db::BirdClient,
     use_color: bool,
     use_hyperlinks: bool,
 ) -> Result<(), BirdError> {
@@ -340,10 +330,10 @@ async fn run(
                     name: "login",
                     source: e,
                 })?;
-            // Security: clear cache after re-auth to prevent stale data from previous context
-            if let Some(Ok(count)) = client.cache_clear() {
+            // Security: clear store after re-auth to prevent stale data from previous context
+            if let Some(Ok(count)) = client.db_clear() {
                 if count > 0 {
-                    eprintln!("[cache] Cleared {} cached entries after login.", count);
+                    eprintln!("[store] Cleared {} stored entries after login.", count);
                 }
             }
         }
@@ -561,58 +551,51 @@ async fn run(
             )?;
         }
         Command::Cache { action } => match action {
-            CacheAction::Clear => match client.cache_clear() {
+            CacheAction::Clear => match client.db_clear() {
                 Some(Ok(count)) => {
-                    let stats = client.cache_stats().and_then(|r| r.ok());
+                    let stats = client.db_stats().and_then(|r| r.ok());
                     let size_str =
                         stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    eprintln!("Cleared {} cache entries ({} MB).", count, size_str);
+                    eprintln!("Cleared {} stored entities ({} MB).", count, size_str);
                 }
                 Some(Err(e)) => {
                     return Err(BirdError::Command {
                         name: "cache",
-                        source: format!("failed to clear cache: {}", e).into(),
+                        source: format!("failed to clear store: {}", e).into(),
                     });
                 }
                 None => {
-                    eprintln!("Cache is not available.");
+                    eprintln!("Store is not available.");
                 }
             },
-            CacheAction::Stats { pretty } => match client.cache_stats() {
+            CacheAction::Stats { pretty } => match client.db_stats() {
                 Some(Ok(stats)) => {
                     if pretty {
                         let path = client
-                            .cache_path()
+                            .db_path()
                             .map(|p| p.display().to_string())
                             .unwrap_or_else(|| "unknown".to_string());
-                        println!("Cache: {}", path);
+                        println!("Store: {}", path);
                         println!(
                             "Size:  {:.1} MB / {:.0} MB limit",
                             stats.size_mb(),
                             stats.max_size_mb()
                         );
-                        println!("Entries: {}", stats.entry_count);
-                        if let (Some(oldest), Some(newest)) =
-                            (stats.oldest_seconds_ago, stats.newest_seconds_ago)
-                        {
-                            println!(
-                                "Oldest: {} ago | Newest: {} ago",
-                                format_duration(oldest),
-                                format_duration(newest)
-                            );
-                        }
+                        println!("Tweets: {}", stats.tweet_count);
+                        println!("Users:  {}", stats.user_count);
+                        println!("Raw:    {}", stats.raw_response_count);
                     } else {
                         let path = client
-                            .cache_path()
+                            .db_path()
                             .map(|p| p.display().to_string())
                             .unwrap_or_else(|| "unknown".to_string());
                         let json = serde_json::json!({
                             "path": path,
                             "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
                             "max_size_mb": stats.max_size_mb() as u64,
-                            "entries": stats.entry_count,
-                            "oldest_seconds_ago": stats.oldest_seconds_ago,
-                            "newest_seconds_ago": stats.newest_seconds_ago,
+                            "tweets": stats.tweet_count,
+                            "users": stats.user_count,
+                            "raw_responses": stats.raw_response_count,
                             "healthy": stats.healthy(),
                         });
                         println!(
@@ -627,11 +610,11 @@ async fn run(
                 Some(Err(e)) => {
                     return Err(BirdError::Command {
                         name: "cache",
-                        source: format!("failed to read cache stats: {}", e).into(),
+                        source: format!("failed to read store stats: {}", e).into(),
                     });
                 }
                 None => {
-                    eprintln!("Cache is not available.");
+                    eprintln!("Store is not available.");
                 }
             },
         },
@@ -697,12 +680,12 @@ async fn main() -> ExitCode {
         .build()
         .expect("failed to build HTTP client");
 
-    let cache_opts = cache::CacheOpts {
-        no_cache: cli.no_cache || !config.cache_enabled,
+    let cache_opts = db::CacheOpts {
+        no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
-        cache_ttl: cli.cache_ttl,
+        cache_only: cli.cache_only,
     };
-    let mut client = cache::CachedClient::new(
+    let mut client = db::BirdClient::new(
         http_client,
         &config.cache_path,
         cache_opts,

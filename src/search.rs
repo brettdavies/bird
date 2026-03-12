@@ -1,17 +1,13 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, RequestContext};
+use crate::fields;
 use crate::output;
 use reqwest::header::HeaderMap;
 use std::collections::HashSet;
-
-// Sensible defaults for research workflows. Extract to shared module when Plan 3 needs it.
-const TWEET_FIELDS: &str = "created_at,public_metrics,author_id,conversation_id,referenced_tweets";
-const USER_FIELDS: &str = "username,name";
-const EXPANSIONS: &str = "author_id";
 
 /// Search options bundled to avoid clippy::too_many_arguments.
 pub struct SearchOpts<'a> {
@@ -24,7 +20,7 @@ pub struct SearchOpts<'a> {
 }
 
 pub async fn run_search(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     opts: SearchOpts<'_>,
     use_color: bool,
@@ -170,12 +166,14 @@ pub async fn run_search(
 
 fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> String {
     let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
-    url.query_pairs_mut()
-        .append_pair("query", query)
-        .append_pair("tweet.fields", TWEET_FIELDS)
-        .append_pair("user.fields", USER_FIELDS)
-        .append_pair("expansions", EXPANSIONS)
-        .append_pair("max_results", &max_results.to_string());
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("query", query);
+        for (key, value) in fields::tweet_query_params() {
+            pairs.append_pair(key, value);
+        }
+        pairs.append_pair("max_results", &max_results.to_string());
+    }
     if let Some(token) = next_token {
         url.query_pairs_mut().append_pair("next_token", token);
     }

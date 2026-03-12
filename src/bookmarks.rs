@@ -1,15 +1,16 @@
 //! Curated bookmarks command: GET /2/users/{id}/bookmarks with pagination, max_results=100.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, BookmarkRow, RequestContext};
+use crate::fields;
 use crate::output;
 use reqwest::header::HeaderMap;
 
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
 pub async fn run_bookmarks(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     pretty: bool,
     use_color: bool,
@@ -52,8 +53,18 @@ pub async fn run_bookmarks(
     );
     cost::display_cost(&me_estimate, use_color);
 
+    // Extract username from /users/me for bookmark relationship storage
+    let me_username = me_json
+        .get("data")
+        .and_then(|d| d.get("username"))
+        .and_then(|u| u.as_str())
+        .unwrap_or("")
+        .to_string();
+
     let mut pagination_token: Option<String> = None;
     let mut first_item = true;
+    let mut bookmark_rows: Vec<BookmarkRow> = Vec::new();
+    let mut position: i64 = 0;
 
     // Open the JSON array wrapper
     if pretty {
@@ -63,14 +74,22 @@ pub async fn run_bookmarks(
     }
 
     loop {
-        let mut url = format!(
-            "https://api.x.com/2/users/{}/bookmarks?max_results=100",
-            user_id
-        );
-        if let Some(ref pt) = pagination_token {
-            url.push_str("&pagination_token=");
-            url.push_str(pt);
-        }
+        let url = {
+            let mut u =
+                url::Url::parse(&format!("https://api.x.com/2/users/{}/bookmarks", user_id))
+                    .unwrap();
+            {
+                let mut pairs = u.query_pairs_mut();
+                pairs.append_pair("max_results", "100");
+                for (key, value) in fields::tweet_query_params() {
+                    pairs.append_pair(key, value);
+                }
+                if let Some(ref pt) = pagination_token {
+                    pairs.append_pair("pagination_token", pt);
+                }
+            }
+            u.to_string()
+        };
 
         // Paginated requests have pagination_token in URL — cache layer skips them automatically.
         // Non-paginated first page is cacheable.
@@ -107,6 +126,16 @@ pub async fn run_bookmarks(
                 } else {
                     print!("{}", serde_json::to_string(item)?);
                 }
+                // Accumulate bookmark relationships for storage
+                if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
+                    bookmark_rows.push(BookmarkRow {
+                        account_username: me_username.clone(),
+                        tweet_id: tweet_id.to_string(),
+                        position,
+                        refreshed_at: crate::db::unix_now(),
+                    });
+                    position += 1;
+                }
             }
         }
         pagination_token = page
@@ -116,6 +145,15 @@ pub async fn run_bookmarks(
             .map(String::from);
         if pagination_token.is_none() {
             break;
+        }
+    }
+
+    // Store bookmark relationships in entity store
+    if !me_username.is_empty() && !bookmark_rows.is_empty() {
+        if let Some(db) = client.db() {
+            if let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows) {
+                eprintln!("[store] warning: bookmark storage failed: {e}");
+            }
         }
     }
 

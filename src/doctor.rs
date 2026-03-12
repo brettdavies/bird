@@ -1,8 +1,8 @@
 //! bird doctor: living view of auth state, effective config (with source), and which commands are usable.
 
 use crate::auth::{load_stored_tokens, resolve_bearer_token, resolve_oauth2_token};
-use crate::cache::CachedClient;
 use crate::config::{FileConfig, ResolvedConfig, DEFAULT_REDIRECT_URI};
+use crate::db::BirdClient;
 use crate::requirements::{
     command_names_with_auth, reason_for_unavailable, requirements_for_command, AuthType,
 };
@@ -62,7 +62,9 @@ pub struct CacheStatus {
     pub exists: bool,
     pub size_mb: f64,
     pub max_size_mb: u64,
-    pub entries: u64,
+    pub tweets: u64,
+    pub users: u64,
+    pub raw_responses: u64,
     pub healthy: bool,
 }
 
@@ -361,7 +363,7 @@ fn build_commands_section(
 /// Build full or scoped report. When scope is Some("me"), only that command appears in report.commands.
 pub(crate) fn report(
     config: &ResolvedConfig,
-    client: &CachedClient,
+    client: &BirdClient,
     scope: Option<&str>,
 ) -> DoctorReport {
     let file = file_config(&config.config_dir);
@@ -374,10 +376,10 @@ pub(crate) fn report(
         }
     }
 
-    let cache = match client.cache_stats() {
+    let cache = match client.db_stats() {
         Some(Ok(stats)) => {
             let path = client
-                .cache_path()
+                .db_path()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| config.cache_path.display().to_string());
             Some(CacheStatus {
@@ -385,7 +387,9 @@ pub(crate) fn report(
                 exists: true,
                 size_mb: (stats.size_mb() * 10.0).round() / 10.0,
                 max_size_mb: stats.max_size_mb() as u64,
-                entries: stats.entry_count,
+                tweets: stats.tweet_count,
+                users: stats.user_count,
+                raw_responses: stats.raw_response_count,
                 healthy: stats.healthy(),
             })
         }
@@ -396,7 +400,9 @@ pub(crate) fn report(
                 exists: config.cache_path.exists(),
                 size_mb: 0.0,
                 max_size_mb: config.cache_max_size_mb,
-                entries: 0,
+                tweets: 0,
+                users: 0,
+                raw_responses: 0,
                 healthy: false,
             })
         }
@@ -491,8 +497,16 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             )
         ));
         out.push_str(&format!(
-            "  entries: {}\n",
-            output::muted(&cache.entries.to_string(), use_color)
+            "  tweets: {}\n",
+            output::muted(&cache.tweets.to_string(), use_color)
+        ));
+        out.push_str(&format!(
+            "  users: {}\n",
+            output::muted(&cache.users.to_string(), use_color)
+        ));
+        out.push_str(&format!(
+            "  raw_responses: {}\n",
+            output::muted(&cache.raw_responses.to_string(), use_color)
         ));
         let status = if cache.healthy {
             "healthy"
@@ -515,7 +529,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
 /// Run doctor: build report and print JSON (compact) or human summary. When scope is Some("me"), report only that command.
 pub fn run_doctor(
     config: &ResolvedConfig,
-    client: &CachedClient,
+    client: &BirdClient,
     pretty: bool,
     scope: Option<&str>,
     use_color: bool,
@@ -533,8 +547,8 @@ pub fn run_doctor(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::{CacheOpts, CachedClient};
     use crate::config::DEFAULT_REDIRECT_URI;
+    use crate::db::{BirdClient, CacheOpts};
 
     /// Unset auth-related env vars so report() only sees the config we pass (no env leakage).
     fn clear_auth_env() {
@@ -569,15 +583,15 @@ mod tests {
         }
     }
 
-    fn no_cache_client() -> CachedClient {
+    fn no_cache_client() -> BirdClient {
         let http = reqwest::Client::new();
-        CachedClient::new(
+        BirdClient::new(
             http,
             Path::new("/dev/null"),
             CacheOpts {
-                no_cache: true,
+                no_store: true,
                 refresh: false,
-                cache_ttl: None,
+                cache_only: false,
             },
             100,
         )

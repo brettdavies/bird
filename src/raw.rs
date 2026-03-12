@@ -1,9 +1,9 @@
 //! Raw request layer: HTTP method + path (with param substitution), query/body, auth, output.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, RequestContext};
 use crate::output;
 use crate::schema::resolve_path;
 use reqwest::header::HeaderMap;
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_raw(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     method: &str,
     path: &str,

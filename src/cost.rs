@@ -92,7 +92,7 @@ pub fn display_cost(estimate: &CostEstimate, use_color: bool) {
     }
 
     let hit_miss = if estimate.cache_hit {
-        "cache hit"
+        "from store"
     } else {
         "cache miss"
     };

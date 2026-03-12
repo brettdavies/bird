@@ -174,7 +174,7 @@ impl ResolvedConfig {
             .oauth1_access_token_secret
             .or_else(|| std::env::var("X_API_OAUTH1_ACCESS_TOKEN_SECRET").ok());
 
-        let cache_path = config_dir.join("cache.db");
+        let cache_path = config_dir.join("bird.db");
         let cache_enabled = std::env::var("BIRD_NO_CACHE").as_deref() != Ok("1");
 
         Ok(ResolvedConfig {

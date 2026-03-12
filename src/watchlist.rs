@@ -2,6 +2,7 @@
 //! Config-driven (config.toml), uses toml_edit for formatting-preserving writes.
 
 use crate::config::{FileConfig, ResolvedConfig};
+use crate::fields;
 use std::path::Path;
 use toml_edit::{Array, DocumentMut, Item};
 
@@ -187,7 +188,7 @@ pub fn run_watchlist_remove(
 /// `bird watchlist check` — check recent activity for all watched accounts.
 /// Streams NDJSON (one JSON object per line) per account as they complete.
 pub async fn run_watchlist_check(
-    client: &mut crate::cache::CachedClient,
+    client: &mut crate::db::BirdClient,
     config: &ResolvedConfig,
     pretty: bool,
     use_color: bool,
@@ -250,24 +251,26 @@ pub async fn run_watchlist_check(
 
 fn build_check_url(query: &str) -> String {
     let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
-    url.query_pairs_mut()
-        .append_pair("query", query)
-        .append_pair("max_results", "10")
-        .append_pair("tweet.fields", "created_at,public_metrics,author_id")
-        .append_pair("expansions", "author_id")
-        .append_pair("user.fields", "username,name,public_metrics");
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("query", query);
+        pairs.append_pair("max_results", "10");
+        for (key, value) in fields::tweet_query_params() {
+            pairs.append_pair(key, value);
+        }
+    }
     url.to_string()
 }
 
 async fn execute_check(
-    client: &mut crate::cache::CachedClient,
+    client: &mut crate::db::BirdClient,
     config: &ResolvedConfig,
     token: &crate::auth::CommandToken,
     url: &str,
     use_color: bool,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
     use crate::auth::CommandToken;
-    use crate::cache::RequestContext;
+    use crate::db::RequestContext;
     use reqwest::header::HeaderMap;
 
     let response = match token {

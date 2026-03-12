@@ -2,17 +2,14 @@
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
 use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{ApiResponse, CachedClient, RequestContext};
 use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{ApiResponse, BirdClient, RequestContext};
+use crate::fields;
 use crate::output;
 use reqwest::header::HeaderMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-const TWEET_FIELDS: &str =
-    "conversation_id,author_id,created_at,text,public_metrics,referenced_tweets,in_reply_to_user_id";
-const USER_FIELDS: &str = "username,name";
-const EXPANSIONS: &str = "author_id";
 const MAX_PAGES_CAP: u32 = 25;
 
 /// Thread options bundled to avoid clippy::too_many_arguments.
@@ -23,7 +20,7 @@ pub struct ThreadOpts<'a> {
 }
 
 pub async fn run_thread(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     opts: ThreadOpts<'_>,
     use_color: bool,
@@ -34,10 +31,17 @@ pub async fn run_thread(
     let token = resolve_token_for_command(client.http(), config, "thread").await?;
 
     // Step 1: Fetch root tweet to get conversation_id
-    let root_url = format!(
-        "https://api.x.com/2/tweets/{}?tweet.fields={}&expansions={}&user.fields={}",
-        opts.tweet_id, TWEET_FIELDS, EXPANSIONS, USER_FIELDS
-    );
+    let root_url = {
+        let mut url =
+            url::Url::parse(&format!("https://api.x.com/2/tweets/{}", opts.tweet_id)).unwrap();
+        {
+            let mut pairs = url.query_pairs_mut();
+            for (key, value) in fields::tweet_query_params() {
+                pairs.append_pair(key, value);
+            }
+        }
+        url.to_string()
+    };
 
     let response = fetch(&token, client, config, &root_url).await?;
     if !response.status.is_success() {
@@ -217,7 +221,7 @@ fn validate_tweet_id(id: &str) -> Result<(), Box<dyn std::error::Error + Send + 
 /// Perform a GET request using the resolved auth token.
 async fn fetch(
     token: &CommandToken,
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     url: &str,
 ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
@@ -263,13 +267,15 @@ fn parse_age_days(created_at: &str) -> Option<u32> {
 
 fn build_search_url(conversation_id: &str, next_token: Option<&str>) -> String {
     let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
-    url.query_pairs_mut()
-        .append_pair("query", &format!("conversation_id:{}", conversation_id))
-        .append_pair("tweet.fields", TWEET_FIELDS)
-        .append_pair("user.fields", USER_FIELDS)
-        .append_pair("expansions", EXPANSIONS)
-        .append_pair("max_results", "100")
-        .append_pair("sort_order", "recency");
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("query", &format!("conversation_id:{}", conversation_id));
+        for (key, value) in fields::tweet_query_params() {
+            pairs.append_pair(key, value);
+        }
+        pairs.append_pair("max_results", "100");
+        pairs.append_pair("sort_order", "recency");
+    }
     if let Some(token) = next_token {
         url.query_pairs_mut().append_pair("next_token", token);
     }

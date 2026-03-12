@@ -1,8 +1,8 @@
 //! Usage command: API cost visibility from local SQLite + optional X API sync.
 //! Reads the `usage` table for estimated costs; `--sync` fetches actuals from GET /2/usage/tweets.
 
-use crate::cache::{ActualUsageDay, CachedClient, DailyUsage, EndpointUsage, UsageSummary};
 use crate::config::ResolvedConfig;
+use crate::db::{ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, UsageSummary};
 use crate::output;
 
 /// Parse --since into a YYYYMMDD integer for date_ymd column filtering.
@@ -36,7 +36,7 @@ fn ymd_to_display(ymd: i64) -> String {
 }
 
 pub async fn run_usage(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     since: Option<&str>,
     sync: bool,
@@ -46,10 +46,10 @@ pub async fn run_usage(
 
     // Check DB availability (graceful degradation per D5)
     if client.db().is_none() {
-        let msg = if client.cache_disabled() {
-            "Usage tracking requires the cache. Remove --no-cache to enable."
+        let msg = if client.db_disabled() {
+            "Usage tracking requires the store. Remove --no-cache to enable."
         } else {
-            "Cache database is unavailable. Run `bird cache clear` to reset."
+            "Store database is unavailable. Run `bird cache clear` to reset."
         };
         eprintln!("[usage] {}", msg);
         if !pretty {
@@ -212,7 +212,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 }
 
 async fn sync_actual_usage(
-    client: &mut CachedClient,
+    client: &mut BirdClient,
     token: &crate::auth::CommandToken,
 ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
     use reqwest::header::HeaderMap;
