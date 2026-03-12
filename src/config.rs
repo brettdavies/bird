@@ -63,8 +63,4 @@ impl ResolvedConfig {
         })
     }
 
-    /// Ensure config directory exists.
-    pub fn ensure_config_dir(&self) -> std::io::Result<()> {
-        std::fs::create_dir_all(&self.config_dir)
-    }
 }

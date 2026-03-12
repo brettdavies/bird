@@ -25,12 +25,10 @@ use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
 
-/// Structured error for the CLI. Each variant carries the command name and maps to a distinct exit code.
+/// Structured error for the CLI. Each variant maps to a distinct exit code.
 enum BirdError {
     /// Configuration error (exit code 78 — EX_CONFIG)
     Config(Box<dyn std::error::Error + Send + Sync>),
-    /// Auth error — no valid credentials for the command (exit code 77 — EX_NOPERM)
-    Auth(requirements::AuthRequiredError),
     /// Command execution error — API, network, I/O (exit code 1)
     Command {
         name: &'static str,
@@ -42,7 +40,6 @@ impl BirdError {
     fn exit_code(&self) -> u8 {
         match self {
             BirdError::Config(_) => 78,
-            BirdError::Auth(_) => 77,
             BirdError::Command { .. } => 1,
         }
     }
@@ -52,20 +49,11 @@ impl BirdError {
             BirdError::Config(e) => {
                 eprintln!("{}{}", output::error("config failed: ", use_color), e);
             }
-            BirdError::Auth(e) => {
-                eprintln!("{}{}", output::error("auth failed: ", use_color), e);
-            }
             BirdError::Command { name, source } => {
                 let prefix = format!("{} failed: ", name);
                 eprintln!("{}{}", output::error(&prefix, use_color), source);
             }
         }
-    }
-}
-
-impl From<requirements::AuthRequiredError> for BirdError {
-    fn from(e: requirements::AuthRequiredError) -> Self {
-        BirdError::Auth(e)
     }
 }
 
@@ -253,6 +241,91 @@ enum Command {
         pretty: bool,
     },
 
+    /// Post a tweet (via xurl)
+    Tweet {
+        /// Tweet text
+        text: String,
+        /// Media ID to attach
+        #[arg(long)]
+        media_id: Option<String>,
+    },
+
+    /// Reply to a tweet (via xurl)
+    Reply {
+        /// Tweet ID to reply to
+        tweet_id: String,
+        /// Reply text
+        text: String,
+    },
+
+    /// Like a tweet (via xurl)
+    Like {
+        /// Tweet ID to like
+        tweet_id: String,
+    },
+
+    /// Unlike a tweet (via xurl)
+    Unlike {
+        /// Tweet ID to unlike
+        tweet_id: String,
+    },
+
+    /// Repost (retweet) a tweet (via xurl)
+    Repost {
+        /// Tweet ID to repost
+        tweet_id: String,
+    },
+
+    /// Undo a repost (via xurl)
+    Unrepost {
+        /// Tweet ID to unrepost
+        tweet_id: String,
+    },
+
+    /// Follow a user (via xurl)
+    Follow {
+        /// Username to follow
+        username: String,
+    },
+
+    /// Unfollow a user (via xurl)
+    Unfollow {
+        /// Username to unfollow
+        username: String,
+    },
+
+    /// Send a direct message (via xurl)
+    Dm {
+        /// Username to message
+        username: String,
+        /// Message text
+        text: String,
+    },
+
+    /// Block a user (via xurl)
+    Block {
+        /// Username to block
+        username: String,
+    },
+
+    /// Unblock a user (via xurl)
+    Unblock {
+        /// Username to unblock
+        username: String,
+    },
+
+    /// Mute a user (via xurl)
+    Mute {
+        /// Username to mute
+        username: String,
+    },
+
+    /// Unmute a user (via xurl)
+    Unmute {
+        /// Username to unmute
+        username: String,
+    },
+
     /// Show what is available: xurl status, commands, and entity store health
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get)
@@ -305,11 +378,34 @@ fn default_auth_type(command_name: &str) -> requirements::AuthType {
         .unwrap_or(requirements::AuthType::OAuth2User)
 }
 
+/// Call xurl for a write command and print the JSON result.
+fn xurl_write_call(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let json = transport::xurl_call(args)?;
+    println!("{}", serde_json::to_string(&json)?);
+    Ok(())
+}
+
+/// Guard + dispatch for write commands: reject --cache-only, then run the closure.
+fn xurl_write(
+    cache_only: bool,
+    name: &'static str,
+    f: impl FnOnce() -> Result<(), Box<dyn std::error::Error + Send + Sync>>,
+) -> Result<(), BirdError> {
+    if cache_only {
+        return Err(BirdError::Command {
+            name,
+            source: "write commands require network access; remove --cache-only".into(),
+        });
+    }
+    f().map_err(|e| BirdError::Command { name, source: e })
+}
+
 fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     use_color: bool,
+    cache_only: bool,
 ) -> Result<(), BirdError> {
     match command {
         Command::Login => {
@@ -529,6 +625,56 @@ fn run(
                 }
             })?;
         }
+        // -- Write commands (xurl passthrough) --
+        Command::Tweet { text, media_id } => {
+            xurl_write(cache_only, "tweet", || {
+                let mut args = vec!["post", &text];
+                let media_owned;
+                if let Some(ref id) = media_id {
+                    media_owned = id.clone();
+                    args.extend(["--media-id", &media_owned]);
+                }
+                xurl_write_call(&args)
+            })?;
+        }
+        Command::Reply { tweet_id, text } => {
+            xurl_write(cache_only, "reply", || {
+                xurl_write_call(&["reply", &tweet_id, &text])
+            })?;
+        }
+        Command::Like { tweet_id } => {
+            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id]))?;
+        }
+        Command::Unlike { tweet_id } => {
+            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id]))?;
+        }
+        Command::Repost { tweet_id } => {
+            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id]))?;
+        }
+        Command::Unrepost { tweet_id } => {
+            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id]))?;
+        }
+        Command::Follow { username } => {
+            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &username]))?;
+        }
+        Command::Unfollow { username } => {
+            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &username]))?;
+        }
+        Command::Dm { username, text } => {
+            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &username, &text]))?;
+        }
+        Command::Block { username } => {
+            xurl_write(cache_only, "block", || xurl_write_call(&["block", &username]))?;
+        }
+        Command::Unblock { username } => {
+            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &username]))?;
+        }
+        Command::Mute { username } => {
+            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &username]))?;
+        }
+        Command::Unmute { username } => {
+            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &username]))?;
+        }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
@@ -665,7 +811,7 @@ fn main() -> ExitCode {
         config.username.clone(),
     );
 
-    match run(cli.command, config, &mut client, use_color) {
+    match run(cli.command, config, &mut client, use_color, cli.cache_only) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             e.print(use_color);

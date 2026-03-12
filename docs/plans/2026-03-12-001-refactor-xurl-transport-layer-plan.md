@@ -330,7 +330,7 @@ Add write command passthroughs, rebuild doctor, remove dependencies.
 
 **Tasks:**
 
-- [ ] Add write subcommands to clap in `main.rs` (inline dispatch, no separate `write.rs`)
+- [x] Add write subcommands to clap in `main.rs` (inline dispatch, no separate `write.rs`)
   - Each write command is ~3 lines in the match arm:
 
     ```rust
@@ -347,10 +347,10 @@ Add write command passthroughs, rebuild doctor, remove dependencies.
   - `--account` maps to `--username` / `-u` for xurl
   - `--cache-only` with write command -> clear error: "write commands require network access"
 
-- [ ] Update `requirements.rs` with auth requirements for write commands
+- [x] Update `requirements.rs` with auth requirements for write commands
   - All write commands require OAuth2User
 
-- [ ] Rebuild `bird doctor` (`src/doctor.rs`)
+- [x] Rebuild `bird doctor` (`src/doctor.rs`)
   - **xurl section** (new):
     - Display resolved xurl binary path
     - Display xurl version (warn if below v1.0.3)
@@ -366,7 +366,7 @@ Add write command passthroughs, rebuild doctor, remove dependencies.
   - **Entity store health** -- unchanged
   - Rewrite 5 auth-state doctor tests to use new simplified model
 
-- [ ] Remove dependencies from `Cargo.toml`
+- [x] Remove dependencies from `Cargo.toml`
   - Remove: `reqwest`, `reqwest-oauth1`, `webbrowser`, `rand`
   - Remove: `base64` (check for non-auth uses first)
   - Remove: `percent-encoding` (check for non-OAuth uses first)
@@ -377,18 +377,18 @@ Add write command passthroughs, rebuild doctor, remove dependencies.
   - Consider: `strip-ansi-escapes` (if `NO_COLOR=1` insufficient for error paths)
   - Consider: `wait-timeout` (if sync subprocess timeout without tokio)
 
-- [ ] Update `bird raw get/post/put/delete` (`src/raw.rs`)
+- [x] Update `bird raw get/post/put/delete` (`src/raw.rs`)
   - Route through transport module
   - `bird get /2/foo` -> `xurl_call(&["/2/foo"])`
   - `bird post /2/foo --body '{...}'` -> `xurl_call(&["-X", "POST", "/2/foo", "-d", "..."])`
 
-- [ ] Update tests
+- [x] Update tests
   - Smoke tests (`tests/cli_smoke.rs`): help/version/watchlist unchanged; network tests need xurl
   - Live integration test (`tests/live_integration.rs`): use `XurlTransport`, pre-flight xurl check
   - Doctor unit tests: complete rewrite for simplified auth model
   - Transport mock tests: `BIRD_XURL_BIN` env var points to shell script fixture
 
-- [ ] Clean up unused `#[allow(unused)]` suppressions
+- [x] Clean up unused `#[allow(unused)]` suppressions and compiler warnings
 
 **Success criteria:** `cargo build` clean with no warnings. `bird doctor` reports xurl
 status. `bird post "Hello"` creates a tweet. All smoke tests pass. No reqwest in
@@ -556,35 +556,35 @@ tower): estimated savings of 2-3MB, bringing binary to ~4-5MB.
 
 ### Functional Requirements
 
-- [ ] All existing read commands work through xurl transport
-- [ ] `bird login` delegates to `xurl auth oauth2`
-- [ ] Write commands (`post`, `reply`, `like`, `follow`, `dm`) work via `xurl_call`
-- [ ] Entity store caching works unchanged (cache hits skip xurl)
-- [ ] Cost tracking and usage logging work for read commands
-- [ ] `bird doctor` checks xurl binary, version, auth status, `~/.xurl` permissions
-- [ ] `--cache-only` serves from store without invoking xurl
-- [ ] `--cache-only` with write command produces clear error
-- [ ] `--no-cache` and `--refresh` flags work unchanged
-- [ ] `--account` maps to xurl's `-u` / `--username` flag
+- [x] All existing read commands work through xurl transport
+- [x] `bird login` delegates to `xurl auth oauth2`
+- [x] Write commands (`post`, `reply`, `like`, `follow`, `dm`) work via `xurl_call`
+- [x] Entity store caching works unchanged (cache hits skip xurl)
+- [x] Cost tracking and usage logging work for read commands
+- [x] `bird doctor` checks xurl binary, version, auth status, `~/.xurl` permissions
+- [x] `--cache-only` serves from store without invoking xurl
+- [x] `--cache-only` with write command produces clear error
+- [x] `--no-cache` and `--refresh` flags work unchanged
+- [x] `--account` maps to xurl's `-u` / `--username` flag
 
 ### Non-Functional Requirements
 
-- [ ] No `reqwest` in `Cargo.toml` or dependency tree
-- [ ] `auth.rs` and `login.rs` deleted
-- [ ] No `#[allow(unused)]` suppressions for removed code
-- [ ] xurl absolute path resolved at startup (fail-fast)
-- [ ] Subprocess timeout (60s) prevents hangs
-- [ ] `NO_COLOR=1` set on all xurl subprocess calls
-- [ ] Clear error message when xurl not found (includes install instructions)
-- [ ] Clear error message when xurl has no app configured
+- [x] No `reqwest` in `Cargo.toml` or dependency tree
+- [x] `auth.rs` and `login.rs` deleted
+- [x] No `#[allow(unused)]` suppressions for removed code
+- [x] xurl absolute path resolved at startup (fail-fast)
+- [x] Subprocess timeout (60s) prevents hangs
+- [x] `NO_COLOR=1` set on all xurl subprocess calls
+- [x] Clear error message when xurl not found (includes install instructions)
+- [x] Clear error message when xurl has no app configured
 
 ### Quality Gates
 
-- [ ] `cargo build` succeeds with no warnings
-- [ ] All smoke tests pass (`tests/cli_smoke.rs`)
-- [ ] All entity store unit tests pass unchanged (via `MockTransport`)
-- [ ] Transport layer unit tests: success, auth error, network error, timeout, not-found
-- [ ] Doctor unit tests rewritten for simplified auth model
+- [x] `cargo build` succeeds with no warnings
+- [x] All smoke tests pass (`tests/cli_smoke.rs`)
+- [x] All entity store unit tests pass unchanged (via `MockTransport`)
+- [x] Transport layer unit tests: success, auth error, network error, timeout, not-found
+- [x] Doctor unit tests rewritten for simplified auth model
 - [ ] At least one live integration test phase works through xurl
 
 ## Dependencies and Prerequisites
@@ -593,8 +593,8 @@ tower): estimated savings of 2-3MB, bringing binary to ~4-5MB.
 - [ ] `xurl auth apps add` configured with X API credentials
 - [ ] `xurl auth oauth2` completed (tokens in `~/.xurl`)
 - [x] `which` crate added to `Cargo.toml` (PATH resolution)
-- [ ] Consider: `strip-ansi-escapes` crate (ANSI fallback)
-- [ ] Consider: `wait-timeout` crate (sync timeout without tokio)
+- [x] Consider: `strip-ansi-escapes` crate — not needed, `NO_COLOR=1` + `strip_ansi_lines` fallback sufficient
+- [x] Consider: `wait-timeout` crate — not needed, `std::process::Command` with timeout via `libc` alarm sufficient
 
 ## Risk Analysis
 

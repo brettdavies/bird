@@ -1,7 +1,7 @@
 //! BirdDb: entity-level SQLite store replacing the request-level cache.
 //! Stores tweets, users, bookmarks, and raw responses keyed by entity ID.
 //! Single connection per CLI invocation -- no pool needed (short-lived process).
-//! Blocking SQLite calls are fine: single-threaded tokio runtime.
+//! Blocking SQLite calls are fine: bird is synchronous (no async runtime).
 
 use rusqlite::params;
 use rusqlite::Connection;
@@ -78,12 +78,8 @@ pub struct BookmarkRow {
 
 #[derive(Debug, Clone)]
 pub struct RawResponseRow {
-    pub key: String,
-    pub url: String,
     pub status_code: i64,
     pub body: Vec<u8>,
-    pub body_size: i64,
-    pub created_at: i64,
 }
 
 /// Entity store statistics for `bird cache stats` and `bird doctor`.
@@ -383,6 +379,7 @@ impl BirdDb {
 
     // -- Tweet operations --
 
+    #[cfg(test)]
     pub fn upsert_tweet(&self, tweet: &TweetRow) -> Result<(), rusqlite::Error> {
         let mut stmt = self.conn.prepare_cached(
             "INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
@@ -403,6 +400,7 @@ impl BirdDb {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn upsert_user(&self, user: &UserRow) -> Result<(), rusqlite::Error> {
         let mut stmt = self.conn.prepare_cached(
             "INSERT INTO users (id, username, raw_json, last_refreshed_at)
@@ -607,17 +605,12 @@ impl BirdDb {
 
     pub fn get_raw_response(&self, key: &str) -> Result<Option<RawResponseRow>, rusqlite::Error> {
         let mut stmt = self.conn.prepare_cached(
-            "SELECT key, url, status_code, body, body_size, created_at
-             FROM raw_responses WHERE key = ?1",
+            "SELECT status_code, body FROM raw_responses WHERE key = ?1",
         )?;
         let result = stmt.query_row(params![key], |row| {
             Ok(RawResponseRow {
-                key: row.get(0)?,
-                url: row.get(1)?,
-                status_code: row.get(2)?,
-                body: row.get(3)?,
-                body_size: row.get(4)?,
-                created_at: row.get(5)?,
+                status_code: row.get(0)?,
+                body: row.get(1)?,
             })
         });
         match result {
@@ -661,6 +654,7 @@ impl BirdDb {
         tx.commit()
     }
 
+    #[cfg(test)]
     pub fn get_bookmarks(&self, account: &str) -> Result<Vec<BookmarkRow>, rusqlite::Error> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT account_username, tweet_id, position, refreshed_at
@@ -1045,7 +1039,6 @@ mod tests {
             .expect("should find response");
         assert_eq!(got.status_code, 200);
         assert_eq!(got.body, b"hello");
-        assert_eq!(got.url, "https://api.x.com/test");
     }
 
     #[test]

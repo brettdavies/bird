@@ -1,11 +1,24 @@
-//! bird doctor: living view of xurl status, config, command availability, and entity store health.
-//! Phase 3 will rebuild auth detection via `xurl whoami`.
+//! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
 use crate::config::ResolvedConfig;
 use crate::db::BirdClient;
 use crate::requirements::{command_names_with_auth, requirements_for_command, AuthType};
 use serde::Serialize;
 use std::collections::HashMap;
+
+#[derive(Clone, Debug, Serialize)]
+pub struct XurlStatus {
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub available: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AuthState {
+    pub authenticated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CommandStatus {
@@ -27,15 +40,9 @@ pub struct CacheStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct XurlStatus {
-    pub path: Option<String>,
-    pub version: Option<String>,
-    pub available: bool,
-}
-
-#[derive(Clone, Debug, Serialize)]
 pub struct DoctorReport {
     pub xurl: XurlStatus,
+    pub auth: AuthState,
     pub commands: HashMap<String, CommandStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<CacheStatus>,
@@ -59,9 +66,33 @@ fn build_xurl_status() -> XurlStatus {
     }
 }
 
-/// Command availability: currently assumes all commands are available if xurl is present.
-/// Phase 3 will add auth detection via `xurl whoami`.
-fn build_commands_section(xurl_available: bool) -> HashMap<String, CommandStatus> {
+/// Detect auth state by running `xurl whoami`. Returns username on success.
+fn detect_auth() -> AuthState {
+    match crate::transport::xurl_call(&["whoami"]) {
+        Ok(json) => {
+            let username = json
+                .get("data")
+                .and_then(|d| d.get("username"))
+                .and_then(|u| u.as_str())
+                .or_else(|| json.get("username").and_then(|u| u.as_str()))
+                .map(String::from);
+            AuthState {
+                authenticated: true,
+                username,
+            }
+        }
+        Err(_) => AuthState {
+            authenticated: false,
+            username: None,
+        },
+    }
+}
+
+/// Command availability based on xurl + auth state.
+fn build_commands_section(
+    xurl_available: bool,
+    authenticated: bool,
+) -> HashMap<String, CommandStatus> {
     let mut cmds = HashMap::new();
     for &name in command_names_with_auth() {
         if name == "login" {
@@ -82,23 +113,25 @@ fn build_commands_section(xurl_available: bool) -> HashMap<String, CommandStatus
             Some(r) => r,
             None => continue,
         };
-        // If xurl is available, commands that need auth are presumed available
-        // (xurl handles auth). Only local-only commands (AuthType::None) are always available.
         let needs_auth = reqs
             .accepted
             .iter()
             .any(|at| !matches!(at, AuthType::None));
-        let available = if needs_auth { xurl_available } else { true };
+        let available = if needs_auth {
+            xurl_available && authenticated
+        } else {
+            true
+        };
+        let reason = if !xurl_available {
+            Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
+        } else if needs_auth && !authenticated {
+            Some("not authenticated. Run `bird login`.".into())
+        } else {
+            None
+        };
         cmds.insert(
             name.to_string(),
-            CommandStatus {
-                available,
-                reason: if available {
-                    None
-                } else {
-                    Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
-                },
-            },
+            CommandStatus { available, reason },
         );
     }
     cmds
@@ -111,7 +144,15 @@ pub(crate) fn report(
     scope: Option<&str>,
 ) -> DoctorReport {
     let xurl = build_xurl_status();
-    let mut commands = build_commands_section(xurl.available);
+    let auth = if xurl.available {
+        detect_auth()
+    } else {
+        AuthState {
+            authenticated: false,
+            username: None,
+        }
+    };
+    let mut commands = build_commands_section(xurl.available, auth.authenticated);
     if let Some(cmd) = scope {
         if let Some(status) = commands.remove(cmd) {
             commands.clear();
@@ -151,6 +192,7 @@ pub(crate) fn report(
 
     DoctorReport {
         xurl,
+        auth,
         commands,
         cache,
     }
@@ -185,6 +227,27 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             output::error("not found", use_color)
         ));
         out.push_str("  Install: brew install xdevplatform/tap/xurl\n");
+    }
+
+    // Auth section
+    out.push_str(&format!("\n{}\n", output::section("Auth", use_color)));
+    if report.auth.authenticated {
+        if let Some(ref username) = report.auth.username {
+            out.push_str(&format!(
+                "  user: {}\n",
+                output::muted(&format!("@{}", username), use_color)
+            ));
+        }
+        out.push_str(&format!(
+            "  status: {}\n",
+            output::success("authenticated", use_color)
+        ));
+    } else {
+        out.push_str(&format!(
+            "  status: {}\n",
+            output::error("not authenticated", use_color)
+        ));
+        out.push_str("  Run `bird login` to authenticate.\n");
     }
 
     // Commands section
@@ -317,7 +380,6 @@ mod tests {
         let config = minimal_config();
         let client = no_cache_client();
         let r = report(&config, &client, None);
-        // Should have commands
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -339,6 +401,36 @@ mod tests {
         let r = report(&config, &client, None);
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("xurl"));
+        assert!(json.contains("auth"));
         assert!(json.contains("commands"));
+    }
+
+    #[test]
+    fn build_commands_not_authenticated_auth_commands_unavailable() {
+        let cmds = build_commands_section(true, false);
+        // login should be available (xurl is present)
+        assert!(cmds.get("login").unwrap().available);
+        // me requires auth, should be unavailable
+        assert!(!cmds.get("me").unwrap().available);
+        assert!(cmds.get("me").unwrap().reason.as_ref().unwrap().contains("not authenticated"));
+        // usage is local-only (AuthType::None), always available
+        assert!(cmds.get("usage").unwrap().available);
+    }
+
+    #[test]
+    fn build_commands_authenticated_all_available() {
+        let cmds = build_commands_section(true, true);
+        assert!(cmds.get("me").unwrap().available);
+        assert!(cmds.get("bookmarks").unwrap().available);
+        assert!(cmds.get("search").unwrap().available);
+    }
+
+    #[test]
+    fn build_commands_no_xurl_all_auth_commands_unavailable() {
+        let cmds = build_commands_section(false, false);
+        assert!(!cmds.get("login").unwrap().available);
+        assert!(!cmds.get("me").unwrap().available);
+        // Local-only commands still available
+        assert!(cmds.get("usage").unwrap().available);
     }
 }

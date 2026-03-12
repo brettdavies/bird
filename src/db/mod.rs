@@ -8,7 +8,7 @@ pub mod db;
 pub mod usage;
 
 // Re-export all public types so `use crate::db::{...}` works.
-pub use client::{ApiResponse, BirdClient, CacheOpts, RequestContext};
+pub use client::{BirdClient, CacheOpts, RequestContext};
 #[allow(unused_imports)]
 pub(crate) use db::{BirdDb, BookmarkRow, RawResponseRow, StoreStats, TweetRow, UserRow};
 pub use usage::{ActualUsageDay, DailyUsage, EndpointUsage, UsageLogEntry, UsageSummary};

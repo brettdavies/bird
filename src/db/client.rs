@@ -397,11 +397,6 @@ impl BirdClient {
         self.db.as_ref()
     }
 
-    /// Access the underlying BirdDb mutably (for usage logging).
-    pub fn db_mut(&mut self) -> Option<&mut BirdDb> {
-        self.db.as_mut()
-    }
-
     /// Whether store is explicitly disabled (--no-cache flag).
     pub fn db_disabled(&self) -> bool {
         self.cache_opts.no_store

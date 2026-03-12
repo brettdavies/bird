@@ -73,7 +73,7 @@ pub fn check_xurl_version(
         .unwrap_or(stdout.trim())
         .to_string();
 
-    if !version.is_empty() && version < MIN_VERSION.to_string() {
+    if !version.is_empty() && version.as_str() < MIN_VERSION {
         eprintln!(
             "[transport] warning: xurl {} is below minimum {}; consider upgrading",
             version, MIN_VERSION

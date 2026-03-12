@@ -60,18 +60,6 @@ pub fn success(s: &str, use_color: bool) -> String {
     }
 }
 
-/// Wrap URL in OSC 8 for clickable hyperlink. Sanitizes URL and display text (strips ASCII escape and BEL).
-/// When use_hyperlinks is false, returns display_text or url unchanged.
-pub fn hyperlink(url: &str, display_text: Option<&str>, use_hyperlinks: bool) -> String {
-    if !use_hyperlinks {
-        return display_text.unwrap_or(url).to_string();
-    }
-    let display = display_text.unwrap_or(url);
-    let safe_url = url.replace(['\x1b', '\x07'], "");
-    let safe_text = display.replace(['\x1b', '\x07'], "");
-    format!("\x1b]8;;{}\x07{}\x1b]8;;\x07", safe_url, safe_text)
-}
-
 /// Strip lines containing ANSI escape sequences from stdout output.
 /// Used as fallback when `NO_COLOR=1` doesn't suppress hardcoded ANSI in xurl error paths.
 /// Filters complete lines (not individual sequences) to avoid corrupting JSON structure.
