@@ -44,7 +44,7 @@ pub async fn run_thread(
     };
 
     let response = fetch(&token, client, config, &root_url).await?;
-    if !response.status.is_success() {
+    if !response.is_success() {
         return Err(format!(
             "GET tweet {}: {}",
             response.status,
@@ -117,7 +117,7 @@ pub async fn run_thread(
         let search_url = build_search_url(conversation_id, next_token.as_deref());
 
         let response = fetch(&token, client, config, &search_url).await?;
-        if !response.status.is_success() {
+        if !response.is_success() {
             return Err(format!(
                 "GET search page {} {}: {}",
                 page_num,

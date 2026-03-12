@@ -60,7 +60,7 @@ pub async fn run_search(
             CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
         };
 
-        if !response.status.is_success() {
+        if !response.is_success() {
             return Err(format!(
                 "GET search {}: {}",
                 response.status,

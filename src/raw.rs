@@ -77,7 +77,7 @@ pub async fn run_raw(
         }
     };
 
-    if !response.status.is_success() {
+    if !response.is_success() {
         return Err(format!(
             "{} {}: {}",
             method,

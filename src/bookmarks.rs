@@ -32,7 +32,7 @@ pub async fn run_bookmarks(
     let me_response = client
         .get("https://api.x.com/2/users/me", &ctx, me_headers)
         .await?;
-    if !me_response.status.is_success() {
+    if !me_response.is_success() {
         return Err(format!(
             "GET /2/users/me failed: {}",
             output::sanitize_for_stderr(&me_response.body, 200)
@@ -96,7 +96,7 @@ pub async fn run_bookmarks(
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", format!("Bearer {}", access).parse()?);
         let response = client.get(&url, &ctx, headers).await?;
-        if !response.status.is_success() {
+        if !response.is_success() {
             return Err(format!(
                 "GET bookmarks failed: {}",
                 output::sanitize_for_stderr(&response.body, 200)

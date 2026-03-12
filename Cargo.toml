@@ -30,6 +30,7 @@ rusqlite_migration = "2.4"
 toml_edit = "0.22"
 tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["now"] }
+which = "7"
 
 [dev-dependencies]
 assert_cmd = "2"

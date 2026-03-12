@@ -72,6 +72,16 @@ pub fn hyperlink(url: &str, display_text: Option<&str>, use_hyperlinks: bool) ->
     format!("\x1b]8;;{}\x07{}\x1b]8;;\x07", safe_url, safe_text)
 }
 
+/// Strip lines containing ANSI escape sequences from stdout output.
+/// Used as fallback when `NO_COLOR=1` doesn't suppress hardcoded ANSI in xurl error paths.
+/// Filters complete lines (not individual sequences) to avoid corrupting JSON structure.
+pub fn strip_ansi_lines(s: &str) -> String {
+    s.lines()
+        .filter(|line| !line.contains('\x1b'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Sanitize untrusted text for stderr display: replace control chars with '?', truncate.
 /// Prevents terminal escape injection from API response bodies.
 pub fn sanitize_for_stderr(s: &str, max_chars: usize) -> String {
@@ -102,6 +112,29 @@ pub fn emoji_unavailable(use_emoji: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strip_ansi_lines_clean_json() {
+        let input = "{\"data\":{\"id\":\"1\"}}\n";
+        assert_eq!(strip_ansi_lines(input), "{\"data\":{\"id\":\"1\"}}");
+    }
+
+    #[test]
+    fn strip_ansi_lines_removes_colored_error() {
+        let input = "{\"data\":{\"id\":\"1\"}}\n\x1b[31mError: request failed\x1b[0m";
+        assert_eq!(strip_ansi_lines(input), "{\"data\":{\"id\":\"1\"}}");
+    }
+
+    #[test]
+    fn strip_ansi_lines_preserves_all_clean() {
+        let input = "line one\nline two\nline three";
+        assert_eq!(strip_ansi_lines(input), input);
+    }
+
+    #[test]
+    fn strip_ansi_lines_empty() {
+        assert_eq!(strip_ansi_lines(""), "");
+    }
 
     #[test]
     fn sanitize_normal_text() {

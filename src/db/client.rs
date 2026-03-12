@@ -37,12 +37,17 @@ pub struct CacheOpts {
 
 /// Response from BirdClient (covers both store hits and fresh API responses).
 pub struct ApiResponse {
-    pub status: reqwest::StatusCode,
+    pub status: u16,
     pub body: String,
-    pub headers: HeaderMap,
     pub cache_hit: bool,
     /// Pre-parsed JSON body (populated by transport methods to avoid double-parse).
     pub json: Option<serde_json::Value>,
+}
+
+impl ApiResponse {
+    pub fn is_success(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
 }
 
 impl fmt::Debug for ApiResponse {
@@ -325,12 +330,12 @@ impl BirdClient {
         let response = self.http_get(url, headers).await?;
         let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
 
-        if response.status.is_success() {
+        if response.is_success() {
             if let Some(ref jv) = json {
                 if entity_type.is_some() {
                     self.decompose_and_upsert(url, jv);
                 } else {
-                    self.store_raw_response(url, response.status.as_u16(), &response.body);
+                    self.store_raw_response(url, response.status, &response.body);
                 }
             }
         }
@@ -354,15 +359,13 @@ impl BirdClient {
             req = req.body(b);
         }
         let res = req.send().await?;
-        let status = res.status();
-        let resp_headers = res.headers().clone();
+        let status = res.status().as_u16();
         let text = res.text().await?;
         let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
         self.log_api_call(url, &method_str, json.as_ref(), false, ctx.username);
         Ok(ApiResponse {
             status,
             body: text,
-            headers: resp_headers,
             cache_hit: false,
             json,
         })
@@ -381,7 +384,7 @@ impl BirdClient {
         let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
 
         // Entity decomposition for successful GET responses
-        if method == "GET" && response.status.is_success() && !self.cache_opts.no_store {
+        if method == "GET" && response.is_success() && !self.cache_opts.no_store {
             if let Some(ref jv) = json {
                 if is_entity_endpoint(url).is_some() {
                     self.decompose_and_upsert(url, jv);
@@ -406,13 +409,11 @@ impl BirdClient {
         headers: HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let res = self.http.get(url).headers(headers).send().await?;
-        let status = res.status();
-        let resp_headers = res.headers().clone();
+        let status = res.status().as_u16();
         let text = res.text().await?;
         Ok(ApiResponse {
             status,
             body: text,
-            headers: resp_headers,
             cache_hit: false,
             json: None,
         })
@@ -521,9 +522,8 @@ impl BirdClient {
             let body = serde_json::to_string(&json)?;
             self.log_api_call(url, "GET", Some(&json), true, ctx.username);
             return Ok(ApiResponse {
-                status: reqwest::StatusCode::OK,
+                status: 200,
                 body,
-                headers: HeaderMap::new(),
                 cache_hit: true,
                 json: Some(json),
             });
@@ -542,9 +542,8 @@ impl BirdClient {
             let body = serde_json::to_string(&json)?;
             self.log_api_call(url, "GET", Some(&json), true, ctx.username);
             return Ok(ApiResponse {
-                status: reqwest::StatusCode::OK,
+                status: 200,
                 body,
-                headers: HeaderMap::new(),
                 cache_hit: true,
                 json: Some(json),
             });
@@ -554,7 +553,7 @@ impl BirdClient {
         if from_store.is_empty() {
             let response = self.http_get(url, headers).await?;
             let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
-            if response.status.is_success() {
+            if response.is_success() {
                 if let Some(ref jv) = json {
                     self.decompose_and_upsert(url, jv);
                 }
@@ -569,7 +568,7 @@ impl BirdClient {
         let api_json: serde_json::Value =
             serde_json::from_str(&response.body).unwrap_or(serde_json::Value::Null);
 
-        if response.status.is_success() {
+        if response.is_success() {
             self.decompose_and_upsert(&fetch_url, &api_json);
         }
 
@@ -614,7 +613,6 @@ impl BirdClient {
         Ok(ApiResponse {
             status: response.status,
             body,
-            headers: response.headers,
             cache_hit: false,
             json: Some(merged_json),
         })
@@ -716,13 +714,11 @@ impl BirdClient {
                 .body(b.to_string());
         }
         let res = req.send().await?;
-        let status = res.status();
-        let resp_headers = res.headers().clone();
+        let status = res.status().as_u16();
         let text = res.text().await?;
         Ok(ApiResponse {
             status,
             body: text,
-            headers: resp_headers,
             cache_hit: false,
             json: None,
         })
@@ -771,9 +767,8 @@ fn check_tweet_freshness(db: &BirdDb, id: &str) -> Option<ApiResponse> {
     let json = serde_json::json!({"data": jv});
     let body = serde_json::to_string(&json).ok()?;
     Some(ApiResponse {
-        status: reqwest::StatusCode::OK,
+        status: 200,
         body,
-        headers: HeaderMap::new(),
         cache_hit: true,
         json: Some(json),
     })
@@ -789,9 +784,8 @@ fn check_user_freshness(db: &BirdDb, username: &str) -> Option<ApiResponse> {
     let json = serde_json::json!({"data": jv});
     let body = serde_json::to_string(&json).ok()?;
     Some(ApiResponse {
-        status: reqwest::StatusCode::OK,
+        status: 200,
         body,
-        headers: HeaderMap::new(),
         cache_hit: true,
         json: Some(json),
     })
@@ -804,10 +798,8 @@ fn try_raw_response(db: &BirdDb, url: &str) -> Option<ApiResponse> {
     let body = String::from_utf8_lossy(&raw.body).into_owned();
     let json = serde_json::from_str(&body).ok();
     Some(ApiResponse {
-        status: reqwest::StatusCode::from_u16(raw.status_code as u16)
-            .unwrap_or(reqwest::StatusCode::OK),
+        status: raw.status_code as u16,
         body,
-        headers: HeaderMap::new(),
         cache_hit: true,
         json,
     })
@@ -1053,9 +1045,8 @@ mod tests {
     #[test]
     fn api_response_debug_redacts_body() {
         let response = ApiResponse {
-            status: reqwest::StatusCode::OK,
+            status: 200,
             body: "sensitive data here".to_string(),
-            headers: HeaderMap::new(),
             cache_hit: true,
             json: None,
         };

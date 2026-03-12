@@ -215,8 +215,6 @@ async fn sync_actual_usage(
     client: &mut BirdClient,
     token: &crate::auth::CommandToken,
 ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
-    use reqwest::header::HeaderMap;
-
     let access = match token {
         crate::auth::CommandToken::Bearer { token, .. } => token,
         crate::auth::CommandToken::OAuth1 => {
@@ -224,6 +222,7 @@ async fn sync_actual_usage(
         }
     };
 
+    use reqwest::header::HeaderMap;
     let url = "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage";
     let mut headers = HeaderMap::new();
     headers.insert("Authorization", format!("Bearer {}", access).parse()?);
@@ -232,18 +231,13 @@ async fn sync_actual_usage(
     let response = client.http_get(url, headers).await?;
 
     // Graceful degradation: show local data on sync failure (D5)
-    if response.status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        let reset_msg = parse_rate_limit_reset(&response.headers)
-            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
-            .map(|dt| format!("Resets at {}.", dt.format("%H:%M UTC")))
-            .unwrap_or_default();
+    if response.status == 429 {
         eprintln!(
-            "[usage] Rate limited (429). {} Showing local data only.",
-            reset_msg
+            "[usage] Rate limited (429). Showing local data only.",
         );
         return Ok(None);
     }
-    if !response.status.is_success() {
+    if !response.is_success() {
         eprintln!(
             "[usage] Sync failed ({}: {}). Showing local data only.",
             response.status,
@@ -303,23 +297,6 @@ async fn sync_actual_usage(
         results.len()
     );
     Ok(Some(results))
-}
-
-/// Parse x-rate-limit-reset header and validate bounds.
-fn parse_rate_limit_reset(headers: &reqwest::header::HeaderMap) -> Option<i64> {
-    let ts: i64 = headers
-        .get("x-rate-limit-reset")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse().ok())?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    // Reject timestamps in the past or more than 1 hour in the future
-    if ts < now || ts > now + 3600 {
-        return None;
-    }
-    Some(ts)
 }
 
 /// Build an empty report for machine consumers when DB is unavailable.
