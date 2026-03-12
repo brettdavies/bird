@@ -185,7 +185,7 @@ If all async usage is removed, drop `tokio` from `Cargo.toml`. This simplifies
 
 **Tasks:**
 
-- [ ] Create `src/transport.rs` (~80-100 lines)
+- [x] Create `src/transport.rs` (~80-100 lines)
   - `fn xurl_call(args: &[&str]) -> Result<serde_json::Value, Box<dyn Error + Send + Sync>>`
   - Resolves xurl binary from cached absolute path
   - Spawns with `NO_COLOR=1` env var + `Stdio::piped()` for stdout/stderr
@@ -201,13 +201,13 @@ If all async usage is removed, drop `tokio` from `Cargo.toml`. This simplifies
   - `fn check_xurl_version(path: &Path) -> Result<String, Box<dyn Error>>` -- runs
     `xurl version`, parses output, warns if below v1.0.3
 
-- [ ] Add `strip_ansi_sequences()` to `src/output.rs` (co-locate with `sanitize_for_stderr`)
+- [x] Add `strip_ansi_sequences()` to `src/output.rs` (co-locate with `sanitize_for_stderr`)
   - Fallback for error paths where `NO_COLOR=1` doesn't suppress hardcoded ANSI
   - Filter out lines containing `\x1b` from stdout before JSON parsing
   - Use `strip-ansi-escapes` crate OR hand-written filter (zero-dep: `line.contains('\x1b')`)
   - Unit tests alongside existing `output.rs` tests
 
-- [ ] Modify `ApiResponse` in place (`src/db/client.rs`)
+- [x] Modify `ApiResponse` in place (`src/db/client.rs`)
   - `status: reqwest::StatusCode` -> `status: u16`
   - Remove `headers: HeaderMap` entirely
   - Add `fn is_success(&self) -> bool { (200..300).contains(&self.status) }`
@@ -215,7 +215,7 @@ If all async usage is removed, drop `tokio` from `Cargo.toml`. This simplifies
   - Update 22 call sites from `response.status.is_success()` to `response.is_success()`
   - Update `response.status == reqwest::StatusCode::TOO_MANY_REQUESTS` to `response.status == 429`
 
-- [ ] Error classification logic (in transport.rs)
+- [x] Error classification logic (in transport.rs)
   - `ErrorKind::NotFound` on spawn -> "xurl not found. Install: npm install -g @xdevplatform/xurl"
   - Exit 0 -> success, return parsed JSON
   - Exit non-zero + JSON with `status: 401|403` -> auth error (caller maps to `BirdError::Auth`)
@@ -223,7 +223,7 @@ If all async usage is removed, drop `tokio` from `Cargo.toml`. This simplifies
   - Exit non-zero + no JSON -> process error with stderr content
   - Timeout -> "xurl timed out after 60s"
 
-- [ ] Transport trait for testability
+- [x] Transport trait for testability
 
   ```rust
   pub trait Transport {
@@ -234,7 +234,7 @@ If all async usage is removed, drop `tokio` from `Cargo.toml`. This simplifies
   `XurlTransport` for production, `MockTransport` (cfg(test)) for unit tests.
   `BirdClient` takes `Box<dyn Transport>` or is generic over `T: Transport`.
 
-- [ ] Tests for transport layer
+- [x] Tests for transport layer
   - Mock xurl via `BIRD_XURL_BIN` env var override (shell script returns canned JSON)
   - Test: success path (exit 0, valid JSON)
   - Test: API error (exit 1, JSON with status field)
@@ -589,10 +589,10 @@ tower): estimated savings of 2-3MB, bringing binary to ~4-5MB.
 
 ## Dependencies and Prerequisites
 
-- [ ] `xurl` v1.0.3+ installed (`npm install -g @xdevplatform/xurl` or `brew install xdevplatform/tap/xurl`)
+- [x] `xurl` v1.0.3+ installed (`npm install -g @xdevplatform/xurl` or `brew install xdevplatform/tap/xurl`)
 - [ ] `xurl auth apps add` configured with X API credentials
 - [ ] `xurl auth oauth2` completed (tokens in `~/.xurl`)
-- [ ] `which` crate added to `Cargo.toml` (PATH resolution)
+- [x] `which` crate added to `Cargo.toml` (PATH resolution)
 - [ ] Consider: `strip-ansi-escapes` crate (ANSI fallback)
 - [ ] Consider: `wait-timeout` crate (sync timeout without tokio)
 
