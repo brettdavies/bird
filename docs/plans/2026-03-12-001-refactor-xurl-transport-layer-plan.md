@@ -254,45 +254,45 @@ reqwest create unnecessary breakage.
 
 **Tasks:**
 
-- [ ] Rewrite `http_get()` in `src/db/client.rs`
+- [x] Rewrite `http_get()` in `src/db/client.rs`
   - Currently: `self.http.get(url).headers(headers).send().await`
   - After: `self.transport.request(&[url.to_string()])` (no auth headers -- xurl handles)
   - Construct `ApiResponse` with `status: 200` on success, `json: Some(value)`
 
-- [ ] Rewrite `request()` for POST/PUT/DELETE
+- [x] Rewrite `request()` for POST/PUT/DELETE
   - After: `self.transport.request(&["-X".into(), method.into(), url.into(), "-d".into(), body.into()])`
 
-- [ ] Remove `oauth1_request()`, `oauth1_http()`, `self.http: reqwest::Client`
+- [x] Remove `oauth1_request()`, `oauth1_http()`, `self.http: reqwest::Client`
   - Transport is now stateless -- `BirdClient` holds `Box<dyn Transport>` not `reqwest::Client`
 
-- [ ] Preserve `auth_type` in `RequestContext` for usage logging
+- [x] Preserve `auth_type` in `RequestContext` for usage logging
   - Derive from `requirements.rs` mapping (not from resolved token)
   - Usage reports retain auth-type dimension
 
-- [ ] Entity decomposition -- NO CHANGES NEEDED
+- [x] Entity decomposition -- NO CHANGES NEEDED
   - `decompose_and_upsert()` works on `serde_json::Value` -- transport-agnostic
   - Confirmed: 11 call sites (5 production, 6 tests) require zero changes
 
-- [ ] Fix `usage --sync` (`src/usage.rs`)
+- [x] Fix `usage --sync` (`src/usage.rs`)
   - Migrate to `transport.request(&["--auth".into(), "app".into(), url.into()])`
   - Accept loss of `x-rate-limit-reset` header (degrade to "Rate limited, try again later")
 
-- [ ] Delete `auth.rs` entirely (~504 lines)
-- [ ] Delete `login.rs` entirely (~166 lines)
-- [ ] Remove `mod auth;` and `mod login;` from `main.rs`
+- [x] Delete `auth.rs` entirely (~504 lines)
+- [x] Delete `login.rs` entirely (~166 lines)
+- [x] Remove `mod auth;` and `mod login;` from `main.rs`
 
-- [ ] Replace `bird login` command
+- [x] Replace `bird login` command
   - After: `transport::xurl_passthrough(&["auth", "oauth2"])` (inherited stdio)
   - On success: run `xurl_call(&["whoami"])` to verify, clear entity store
   - On failure: suggest `xurl auth apps add` with install instructions
 
-- [ ] Update command dispatch in `main.rs`
+- [x] Update command dispatch in `main.rs`
   - Remove `reqwest::Client::builder()` construction
   - Remove `stored_tokens` loading, `resolve_token_for_command()` calls
   - Remove `headers` construction for Bearer/OAuth1
   - Call `resolve_xurl_path()` at startup (fail-fast if not found)
 
-- [ ] Slim down `ResolvedConfig` (`src/config.rs`)
+- [x] Slim down `ResolvedConfig` (`src/config.rs`)
   - Delete all auth fields: `client_id`, `client_secret`, `access_token`, `refresh_token`,
     `bearer_token`, `oauth1_*` fields
   - Delete env var resolution for `X_API_ACCESS_TOKEN`, `X_API_BEARER_TOKEN`, etc.
@@ -302,7 +302,7 @@ reqwest create unnecessary breakage.
   - Keep: `username`, `config_path`, `cache_enabled`, `cache_max_size_mb`, `watchlist`
   - Keep: `X_API_USERNAME` for `--account` -> `--username` mapping to xurl
 
-- [ ] Update `requirements.rs`
+- [x] Update `requirements.rs`
   - Keep `AuthType` enum -- maps to xurl `--auth` flag values
   - Add centralized mapping function: `fn auth_flag(auth_type: AuthType) -> Option<&'static str>`
     - `AuthType::OAuth2User` -> None (xurl defaults to OAuth2)
@@ -311,12 +311,12 @@ reqwest create unnecessary breakage.
     - `AuthType::None` -> None
   - Update hint text: remove references to `X_API_ACCESS_TOKEN` env var
 
-- [ ] Update all command handler signatures
+- [x] Update all command handler signatures
   - Remove `headers: HeaderMap` param from `raw.rs`, `search.rs`, `bookmarks.rs`,
     `profile.rs`, `thread.rs`, `watchlist.rs`
   - Remove direct reqwest usage from `usage.rs`
 
-- [ ] Update tests
+- [x] Update tests
   - 17 entity store tests: transport-agnostic, pass with `MockTransport`
   - Tests that construct `reqwest::Client::new()`: use `MockTransport` instead
   - 5 doctor auth-state tests: complete rewrite (see Phase 3)
