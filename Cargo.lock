@@ -126,6 +126,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "libc",
  "owo-colors",
  "percent-encoding",
  "predicates",
