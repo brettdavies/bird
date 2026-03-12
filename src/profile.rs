@@ -1,12 +1,10 @@
 //! Profile command: look up an X user by username, display JSON.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use reqwest::header::HeaderMap;
+use crate::requirements::AuthType;
 
 /// Profile options bundled to avoid clippy::too_many_arguments.
 pub struct ProfileOpts<'a> {
@@ -14,11 +12,11 @@ pub struct ProfileOpts<'a> {
     pub pretty: bool,
 }
 
-pub async fn run_profile(
+pub fn run_profile(
     client: &mut BirdClient,
-    config: &ResolvedConfig,
     opts: ProfileOpts<'_>,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let username = validate_username(opts.username)?;
 
@@ -37,20 +35,11 @@ pub async fn run_profile(
         u.to_string()
     };
 
-    let token = resolve_token_for_command(client.http(), config, "profile").await?;
-
-    let response = match &token {
-        CommandToken::Bearer { token, auth_type } => {
-            let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-            let ctx = RequestContext {
-                auth_type,
-                username: config.username.as_deref(),
-            };
-            client.get(&url, &ctx, headers).await?
-        }
-        CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
     };
+    let response = client.get(&url, &ctx)?;
 
     if !response.is_success() {
         return Err(format!(

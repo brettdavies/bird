@@ -1,15 +1,13 @@
 //! BirdClient: entity-aware transport layer replacing CachedClient.
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
-use crate::config::ResolvedConfig;
 use crate::cost;
-use crate::requirements::AuthType;
+use crate::requirements::{self, AuthType};
+use crate::transport::Transport;
 
 use super::db::{BirdDb, TweetRow, UserRow};
 use super::normalize_endpoint;
 
-use reqwest::header::HeaderMap;
-use reqwest_oauth1::OAuthClientProvider;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt;
@@ -214,27 +212,31 @@ mod hex {
 
 // -- BirdClient --
 
-/// Entity-aware transport layer. Wraps reqwest::Client + optional BirdDb.
-/// If BirdDb is unavailable (corrupted, disk error), degrades to direct HTTP.
+/// Entity-aware transport layer. Wraps xurl transport + optional BirdDb.
+/// If BirdDb is unavailable (corrupted, disk error), degrades to direct transport.
 pub struct BirdClient {
-    http: reqwest::Client,
+    transport: Box<dyn Transport>,
     db: Option<BirdDb>,
     cache_opts: CacheOpts,
+    /// Username for --account flag (maps to xurl -u)
+    account: Option<String>,
 }
 
 impl BirdClient {
     /// Create a new BirdClient. If entity store cannot be opened, degrades to no-store.
     pub fn new(
-        http: reqwest::Client,
+        transport: Box<dyn Transport>,
         store_path: &Path,
         cache_opts: CacheOpts,
         max_size_mb: u64,
+        account: Option<String>,
     ) -> Self {
         if cache_opts.no_store {
             return Self {
-                http,
+                transport,
                 db: None,
                 cache_opts,
+                account,
             };
         }
         let db = match BirdDb::open(store_path, max_size_mb) {
@@ -259,24 +261,24 @@ impl BirdClient {
             }
         };
         Self {
-            http,
+            transport,
             db,
             cache_opts,
+            account,
         }
     }
 
     /// Entity-aware GET. For entity endpoints: checks store freshness, splits batch IDs,
     /// decomposes responses into entities, and merges results.
     /// For non-entity endpoints: stores raw responses.
-    pub async fn get(
+    pub fn get(
         &mut self,
         url: &str,
         ctx: &RequestContext<'_>,
-        headers: HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        // no_store or no db: direct HTTP
+        // no_store or no db: direct transport
         if self.cache_opts.no_store || self.db.is_none() {
-            return self.direct_get(url, ctx, headers).await;
+            return self.direct_get(url, ctx);
         }
 
         let entity_type = is_entity_endpoint(url);
@@ -287,7 +289,7 @@ impl BirdClient {
         if entity_type.is_some() && !skip_reads {
             // Batch ID splitting
             if let Some(ids) = extract_batch_ids(url) {
-                return self.batch_get(url, ctx, headers, &ids).await;
+                return self.batch_get(url, ctx, &ids);
             }
             // Single tweet freshness check
             if let Some(tweet_id) = extract_single_tweet_id(url) {
@@ -326,9 +328,9 @@ impl BirdClient {
             return Err("entity not in local store; run without --cache-only to fetch".into());
         }
 
-        // Standard: HTTP GET + entity decomposition
-        let response = self.http_get(url, headers).await?;
-        let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+        // Standard: xurl GET + entity decomposition
+        let response = self.xurl_get(url, ctx)?;
+        let json = response.json.clone();
 
         if response.is_success() {
             if let Some(ref jv) = json {
@@ -341,81 +343,37 @@ impl BirdClient {
         }
 
         self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
-        Ok(ApiResponse { json, ..response })
+        Ok(response)
     }
 
-    /// POST/PUT/DELETE — pass-through, no entity store interaction.
-    pub async fn request(
-        &mut self,
-        method: reqwest::Method,
-        url: &str,
-        ctx: &RequestContext<'_>,
-        headers: HeaderMap,
-        body: Option<String>,
-    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let method_str = method.as_str().to_string();
-        let mut req = self.http.request(method, url).headers(headers);
-        if let Some(b) = body {
-            req = req.body(b);
-        }
-        let res = req.send().await?;
-        let status = res.status().as_u16();
-        let text = res.text().await?;
-        let json: Option<serde_json::Value> = serde_json::from_str(&text).ok();
-        self.log_api_call(url, &method_str, json.as_ref(), false, ctx.username);
-        Ok(ApiResponse {
-            status,
-            body: text,
-            cache_hit: false,
-            json,
-        })
-    }
-
-    /// OAuth1-signed HTTP request. GET requests get entity decomposition;
-    /// POST/PUT/DELETE bypass the store (mutations must never be cached).
-    pub async fn oauth1_request(
+    /// POST/PUT/DELETE — pass-through via xurl, no entity store interaction.
+    pub fn request(
         &mut self,
         method: &str,
         url: &str,
-        config: &ResolvedConfig,
+        ctx: &RequestContext<'_>,
         body: Option<&str>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let response = self.oauth1_http(method, url, config, body).await?;
-        let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
-
-        // Entity decomposition for successful GET responses
-        if method == "GET" && response.is_success() && !self.cache_opts.no_store {
-            if let Some(ref jv) = json {
-                if is_entity_endpoint(url).is_some() {
-                    self.decompose_and_upsert(url, jv);
-                }
-            }
+        let mut args: Vec<String> = vec!["-X".into(), method.to_uppercase()];
+        if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
+            args.extend_from_slice(&["--auth".into(), flag.into()]);
         }
+        if let Some(ref account) = self.account {
+            args.extend_from_slice(&["-u".into(), account.clone()]);
+        }
+        if let Some(b) = body {
+            args.extend_from_slice(&["-d".into(), b.into()]);
+        }
+        args.push(url.into());
 
-        let username = config.username.as_deref();
-        self.log_api_call(url, method, json.as_ref(), false, username);
-        Ok(ApiResponse { json, ..response })
-    }
-
-    /// Inner HTTP client ref (for auth operations that bypass store).
-    pub fn http(&self) -> &reqwest::Client {
-        &self.http
-    }
-
-    /// Direct HTTP GET (bypasses store). Does NOT log.
-    pub async fn http_get(
-        &self,
-        url: &str,
-        headers: HeaderMap,
-    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let res = self.http.get(url).headers(headers).send().await?;
-        let status = res.status().as_u16();
-        let text = res.text().await?;
+        let json_value = self.transport.request(&args)?;
+        let body = serde_json::to_string(&json_value)?;
+        self.log_api_call(url, method, Some(&json_value), false, ctx.username);
         Ok(ApiResponse {
-            status,
-            body: text,
+            status: 200,
+            body,
             cache_hit: false,
-            json: None,
+            json: Some(json_value),
         })
     }
 
@@ -485,25 +443,52 @@ impl BirdClient {
 
     // -- Private helpers --
 
+    /// Build xurl args for a GET request with auth and account flags.
+    fn build_get_args(&self, url: &str, ctx: &RequestContext<'_>) -> Vec<String> {
+        let mut args: Vec<String> = Vec::new();
+        if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
+            args.extend_from_slice(&["--auth".into(), flag.into()]);
+        }
+        if let Some(ref account) = self.account {
+            args.extend_from_slice(&["-u".into(), account.clone()]);
+        }
+        args.push(url.into());
+        args
+    }
+
+    /// GET via xurl transport. Returns ApiResponse with parsed JSON.
+    fn xurl_get(
+        &self,
+        url: &str,
+        ctx: &RequestContext<'_>,
+    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
+        let args = self.build_get_args(url, ctx);
+        let json_value = self.transport.request(&args)?;
+        let body = serde_json::to_string(&json_value)?;
+        Ok(ApiResponse {
+            status: 200,
+            body,
+            cache_hit: false,
+            json: Some(json_value),
+        })
+    }
+
     /// Direct GET without store interaction (for no_store / no db paths).
-    async fn direct_get(
+    fn direct_get(
         &mut self,
         url: &str,
         ctx: &RequestContext<'_>,
-        headers: HeaderMap,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let response = self.http_get(url, headers).await?;
-        let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
-        self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
-        Ok(ApiResponse { json, ..response })
+        let response = self.xurl_get(url, ctx)?;
+        self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
+        Ok(response)
     }
 
     /// Batch ID get: partition into fresh (from store) vs stale/missing (from API), merge.
-    async fn batch_get(
+    fn batch_get(
         &mut self,
         url: &str,
         ctx: &RequestContext<'_>,
-        headers: HeaderMap,
         ids: &[String],
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let (from_store, ids_to_fetch) = {
@@ -551,22 +536,20 @@ impl BirdClient {
 
         // No store hits -> standard request (no URL rebuild needed)
         if from_store.is_empty() {
-            let response = self.http_get(url, headers).await?;
-            let json: Option<serde_json::Value> = serde_json::from_str(&response.body).ok();
+            let response = self.xurl_get(url, ctx)?;
             if response.is_success() {
-                if let Some(ref jv) = json {
+                if let Some(ref jv) = response.json {
                     self.decompose_and_upsert(url, jv);
                 }
             }
-            self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
-            return Ok(ApiResponse { json, ..response });
+            self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
+            return Ok(response);
         }
 
         // Mixed: split request — fetch only stale/missing IDs
         let fetch_url = rebuild_url_with_ids(url, &ids_to_fetch);
-        let response = self.http_get(&fetch_url, headers).await?;
-        let api_json: serde_json::Value =
-            serde_json::from_str(&response.body).unwrap_or(serde_json::Value::Null);
+        let response = self.xurl_get(&fetch_url, ctx)?;
+        let api_json = response.json.clone().unwrap_or(serde_json::Value::Null);
 
         if response.is_success() {
             self.decompose_and_upsert(&fetch_url, &api_json);
@@ -591,11 +574,9 @@ impl BirdClient {
                     merged.push(j);
                 }
             }
-            // Deleted/missing IDs: omitted (correct per API semantics)
         }
 
         let mut merged_json = serde_json::json!({"data": merged});
-        // Carry over API includes (v1: stored tweets' authors may be incomplete)
         if let Some(includes) = api_json.get("includes") {
             merged_json["includes"] = includes.clone();
         }
@@ -607,7 +588,6 @@ impl BirdClient {
         }
 
         let body = serde_json::to_string(&merged_json)?;
-        // Log only API-fetched portion for accurate cost estimation
         self.log_api_call(&fetch_url, "GET", Some(&api_json), false, ctx.username);
 
         Ok(ApiResponse {
@@ -675,54 +655,6 @@ impl BirdClient {
         }
     }
 
-    /// OAuth1-signed HTTP call. Extracts credentials, signs, sends. Does NOT log or store.
-    async fn oauth1_http(
-        &self,
-        method: &str,
-        url: &str,
-        config: &ResolvedConfig,
-        body: Option<&str>,
-    ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let ck = config
-            .oauth1_consumer_key
-            .as_ref()
-            .ok_or("OAuth1 consumer key missing")?;
-        let cs = config
-            .oauth1_consumer_secret
-            .as_ref()
-            .ok_or("OAuth1 consumer secret missing")?;
-        let at = config
-            .oauth1_access_token
-            .as_ref()
-            .ok_or("OAuth1 access token missing")?;
-        let ats = config
-            .oauth1_access_token_secret
-            .as_ref()
-            .ok_or("OAuth1 access token secret missing")?;
-        let secrets =
-            reqwest_oauth1::Secrets::new(ck.as_str(), cs.as_str()).token(at.as_str(), ats.as_str());
-        let mut req = match method {
-            "GET" => self.http.clone().oauth1(secrets).get(url),
-            "POST" => self.http.clone().oauth1(secrets).post(url),
-            "PUT" => self.http.clone().oauth1(secrets).put(url),
-            "DELETE" => self.http.clone().oauth1(secrets).delete(url),
-            _ => return Err(format!("unsupported method: {method}").into()),
-        };
-        if let Some(b) = body {
-            req = req
-                .header("Content-Type", "application/json")
-                .body(b.to_string());
-        }
-        let res = req.send().await?;
-        let status = res.status().as_u16();
-        let text = res.text().await?;
-        Ok(ApiResponse {
-            status,
-            body: text,
-            cache_hit: false,
-            json: None,
-        })
-    }
 }
 
 // -- Free helper functions --
@@ -810,6 +742,16 @@ mod tests {
     use super::super::db::in_memory_db;
     use super::super::unix_now;
     use super::*;
+    use crate::transport::tests::MockTransport;
+
+    fn test_client_with_db(db: BirdDb) -> BirdClient {
+        BirdClient {
+            transport: Box::new(MockTransport::new(vec![])),
+            db: Some(db),
+            cache_opts: CacheOpts::default(),
+            account: None,
+        }
+    }
 
     #[test]
     fn entity_endpoint_classification() {
@@ -907,11 +849,7 @@ mod tests {
     #[test]
     fn decompose_tweet_response() {
         let db = in_memory_db();
-        let client = BirdClient {
-            http: reqwest::Client::new(),
-            db: Some(db),
-            cache_opts: CacheOpts::default(),
-        };
+        let client = test_client_with_db(db);
         let json = serde_json::json!({
             "data": [
                 {"id": "t1", "text": "hello", "author_id": "u1"},
@@ -932,11 +870,7 @@ mod tests {
     #[test]
     fn decompose_single_user() {
         let db = in_memory_db();
-        let client = BirdClient {
-            http: reqwest::Client::new(),
-            db: Some(db),
-            cache_opts: CacheOpts::default(),
-        };
+        let client = test_client_with_db(db);
         let json = serde_json::json!({
             "data": {"id": "u1", "username": "jack", "name": "Jack"}
         });
@@ -950,11 +884,7 @@ mod tests {
     #[test]
     fn decompose_handles_absent_data() {
         let db = in_memory_db();
-        let client = BirdClient {
-            http: reqwest::Client::new(),
-            db: Some(db),
-            cache_opts: CacheOpts::default(),
-        };
+        let client = test_client_with_db(db);
         // API returns no data key when all IDs deleted
         let json = serde_json::json!({
             "errors": [{"detail": "not found"}]
@@ -966,11 +896,7 @@ mod tests {
     #[test]
     fn decompose_non_entity_endpoint_is_noop() {
         let db = in_memory_db();
-        let client = BirdClient {
-            http: reqwest::Client::new(),
-            db: Some(db),
-            cache_opts: CacheOpts::default(),
-        };
+        let client = test_client_with_db(db);
         let json = serde_json::json!({"data": [{"id": "t1"}]});
         // Usage endpoint is not an entity endpoint
         client.decompose_and_upsert("https://api.x.com/2/usage/tweets", &json);
@@ -1070,11 +996,7 @@ mod tests {
         use super::super::db::BookmarkRow;
 
         let db = in_memory_db();
-        let mut client = BirdClient {
-            http: reqwest::Client::new(),
-            db: Some(db),
-            cache_opts: CacheOpts::default(),
-        };
+        let mut client = test_client_with_db(db);
 
         // --- Step 1: Search stores tweet + user entities ---
         let search_response = serde_json::json!({

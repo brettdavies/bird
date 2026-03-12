@@ -1,13 +1,11 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
-mod auth;
 mod bookmarks;
 mod config;
 mod cost;
 mod db;
 mod doctor;
 mod fields;
-mod login;
 mod output;
 mod profile;
 mod raw;
@@ -26,7 +24,6 @@ use config::{ArgOverrides, ResolvedConfig};
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
-use std::time::Duration;
 
 /// Structured error for the CLI. Each variant carries the command name and maps to a distinct exit code.
 enum BirdError {
@@ -96,23 +93,7 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 
-    /// OAuth2 client ID (overrides config and env)
-    #[arg(long, global = true)]
-    client_id: Option<String>,
-
-    /// OAuth2 client secret (overrides config and env)
-    #[arg(long, global = true)]
-    client_secret: Option<String>,
-
-    /// Access token (overrides config and env)
-    #[arg(long, global = true)]
-    access_token: Option<String>,
-
-    /// Refresh token (overrides config and env)
-    #[arg(long, global = true)]
-    refresh_token: Option<String>,
-
-    /// Account name for multi-account token selection (matches stored token key)
+    /// Account name for multi-account token selection (maps to xurl -u)
     #[arg(long, global = true)]
     account: Option<String>,
 
@@ -139,7 +120,7 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Command {
-    /// OAuth2 login: open browser, store tokens by username
+    /// Authenticate via xurl (OAuth2 PKCE browser flow)
     Login,
 
     /// Show current user (GET /2/users/me)
@@ -264,7 +245,7 @@ enum Command {
         /// Show usage since this date (YYYY-MM-DD; default: 30 days ago)
         #[arg(long)]
         since: Option<String>,
-        /// Sync actual usage from X API (requires Bearer token)
+        /// Sync actual usage from X API (requires Bearer token via xurl)
         #[arg(long)]
         sync: bool,
         /// Pretty-print output
@@ -272,7 +253,7 @@ enum Command {
         pretty: bool,
     },
 
-    /// Show what is available: auth state, effective config, and which commands can run (JSON by default; --pretty for human summary). Optional command name for scoped report (e.g. bird doctor me).
+    /// Show what is available: xurl status, commands, and entity store health
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get)
         command: Option<String>,
@@ -316,22 +297,28 @@ enum WatchlistCommand {
     List,
 }
 
-async fn run(
+/// Resolve the default auth type for a command name using requirements.rs.
+/// Returns the first accepted auth type for the command.
+fn default_auth_type(command_name: &str) -> requirements::AuthType {
+    requirements::requirements_for_command(command_name)
+        .and_then(|r| r.accepted.first().copied())
+        .unwrap_or(requirements::AuthType::OAuth2User)
+}
+
+fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     use_color: bool,
-    use_hyperlinks: bool,
 ) -> Result<(), BirdError> {
     match command {
         Command::Login => {
-            login::run_login(client.http(), config, use_color, use_hyperlinks)
-                .await
-                .map_err(|e| BirdError::Command {
-                    name: "login",
-                    source: e,
-                })?;
-            // Security: clear store after re-auth to prevent stale data from previous context
+            // Delegate to xurl for OAuth2 authentication
+            transport::xurl_passthrough(&["auth", "oauth2"]).map_err(|e| BirdError::Command {
+                name: "login",
+                source: e,
+            })?;
+            // Verify login and clear store
             if let Some(Ok(count)) = client.db_clear() {
                 if count > 0 {
                     eprintln!("[store] Cleared {} stored entries after login.", count);
@@ -340,9 +327,9 @@ async fn run(
         }
         Command::Me { pretty } => {
             let params = HashMap::new();
+            let auth_type = default_auth_type("me");
             raw::run_raw(
                 client,
-                &config,
                 "GET",
                 "/2/users/me",
                 &params,
@@ -350,32 +337,32 @@ async fn run(
                 None,
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "me",
                 source: e,
             })?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, &config, pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command {
+            bookmarks::run_bookmarks(client, pretty, use_color).map_err(|e| {
+                BirdError::Command {
                     name: "bookmarks",
                     source: e,
-                })?;
+                }
+            })?;
         }
         Command::Profile { username, pretty } => {
+            let auth_type = default_auth_type("profile");
             profile::run_profile(
                 client,
-                &config,
                 profile::ProfileOpts {
                     username: &username,
                     pretty,
                 },
                 use_color,
+                &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "profile",
                 source: e,
@@ -389,6 +376,7 @@ async fn run(
             max_results,
             pages,
         } => {
+            let auth_type = default_auth_type("search");
             let opts = search::SearchOpts {
                 query: &query,
                 pretty,
@@ -397,29 +385,29 @@ async fn run(
                 max_results: max_results.unwrap_or(100).clamp(10, 100),
                 pages: pages.unwrap_or(1).clamp(1, 10),
             };
-            search::run_search(client, &config, opts, use_color)
-                .await
-                .map_err(|e| BirdError::Command {
+            search::run_search(client, opts, use_color, &auth_type).map_err(|e| {
+                BirdError::Command {
                     name: "search",
                     source: e,
-                })?;
+                }
+            })?;
         }
         Command::Thread {
             tweet_id,
             pretty,
             max_pages,
         } => {
+            let auth_type = default_auth_type("thread");
             thread::run_thread(
                 client,
-                &config,
                 thread::ThreadOpts {
                     tweet_id: &tweet_id,
                     pretty,
                     max_pages,
                 },
                 use_color,
+                &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "thread",
                 source: e,
@@ -432,10 +420,10 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("get");
             raw::run_raw(
-                client, &config, "GET", &path, &params, &query, None, pretty, use_color,
+                client, "GET", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "get",
                 source: e,
@@ -449,9 +437,9 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("post");
             raw::run_raw(
                 client,
-                &config,
                 "POST",
                 &path,
                 &params,
@@ -459,8 +447,8 @@ async fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "post",
                 source: e,
@@ -474,9 +462,9 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("put");
             raw::run_raw(
                 client,
-                &config,
                 "PUT",
                 &path,
                 &params,
@@ -484,8 +472,8 @@ async fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "put",
                 source: e,
@@ -498,10 +486,10 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("delete");
             raw::run_raw(
-                client, &config, "DELETE", &path, &params, &query, None, pretty, use_color,
+                client, "DELETE", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .await
             .map_err(|e| BirdError::Command {
                 name: "delete",
                 source: e,
@@ -509,8 +497,8 @@ async fn run(
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
-                watchlist::run_watchlist_check(client, &config, pretty, use_color)
-                    .await
+                let auth_type = default_auth_type("watchlist_check");
+                watchlist::run_watchlist_check(client, &config, pretty, use_color, &auth_type)
                     .map_err(|e| BirdError::Command {
                         name: "watchlist",
                         source: e,
@@ -534,12 +522,12 @@ async fn run(
             sync,
             pretty,
         } => {
-            usage::run_usage(client, &config, since.as_deref(), sync, pretty)
-                .await
-                .map_err(|e| BirdError::Command {
+            usage::run_usage(client, since.as_deref(), sync, pretty).map_err(|e| {
+                BirdError::Command {
                     name: "usage",
                     source: e,
-                })?;
+                }
+            })?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
@@ -623,8 +611,7 @@ async fn run(
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -643,27 +630,16 @@ async fn main() -> ExitCode {
     };
 
     let use_color = use_color_from_cli(cli.plain, cli.no_color);
-    let use_hyperlinks = use_color && std::io::stderr().is_terminal();
+
+    // Fail-fast if xurl is not installed
+    if let Err(e) = transport::resolve_xurl_path() {
+        let err = BirdError::Config(e);
+        err.print(use_color);
+        return ExitCode::from(err.exit_code());
+    }
 
     let overrides = ArgOverrides {
-        client_id: cli
-            .client_id
-            .or_else(|| std::env::var("X_API_CLIENT_ID").ok()),
-        client_secret: cli
-            .client_secret
-            .or_else(|| std::env::var("X_API_CLIENT_SECRET").ok()),
-        access_token: cli
-            .access_token
-            .or_else(|| std::env::var("X_API_ACCESS_TOKEN").ok()),
-        refresh_token: cli
-            .refresh_token
-            .or_else(|| std::env::var("X_API_REFRESH_TOKEN").ok()),
-        bearer_token: std::env::var("X_API_BEARER_TOKEN").ok(),
         username: cli.account.or_else(|| std::env::var("X_API_USERNAME").ok()),
-        oauth1_consumer_key: None,
-        oauth1_consumer_secret: None,
-        oauth1_access_token: None,
-        oauth1_access_token_secret: None,
     };
 
     let config = match ResolvedConfig::load(overrides) {
@@ -675,25 +651,21 @@ async fn main() -> ExitCode {
         }
     };
 
-    let http_client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .timeout(Duration::from_secs(30))
-        .build()
-        .expect("failed to build HTTP client");
-
+    let transport = Box::new(transport::XurlTransport);
     let cache_opts = db::CacheOpts {
         no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
         cache_only: cli.cache_only,
     };
     let mut client = db::BirdClient::new(
-        http_client,
+        transport,
         &config.cache_path,
         cache_opts,
         config.cache_max_size_mb,
+        config.username.clone(),
     );
 
-    match run(cli.command, config, &mut client, use_color, use_hyperlinks).await {
+    match run(cli.command, config, &mut client, use_color) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             e.print(use_color);

@@ -2,7 +2,9 @@
 //! Config-driven (config.toml), uses toml_edit for formatting-preserving writes.
 
 use crate::config::{FileConfig, ResolvedConfig};
+use crate::db::{BirdClient, RequestContext};
 use crate::fields;
+use crate::requirements::AuthType;
 use std::path::Path;
 use toml_edit::{Array, DocumentMut, Item};
 
@@ -187,11 +189,12 @@ pub fn run_watchlist_remove(
 
 /// `bird watchlist check` — check recent activity for all watched accounts.
 /// Streams NDJSON (one JSON object per line) per account as they complete.
-pub async fn run_watchlist_check(
-    client: &mut crate::db::BirdClient,
+pub fn run_watchlist_check(
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     pretty: bool,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
@@ -201,8 +204,10 @@ pub async fn run_watchlist_check(
         return Ok(());
     }
 
-    let token =
-        crate::auth::resolve_token_for_command(client.http(), config, "watchlist_check").await?;
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
 
     use std::io::Write;
     let stdout = std::io::stdout();
@@ -220,7 +225,7 @@ pub async fn run_watchlist_check(
         let query = format!("from:{} -is:retweet", username);
         let search_url = build_check_url(&query);
 
-        let activity = match execute_check(client, config, &token, &search_url, use_color).await {
+        let activity = match execute_check(client, &ctx, &search_url, use_color) {
             Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
                 username: username.clone(),
                 recent_tweets: tweet_count,
@@ -262,29 +267,13 @@ fn build_check_url(query: &str) -> String {
     url.to_string()
 }
 
-async fn execute_check(
-    client: &mut crate::db::BirdClient,
-    config: &ResolvedConfig,
-    token: &crate::auth::CommandToken,
+fn execute_check(
+    client: &mut BirdClient,
+    ctx: &RequestContext<'_>,
     url: &str,
     use_color: bool,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
-    use crate::auth::CommandToken;
-    use crate::db::RequestContext;
-    use reqwest::header::HeaderMap;
-
-    let response = match token {
-        CommandToken::Bearer { token, auth_type } => {
-            let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-            let ctx = RequestContext {
-                auth_type,
-                username: config.username.as_deref(),
-            };
-            client.get(url, &ctx, headers).await?
-        }
-        CommandToken::OAuth1 => client.oauth1_request("GET", url, config, None).await?,
-    };
+    let response = client.get(url, ctx)?;
 
     if !response.is_success() {
         return Err(format!(

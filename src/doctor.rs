@@ -1,53 +1,11 @@
-//! bird doctor: living view of auth state, effective config (with source), and which commands are usable.
+//! bird doctor: living view of xurl status, config, command availability, and entity store health.
+//! Phase 3 will rebuild auth detection via `xurl whoami`.
 
-use crate::auth::{load_stored_tokens, resolve_bearer_token, resolve_oauth2_token};
-use crate::config::{FileConfig, ResolvedConfig, DEFAULT_REDIRECT_URI};
+use crate::config::ResolvedConfig;
 use crate::db::BirdClient;
-use crate::requirements::{
-    command_names_with_auth, reason_for_unavailable, requirements_for_command, AuthType,
-};
+use crate::requirements::{command_names_with_auth, requirements_for_command, AuthType};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::Path;
-
-/// Source of a config value: arg not used by doctor (we load with empty overrides).
-#[derive(Clone, Debug, Serialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ConfigSource {
-    Env,
-    Config,
-    Default,
-}
-
-/// Entry for a non-secret config key (value + source).
-#[derive(Clone, Debug, Serialize)]
-pub struct ConfigValue {
-    pub value: String,
-    pub source: ConfigSource,
-}
-
-/// Entry for a secret (set + source, no value).
-#[derive(Clone, Debug, Serialize)]
-pub struct ConfigSecret {
-    pub set: bool,
-    pub source: Option<ConfigSource>,
-}
-
-/// Where the active auth came from.
-#[derive(Clone, Debug, Serialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthSource {
-    Env,
-    Stored,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct AuthState {
-    pub auth_type: AuthType,
-    pub source: Option<AuthSource>,
-    pub username: Option<String>,
-    pub can_refresh: bool,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CommandStatus {
@@ -69,267 +27,52 @@ pub struct CacheStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct XurlStatus {
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub available: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct DoctorReport {
-    pub auth: AuthState,
-    pub config: HashMap<String, serde_json::Value>,
+    pub xurl: XurlStatus,
     pub commands: HashMap<String, CommandStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<CacheStatus>,
 }
 
-fn env_set(key: &str) -> bool {
-    std::env::var(key).is_ok()
-}
-
-fn file_config(config_dir: &Path) -> FileConfig {
-    let config_path = config_dir.join("config.toml");
-    if config_path.exists() {
-        if let Ok(s) = std::fs::read_to_string(&config_path) {
-            return toml::from_str(&s).unwrap_or_default();
+fn build_xurl_status() -> XurlStatus {
+    match crate::transport::resolve_xurl_path() {
+        Ok(path) => {
+            let version = crate::transport::check_xurl_version(path).ok();
+            XurlStatus {
+                path: Some(path.display().to_string()),
+                version,
+                available: true,
+            }
         }
-    }
-    FileConfig::default()
-}
-
-fn source_client_id(file: &FileConfig) -> ConfigSource {
-    if env_set("X_API_CLIENT_ID") {
-        ConfigSource::Env
-    } else if file.client_id.is_some() {
-        ConfigSource::Config
-    } else {
-        ConfigSource::Default
+        Err(_) => XurlStatus {
+            path: None,
+            version: None,
+            available: false,
+        },
     }
 }
 
-fn source_client_secret(file: &FileConfig) -> ConfigSource {
-    if env_set("X_API_CLIENT_SECRET") {
-        ConfigSource::Env
-    } else if file.client_secret.is_some() {
-        ConfigSource::Config
-    } else {
-        ConfigSource::Default
-    }
-}
-
-fn source_redirect_uri(file: &FileConfig) -> (String, ConfigSource) {
-    if env_set("X_API_REDIRECT_URI") {
-        (
-            std::env::var("X_API_REDIRECT_URI").unwrap_or_default(),
-            ConfigSource::Env,
-        )
-    } else if let Some(ref u) = file.redirect_uri {
-        (u.clone(), ConfigSource::Config)
-    } else {
-        (DEFAULT_REDIRECT_URI.to_string(), ConfigSource::Default)
-    }
-}
-
-fn source_username(file: &FileConfig) -> (Option<String>, Option<ConfigSource>) {
-    if env_set("X_API_USERNAME") {
-        (
-            std::env::var("X_API_USERNAME").ok(),
-            Some(ConfigSource::Env),
-        )
-    } else if file.username.is_some() {
-        (file.username.clone(), Some(ConfigSource::Config))
-    } else {
-        (None, Some(ConfigSource::Default))
-    }
-}
-
-fn build_config_section(
-    config: &ResolvedConfig,
-    file: &FileConfig,
-) -> HashMap<String, serde_json::Value> {
-    let mut out = HashMap::new();
-
-    let (redirect_uri, redirect_source) = source_redirect_uri(file);
-    out.insert(
-        "redirect_uri".to_string(),
-        serde_json::to_value(ConfigValue {
-            value: redirect_uri,
-            source: redirect_source,
-        })
-        .unwrap(),
-    );
-
-    out.insert(
-        "client_id".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.client_id.is_some(),
-            source: Some(source_client_id(file)),
-        })
-        .unwrap(),
-    );
-    out.insert(
-        "client_secret".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.client_secret.is_some(),
-            source: Some(source_client_secret(file)),
-        })
-        .unwrap(),
-    );
-
-    let (username_val, username_src) = source_username(file);
-    if let Some(src) = username_src {
-        out.insert(
-            "username".to_string(),
-            serde_json::to_value(serde_json::json!({
-                "value": username_val,
-                "source": src
-            }))
-            .unwrap(),
-        );
-    }
-
-    let access_token_set = config.access_token.is_some() || env_set("X_API_ACCESS_TOKEN");
-    out.insert(
-        "access_token".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: access_token_set,
-            source: Some(if access_token_set {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-    let bearer_set = config.bearer_token.is_some() || env_set("X_API_BEARER_TOKEN");
-    out.insert(
-        "bearer_token".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: bearer_set,
-            source: Some(if bearer_set {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-    out.insert(
-        "oauth1_consumer_key".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.oauth1_consumer_key.is_some(),
-            source: Some(if env_set("X_API_CONSUMER_KEY") {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-    out.insert(
-        "oauth1_consumer_secret".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.oauth1_consumer_secret.is_some(),
-            source: Some(if env_set("X_API_CONSUMER_SECRET") {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-    out.insert(
-        "oauth1_access_token".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.oauth1_access_token.is_some(),
-            source: Some(if env_set("X_API_OAUTH1_ACCESS_TOKEN") {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-    out.insert(
-        "oauth1_access_token_secret".to_string(),
-        serde_json::to_value(ConfigSecret {
-            set: config.oauth1_access_token_secret.is_some(),
-            source: Some(if env_set("X_API_OAUTH1_ACCESS_TOKEN_SECRET") {
-                ConfigSource::Env
-            } else {
-                ConfigSource::Default
-            }),
-        })
-        .unwrap(),
-    );
-
-    out
-}
-
-fn build_auth_state(config: &ResolvedConfig) -> AuthState {
-    let stored = load_stored_tokens(&config.tokens_path);
-    let oauth2 = resolve_oauth2_token(config, stored.as_ref());
-    let bearer = resolve_bearer_token(config);
-    let oauth1_all = crate::auth::has_oauth1_available(config);
-
-    // Match resolution order: OAuth2User → OAuth1 → Bearer (STAR: single truth for auth priority)
-    let (auth_type, source, username, can_refresh) = if let Some((_, refresh_opt)) = oauth2 {
-        let from_stored = config.access_token.is_none() && !env_set("X_API_ACCESS_TOKEN");
-        let source = if config.access_token.is_some() || env_set("X_API_ACCESS_TOKEN") {
-            Some(AuthSource::Env)
-        } else if from_stored {
-            Some(AuthSource::Stored)
-        } else {
-            Some(AuthSource::Env)
-        };
-        let username = config.username.clone().or_else(|| {
-            stored
-                .as_ref()
-                .and_then(|s| s.accounts.keys().next().cloned())
-        });
-        let can_refresh = refresh_opt.is_some() && config.client_id.is_some();
-        (AuthType::OAuth2User, source, username, can_refresh)
-    } else if oauth1_all {
-        (
-            AuthType::OAuth1,
-            Some(AuthSource::Env),
-            config.username.clone(),
-            false,
-        )
-    } else if bearer.is_some() {
-        (
-            AuthType::Bearer,
-            Some(AuthSource::Env),
-            config.username.clone(),
-            false,
-        )
-    } else {
-        (AuthType::None, None, None, false)
-    };
-
-    AuthState {
-        auth_type,
-        source,
-        username,
-        can_refresh,
-    }
-}
-
-/// Command availability from centralized requirements (openapi/x-api-openapi.json).
-fn build_commands_section(
-    config: &ResolvedConfig,
-    auth: &AuthState,
-) -> HashMap<String, CommandStatus> {
-    let has_oauth2_user = auth.auth_type == AuthType::OAuth2User;
-    let has_oauth1 = auth.auth_type == AuthType::OAuth1;
-    let has_bearer = auth.auth_type == AuthType::Bearer;
-
+/// Command availability: currently assumes all commands are available if xurl is present.
+/// Phase 3 will add auth detection via `xurl whoami`.
+fn build_commands_section(xurl_available: bool) -> HashMap<String, CommandStatus> {
     let mut cmds = HashMap::new();
     for &name in command_names_with_auth() {
         if name == "login" {
-            let available = config.client_id.is_some();
             cmds.insert(
                 name.to_string(),
                 CommandStatus {
-                    available,
-                    reason: if available {
-                        Some("client_id is set (default or override; optional X_API_CLIENT_SECRET for your own app)".to_string())
+                    available: xurl_available,
+                    reason: if xurl_available {
+                        None
                     } else {
-                        Some("set X_API_CLIENT_ID".to_string())
+                        Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
                     },
                 },
             );
@@ -339,12 +82,13 @@ fn build_commands_section(
             Some(r) => r,
             None => continue,
         };
-        let available = reqs.accepted.iter().any(|at| match at {
-            AuthType::OAuth2User => has_oauth2_user,
-            AuthType::OAuth1 => has_oauth1,
-            AuthType::Bearer => has_bearer,
-            AuthType::None => false,
-        });
+        // If xurl is available, commands that need auth are presumed available
+        // (xurl handles auth). Only local-only commands (AuthType::None) are always available.
+        let needs_auth = reqs
+            .accepted
+            .iter()
+            .any(|at| !matches!(at, AuthType::None));
+        let available = if needs_auth { xurl_available } else { true };
         cmds.insert(
             name.to_string(),
             CommandStatus {
@@ -352,7 +96,7 @@ fn build_commands_section(
                 reason: if available {
                     None
                 } else {
-                    Some(reason_for_unavailable(&reqs))
+                    Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
                 },
             },
         );
@@ -360,15 +104,14 @@ fn build_commands_section(
     cmds
 }
 
-/// Build full or scoped report. When scope is Some("me"), only that command appears in report.commands.
+/// Build full or scoped report.
 pub(crate) fn report(
-    config: &ResolvedConfig,
+    _config: &ResolvedConfig,
     client: &BirdClient,
     scope: Option<&str>,
 ) -> DoctorReport {
-    let file = file_config(&config.config_dir);
-    let auth = build_auth_state(config);
-    let mut commands = build_commands_section(config, &auth);
+    let xurl = build_xurl_status();
+    let mut commands = build_commands_section(xurl.available);
     if let Some(cmd) = scope {
         if let Some(status) = commands.remove(cmd) {
             commands.clear();
@@ -381,7 +124,7 @@ pub(crate) fn report(
             let path = client
                 .db_path()
                 .map(|p| p.display().to_string())
-                .unwrap_or_else(|| config.cache_path.display().to_string());
+                .unwrap_or_else(|| "unknown".to_string());
             Some(CacheStatus {
                 path,
                 exists: true,
@@ -393,25 +136,21 @@ pub(crate) fn report(
                 healthy: stats.healthy(),
             })
         }
-        Some(Err(_)) => {
-            let path = config.cache_path.display().to_string();
-            Some(CacheStatus {
-                path,
-                exists: config.cache_path.exists(),
-                size_mb: 0.0,
-                max_size_mb: config.cache_max_size_mb,
-                tweets: 0,
-                users: 0,
-                raw_responses: 0,
-                healthy: false,
-            })
-        }
+        Some(Err(_)) => Some(CacheStatus {
+            path: "unknown".to_string(),
+            exists: false,
+            size_mb: 0.0,
+            max_size_mb: 100,
+            tweets: 0,
+            users: 0,
+            raw_responses: 0,
+            healthy: false,
+        }),
         None => None,
     };
 
     DoctorReport {
-        auth: auth.clone(),
-        config: build_config_section(config, &file),
+        xurl,
         commands,
         cache,
     }
@@ -420,40 +159,35 @@ pub(crate) fn report(
 fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> String {
     use crate::output;
     let mut out = String::new();
-    out.push_str(&format!("{}\n", output::section("Auth", use_color)));
-    let type_str =
-        serde_json::to_string(&report.auth.auth_type).unwrap_or_else(|_| "unknown".into());
-    out.push_str(&format!(
-        "  type: {}\n",
-        output::muted(type_str.trim_matches('"'), use_color)
-    ));
-    if let Some(ref s) = report.auth.source {
-        let src_str = serde_json::to_string(s).unwrap_or_else(|_| "?".into());
-        out.push_str(&format!(
-            "  source: {}\n",
-            output::muted(src_str.trim_matches('"'), use_color)
-        ));
-    }
-    if let Some(ref u) = report.auth.username {
-        out.push_str(&format!("  username: {}\n", output::muted(u, use_color)));
-    }
-    out.push_str(&format!(
-        "  can_refresh: {}\n",
-        output::muted(&report.auth.can_refresh.to_string(), use_color)
-    ));
 
-    out.push_str(&format!(
-        "\n{}\n",
-        output::section("Config (sources)", use_color)
-    ));
-    for (k, v) in &report.config {
+    // Xurl section
+    out.push_str(&format!("{}\n", output::section("Xurl", use_color)));
+    if report.xurl.available {
+        if let Some(ref path) = report.xurl.path {
+            out.push_str(&format!(
+                "  path: {}\n",
+                output::muted(path, use_color)
+            ));
+        }
+        if let Some(ref version) = report.xurl.version {
+            out.push_str(&format!(
+                "  version: {}\n",
+                output::muted(version, use_color)
+            ));
+        }
         out.push_str(&format!(
-            "  {}: {}\n",
-            k,
-            serde_json::to_string(v).unwrap_or_default()
+            "  status: {}\n",
+            output::success("available", use_color)
         ));
+    } else {
+        out.push_str(&format!(
+            "  status: {}\n",
+            output::error("not found", use_color)
+        ));
+        out.push_str("  Install: brew install xdevplatform/tap/xurl\n");
     }
 
+    // Commands section
     out.push_str(&format!("\n{}\n", output::section("Commands", use_color)));
     let mut names: Vec<_> = report.commands.keys().collect();
     names.sort();
@@ -483,6 +217,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
         ));
     }
 
+    // Cache section
     if let Some(ref cache) = report.cache {
         out.push_str(&format!("\n{}\n", output::section("Cache", use_color)));
         out.push_str(&format!(
@@ -526,7 +261,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     out
 }
 
-/// Run doctor: build report and print JSON (compact) or human summary. When scope is Some("me"), report only that command.
+/// Run doctor: build report and print JSON (compact) or human summary.
 pub fn run_doctor(
     config: &ResolvedConfig,
     client: &BirdClient,
@@ -547,46 +282,25 @@ pub fn run_doctor(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::DEFAULT_REDIRECT_URI;
     use crate::db::{BirdClient, CacheOpts};
+    use crate::transport::tests::MockTransport;
+    use std::path::Path;
 
-    /// Unset auth-related env vars so report() only sees the config we pass (no env leakage).
-    fn clear_auth_env() {
-        std::env::remove_var("X_API_ACCESS_TOKEN");
-        std::env::remove_var("X_API_REFRESH_TOKEN");
-        std::env::remove_var("X_API_BEARER_TOKEN");
-        std::env::remove_var("X_API_CONSUMER_KEY");
-        std::env::remove_var("X_API_CONSUMER_SECRET");
-        std::env::remove_var("X_API_OAUTH1_ACCESS_TOKEN");
-        std::env::remove_var("X_API_OAUTH1_ACCESS_TOKEN_SECRET");
-    }
-
-    fn minimal_config_no_auth() -> ResolvedConfig {
+    fn minimal_config() -> ResolvedConfig {
         let config_dir = std::env::temp_dir().join("bird-doctor-test");
         ResolvedConfig {
-            client_id: None,
-            client_secret: None,
-            redirect_uri: DEFAULT_REDIRECT_URI.to_string(),
-            access_token: None,
-            refresh_token: None,
-            bearer_token: None,
             username: None,
-            oauth1_consumer_key: None,
-            oauth1_consumer_secret: None,
-            oauth1_access_token: None,
-            oauth1_access_token_secret: None,
             config_dir: config_dir.clone(),
-            tokens_path: config_dir.join("tokens.json"),
-            cache_path: config_dir.join("cache.db"),
+            cache_path: config_dir.join("bird.db"),
             cache_enabled: true,
             cache_max_size_mb: 100,
         }
     }
 
     fn no_cache_client() -> BirdClient {
-        let http = reqwest::Client::new();
+        let transport = Box::new(MockTransport::new(vec![]));
         BirdClient::new(
-            http,
+            transport,
             Path::new("/dev/null"),
             CacheOpts {
                 no_store: true,
@@ -594,82 +308,37 @@ mod tests {
                 cache_only: false,
             },
             100,
+            None,
         )
     }
 
     #[test]
-    fn doctor_report_no_auth_has_none_type_and_me_unavailable() {
-        clear_auth_env();
-        let config = minimal_config_no_auth();
+    fn doctor_report_has_commands() {
+        let config = minimal_config();
         let client = no_cache_client();
         let r = report(&config, &client, None);
-        assert_eq!(r.auth.auth_type, AuthType::None);
-        assert!(!r.commands.get("me").unwrap().available);
-        assert!(!r.commands.get("login").unwrap().available);
-    }
-
-    #[test]
-    fn doctor_report_json_contains_no_secret_values() {
-        let mut config = minimal_config_no_auth();
-        config.access_token = Some("secret-token-value".to_string());
-        let client = no_cache_client();
-        let r = report(&config, &client, None);
-        let json = serde_json::to_string(&r).unwrap();
-        assert!(!json.contains("secret-token-value"));
-        assert!(!json.contains("Bearer "));
-    }
-
-    #[test]
-    fn doctor_report_with_access_token_has_me_and_bookmarks_available() {
-        clear_auth_env();
-        let mut config = minimal_config_no_auth();
-        config.access_token = Some("test-token".to_string());
-        let client = no_cache_client();
-        let r = report(&config, &client, None);
-        assert_eq!(r.auth.auth_type, AuthType::OAuth2User);
-        assert!(r.commands.get("me").unwrap().available);
-        assert!(r.commands.get("bookmarks").unwrap().available);
-    }
-
-    #[test]
-    fn doctor_report_oauth1_me_available_bookmarks_not() {
-        clear_auth_env();
-        let mut config = minimal_config_no_auth();
-        config.oauth1_consumer_key = Some("ck".into());
-        config.oauth1_consumer_secret = Some("cs".into());
-        config.oauth1_access_token = Some("at".into());
-        config.oauth1_access_token_secret = Some("ats".into());
-        let client = no_cache_client();
-        let r = report(&config, &client, None);
-        assert_eq!(r.auth.auth_type, AuthType::OAuth1);
-        assert!(
-            r.commands.get("me").unwrap().available,
-            "me accepts OAuth 1.0a per spec"
-        );
-        assert!(
-            !r.commands.get("bookmarks").unwrap().available,
-            "bookmarks requires OAuth 2.0 user only per spec"
-        );
-    }
-
-    #[test]
-    fn doctor_report_bearer_me_and_bookmarks_unavailable() {
-        clear_auth_env();
-        let mut config = minimal_config_no_auth();
-        config.bearer_token = Some("bearer".into());
-        let client = no_cache_client();
-        let r = report(&config, &client, None);
-        assert_eq!(r.auth.auth_type, AuthType::Bearer);
-        assert!(!r.commands.get("me").unwrap().available);
-        assert!(!r.commands.get("bookmarks").unwrap().available);
+        // Should have commands
+        assert!(!r.commands.is_empty());
+        assert!(r.commands.contains_key("me"));
+        assert!(r.commands.contains_key("login"));
     }
 
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
-        let config = minimal_config_no_auth();
+        let config = minimal_config();
         let client = no_cache_client();
         let r = report(&config, &client, Some("me"));
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
+    }
+
+    #[test]
+    fn doctor_report_json_serializable() {
+        let config = minimal_config();
+        let client = no_cache_client();
+        let r = report(&config, &client, None);
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("xurl"));
+        assert!(json.contains("commands"));
     }
 }

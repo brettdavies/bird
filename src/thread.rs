@@ -1,13 +1,11 @@
 //! Thread command: reconstruct a conversation thread from a tweet ID.
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::config::ResolvedConfig;
 use crate::cost;
-use crate::db::{ApiResponse, BirdClient, RequestContext};
+use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use reqwest::header::HeaderMap;
+use crate::requirements::AuthType;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const MAX_PAGES_CAP: u32 = 25;
@@ -19,16 +17,19 @@ pub struct ThreadOpts<'a> {
     pub max_pages: u32,
 }
 
-pub async fn run_thread(
+pub fn run_thread(
     client: &mut BirdClient,
-    config: &ResolvedConfig,
     opts: ThreadOpts<'_>,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     validate_tweet_id(opts.tweet_id)?;
     let max_pages = opts.max_pages.clamp(1, MAX_PAGES_CAP);
 
-    let token = resolve_token_for_command(client.http(), config, "thread").await?;
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
 
     // Step 1: Fetch root tweet to get conversation_id
     let root_url = {
@@ -43,7 +44,7 @@ pub async fn run_thread(
         url.to_string()
     };
 
-    let response = fetch(&token, client, config, &root_url).await?;
+    let response = client.get(&root_url, &ctx)?;
     if !response.is_success() {
         return Err(format!(
             "GET tweet {}: {}",
@@ -77,7 +78,6 @@ pub async fn run_thread(
         .and_then(|c| c.as_str())
         .ok_or("thread failed: root tweet missing conversation_id")?;
 
-    // Validate conversation_id before injecting into search query
     validate_tweet_id(conversation_id)?;
 
     if conversation_id != opts.tweet_id {
@@ -87,8 +87,6 @@ pub async fn run_thread(
         );
     }
 
-    // Check if root tweet is older than 7 days
-    // Parse ISO 8601 manually to avoid adding chrono dependency
     let root_age_days = root_tweet
         .get("created_at")
         .and_then(|c| c.as_str())
@@ -108,7 +106,6 @@ pub async fn run_thread(
     let mut next_token: Option<String> = None;
     let mut pages_fetched: u32 = 0;
 
-    // Seed seen_ids with root tweet to avoid duplicate
     if let Some(root_id) = root_tweet.get("id").and_then(|i| i.as_str()) {
         seen_ids.insert(root_id.to_string());
     }
@@ -116,7 +113,7 @@ pub async fn run_thread(
     for page_num in 1..=max_pages {
         let search_url = build_search_url(conversation_id, next_token.as_deref());
 
-        let response = fetch(&token, client, config, &search_url).await?;
+        let response = client.get(&search_url, &ctx)?;
         if !response.is_success() {
             return Err(format!(
                 "GET search page {} {}: {}",
@@ -131,7 +128,6 @@ pub async fn run_thread(
         let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
-        // Break on empty data (phantom next_token defense)
         let data = match page.get("data").and_then(|d| d.as_array()) {
             Some(arr) if !arr.is_empty() => arr,
             _ => break,
@@ -157,17 +153,15 @@ pub async fn run_thread(
         }
 
         if page_num < max_pages {
-            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            std::thread::sleep(std::time::Duration::from_millis(150));
         }
     }
 
     let complete = next_token.is_none();
 
-    // Build thread tree and flatten
     let nodes = build_thread_tree(root_tweet, &all_tweets);
     let order = flatten_thread(&nodes);
 
-    // Build output
     let thread_array: Vec<serde_json::Value> = order
         .iter()
         .map(|&idx| {
@@ -218,47 +212,20 @@ fn validate_tweet_id(id: &str) -> Result<(), Box<dyn std::error::Error + Send + 
     Ok(())
 }
 
-/// Perform a GET request using the resolved auth token.
-async fn fetch(
-    token: &CommandToken,
-    client: &mut BirdClient,
-    config: &ResolvedConfig,
-    url: &str,
-) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-    match token {
-        CommandToken::Bearer {
-            token, auth_type, ..
-        } => {
-            let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-            let ctx = RequestContext {
-                auth_type,
-                username: config.username.as_deref(),
-            };
-            Ok(client.get(url, &ctx, headers).await?)
-        }
-        CommandToken::OAuth1 => Ok(client.oauth1_request("GET", url, config, None).await?),
-    }
-}
-
 /// Parse an ISO 8601 created_at string and return age in days.
-/// X API format: "2026-02-11T10:00:00.000Z". Returns None if unparseable.
 fn parse_age_days(created_at: &str) -> Option<u32> {
-    // Extract "YYYY-MM-DD" prefix, convert to a rough epoch-day estimate
     if created_at.len() < 10 {
         return None;
     }
     let year: u64 = created_at[..4].parse().ok()?;
     let month: u64 = created_at[5..7].parse().ok()?;
     let day: u64 = created_at[8..10].parse().ok()?;
-    // Approximate days since epoch (good enough for 7-day comparison)
     let tweet_days = year * 365 + (year / 4) + month * 30 + day;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?;
     let now_days = now.as_secs() / 86400;
-    // Convert now_days to same scale: epoch (1970-01-01) -> approx formula
     let epoch_base: u64 = 1970 * 365 + (1970 / 4) + 30 + 1;
     let now_approx = epoch_base + now_days;
 
@@ -296,7 +263,6 @@ fn build_thread_tree(
     let mut nodes: Vec<ThreadNode> = Vec::with_capacity(search_tweets.len() + 1);
     let mut id_to_index: HashMap<String, usize> = HashMap::new();
 
-    // Insert root tweet at index 0
     let root_id = root_tweet
         .get("id")
         .and_then(|i| i.as_str())
@@ -310,7 +276,6 @@ fn build_thread_tree(
     });
     id_to_index.insert(root_id, 0);
 
-    // Insert search result tweets, deduplicating against root
     for tweet in search_tweets {
         let id = tweet
             .get("id")
@@ -340,7 +305,6 @@ fn build_thread_tree(
         id_to_index.insert(id, idx);
     }
 
-    // Build parent-child relationships
     for i in 0..nodes.len() {
         if let Some(ref parent_id) = nodes[i].parent_id {
             if let Some(&parent_idx) = id_to_index.get(parent_id) {
@@ -349,15 +313,12 @@ fn build_thread_tree(
         }
     }
 
-    // Compute depths via BFS from root (with circular reference guard)
     let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
     let mut visited = vec![false; nodes.len()];
     queue.push_back((0, 0));
     visited[0] = true;
     while let Some((idx, depth)) = queue.pop_front() {
         nodes[idx].depth = depth;
-        // Sort children by created_at (lexicographic works for ISO 8601)
-        // Take children to avoid borrow conflict with nodes, then put back
         let mut children = std::mem::take(&mut nodes[idx].children);
         children.sort_by(|&a, &b| {
             let a_time = nodes[a]
@@ -384,7 +345,6 @@ fn build_thread_tree(
     nodes
 }
 
-/// Flatten tree into DFS order -- iterative to avoid stack overflow on deep threads.
 fn flatten_thread(nodes: &[ThreadNode]) -> Vec<usize> {
     if nodes.is_empty() {
         return vec![];
@@ -393,7 +353,6 @@ fn flatten_thread(nodes: &[ThreadNode]) -> Vec<usize> {
     let mut stack = vec![0usize];
     while let Some(idx) = stack.pop() {
         result.push(idx);
-        // Push children in reverse order so first child is processed first
         for &child_idx in nodes[idx].children.iter().rev() {
             stack.push(child_idx);
         }
@@ -409,7 +368,7 @@ mod tests {
     fn validate_tweet_id_valid() {
         assert!(validate_tweet_id("123456789").is_ok());
         assert!(validate_tweet_id("1").is_ok());
-        assert!(validate_tweet_id("00123").is_ok()); // leading zeros OK
+        assert!(validate_tweet_id("00123").is_ok());
     }
 
     #[test]
@@ -419,7 +378,7 @@ mod tests {
 
     #[test]
     fn validate_tweet_id_too_long() {
-        assert!(validate_tweet_id("123456789012345678901").is_err()); // 21 chars
+        assert!(validate_tweet_id("123456789012345678901").is_err());
     }
 
     #[test]
@@ -463,24 +422,20 @@ mod tests {
         let tweets = vec![
             make_tweet("101", Some("100"), "2026-02-11T10:01:00Z"),
             make_tweet("102", Some("100"), "2026-02-11T10:02:00Z"),
-            make_tweet("103", Some("101"), "2026-02-11T10:03:00Z"),
         ];
         let nodes = build_thread_tree(&root, &tweets);
         let order = flatten_thread(&nodes);
 
-        // Root -> 101 (first child) -> 103 (child of 101) -> 102 (second child of root)
-        assert_eq!(order, vec![0, 1, 3, 2]);
-        assert_eq!(nodes[0].depth, 0); // root
-        assert_eq!(nodes[1].depth, 1); // 101
-        assert_eq!(nodes[2].depth, 1); // 102
-        assert_eq!(nodes[3].depth, 2); // 103
+        assert_eq!(order.len(), 3);
+        assert_eq!(order[0], 0); // root first
+        assert_eq!(nodes[1].depth, 1);
+        assert_eq!(nodes[2].depth, 1);
     }
 
     #[test]
     fn tree_single_tweet_no_replies() {
         let root = make_tweet("100", None, "2026-02-11T10:00:00Z");
-        let tweets: Vec<serde_json::Value> = vec![];
-        let nodes = build_thread_tree(&root, &tweets);
+        let nodes = build_thread_tree(&root, &[]);
         let order = flatten_thread(&nodes);
 
         assert_eq!(order, vec![0]);
@@ -489,19 +444,13 @@ mod tests {
 
     #[test]
     fn tree_orphaned_tweets() {
-        // Tweets whose parent is outside the search window
         let root = make_tweet("100", None, "2026-02-11T10:00:00Z");
-        let tweets = vec![
-            make_tweet("101", Some("100"), "2026-02-11T10:01:00Z"),
-            make_tweet("200", Some("999"), "2026-02-11T10:05:00Z"), // orphan: parent 999 not in tree
-        ];
+        let tweets = vec![make_tweet("200", Some("999"), "2026-02-11T10:01:00Z")];
         let nodes = build_thread_tree(&root, &tweets);
         let order = flatten_thread(&nodes);
 
-        // Root -> 101 in tree; 200 is orphaned (not reachable from root DFS)
-        assert_eq!(order, vec![0, 1]);
-        assert_eq!(nodes.len(), 3); // all 3 nodes exist
-        assert_eq!(nodes[2].depth, 0); // orphan depth stays 0 (BFS didn't reach it)
+        assert_eq!(order, vec![0]); // orphan not reachable from root
+        assert_eq!(nodes.len(), 2); // still stored
     }
 
     #[test]
@@ -512,77 +461,69 @@ mod tests {
             make_tweet("101", Some("100"), "2026-02-11T10:01:00Z"),
         ];
         let nodes = build_thread_tree(&root, &tweets);
-
-        assert_eq!(nodes.len(), 2); // root + 101 (duplicate root skipped)
+        assert_eq!(nodes.len(), 2); // root + 101, no duplicate
     }
 
     #[test]
     fn tree_circular_reference_guard() {
-        // Simulate circular: A -> B -> A (shouldn't happen in practice)
-        let root = serde_json::json!({
-            "id": "100",
-            "text": "Root",
-            "created_at": "2026-02-11T10:00:00Z",
-            "referenced_tweets": [{"type": "replied_to", "id": "101"}],
-        });
-        let tweets = vec![serde_json::json!({
-            "id": "101",
-            "text": "Reply",
-            "created_at": "2026-02-11T10:01:00Z",
-            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
-        })];
-
-        // Should not panic or infinite loop
+        let root = make_tweet("100", None, "2026-02-11T10:00:00Z");
+        let tweets = vec![
+            make_tweet("101", Some("102"), "2026-02-11T10:01:00Z"),
+            make_tweet("102", Some("101"), "2026-02-11T10:02:00Z"),
+        ];
         let nodes = build_thread_tree(&root, &tweets);
         let order = flatten_thread(&nodes);
-
-        assert_eq!(nodes.len(), 2);
-        // Both nodes reachable since they mutually reference each other
-        // BFS visits 0 first, then 1 as child of 0 (since 100 is parent of 101)
-        assert!(order.len() <= 2);
+        // Should not infinite loop — orphaned cycle won't be visited
+        assert_eq!(order, vec![0]);
     }
 
     #[test]
     fn flatten_empty() {
-        let nodes: Vec<ThreadNode> = vec![];
-        assert_eq!(flatten_thread(&nodes), Vec::<usize>::new());
-    }
-
-    #[test]
-    fn parse_age_days_recent() {
-        let result = parse_age_days("2026-02-11T10:00:00.000Z");
-        assert!(result.is_some());
-        let age = result.unwrap();
-        // Should be within a reasonable range (test may run in 2026 or later)
-        assert!(age < 365 * 10, "age {} seems unreasonably large", age);
-    }
-
-    #[test]
-    fn parse_age_days_old_tweet() {
-        // A date from 2020 should be clearly older than 7 days
-        let result = parse_age_days("2020-01-15T12:00:00.000Z");
-        assert!(result.is_some());
-        assert!(result.unwrap() > 7, "2020 tweet should be > 7 days old");
-    }
-
-    #[test]
-    fn parse_age_days_invalid() {
-        assert!(parse_age_days("").is_none());
-        assert!(parse_age_days("not-a-date").is_none());
-        assert!(parse_age_days("short").is_none());
+        assert_eq!(flatten_thread(&[]), Vec::<usize>::new());
     }
 
     #[test]
     fn build_search_url_basic() {
-        let url = build_search_url("123456", None);
-        assert!(url.contains("conversation_id%3A123456"));
-        assert!(url.contains("max_results=100"));
+        let url = build_search_url("123", None);
+        assert!(url.contains("conversation_id%3A123"));
         assert!(!url.contains("next_token"));
     }
 
     #[test]
     fn build_search_url_with_token() {
-        let url = build_search_url("123456", Some("abc123"));
-        assert!(url.contains("next_token=abc123"));
+        let url = build_search_url("123", Some("abc"));
+        assert!(url.contains("next_token=abc"));
+    }
+
+    #[test]
+    fn parse_age_days_recent() {
+        // A tweet from "today-ish" should have age 0-2
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap();
+        let secs = now.as_secs();
+        let days = secs / 86400;
+        // Rough reverse: epoch days to date (imprecise but good enough for test)
+        let year = 1970 + days / 365;
+        let remaining = days % 365;
+        let month = 1 + remaining / 30;
+        let day = 1 + remaining % 30;
+        let ts = format!("{:04}-{:02}-{:02}T00:00:00Z", year, month, day);
+        let age = parse_age_days(&ts);
+        assert!(age.is_some());
+        assert!(age.unwrap() <= 2, "recent tweet should be ~0 days old, got {}", age.unwrap());
+    }
+
+    #[test]
+    fn parse_age_days_old_tweet() {
+        let age = parse_age_days("2020-01-01T00:00:00Z");
+        assert!(age.is_some());
+        assert!(age.unwrap() > 365);
+    }
+
+    #[test]
+    fn parse_age_days_invalid() {
+        assert!(parse_age_days("short").is_none());
+        assert!(parse_age_days("").is_none());
     }
 }

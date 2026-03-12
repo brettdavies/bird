@@ -1,19 +1,16 @@
-//! Raw request layer: HTTP method + path (with param substitution), query/body, auth, output.
+//! Raw request layer: HTTP method + path (with param substitution), query/body, output.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::output;
+use crate::requirements::AuthType;
 use crate::schema::resolve_path;
-use reqwest::header::HeaderMap;
 use std::collections::HashMap;
 
-/// Perform a raw API request: resolve path, get token (OAuth2, bearer, or OAuth 1.0a), send, print JSON.
+/// Perform a raw API request: resolve path, send via xurl transport, print JSON.
 #[allow(clippy::too_many_arguments)]
-pub async fn run_raw(
+pub fn run_raw(
     client: &mut BirdClient,
-    config: &ResolvedConfig,
     method: &str,
     path: &str,
     params: &HashMap<String, String>,
@@ -21,6 +18,7 @@ pub async fn run_raw(
     body: Option<&str>,
     pretty: bool,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = resolve_path(path, params)?;
     let url = format!("https://api.x.com{}", path);
@@ -32,49 +30,23 @@ pub async fn run_raw(
     }
     let url = url_builder.to_string();
 
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
+
     let method_upper = method.to_uppercase();
-    let command_name = method.to_lowercase();
-
-    let token = resolve_token_for_command(client.http(), config, &command_name).await?;
-
-    let response = match &token {
-        CommandToken::Bearer { token, auth_type } => {
-            let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-
-            let ctx = RequestContext {
-                auth_type,
-                username: config.username.as_deref(),
-            };
-            if method_upper == "GET" {
-                let response = client.get(&url, &ctx, headers).await?;
-                let estimate = cost::estimate_cost(
-                    response.json.as_ref().unwrap_or(&serde_json::Value::Null),
-                    &url,
-                    response.cache_hit,
-                );
-                cost::display_cost(&estimate, use_color);
-                response
-            } else {
-                let reqwest_method = match method_upper.as_str() {
-                    "POST" => reqwest::Method::POST,
-                    "PUT" => reqwest::Method::PUT,
-                    "DELETE" => reqwest::Method::DELETE,
-                    _ => return Err(format!("unsupported method: {}", method).into()),
-                };
-                if body.is_some() {
-                    headers.insert("Content-Type", "application/json".parse()?);
-                }
-                client
-                    .request(reqwest_method, &url, &ctx, headers, body.map(String::from))
-                    .await?
-            }
-        }
-        CommandToken::OAuth1 => {
-            client
-                .oauth1_request(&method_upper, &url, config, body)
-                .await?
-        }
+    let response = if method_upper == "GET" {
+        let response = client.get(&url, &ctx)?;
+        let estimate = cost::estimate_cost(
+            response.json.as_ref().unwrap_or(&serde_json::Value::Null),
+            &url,
+            response.cache_hit,
+        );
+        cost::display_cost(&estimate, use_color);
+        response
+    } else {
+        client.request(&method_upper, &url, &ctx, body)?
     };
 
     if !response.is_success() {
@@ -86,7 +58,6 @@ pub async fn run_raw(
         )
         .into());
     }
-    // Use pre-parsed JSON; fall back to wrapping raw body as a JSON string
     let json = match response.json {
         Some(j) => j,
         None => serde_json::Value::String(response.body),

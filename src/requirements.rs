@@ -39,10 +39,21 @@ pub struct CommandReqs {
     pub bearer_hint: &'static str,
 }
 
-pub const OAUTH2_HINT: &str =
-    "Run `bird login` or set X_API_ACCESS_TOKEN (and optionally X_API_REFRESH_TOKEN).";
-pub const OAUTH1_HINT: &str = "set X_API_CONSUMER_KEY, X_API_CONSUMER_SECRET, X_API_OAUTH1_ACCESS_TOKEN, X_API_OAUTH1_ACCESS_TOKEN_SECRET.";
-pub const BEARER_HINT: &str = "set X_API_BEARER_TOKEN.";
+pub const OAUTH2_HINT: &str = "Run `bird login` (or `xurl auth oauth2`).";
+pub const OAUTH1_HINT: &str =
+    "Configure OAuth 1.0a credentials via `xurl auth apps add`.";
+pub const BEARER_HINT: &str = "Configure app credentials via `xurl auth apps add`.";
+
+/// Map AuthType to xurl `--auth` flag value.
+/// Returns None when xurl's default (OAuth2 user) is correct.
+pub fn auth_flag(auth_type: &AuthType) -> Option<&'static str> {
+    match auth_type {
+        AuthType::OAuth2User => None, // xurl defaults to OAuth2
+        AuthType::OAuth1 => Some("oauth1"),
+        AuthType::Bearer => Some("app"),
+        AuthType::None => None,
+    }
+}
 
 const ME_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1];
 const BOOKMARKS_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User];

@@ -1,12 +1,10 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::config::ResolvedConfig;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use reqwest::header::HeaderMap;
+use crate::requirements::AuthType;
 use std::collections::HashSet;
 
 /// Search options bundled to avoid clippy::too_many_arguments.
@@ -19,11 +17,11 @@ pub struct SearchOpts<'a> {
     pub pages: u32,
 }
 
-pub async fn run_search(
+pub fn run_search(
     client: &mut BirdClient,
-    config: &ResolvedConfig,
     opts: SearchOpts<'_>,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Validate sort key before any API calls (fail fast)
     if !matches!(opts.sort, "recent" | "likes") {
@@ -35,7 +33,11 @@ pub async fn run_search(
     }
 
     let effective_query = apply_noise_reduction(opts.query);
-    let token = resolve_token_for_command(client.http(), config, "search").await?;
+
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
 
     let mut all_tweets: Vec<serde_json::Value> = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
@@ -47,18 +49,7 @@ pub async fn run_search(
     for page_num in 1..=opts.pages {
         let url = build_search_url(&effective_query, opts.max_results, next_token.as_deref());
 
-        let response = match &token {
-            CommandToken::Bearer { token, auth_type } => {
-                let mut headers = HeaderMap::new();
-                headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-                let ctx = RequestContext {
-                    auth_type,
-                    username: config.username.as_deref(),
-                };
-                client.get(&url, &ctx, headers).await?
-            }
-            CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
-        };
+        let response = client.get(&url, &ctx)?;
 
         if !response.is_success() {
             return Err(format!(
@@ -71,7 +62,6 @@ pub async fn run_search(
 
         let page = response.json.ok_or("invalid JSON from search")?;
 
-        // Manual cost display per page
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
@@ -135,7 +125,7 @@ pub async fn run_search(
 
         // Rate limiting between pages
         if page_num < opts.pages {
-            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            std::thread::sleep(std::time::Duration::from_millis(150));
         }
     }
 
@@ -260,7 +250,6 @@ mod tests {
     #[test]
     fn build_url_escapes_query() {
         let url = build_search_url("test&evil=true", 100, None);
-        // The & should be encoded, not treated as a param separator
         assert!(url.contains("query=test%26evil%3Dtrue"));
     }
 
@@ -330,7 +319,6 @@ mod tests {
 
     #[test]
     fn noise_reduction_ignores_substrings() {
-        // "crisis:retweet" contains "is:retweet" as a substring but is NOT the operator
         assert_eq!(
             apply_noise_reduction("crisis:retweet analysis"),
             "crisis:retweet analysis -is:retweet"
