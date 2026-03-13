@@ -29,6 +29,8 @@ use std::process::ExitCode;
 enum BirdError {
     /// Configuration error (exit code 78 — EX_CONFIG)
     Config(Box<dyn std::error::Error + Send + Sync>),
+    /// Authentication error (exit code 77)
+    Auth(Box<dyn std::error::Error + Send + Sync>),
     /// Command execution error — API, network, I/O (exit code 1)
     Command {
         name: &'static str,
@@ -40,6 +42,7 @@ impl BirdError {
     fn exit_code(&self) -> u8 {
         match self {
             BirdError::Config(_) => 78,
+            BirdError::Auth(_) => 77,
             BirdError::Command { .. } => 1,
         }
     }
@@ -49,12 +52,29 @@ impl BirdError {
             BirdError::Config(e) => {
                 eprintln!("{}{}", output::error("config failed: ", use_color), e);
             }
+            BirdError::Auth(e) => {
+                eprintln!("{}{}", output::error("auth failed: ", use_color), e);
+            }
             BirdError::Command { name, source } => {
                 let prefix = format!("{} failed: ", name);
                 eprintln!("{}{}", output::error(&prefix, use_color), source);
             }
         }
     }
+}
+
+/// Centralized error mapping: detects XurlError::Auth and maps to BirdError::Auth,
+/// otherwise wraps in BirdError::Command. Used by all command dispatch closures.
+fn map_cmd_error(
+    name: &'static str,
+    e: Box<dyn std::error::Error + Send + Sync>,
+) -> BirdError {
+    if let Some(xurl_err) = e.downcast_ref::<transport::XurlError>() {
+        if matches!(xurl_err, transport::XurlError::Auth(_)) {
+            return BirdError::Auth(e);
+        }
+    }
+    BirdError::Command { name, source: e }
 }
 
 fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
@@ -405,7 +425,7 @@ fn xurl_write(
             source: "write commands require network access; remove --cache-only".into(),
         });
     }
-    f().map_err(|e| BirdError::Command { name, source: e })
+    f().map_err(|e| map_cmd_error(name, e))
 }
 
 fn run(
@@ -418,10 +438,8 @@ fn run(
     match command {
         Command::Login => {
             // Delegate to xurl for OAuth2 authentication
-            transport::xurl_passthrough(&["auth", "oauth2"]).map_err(|e| BirdError::Command {
-                name: "login",
-                source: e,
-            })?;
+            transport::xurl_passthrough(&["auth", "oauth2"])
+                .map_err(|e| map_cmd_error("login", e))?;
             // Verify login and clear store
             if let Some(Ok(count)) = client.db_clear() {
                 if count > 0 {
@@ -443,18 +461,11 @@ fn run(
                 use_color,
                 &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "me",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("me", e))?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, pretty, use_color).map_err(|e| {
-                BirdError::Command {
-                    name: "bookmarks",
-                    source: e,
-                }
-            })?;
+            bookmarks::run_bookmarks(client, pretty, use_color)
+                .map_err(|e| map_cmd_error("bookmarks", e))?;
         }
         Command::Profile { username, pretty } => {
             let auth_type = default_auth_type("profile");
@@ -467,10 +478,7 @@ fn run(
                 use_color,
                 &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "profile",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("profile", e))?;
         }
         Command::Search {
             query,
@@ -489,12 +497,8 @@ fn run(
                 max_results: max_results.unwrap_or(100).clamp(10, 100),
                 pages: pages.unwrap_or(1).clamp(1, 10),
             };
-            search::run_search(client, opts, use_color, &auth_type).map_err(|e| {
-                BirdError::Command {
-                    name: "search",
-                    source: e,
-                }
-            })?;
+            search::run_search(client, opts, use_color, &auth_type)
+                .map_err(|e| map_cmd_error("search", e))?;
         }
         Command::Thread {
             tweet_id,
@@ -512,10 +516,7 @@ fn run(
                 use_color,
                 &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "thread",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("thread", e))?;
         }
         Command::Get {
             path,
@@ -528,10 +529,7 @@ fn run(
             raw::run_raw(
                 client, "GET", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "get",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("get", e))?;
         }
         Command::Post {
             path,
@@ -553,10 +551,7 @@ fn run(
                 use_color,
                 &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "post",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("post", e))?;
         }
         Command::Put {
             path,
@@ -578,10 +573,7 @@ fn run(
                 use_color,
                 &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "put",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("put", e))?;
         }
         Command::Delete {
             path,
@@ -594,19 +586,13 @@ fn run(
             raw::run_raw(
                 client, "DELETE", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .map_err(|e| BirdError::Command {
-                name: "delete",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("delete", e))?;
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
                 let auth_type = default_auth_type("watchlist_check");
                 watchlist::run_watchlist_check(client, &config, pretty, use_color, &auth_type)
-                    .map_err(|e| BirdError::Command {
-                        name: "watchlist",
-                        source: e,
-                    })?;
+                    .map_err(|e| map_cmd_error("watchlist", e))?;
             }
             WatchlistCommand::Add { username } => {
                 watchlist::run_watchlist_add(&config, &username).map_err(BirdError::Config)?;
@@ -615,10 +601,8 @@ fn run(
                 watchlist::run_watchlist_remove(&config, &username).map_err(BirdError::Config)?;
             }
             WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty).map_err(|e| BirdError::Command {
-                    name: "watchlist",
-                    source: e,
-                })?;
+                watchlist::run_watchlist_list(&config, pretty)
+                    .map_err(|e| map_cmd_error("watchlist", e))?;
             }
         },
         Command::Usage {
@@ -626,12 +610,8 @@ fn run(
             sync,
             pretty,
         } => {
-            usage::run_usage(client, since.as_deref(), sync, pretty).map_err(|e| {
-                BirdError::Command {
-                    name: "usage",
-                    source: e,
-                }
-            })?;
+            usage::run_usage(client, since.as_deref(), sync, pretty)
+                .map_err(|e| map_cmd_error("usage", e))?;
         }
         // -- Write commands (xurl passthrough) --
         Command::Tweet { text, media_id } => {
@@ -699,12 +679,8 @@ fn run(
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
-            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji).map_err(
-                |e| BirdError::Command {
-                    name: "doctor",
-                    source: e,
-                },
-            )?;
+            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji)
+                .map_err(|e| map_cmd_error("doctor", e))?;
         }
         Command::Cache { action } => match action {
             CacheAction::Clear => match client.db_clear() {
@@ -838,5 +814,49 @@ fn main() -> ExitCode {
             e.print(use_color);
             ExitCode::from(e.exit_code())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bird_error_exit_codes() {
+        assert_eq!(
+            BirdError::Config("test".into()).exit_code(),
+            78,
+            "Config errors should exit 78"
+        );
+        assert_eq!(
+            BirdError::Auth("test".into()).exit_code(),
+            77,
+            "Auth errors should exit 77"
+        );
+        assert_eq!(
+            BirdError::Command {
+                name: "test",
+                source: "test".into(),
+            }
+            .exit_code(),
+            1,
+            "Command errors should exit 1"
+        );
+    }
+
+    #[test]
+    fn map_cmd_error_detects_auth() {
+        let auth_err: Box<dyn std::error::Error + Send + Sync> =
+            Box::new(transport::XurlError::Auth("unauthorized".to_string()));
+        let mapped = map_cmd_error("test", auth_err);
+        assert_eq!(mapped.exit_code(), 77, "XurlError::Auth should map to exit 77");
+    }
+
+    #[test]
+    fn map_cmd_error_preserves_command_for_non_auth() {
+        let api_err: Box<dyn std::error::Error + Send + Sync> =
+            Box::new(transport::XurlError::Process("connection failed".to_string()));
+        let mapped = map_cmd_error("profile", api_err);
+        assert_eq!(mapped.exit_code(), 1, "Non-auth XurlError should map to exit 1");
     }
 }
