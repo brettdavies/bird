@@ -34,6 +34,7 @@ pub struct CacheOpts {
 }
 
 /// Response from BirdClient (covers both store hits and fresh API responses).
+// TODO: body is re-serialized from json; eliminate when Transport trait returns raw stdout
 pub struct ApiResponse {
     pub status: u16,
     pub body: String,
@@ -68,9 +69,8 @@ enum EntityType {
 
 /// Classify a URL as an entity endpoint. Returns None for non-entity endpoints
 /// (usage, auth, search/counts) which bypass entity decomposition.
-fn is_entity_endpoint(url: &str) -> Option<EntityType> {
-    let path = url::Url::parse(url).ok()?.path().to_string();
-    let p = path.as_str();
+fn is_entity_endpoint(parsed: &url::Url) -> Option<EntityType> {
+    let p = parsed.path();
     if (p.starts_with("/2/users/") && p.contains("/bookmarks"))
         || (p.starts_with("/2/tweets") && !p.starts_with("/2/tweets/search/counts"))
     {
@@ -83,8 +83,7 @@ fn is_entity_endpoint(url: &str) -> Option<EntityType> {
 }
 
 /// Extract batch IDs from `ids=` or `usernames=` query parameter.
-fn extract_batch_ids(url: &str) -> Option<Vec<String>> {
-    let parsed = url::Url::parse(url).ok()?;
+fn extract_batch_ids(parsed: &url::Url) -> Option<Vec<String>> {
     for (key, value) in parsed.query_pairs() {
         if key == "ids" || key == "usernames" {
             let ids: Vec<String> = value
@@ -101,9 +100,8 @@ fn extract_batch_ids(url: &str) -> Option<Vec<String>> {
 }
 
 /// Extract single tweet ID from path: `/2/tweets/{numeric_id}`
-fn extract_single_tweet_id(url: &str) -> Option<String> {
-    let path = url::Url::parse(url).ok()?.path().to_string();
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+fn extract_single_tweet_id(parsed: &url::Url) -> Option<String> {
+    let parts: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
     if parts.len() == 3 && parts[0] == "2" && parts[1] == "tweets" {
         let id = parts[2];
         if id.len() >= 2 && id.chars().all(|c| c.is_ascii_digit()) {
@@ -114,9 +112,8 @@ fn extract_single_tweet_id(url: &str) -> Option<String> {
 }
 
 /// Extract username from path: `/2/users/by/username/{username}`
-fn extract_username_from_url(url: &str) -> Option<String> {
-    let path = url::Url::parse(url).ok()?.path().to_string();
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+fn extract_username_from_url(parsed: &url::Url) -> Option<String> {
+    let parts: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
     if parts.len() == 5
         && parts[0] == "2"
         && parts[1] == "users"
@@ -281,18 +278,20 @@ impl BirdClient {
             return self.direct_get(url, ctx);
         }
 
-        let entity_type = is_entity_endpoint(url);
+        let parsed_url = url::Url::parse(url)
+            .map_err(|e| format!("invalid URL: {e}"))?;
+        let entity_type = is_entity_endpoint(&parsed_url);
         // Effective refresh: cache_only suppresses refresh
         let skip_reads = self.cache_opts.refresh && !self.cache_opts.cache_only;
 
         // Entity store optimizations (skip when --refresh is active)
         if entity_type.is_some() && !skip_reads {
             // Batch ID splitting
-            if let Some(ids) = extract_batch_ids(url) {
+            if let Some(ids) = extract_batch_ids(&parsed_url) {
                 return self.batch_get(url, ctx, &ids);
             }
             // Single tweet freshness check
-            if let Some(tweet_id) = extract_single_tweet_id(url) {
+            if let Some(tweet_id) = extract_single_tweet_id(&parsed_url) {
                 let hit = {
                     let db = self.db.as_ref().unwrap();
                     check_tweet_freshness(db, &tweet_id)
@@ -303,7 +302,7 @@ impl BirdClient {
                 }
             }
             // Username freshness check
-            if let Some(username) = extract_username_from_url(url) {
+            if let Some(username) = extract_username_from_url(&parsed_url) {
                 let hit = {
                     let db = self.db.as_ref().unwrap();
                     check_user_freshness(db, &username)
@@ -560,11 +559,14 @@ impl BirdClient {
             }
         }
 
+        let store_map: HashMap<&str, &super::db::TweetRow> =
+            from_store.iter().map(|t| (t.id.as_str(), t)).collect();
+
         let mut merged: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
         for id in ids {
             if let Some(item) = api_data.get(id) {
                 merged.push(item.clone());
-            } else if let Some(tweet) = from_store.iter().find(|t| t.id == *id) {
+            } else if let Some(tweet) = store_map.get(id.as_str()) {
                 if let Ok(j) = serde_json::from_str(&tweet.raw_json) {
                     merged.push(j);
                 }
@@ -596,7 +598,11 @@ impl BirdClient {
     /// Decompose an API response into entities and upsert them.
     fn decompose_and_upsert(&self, url: &str, json: &serde_json::Value) {
         let Some(ref db) = self.db else { return };
-        let Some(entity_type) = is_entity_endpoint(url) else {
+        let parsed = match url::Url::parse(url) {
+            Ok(u) => u,
+            Err(_) => return,
+        };
+        let Some(entity_type) = is_entity_endpoint(&parsed) else {
             return;
         };
 
@@ -748,71 +754,75 @@ mod tests {
         }
     }
 
+    fn parse(url: &str) -> url::Url {
+        url::Url::parse(url).unwrap()
+    }
+
     #[test]
     fn entity_endpoint_classification() {
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/tweets/search/recent?query=test"),
+            is_entity_endpoint(&parse("https://api.x.com/2/tweets/search/recent?query=test")),
             Some(EntityType::Tweet)
         ));
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/tweets/123"),
+            is_entity_endpoint(&parse("https://api.x.com/2/tweets/123")),
             Some(EntityType::Tweet)
         ));
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/tweets?ids=1,2,3"),
+            is_entity_endpoint(&parse("https://api.x.com/2/tweets?ids=1,2,3")),
             Some(EntityType::Tweet)
         ));
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/users/me"),
+            is_entity_endpoint(&parse("https://api.x.com/2/users/me")),
             Some(EntityType::User)
         ));
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/users/by/username/jack"),
+            is_entity_endpoint(&parse("https://api.x.com/2/users/by/username/jack")),
             Some(EntityType::User)
         ));
         assert!(matches!(
-            is_entity_endpoint("https://api.x.com/2/users/123/bookmarks"),
+            is_entity_endpoint(&parse("https://api.x.com/2/users/123/bookmarks")),
             Some(EntityType::Tweet)
         ));
         // Non-entity endpoints
-        assert!(is_entity_endpoint("https://api.x.com/2/usage/tweets").is_none());
-        assert!(is_entity_endpoint("https://api.x.com/2/tweets/search/counts/recent").is_none());
-        assert!(is_entity_endpoint("https://api.x.com/2/oauth2/token").is_none());
+        assert!(is_entity_endpoint(&parse("https://api.x.com/2/usage/tweets")).is_none());
+        assert!(is_entity_endpoint(&parse("https://api.x.com/2/tweets/search/counts/recent")).is_none());
+        assert!(is_entity_endpoint(&parse("https://api.x.com/2/oauth2/token")).is_none());
     }
 
     #[test]
     fn batch_ids_extraction() {
         assert_eq!(
-            extract_batch_ids("https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text"),
+            extract_batch_ids(&parse("https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text")),
             Some(vec!["1".into(), "2".into(), "3".into()])
         );
         assert_eq!(
-            extract_batch_ids("https://api.x.com/2/users/by?usernames=alice,bob"),
+            extract_batch_ids(&parse("https://api.x.com/2/users/by?usernames=alice,bob")),
             Some(vec!["alice".into(), "bob".into()])
         );
-        assert!(extract_batch_ids("https://api.x.com/2/tweets/search/recent?query=rust").is_none());
-        assert!(extract_batch_ids("https://api.x.com/2/users/me").is_none());
+        assert!(extract_batch_ids(&parse("https://api.x.com/2/tweets/search/recent?query=rust")).is_none());
+        assert!(extract_batch_ids(&parse("https://api.x.com/2/users/me")).is_none());
     }
 
     #[test]
     fn single_tweet_id_extraction() {
         assert_eq!(
-            extract_single_tweet_id("https://api.x.com/2/tweets/1234567890"),
+            extract_single_tweet_id(&parse("https://api.x.com/2/tweets/1234567890")),
             Some("1234567890".into())
         );
         // Not a numeric ID
-        assert!(extract_single_tweet_id("https://api.x.com/2/tweets/search/recent").is_none());
+        assert!(extract_single_tweet_id(&parse("https://api.x.com/2/tweets/search/recent")).is_none());
         // Too short
-        assert!(extract_single_tweet_id("https://api.x.com/2/tweets/1").is_none());
+        assert!(extract_single_tweet_id(&parse("https://api.x.com/2/tweets/1")).is_none());
     }
 
     #[test]
     fn username_extraction() {
         assert_eq!(
-            extract_username_from_url("https://api.x.com/2/users/by/username/jack"),
+            extract_username_from_url(&parse("https://api.x.com/2/users/by/username/jack")),
             Some("jack".into())
         );
-        assert!(extract_username_from_url("https://api.x.com/2/users/me").is_none());
+        assert!(extract_username_from_url(&parse("https://api.x.com/2/users/me")).is_none());
     }
 
     #[test]

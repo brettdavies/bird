@@ -29,6 +29,8 @@ pub struct FileConfig {
 #[derive(Clone, Debug, Default)]
 pub struct ArgOverrides {
     pub username: Option<String>,
+    /// Env var fallback (lowest priority, below config file).
+    pub env_username: Option<String>,
 }
 
 impl ResolvedConfig {
@@ -49,7 +51,7 @@ impl ResolvedConfig {
         let username = arg_overrides
             .username
             .or(file_config.username)
-            .or_else(|| std::env::var("X_API_USERNAME").ok());
+            .or(arg_overrides.env_username);
 
         let cache_path = config_dir.join("bird.db");
         let cache_enabled = std::env::var("BIRD_NO_CACHE").as_deref() != Ok("1");
@@ -62,5 +64,4 @@ impl ResolvedConfig {
             cache_max_size_mb: 100,
         })
     }
-
 }

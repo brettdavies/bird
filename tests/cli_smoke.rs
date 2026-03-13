@@ -78,3 +78,29 @@ fn watchlist_add_remove_list() {
         .success()
         .stdout(predicate::str::contains("alice").not());
 }
+
+#[test]
+fn account_invalid_chars_rejected() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--account", "'; DROP TABLE", "doctor"])
+        .env("HOME", tmp.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .failure()
+        .code(78)
+        .stderr(predicate::str::contains("--account"));
+}
+
+#[test]
+fn account_at_prefix_normalized() {
+    // @validuser should be accepted (normalized to validuser).
+    // Doctor runs successfully — the account value is valid after stripping @.
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--account", "@validuser", "doctor"])
+        .env("HOME", tmp.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .success();
+}

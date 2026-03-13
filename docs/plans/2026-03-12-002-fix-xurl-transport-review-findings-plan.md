@@ -1,7 +1,7 @@
 ---
 title: "fix: Address xurl transport code review findings"
 type: fix
-status: active
+status: completed
 date: 2026-03-12
 deepened: 2026-03-13
 origin: docs/reviews/2026-03-12-xurl-transport-review.md
@@ -370,8 +370,8 @@ After analysis, changing this requires either:
 
 The performance cost is ~0.5ms per call (~200KB JSON). **Defer to post-merge.** The `.body` field has 12 call sites including `store_raw_response()` and `sanitize_for_stderr()` error paths.
 
-- [ ] Add TODO at `ApiResponse` struct definition (not just construction site): `// TODO: body is re-serialized from json; eliminate when Transport trait returns raw stdout`
-- [ ] Track as follow-up item
+- [x] Add TODO at `ApiResponse` struct definition (not just construction site): `// TODO: body is re-serialized from json; eliminate when Transport trait returns raw stdout`
+- [ ] Track as follow-up item (post-merge)
 
 ### Research Insights (Fix 4)
 
@@ -407,12 +407,12 @@ let env_username = std::env::var("X_API_USERNAME").ok().and_then(|u| {
 });
 ```
 
-- [ ] Validate AND normalize `cli.account` with `schema::validate_username()` (from fix 8) — use the return value so `@user` becomes `user`
-- [ ] Validate `X_API_USERNAME` env var — warn on stderr if invalid, then ignore (not silent swallow)
-- [ ] Pass `env_username` as a **fallback** (lowest priority), NOT as `ArgOverrides` — preserves correct precedence: `--account > config_file > env`
-- [ ] Remove the duplicate `X_API_USERNAME` read from `config.rs` line 52 — main.rs becomes the single read point
-- [ ] Add test: `--account "'; DROP TABLE"` produces config error
-- [ ] Add test: `--account "@validuser"` normalizes to `validuser`
+- [x] Validate AND normalize `cli.account` with `schema::validate_username()` (from fix 8) — use the return value so `@user` becomes `user`
+- [x] Validate `X_API_USERNAME` env var — warn on stderr if invalid, then ignore (not silent swallow)
+- [x] Pass `env_username` as a **fallback** (lowest priority), NOT as `ArgOverrides` — preserves correct precedence: `--account > config_file > env`
+- [x] Remove the duplicate `X_API_USERNAME` read from `config.rs` line 52 — main.rs becomes the single read point
+- [x] Add test: `--account "'; DROP TABLE"` produces config error
+- [x] Add test: `--account "@validuser"` normalizes to `validuser`
 
 ### Research Insights (Fix 10)
 
@@ -424,10 +424,10 @@ let env_username = std::env::var("X_API_USERNAME").ok().and_then(|u| {
 
 **Fix 11 — Remove unused `_config` parameter** `src/doctor.rs`, `src/main.rs`
 
-- [ ] Remove `_config: &ResolvedConfig` from `report()` signature (line 142)
-- [ ] Remove `config: &ResolvedConfig` from `run_doctor()` signature (line 329)
-- [ ] Update call site in `main.rs` line 681 (remove `&config` argument)
-- [ ] Update `minimal_config()` test helper if it exists solely for this parameter (3 occurrences in doctor tests)
+- [x] Remove `_config: &ResolvedConfig` from `report()` signature (line 142)
+- [x] Remove `config: &ResolvedConfig` from `run_doctor()` signature (line 329)
+- [x] Update call site in `main.rs` line 681 (remove `&config` argument)
+- [x] Update `minimal_config()` test helper if it exists solely for this parameter (3 occurrences in doctor tests)
 
 **Fix 12 + Fix 13 — HashMap/HashSet for O(1) lookups** `src/db/client.rs`, `src/db/db.rs`
 
@@ -468,9 +468,9 @@ let ids_to_fetch: Vec<String> = ids
     .collect();
 ```
 
-- [ ] Build `HashMap<&str, &TweetRow>` from `from_store` before merge loop in `batch_get()`
-- [ ] Simplify `partition_ids()` to single `fresh_ids` HashSet — an ID needs fetching if and only if it is NOT fresh. Eliminates the `found_ids` HashSet construction and the dual-set filter predicate
-- [ ] Rename `store_ids` to `fresh_ids` for semantic clarity
+- [x] Build `HashMap<&str, &TweetRow>` from `from_store` before merge loop in `batch_get()`
+- [x] Simplify `partition_ids()` to single `fresh_ids` HashSet — an ID needs fetching if and only if it is NOT fresh. Eliminates the `found_ids` HashSet construction and the dual-set filter predicate
+- [x] Rename `store_ids` to `fresh_ids` for semantic clarity
 
 ### Research Insights (Fix 12 + 13)
 
@@ -497,7 +497,7 @@ CacheAction::Stats { pretty } => match client.db_stats() {
 }
 ```
 
-- [ ] Move `db_path()` call above the `if pretty` / `else` branches
+- [x] Move `db_path()` call above the `if pretty` / `else` branches
 
 **Fix 15 — Parse URL once in `BirdClient::get()`** `src/db/client.rs:71-129`
 
@@ -522,11 +522,11 @@ fn extract_single_tweet_id(parsed: &url::Url) -> Option<String> { ... }
 fn extract_username_from_url(parsed: &url::Url) -> Option<String> { ... }
 ```
 
-- [ ] Change 4 function signatures from `fn foo(url: &str)` to `fn foo(parsed: &url::Url)`
-- [ ] Parse URL once at top of `get()` and pass `&parsed_url` to each helper
-- [ ] Update the 4 function bodies to use `parsed` instead of `url::Url::parse(url).ok()?`
-- [ ] Update 4 test functions (`entity_endpoint_classification`, `batch_ids_extraction`, `single_tweet_id_extraction`, `username_extraction`) to parse URLs and pass `&url::Url` instead of `&str`
-- [ ] Parse failure surfaces as explicit error (better than silently skipping all store optimizations)
+- [x] Change 4 function signatures from `fn foo(url: &str)` to `fn foo(parsed: &url::Url)`
+- [x] Parse URL once at top of `get()` and pass `&parsed_url` to each helper
+- [x] Update the 4 function bodies to use `parsed` instead of `url::Url::parse(url).ok()?`
+- [x] Update 4 test functions (`entity_endpoint_classification`, `batch_ids_extraction`, `single_tweet_id_extraction`, `username_extraction`) to parse URLs and pass `&url::Url` instead of `&str`
+- [x] Parse failure surfaces as explicit error (better than silently skipping all store optimizations)
 
 ### Research Insights (Fix 15)
 
@@ -552,9 +552,9 @@ pub fn strip_ansi_lines<'a>(s: &'a str) -> Cow<'a, str> {
 }
 ```
 
-- [ ] Change return type from `String` to `Cow<'_, str>`
-- [ ] Add fast-path `Cow::Borrowed` when no ANSI present (zero allocation)
-- [ ] Verify call site in `transport.rs:168` works transparently (`Cow<str>` derefs to `&str`)
+- [x] Change return type from `String` to `Cow<'_, str>`
+- [x] Add fast-path `Cow::Borrowed` when no ANSI present (zero allocation)
+- [x] Verify call site in `transport.rs:168` works transparently (`Cow<str>` derefs to `&str`)
 
 ### Research Insights (Fix 16)
 
@@ -564,38 +564,38 @@ pub fn strip_ansi_lines<'a>(s: &'a str) -> Cow<'a, str> {
 
 **Fix 17 — Consistent `sanitize_for_stderr` limit** `src/usage.rs:228`
 
-- [ ] Change `sanitize_for_stderr(&response.body, 100)` to `sanitize_for_stderr(&response.body, 200)` — all other call sites use 200; this was likely a typo, not an intentional difference
+- [x] Change `sanitize_for_stderr(&response.body, 100)` to `sanitize_for_stderr(&response.body, 200)` — all other call sites use 200; this was likely a typo, not an intentional difference
 
 **Fix 19 — Document passthrough timeout choice** `src/transport.rs`
 
-- [ ] Add comment above `xurl_passthrough()`: explains no timeout is intentional for interactive OAuth2 flows, user can Ctrl+C
+- [x] Add comment above `xurl_passthrough()`: explains no timeout is intentional for interactive OAuth2 flows, user can Ctrl+C
 
 ## Acceptance Criteria
 
-- [ ] `bird tweet "hello" --account myother` passes `-u myother` to xurl
-- [ ] xurl version `1.0.10` does not trigger a "too old" warning when MIN_VERSION is `1.0.3`
-- [ ] xurl version `1.0.3-beta` is correctly detected as below `1.0.3`
-- [ ] Auth errors (401/403 from xurl) exit with code 77, not code 1
-- [ ] `map_cmd_error()` helper used in all command dispatch closures
-- [ ] `response.json` is not cloned in `BirdClient::get()` or `batch_get()`
-- [ ] `requirements_for_command()` and `command_names_with_auth()` have a sync test
-- [ ] `BOOKMARKS_ACCEPTED` renamed to `OAUTH2_ONLY`
-- [ ] Single `validate_username()` in `schema.rs`, no duplicates in profile/watchlist
-- [ ] `BIRD_XURL_PATH=/tmp` (directory) produces clear error
-- [ ] `BIRD_XURL_PATH` is canonicalized (symlinks and relative paths resolved)
-- [ ] `--account "bad!chars"` produces config error (exit 78)
-- [ ] Invalid `X_API_USERNAME` produces stderr warning, not silent ignore
-- [ ] `X_API_USERNAME` read from single location (main.rs only, not config.rs)
-- [ ] No `_config` parameter in `doctor::report()`
-- [ ] `batch_get()` merge uses HashMap, `partition_ids()` uses `fresh_ids` HashSet
-- [ ] `db_path()` called once in CacheAction::Stats
-- [ ] URL parsed once per `get()` call, helpers accept `&url::Url`
-- [ ] `strip_ansi_lines()` returns `Cow<str>`, zero allocation when no ANSI present
-- [ ] `sanitize_for_stderr` uses 200 everywhere
-- [ ] `xurl_passthrough()` has comment documenting intentional lack of timeout
-- [ ] TODO comment at `ApiResponse` struct marks `body` field for future removal
-- [ ] All existing tests pass (`cargo test`)
-- [ ] No new compiler warnings (`cargo build`)
+- [x] `bird tweet "hello" --account myother` passes `-u myother` to xurl
+- [x] xurl version `1.0.10` does not trigger a "too old" warning when MIN_VERSION is `1.0.3`
+- [x] xurl version `1.0.3-beta` is correctly detected as below `1.0.3`
+- [x] Auth errors (401/403 from xurl) exit with code 77, not code 1
+- [x] `map_cmd_error()` helper used in all command dispatch closures
+- [x] `response.json` is not cloned in `BirdClient::get()` or `batch_get()`
+- [x] `requirements_for_command()` and `command_names_with_auth()` have a sync test
+- [x] `BOOKMARKS_ACCEPTED` renamed to `OAUTH2_ONLY`
+- [x] Single `validate_username()` in `schema.rs`, no duplicates in profile/watchlist
+- [x] `BIRD_XURL_PATH=/tmp` (directory) produces clear error
+- [x] `BIRD_XURL_PATH` is canonicalized (symlinks and relative paths resolved)
+- [x] `--account "bad!chars"` produces config error (exit 78)
+- [x] Invalid `X_API_USERNAME` produces stderr warning, not silent ignore
+- [x] `X_API_USERNAME` read from single location (main.rs only, not config.rs)
+- [x] No `_config` parameter in `doctor::report()`
+- [x] `batch_get()` merge uses HashMap, `partition_ids()` uses `fresh_ids` HashSet
+- [x] `db_path()` called once in CacheAction::Stats
+- [x] URL parsed once per `get()` call, helpers accept `&url::Url`
+- [x] `strip_ansi_lines()` returns `Cow<str>`, zero allocation when no ANSI present
+- [x] `sanitize_for_stderr` uses 200 everywhere
+- [x] `xurl_passthrough()` has comment documenting intentional lack of timeout
+- [x] TODO comment at `ApiResponse` struct marks `body` field for future removal
+- [x] All existing tests pass (`cargo test`)
+- [x] No new compiler warnings (`cargo build`)
 
 ## Dependencies & Risks
 

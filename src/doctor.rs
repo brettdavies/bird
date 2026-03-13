@@ -1,6 +1,5 @@
 //! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
-use crate::config::ResolvedConfig;
 use crate::db::BirdClient;
 use crate::requirements::{command_names_with_auth, requirements_for_command, AuthType};
 use serde::Serialize;
@@ -139,7 +138,6 @@ fn build_commands_section(
 
 /// Build full or scoped report.
 pub(crate) fn report(
-    _config: &ResolvedConfig,
     client: &BirdClient,
     scope: Option<&str>,
 ) -> DoctorReport {
@@ -326,14 +324,13 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
 
 /// Run doctor: build report and print JSON (compact) or human summary.
 pub fn run_doctor(
-    config: &ResolvedConfig,
     client: &BirdClient,
     pretty: bool,
     scope: Option<&str>,
     use_color: bool,
     use_emoji: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let r = report(config, client, scope);
+    let r = report(client, scope);
     if pretty {
         println!("{}", format_pretty(&r, use_color, use_emoji));
     } else {
@@ -348,17 +345,6 @@ mod tests {
     use crate::db::{BirdClient, CacheOpts};
     use crate::transport::tests::MockTransport;
     use std::path::Path;
-
-    fn minimal_config() -> ResolvedConfig {
-        let config_dir = std::env::temp_dir().join("bird-doctor-test");
-        ResolvedConfig {
-            username: None,
-            config_dir: config_dir.clone(),
-            cache_path: config_dir.join("bird.db"),
-            cache_enabled: true,
-            cache_max_size_mb: 100,
-        }
-    }
 
     fn no_cache_client() -> BirdClient {
         let transport = Box::new(MockTransport::new(vec![]));
@@ -377,9 +363,8 @@ mod tests {
 
     #[test]
     fn doctor_report_has_commands() {
-        let config = minimal_config();
         let client = no_cache_client();
-        let r = report(&config, &client, None);
+        let r = report(&client, None);
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -387,18 +372,16 @@ mod tests {
 
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
-        let config = minimal_config();
         let client = no_cache_client();
-        let r = report(&config, &client, Some("me"));
+        let r = report(&client, Some("me"));
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
     }
 
     #[test]
     fn doctor_report_json_serializable() {
-        let config = minimal_config();
         let client = no_cache_client();
-        let r = report(&config, &client, None);
+        let r = report(&client, None);
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));

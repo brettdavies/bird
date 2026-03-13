@@ -557,21 +557,17 @@ impl BirdDb {
             .collect::<Result<Vec<_>, _>>()?;
 
         let now = chrono::Utc::now();
-        let mut from_store = Vec::new();
-        let mut found_ids = std::collections::HashSet::new();
+        let from_store: Vec<TweetRow> = rows
+            .into_iter()
+            .filter(|row| !Self::is_stale(row.last_refreshed_at, now))
+            .collect();
 
-        for row in rows {
-            found_ids.insert(row.id.clone());
-            if Self::is_stale(row.last_refreshed_at, now) {
-                // Stale -- need to re-fetch
-            } else {
-                from_store.push(row);
-            }
-        }
+        let fresh_ids: std::collections::HashSet<&str> =
+            from_store.iter().map(|r| r.id.as_str()).collect();
 
         let ids_to_fetch: Vec<String> = ids
             .iter()
-            .filter(|id| !found_ids.contains(**id) || !from_store.iter().any(|r| r.id == **id))
+            .filter(|id| !fresh_ids.contains(**id))
             .map(|id| id.to_string())
             .collect();
 

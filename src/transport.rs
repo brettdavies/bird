@@ -214,6 +214,7 @@ pub fn xurl_call(
 }
 
 /// Run xurl with inherited stdio (for interactive flows like `bird login`).
+/// No timeout: OAuth2 flows require user interaction in a browser; user can Ctrl+C.
 pub fn xurl_passthrough(
     args: &[&str],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

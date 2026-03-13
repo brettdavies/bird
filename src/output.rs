@@ -63,11 +63,16 @@ pub fn success(s: &str, use_color: bool) -> String {
 /// Strip lines containing ANSI escape sequences from stdout output.
 /// Used as fallback when `NO_COLOR=1` doesn't suppress hardcoded ANSI in xurl error paths.
 /// Filters complete lines (not individual sequences) to avoid corrupting JSON structure.
-pub fn strip_ansi_lines(s: &str) -> String {
-    s.lines()
-        .filter(|line| !line.contains('\x1b'))
-        .collect::<Vec<_>>()
-        .join("\n")
+pub fn strip_ansi_lines(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains('\x1b') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    std::borrow::Cow::Owned(
+        s.lines()
+            .filter(|line| !line.contains('\x1b'))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }
 
 /// Sanitize untrusted text for stderr display: replace control chars with '?', truncate.
@@ -104,7 +109,8 @@ mod tests {
     #[test]
     fn strip_ansi_lines_clean_json() {
         let input = "{\"data\":{\"id\":\"1\"}}\n";
-        assert_eq!(strip_ansi_lines(input), "{\"data\":{\"id\":\"1\"}}");
+        // Fast path: no ANSI present, returns borrowed input unchanged (including trailing newline)
+        assert_eq!(strip_ansi_lines(input), input);
     }
 
     #[test]

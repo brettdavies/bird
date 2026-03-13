@@ -679,7 +679,7 @@ fn run(
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
-            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji)
+            doctor::run_doctor(client, pretty, scope, use_color, use_emoji)
                 .map_err(|e| map_cmd_error("doctor", e))?;
         }
         Command::Cache { action } => match action {
@@ -702,11 +702,11 @@ fn run(
             },
             CacheAction::Stats { pretty } => match client.db_stats() {
                 Some(Ok(stats)) => {
+                    let path = client
+                        .db_path()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
                     if pretty {
-                        let path = client
-                            .db_path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
                         println!("Store: {}", path);
                         println!(
                             "Size:  {:.1} MB / {:.0} MB limit",
@@ -717,10 +717,6 @@ fn run(
                         println!("Users:  {}", stats.user_count);
                         println!("Raw:    {}", stats.raw_response_count);
                     } else {
-                        let path = client
-                            .db_path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
                         let json = serde_json::json!({
                             "path": path,
                             "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
@@ -781,8 +777,31 @@ fn main() -> ExitCode {
         return ExitCode::from(err.exit_code());
     }
 
+    // Validate --account if provided (strips @, checks charset)
+    let cli_account = match cli.account {
+        Some(ref acct) => match schema::validate_username(acct) {
+            Ok(clean) => Some(clean.to_string()),
+            Err(e) => {
+                let err = BirdError::Config(format!("--account: {}", e).into());
+                err.print(use_color);
+                return ExitCode::from(err.exit_code());
+            }
+        },
+        None => None,
+    };
+    // X_API_USERNAME is lowest priority (below config file)
+    let env_username = std::env::var("X_API_USERNAME").ok().and_then(|u| {
+        match schema::validate_username(&u) {
+            Ok(s) => Some(s.to_string()),
+            Err(e) => {
+                eprintln!("[config] warning: X_API_USERNAME invalid, ignoring: {}", e);
+                None
+            }
+        }
+    });
     let overrides = ArgOverrides {
-        username: cli.account.or_else(|| std::env::var("X_API_USERNAME").ok()),
+        username: cli_account,
+        env_username,
     };
 
     let config = match ResolvedConfig::load(overrides) {

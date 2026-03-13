@@ -225,7 +225,7 @@ fn sync_actual_usage(
 
     // Graceful degradation: show local data on sync failure (D5)
     if !response.is_success() {
-        let msg = output::sanitize_for_stderr(&response.body, 100);
+        let msg = output::sanitize_for_stderr(&response.body, 200);
         if response.body.contains("429") || response.body.contains("Too Many") {
             eprintln!("[usage] Rate limited. Showing local data only.");
         } else {
