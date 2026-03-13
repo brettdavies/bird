@@ -73,11 +73,19 @@ pub fn check_xurl_version(
         .unwrap_or(stdout.trim())
         .to_string();
 
-    if !version.is_empty() && version.as_str() < MIN_VERSION {
-        eprintln!(
-            "[transport] warning: xurl {} is below minimum {}; consider upgrading",
-            version, MIN_VERSION
-        );
+    if !version.is_empty() {
+        let clean = version.strip_prefix('v').unwrap_or(&version);
+        if let (Ok(current), Ok(minimum)) = (
+            semver::Version::parse(clean),
+            semver::Version::parse(MIN_VERSION),
+        ) {
+            if current < minimum {
+                eprintln!(
+                    "[transport] warning: xurl {} is below minimum {}; consider upgrading",
+                    version, MIN_VERSION
+                );
+            }
+        }
     }
 
     Ok(version)
@@ -447,5 +455,23 @@ pub mod tests {
         let mock = MockTransport::new(vec![]);
         let result = mock.request(&[]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn version_comparison_multi_digit() {
+        // The bug: lexicographic "1.0.9" > "1.0.10" because '9' > '1'
+        assert!(semver::Version::parse("1.0.9").unwrap() < semver::Version::parse("1.0.10").unwrap());
+        assert!(!(semver::Version::parse("1.0.10").unwrap() < semver::Version::parse("1.0.3").unwrap()));
+    }
+
+    #[test]
+    fn version_comparison_major() {
+        assert!(!(semver::Version::parse("2.0.0").unwrap() < semver::Version::parse("1.0.3").unwrap()));
+    }
+
+    #[test]
+    fn version_comparison_prerelease() {
+        // semver spec: pre-release < release
+        assert!(semver::Version::parse("1.0.3-beta").unwrap() < semver::Version::parse("1.0.3").unwrap());
     }
 }
