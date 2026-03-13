@@ -5,29 +5,9 @@ use crate::config::{FileConfig, ResolvedConfig};
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::requirements::AuthType;
+use crate::schema;
 use std::path::Path;
 use toml_edit::{Array, DocumentMut, Item};
-
-/// Validate a username (after @ stripping). Called before any TOML modification.
-fn validate_username(username: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if username.is_empty() {
-        return Err("username must not be empty".into());
-    }
-    if username.len() > 15 {
-        return Err(format!("username '{}' exceeds X's 15-character limit", username).into());
-    }
-    if !username
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        return Err(format!(
-            "username '{}' contains invalid characters (only a-z, A-Z, 0-9, _ allowed)",
-            username
-        )
-        .into());
-    }
-    Ok(())
-}
 
 /// Load watchlist from config.toml. Returns empty vec if file missing.
 fn load_watchlist(
@@ -163,8 +143,7 @@ pub fn run_watchlist_add(
     config: &ResolvedConfig,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let clean = username.strip_prefix('@').unwrap_or(username);
-    validate_username(clean)?;
+    let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     add_to_watchlist(&config_path, clean)?;
     eprintln!("Added @{} to watchlist.", clean);
@@ -176,7 +155,7 @@ pub fn run_watchlist_remove(
     config: &ResolvedConfig,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let clean = username.strip_prefix('@').unwrap_or(username);
+    let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     let removed = remove_from_watchlist(&config_path, clean)?;
     if removed {
@@ -351,34 +330,6 @@ mod tests {
 
     fn setup_config_dir() -> TempDir {
         TempDir::new().unwrap()
-    }
-
-    // -- validate_username tests --
-
-    #[test]
-    fn validate_username_valid() {
-        assert!(validate_username("elonmusk").is_ok());
-        assert!(validate_username("a").is_ok());
-        assert!(validate_username("user_name_123").is_ok());
-        assert!(validate_username("A_B_C").is_ok());
-    }
-
-    #[test]
-    fn validate_username_empty() {
-        assert!(validate_username("").is_err());
-    }
-
-    #[test]
-    fn validate_username_too_long() {
-        assert!(validate_username("abcdefghijklmnop").is_err()); // 16 chars
-    }
-
-    #[test]
-    fn validate_username_invalid_chars() {
-        assert!(validate_username("user-name").is_err());
-        assert!(validate_username("user.name").is_err());
-        assert!(validate_username("user name").is_err());
-        assert!(validate_username("user@name").is_err());
     }
 
     // -- load_watchlist tests --

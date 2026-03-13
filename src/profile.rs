@@ -5,6 +5,7 @@ use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
+use crate::schema;
 
 /// Profile options bundled to avoid clippy::too_many_arguments.
 pub struct ProfileOpts<'a> {
@@ -18,7 +19,7 @@ pub fn run_profile(
     use_color: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let username = validate_username(opts.username)?;
+    let username = schema::validate_username(opts.username)?;
 
     let url = {
         let mut u = url::Url::parse(&format!(
@@ -75,55 +76,3 @@ pub fn run_profile(
     Ok(())
 }
 
-/// Validate and normalize username: strip leading '@', check 1-15 alphanumeric/underscore chars.
-fn validate_username(username: &str) -> Result<&str, Box<dyn std::error::Error + Send + Sync>> {
-    let username = username.strip_prefix('@').unwrap_or(username);
-    if username.is_empty() || username.len() > 15 {
-        return Err(format!("username must be 1-15 characters, got {}", username.len()).into());
-    }
-    if !username
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        return Err(
-            "username contains invalid characters (only alphanumeric and underscore allowed)"
-                .into(),
-        );
-    }
-    Ok(username)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_username_valid() {
-        assert_eq!(validate_username("elonmusk").unwrap(), "elonmusk");
-        assert_eq!(validate_username("a").unwrap(), "a");
-        assert_eq!(validate_username("user_name_123").unwrap(), "user_name_123");
-    }
-
-    #[test]
-    fn validate_username_strips_at() {
-        assert_eq!(validate_username("@elonmusk").unwrap(), "elonmusk");
-    }
-
-    #[test]
-    fn validate_username_empty() {
-        assert!(validate_username("").is_err());
-        assert!(validate_username("@").is_err());
-    }
-
-    #[test]
-    fn validate_username_too_long() {
-        assert!(validate_username("abcdefghijklmnop").is_err()); // 16 chars
-    }
-
-    #[test]
-    fn validate_username_invalid_chars() {
-        assert!(validate_username("user-name").is_err());
-        assert!(validate_username("user.name").is_err());
-        assert!(validate_username("user name").is_err());
-    }
-}
