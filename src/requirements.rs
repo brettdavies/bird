@@ -45,7 +45,7 @@ pub fn auth_flag(auth_type: &AuthType) -> Option<&'static str> {
 }
 
 const ME_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1];
-const BOOKMARKS_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User];
+const OAUTH2_ONLY: &[AuthType] = &[AuthType::OAuth2User];
 // Profile: all three auth types per X API spec for GET /2/users/by/username/{username}
 const PROFILE_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, AuthType::Bearer];
 // Search: OAuth 2.0 User, OAuth 1.0a, Bearer per X API spec for GET /2/tweets/search/recent
@@ -58,7 +58,7 @@ const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, Auth
 pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
     Some(match name {
         "me" => CommandReqs { accepted: ME_ACCEPTED },
-        "bookmarks" => CommandReqs { accepted: BOOKMARKS_ACCEPTED },
+        "bookmarks" => CommandReqs { accepted: OAUTH2_ONLY },
         "get" | "post" | "put" | "delete" => CommandReqs { accepted: RAW_ACCEPTED },
         "profile" => CommandReqs { accepted: PROFILE_ACCEPTED },
         "search" => CommandReqs { accepted: SEARCH_ACCEPTED },
@@ -66,7 +66,7 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
         // Write commands (all require OAuth2User)
         "tweet" | "reply" | "like" | "unlike" | "repost" | "unrepost"
         | "follow" | "unfollow" | "dm" | "block" | "unblock"
-        | "mute" | "unmute" => CommandReqs { accepted: BOOKMARKS_ACCEPTED },
+        | "mute" | "unmute" => CommandReqs { accepted: OAUTH2_ONLY },
         "watchlist_check" => CommandReqs { accepted: SEARCH_ACCEPTED },
         "watchlist_add" | "watchlist_remove" | "watchlist_list" => {
             CommandReqs { accepted: &[AuthType::None] }
@@ -78,6 +78,7 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
     })
 }
 
+/// All command names that have auth requirements (for doctor full report).
 /// All command names that have auth requirements (for doctor full report).
 pub fn command_names_with_auth() -> &'static [&'static str] {
     &[
@@ -111,4 +112,24 @@ pub fn command_names_with_auth() -> &'static [&'static str] {
         "put",
         "delete",
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_and_requirements_in_sync() {
+        for &name in command_names_with_auth() {
+            // login is in the list for doctor reporting but has no auth requirements
+            if name == "login" {
+                continue;
+            }
+            assert!(
+                requirements_for_command(name).is_some(),
+                "command '{}' in command_names_with_auth() but missing from requirements_for_command()",
+                name
+            );
+        }
+    }
 }
