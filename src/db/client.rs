@@ -330,10 +330,9 @@ impl BirdClient {
 
         // Standard: xurl GET + entity decomposition
         let response = self.xurl_get(url, ctx)?;
-        let json = response.json.clone();
 
         if response.is_success() {
-            if let Some(ref jv) = json {
+            if let Some(ref jv) = response.json {
                 if entity_type.is_some() {
                     self.decompose_and_upsert(url, jv);
                 } else {
@@ -342,7 +341,7 @@ impl BirdClient {
             }
         }
 
-        self.log_api_call(url, "GET", json.as_ref(), false, ctx.username);
+        self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
         Ok(response)
     }
 
@@ -544,9 +543,10 @@ impl BirdClient {
         // Mixed: split request — fetch only stale/missing IDs
         let fetch_url = rebuild_url_with_ids(url, &ids_to_fetch);
         let response = self.xurl_get(&fetch_url, ctx)?;
-        let api_json = response.json.clone().unwrap_or(serde_json::Value::Null);
+        let response_status = response.status;
+        let api_json = response.json.unwrap_or(serde_json::Value::Null);
 
-        if response.is_success() {
+        if (200..300).contains(&response_status) {
             self.decompose_and_upsert(&fetch_url, &api_json);
         }
 
@@ -586,7 +586,7 @@ impl BirdClient {
         self.log_api_call(&fetch_url, "GET", Some(&api_json), false, ctx.username);
 
         Ok(ApiResponse {
-            status: response.status,
+            status: response_status,
             body,
             cache_hit: false,
             json: Some(merged_json),

@@ -219,10 +219,10 @@ self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
 Ok(response)
 ```
 
-- [ ] Remove `let json = response.json.clone();` at line 333
-- [ ] Update `decompose_and_upsert` and `log_api_call` to use refs into `response`
-- [ ] Also fix second clone at line 547 in `batch_get()`: use `response.json.unwrap_or(Value::Null)` to take ownership instead of `.clone().unwrap_or()`
-- [ ] Verify all existing tests pass
+- [x] Remove `let json = response.json.clone();` at line 333
+- [x] Update `decompose_and_upsert` and `log_api_call` to use refs into `response`
+- [x] Also fix second clone at line 547 in `batch_get()`: use `response.json.unwrap_or(Value::Null)` to take ownership instead of `.clone().unwrap_or()`
+- [x] Verify all existing tests pass
 
 ### Research Insights (Fix 5)
 
