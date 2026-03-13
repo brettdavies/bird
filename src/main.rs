@@ -379,8 +379,16 @@ fn default_auth_type(command_name: &str) -> requirements::AuthType {
 }
 
 /// Call xurl for a write command and print the JSON result.
-fn xurl_write_call(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let json = transport::xurl_call(args)?;
+fn xurl_write_call(
+    args: &[&str],
+    account: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut full_args: Vec<&str> = Vec::new();
+    if let Some(acct) = account {
+        full_args.extend(["-u", acct]);
+    }
+    full_args.extend_from_slice(args);
+    let json = transport::xurl_call(&full_args)?;
     println!("{}", serde_json::to_string(&json)?);
     Ok(())
 }
@@ -627,6 +635,7 @@ fn run(
         }
         // -- Write commands (xurl passthrough) --
         Command::Tweet { text, media_id } => {
+            let account = config.username.as_deref();
             xurl_write(cache_only, "tweet", || {
                 let mut args = vec!["post", &text];
                 let media_owned;
@@ -634,46 +643,58 @@ fn run(
                     media_owned = id.clone();
                     args.extend(["--media-id", &media_owned]);
                 }
-                xurl_write_call(&args)
+                xurl_write_call(&args, account)
             })?;
         }
         Command::Reply { tweet_id, text } => {
+            let account = config.username.as_deref();
             xurl_write(cache_only, "reply", || {
-                xurl_write_call(&["reply", &tweet_id, &text])
+                xurl_write_call(&["reply", &tweet_id, &text], account)
             })?;
         }
         Command::Like { tweet_id } => {
-            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id], account))?;
         }
         Command::Unlike { tweet_id } => {
-            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id], account))?;
         }
         Command::Repost { tweet_id } => {
-            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id], account))?;
         }
         Command::Unrepost { tweet_id } => {
-            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id], account))?;
         }
         Command::Follow { username } => {
-            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &username], account))?;
         }
         Command::Unfollow { username } => {
-            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &username], account))?;
         }
         Command::Dm { username, text } => {
-            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &username, &text]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &username, &text], account))?;
         }
         Command::Block { username } => {
-            xurl_write(cache_only, "block", || xurl_write_call(&["block", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "block", || xurl_write_call(&["block", &username], account))?;
         }
         Command::Unblock { username } => {
-            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &username], account))?;
         }
         Command::Mute { username } => {
-            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &username], account))?;
         }
         Command::Unmute { username } => {
-            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &username]))?;
+            let account = config.username.as_deref();
+            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &username], account))?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
