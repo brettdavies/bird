@@ -166,8 +166,6 @@ fn no_color_env_suppresses_ansi() {
 
 #[test]
 fn bird_xurl_path_nonexistent_does_not_crash() {
-    // BIRD_XURL_PATH doesn't affect doctor yet (Phase 2 wires it up),
-    // but the binary should not crash with an invalid path set
     #[allow(deprecated)]
     let output = assert_cmd::Command::cargo_bin("bird")
         .unwrap()
@@ -179,11 +177,56 @@ fn bird_xurl_path_nonexistent_does_not_crash() {
         .unwrap();
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        output.status.success() || !stderr.is_empty(),
-        "Doctor should run without panic, got stdout={}, stderr={}",
-        stdout,
+        stderr.contains("does not exist"),
+        "Should report nonexistent path, got stderr={}",
+        stderr
+    );
+}
+
+#[test]
+fn bird_xurl_path_directory_rejected() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    #[allow(deprecated)]
+    let output = assert_cmd::Command::cargo_bin("bird")
+        .unwrap()
+        .args(["doctor"])
+        .env("BIRD_XURL_PATH", tmp.path())
+        .env("HOME", tempfile::TempDir::new().unwrap().path())
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("is not a file"),
+        "Should reject directory path, got stderr={}",
+        stderr
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn bird_xurl_path_not_executable_rejected() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let path = tmp.path().join("fake_xurl");
+    fs::write(&path, "not a script").unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+
+    #[allow(deprecated)]
+    let output = assert_cmd::Command::cargo_bin("bird")
+        .unwrap()
+        .args(["doctor"])
+        .env("BIRD_XURL_PATH", &path)
+        .env("HOME", tempfile::TempDir::new().unwrap().path())
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("is not executable"),
+        "Should reject non-executable file, got stderr={}",
         stderr
     );
 }

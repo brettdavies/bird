@@ -43,6 +43,28 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
             if !p.exists() {
                 return Err(format!("BIRD_XURL_PATH={} does not exist", path));
             }
+            let p = p.canonicalize().map_err(|e| {
+                format!("BIRD_XURL_PATH={} cannot be resolved: {}", path, e)
+            })?;
+            if !p.is_file() {
+                return Err(format!(
+                    "BIRD_XURL_PATH={} is not a file",
+                    p.display()
+                ));
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = p.metadata().map_err(|e| {
+                    format!("BIRD_XURL_PATH={}: {}", path, e)
+                })?.permissions().mode();
+                if mode & 0o111 == 0 {
+                    return Err(format!(
+                        "BIRD_XURL_PATH={} is not executable",
+                        path
+                    ));
+                }
+            }
             return Ok(p);
         }
         which::which("xurl")

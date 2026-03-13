@@ -289,10 +289,10 @@ if let Ok(path) = std::env::var("BIRD_XURL_PATH") {
 }
 ```
 
-- [ ] Add `canonicalize()` after existence check — resolves symlinks and relative components, ensures cached path remains valid
-- [ ] Add `is_file()` check (follows symlinks after canonicalization — correct for Homebrew installs)
-- [ ] Add `#[cfg(unix)]` execute permission check (consistent with 8 existing `#[cfg(unix)]` blocks in codebase)
-- [ ] Add tests: directory path rejected, non-executable rejected (unix only)
+- [x] Add `canonicalize()` after existence check — resolves symlinks and relative components, ensures cached path remains valid
+- [x] Add `is_file()` check (follows symlinks after canonicalization — correct for Homebrew installs)
+- [x] Add `#[cfg(unix)]` execute permission check (consistent with 8 existing `#[cfg(unix)]` blocks in codebase)
+- [x] Add tests: directory path rejected, non-executable rejected (unix only)
 
 ### Research Insights (Fix 9)
 
