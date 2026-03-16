@@ -2,10 +2,28 @@
 name = "bird"
 version = "0.1.0"
 edition = "2024"
-description = "X API CLI with OAuth2 login and schema-driven raw endpoint access"
-license = "MIT"
+description = "X API CLI with entity caching, search, threads, and watchlists"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/brettdavies/bird"
+homepage = "https://github.com/brettdavies/bird"
+documentation = "https://docs.rs/bird"
+keywords = ["twitter", "x", "api", "cli", "oauth"]
+categories = ["command-line-utilities", "web-programming::http-client"]
+authors = ["Brett Davies <pm8fp22mbg@privaterelay.appleid.com>"]
 readme = "README.md"
+rust-version = "1.87"
+exclude = [
+    ".claude/",
+    ".github/",
+    ".githooks/",
+    "cliff.toml",
+    "docs/",
+    "openapi/",
+    "rustfmt.toml",
+    "scripts/",
+    "tests/",
+    "todos/",
+]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
@@ -32,6 +50,12 @@ semver = "1"
 assert_cmd = "2"
 predicates = "3"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/bird-{ target }.tar.gz"
+pkg-fmt = "tgz"
+
 [profile.release]
 strip = true
 lto = true
+codegen-units = 1
+panic = "abort"

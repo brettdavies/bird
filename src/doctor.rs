@@ -102,7 +102,10 @@ fn build_commands_section(
                     reason: if xurl_available {
                         None
                     } else {
-                        Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
+                        Some(format!(
+                            "xurl not found. {}",
+                            crate::transport::XURL_INSTALL_HINT
+                        ))
                     },
                 },
             );
@@ -119,7 +122,10 @@ fn build_commands_section(
             true
         };
         let reason = if !xurl_available {
-            Some("xurl not found. Install: brew install xdevplatform/tap/xurl".into())
+            Some(format!(
+                "xurl not found. {}",
+                crate::transport::XURL_INSTALL_HINT
+            ))
         } else if needs_auth && !authenticated {
             Some("not authenticated. Run `bird login`.".into())
         } else {
@@ -212,7 +218,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             "  status: {}\n",
             output::error("not found", use_color)
         ));
-        out.push_str("  Install: brew install xdevplatform/tap/xurl\n");
+        out.push_str(&format!("  {}\n", crate::transport::XURL_INSTALL_HINT));
     }
 
     // Auth section
