@@ -924,7 +924,8 @@ fn main() -> ExitCode {
     {
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, username, cli.quiet).map_err(BirdError::Config)
+                watchlist::run_watchlist_add(&config, username, cli.quiet)
+                    .map_err(BirdError::Config)
             }
             WatchlistCommand::Remove { username } => {
                 watchlist::run_watchlist_remove(&config, username, cli.quiet)
