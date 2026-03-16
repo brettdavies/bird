@@ -918,6 +918,31 @@ fn main() -> ExitCode {
         }
     }
 
+    // --- Local watchlist commands: need config/DB but not xurl ---
+    if let Command::Watchlist { ref action, pretty } = cli.command
+        && !matches!(action, WatchlistCommand::Check)
+    {
+        let result = match action {
+            WatchlistCommand::Add { username } => {
+                watchlist::run_watchlist_add(&config, username, cli.quiet).map_err(BirdError::Config)
+            }
+            WatchlistCommand::Remove { username } => {
+                watchlist::run_watchlist_remove(&config, username, cli.quiet)
+                    .map_err(BirdError::Config)
+            }
+            WatchlistCommand::List => watchlist::run_watchlist_list(&config, pretty, cli.quiet)
+                .map_err(|e| map_cmd_error("watchlist", e)),
+            WatchlistCommand::Check => unreachable!(),
+        };
+        return match result {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                e.print(use_color);
+                ExitCode::from(e.exit_code())
+            }
+        };
+    }
+
     // --- xurl gate: only for API commands ---
     if let Err(e) = transport::resolve_xurl_path() {
         let err = BirdError::Config(e);
