@@ -1052,13 +1052,13 @@ mod tests {
         // --- Step 3: Bookmark storage with tweet entities ---
         let bookmark_rows = vec![
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t1".into(),
                 position: 0,
                 refreshed_at: unix_now(),
             },
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t2".into(),
                 position: 1,
                 refreshed_at: unix_now(),

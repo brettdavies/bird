@@ -114,7 +114,7 @@ pub fn run_bookmarks(
                 // Accumulate bookmark relationships for storage
                 if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
                     bookmark_rows.push(BookmarkRow {
-                        account_username: me_username.clone(),
+                        username: me_username.clone(),
                         tweet_id: tweet_id.to_string(),
                         position,
                         refreshed_at: crate::db::unix_now(),

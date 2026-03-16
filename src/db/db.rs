@@ -70,7 +70,7 @@ impl UserRow {
 
 #[derive(Debug, Clone)]
 pub struct BookmarkRow {
-    pub account_username: String,
+    pub username: String,
     pub tweet_id: String,
     pub position: i64,
     pub refreshed_at: i64,
@@ -177,6 +177,10 @@ pub(crate) fn migrations() -> Migrations<'static> {
                 key   TEXT PRIMARY KEY,
                 value TEXT
             );",
+        ),
+        // Migration 3: rename account_username → username in bookmarks (xurl alignment)
+        M::up(
+            "ALTER TABLE bookmarks RENAME COLUMN account_username TO username;",
         ),
     ])
 }
@@ -618,10 +622,10 @@ impl BirdDb {
 
     // -- Bookmark operations --
 
-    /// Replace all bookmarks for an account. Wraps in transaction: DELETE all, INSERT new.
+    /// Replace all bookmarks for a user. Wraps in transaction: DELETE all, INSERT new.
     pub fn replace_bookmarks(
         &self,
-        account: &str,
+        username: &str,
         bookmarks: &[BookmarkRow],
     ) -> Result<(), rusqlite::Error> {
         debug_assert!(
@@ -630,17 +634,17 @@ impl BirdDb {
         );
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
-            "DELETE FROM bookmarks WHERE account_username = ?1",
-            params![account],
+            "DELETE FROM bookmarks WHERE username = ?1",
+            params![username],
         )?;
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT INTO bookmarks (account_username, tweet_id, position, refreshed_at)
+                "INSERT INTO bookmarks (username, tweet_id, position, refreshed_at)
                  VALUES (?1, ?2, ?3, ?4)",
             )?;
             for bm in bookmarks {
                 stmt.execute(params![
-                    bm.account_username,
+                    bm.username,
                     bm.tweet_id,
                     bm.position,
                     bm.refreshed_at,
@@ -651,15 +655,15 @@ impl BirdDb {
     }
 
     #[cfg(test)]
-    pub fn get_bookmarks(&self, account: &str) -> Result<Vec<BookmarkRow>, rusqlite::Error> {
+    pub fn get_bookmarks(&self, username: &str) -> Result<Vec<BookmarkRow>, rusqlite::Error> {
         let mut stmt = self.conn.prepare_cached(
-            "SELECT account_username, tweet_id, position, refreshed_at
-             FROM bookmarks WHERE account_username = ?1
+            "SELECT username, tweet_id, position, refreshed_at
+             FROM bookmarks WHERE username = ?1
              ORDER BY position ASC",
         )?;
-        let rows = stmt.query_map(params![account], |row| {
+        let rows = stmt.query_map(params![username], |row| {
             Ok(BookmarkRow {
-                account_username: row.get(0)?,
+                username: row.get(0)?,
                 tweet_id: row.get(1)?,
                 position: row.get(2)?,
                 refreshed_at: row.get(3)?,
@@ -1045,13 +1049,13 @@ mod tests {
         // Insert initial bookmarks
         let initial = vec![
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t1".into(),
                 position: 0,
                 refreshed_at: now,
             },
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t2".into(),
                 position: 1,
                 refreshed_at: now,
@@ -1062,7 +1066,7 @@ mod tests {
 
         // Replace with different set
         let replacement = vec![BookmarkRow {
-            account_username: "alice".into(),
+            username: "alice".into(),
             tweet_id: "t3".into(),
             position: 0,
             refreshed_at: now,
@@ -1080,19 +1084,19 @@ mod tests {
         let now = unix_now();
         let bookmarks = vec![
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t3".into(),
                 position: 2,
                 refreshed_at: now,
             },
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t1".into(),
                 position: 0,
                 refreshed_at: now,
             },
             BookmarkRow {
-                account_username: "alice".into(),
+                username: "alice".into(),
                 tweet_id: "t2".into(),
                 position: 1,
                 refreshed_at: now,
