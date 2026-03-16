@@ -3,6 +3,7 @@
 
 use crate::config::{FileConfig, ResolvedConfig};
 use crate::db::{BirdClient, RequestContext};
+use crate::diag;
 use crate::fields;
 use crate::requirements::AuthType;
 use crate::schema;
@@ -26,6 +27,7 @@ fn load_watchlist(
 fn add_to_watchlist(
     config_path: &Path,
     username: &str,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let content = std::fs::read_to_string(config_path).unwrap_or_default();
     let mut doc = content.parse::<DocumentMut>()?;
@@ -40,7 +42,7 @@ fn add_to_watchlist(
                 .map(|u| u.eq_ignore_ascii_case(username))
                 .unwrap_or(false)
             {
-                eprintln!("@{} is already in the watchlist.", username);
+                diag!(quiet, "@{} is already in the watchlist.", username);
                 return Ok(());
             }
         }
@@ -122,12 +124,16 @@ fn safe_write_config(
 pub fn run_watchlist_list(
     config: &ResolvedConfig,
     pretty: bool,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
+        diag!(
+            quiet,
+            "Watchlist is empty. Add users with: bird watchlist add <username>"
+        );
     }
 
     if pretty {
@@ -142,11 +148,12 @@ pub fn run_watchlist_list(
 pub fn run_watchlist_add(
     config: &ResolvedConfig,
     username: &str,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
-    add_to_watchlist(&config_path, clean)?;
-    eprintln!("Added @{} to watchlist.", clean);
+    add_to_watchlist(&config_path, clean, quiet)?;
+    diag!(quiet, "Added @{} to watchlist.", clean);
     Ok(())
 }
 
@@ -154,14 +161,15 @@ pub fn run_watchlist_add(
 pub fn run_watchlist_remove(
     config: &ResolvedConfig,
     username: &str,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     let removed = remove_from_watchlist(&config_path, clean)?;
     if removed {
-        eprintln!("Removed @{} from watchlist.", clean);
+        diag!(quiet, "Removed @{} from watchlist.", clean);
     } else {
-        eprintln!("@{} was not in the watchlist.", clean);
+        diag!(quiet, "@{} was not in the watchlist.", clean);
     }
     Ok(())
 }
@@ -173,13 +181,17 @@ pub fn run_watchlist_check(
     config: &ResolvedConfig,
     pretty: bool,
     use_color: bool,
+    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
+        diag!(
+            quiet,
+            "Watchlist is empty. Add users with: bird watchlist add <username>"
+        );
         return Ok(());
     }
 
@@ -194,7 +206,8 @@ pub fn run_watchlist_check(
 
     let total = entries.len();
     for (i, username) in entries.iter().enumerate() {
-        eprintln!(
+        diag!(
+            quiet,
             "[watchlist] checking @{} ({}/{})...",
             username,
             i + 1,
@@ -204,7 +217,7 @@ pub fn run_watchlist_check(
         let query = format!("from:{} -is:retweet", username);
         let search_url = build_check_url(&query);
 
-        let activity = match execute_check(client, &ctx, &search_url, use_color) {
+        let activity = match execute_check(client, &ctx, &search_url, use_color, quiet) {
             Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
                 username: username.clone(),
                 recent_tweets: tweet_count,
@@ -212,7 +225,7 @@ pub fn run_watchlist_check(
                 cache_hit,
             },
             Err(e) => {
-                eprintln!("[watchlist] error checking @{}: {}", username, e);
+                diag!(quiet, "[watchlist] error checking @{}: {}", username, e);
                 AccountActivity {
                     username: username.clone(),
                     recent_tweets: 0,
@@ -251,6 +264,7 @@ fn execute_check(
     ctx: &RequestContext<'_>,
     url: &str,
     use_color: bool,
+    quiet: bool,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
     let response = client.get(url, ctx)?;
 
@@ -267,7 +281,7 @@ fn execute_check(
 
     // Cost display per account
     let estimate = crate::cost::estimate_cost(&json, url, response.cache_hit);
-    crate::cost::display_cost(&estimate, use_color);
+    crate::cost::display_cost(&estimate, use_color, quiet);
 
     let tweet_count = json
         .get("meta")
@@ -366,7 +380,7 @@ mod tests {
     fn add_to_new_config() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        add_to_watchlist(&path, "alice").unwrap();
+        add_to_watchlist(&path, "alice", false).unwrap();
         let entries = load_watchlist(&path).unwrap();
         assert_eq!(entries, vec!["alice"]);
     }
@@ -376,7 +390,7 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         fs::write(&path, "watchlist = [\"alice\"]\n").unwrap();
-        add_to_watchlist(&path, "bob").unwrap();
+        add_to_watchlist(&path, "bob", false).unwrap();
         let entries = load_watchlist(&path).unwrap();
         assert_eq!(entries, vec!["alice", "bob"]);
     }
@@ -386,7 +400,7 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         fs::write(&path, "watchlist = [\"alice\"]\n").unwrap();
-        add_to_watchlist(&path, "alice").unwrap();
+        add_to_watchlist(&path, "alice", false).unwrap();
         let entries = load_watchlist(&path).unwrap();
         assert_eq!(entries, vec!["alice"]);
     }
@@ -396,7 +410,7 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         fs::write(&path, "watchlist = [\"Alice\"]\n").unwrap();
-        add_to_watchlist(&path, "alice").unwrap();
+        add_to_watchlist(&path, "alice", false).unwrap();
         let entries = load_watchlist(&path).unwrap();
         assert_eq!(entries, vec!["Alice"]); // keeps original casing
     }
@@ -451,7 +465,7 @@ mod tests {
         let original =
             "# My bird config\nclient_id = \"abc\"\n# secret stuff\nclient_secret = \"xyz\"\n";
         fs::write(&path, original).unwrap();
-        add_to_watchlist(&path, "alice").unwrap();
+        add_to_watchlist(&path, "alice", false).unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("# My bird config"));
         assert!(content.contains("# secret stuff"));
@@ -481,7 +495,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        add_to_watchlist(&path, "alice").unwrap();
+        add_to_watchlist(&path, "alice", false).unwrap();
         let metadata = fs::metadata(&path).unwrap();
         let mode = metadata.permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);

@@ -17,6 +17,7 @@ pub fn run_profile(
     client: &mut BirdClient,
     opts: ProfileOpts<'_>,
     use_color: bool,
+    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let username = schema::validate_username(opts.username)?;
@@ -65,7 +66,7 @@ pub fn run_profile(
     }
 
     let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
-    cost::display_cost(&estimate, use_color);
+    cost::display_cost(&estimate, use_color, quiet);
 
     if opts.pretty {
         println!("{}", serde_json::to_string_pretty(&json)?);

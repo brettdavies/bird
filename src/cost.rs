@@ -74,7 +74,10 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
 }
 
 /// Format and print cost to stderr.
-pub fn display_cost(estimate: &CostEstimate, use_color: bool) {
+pub fn display_cost(estimate: &CostEstimate, use_color: bool, quiet: bool) {
+    if quiet {
+        return;
+    }
     let mut parts = Vec::new();
     if estimate.tweets_read > 0 {
         parts.push(format!(

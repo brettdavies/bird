@@ -2,6 +2,7 @@
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
 use crate::cost;
+use crate::diag;
 use crate::requirements::{self, AuthType};
 use crate::transport::Transport;
 
@@ -217,6 +218,10 @@ pub struct BirdClient {
     cache_opts: CacheOpts,
     /// Username for xurl -u flag (multi-user token selection)
     username: Option<String>,
+    /// Suppress informational stderr output. Stored on the struct (unlike `use_color`
+    /// which is parameter-passed) because 7+ internal methods emit diagnostics and
+    /// threading through every method signature would be excessive.
+    pub quiet: bool,
 }
 
 impl BirdClient {
@@ -227,6 +232,7 @@ impl BirdClient {
         cache_opts: CacheOpts,
         max_size_mb: u64,
         username: Option<String>,
+        quiet: bool,
     ) -> Self {
         if cache_opts.no_store {
             return Self {
@@ -234,6 +240,7 @@ impl BirdClient {
                 db: None,
                 cache_opts,
                 username,
+                quiet,
             };
         }
         let db = match BirdDb::open(store_path, max_size_mb) {
@@ -242,18 +249,18 @@ impl BirdClient {
                 if let Some(parent) = store_path.parent() {
                     let old_cache = parent.join("cache.db");
                     if old_cache.exists() {
-                        db.migrate_usage_from_cache(&old_cache);
+                        db.migrate_usage_from_cache(&old_cache, quiet);
                     }
                 }
                 // Prune stale raw_responses and oversized entity tables
                 if let Err(e) = db.prune_if_needed() {
-                    eprintln!("[store] warning: pruning failed: {e}");
+                    diag!(quiet, "[store] warning: pruning failed: {e}");
                 }
                 Some(db)
             }
             Err(e) => {
-                eprintln!("[store] warning: failed to open entity store: {e}");
-                eprintln!("[store] Run `bird cache clear` to reset the store.");
+                diag!(quiet, "[store] warning: failed to open entity store: {e}");
+                diag!(quiet, "[store] Run `bird cache clear` to reset the store.");
                 None
             }
         };
@@ -262,6 +269,7 @@ impl BirdClient {
             db,
             cache_opts,
             username,
+            quiet,
         }
     }
 
@@ -429,7 +437,7 @@ impl BirdClient {
             cache_hit,
             username,
         }) {
-            eprintln!("[usage] warning: failed to log API call: {e}");
+            diag!(self.quiet, "[usage] warning: failed to log API call: {e}");
         }
     }
 
@@ -635,14 +643,15 @@ impl BirdClient {
         if let Some(errors) = json.get("errors").and_then(|e| e.as_array())
             && !errors.is_empty()
         {
-            eprintln!(
+            diag!(
+                self.quiet,
                 "[store] {} API error(s) in 200 response (processing available data)",
                 errors.len()
             );
         }
 
         if let Err(e) = db.upsert_entities(&tweets, &users) {
-            eprintln!("[store] warning: entity upsert failed: {e}");
+            diag!(self.quiet, "[store] warning: entity upsert failed: {e}");
         }
     }
 
@@ -651,7 +660,10 @@ impl BirdClient {
         let Some(ref db) = self.db else { return };
         let key = compute_raw_cache_key("GET", url);
         if let Err(e) = db.upsert_raw_response(&key, url, status, body.as_bytes()) {
-            eprintln!("[store] warning: raw response store failed: {e}");
+            diag!(
+                self.quiet,
+                "[store] warning: raw response store failed: {e}"
+            );
         }
     }
 }
@@ -749,6 +761,7 @@ mod tests {
             db: Some(db),
             cache_opts: CacheOpts::default(),
             username: None,
+            quiet: false,
         }
     }
 

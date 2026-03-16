@@ -12,6 +12,7 @@
 //!   xurl reads auth from its own token store (~/.xurl).
 //! - All user input (search queries, tweet text) passes as separate argv elements.
 
+use crate::diag;
 use crate::output;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -75,7 +76,10 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
 }
 
 /// Run `xurl version` and return the version string. Warns if below minimum.
-pub fn check_xurl_version(path: &Path) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub fn check_xurl_version(
+    path: &Path,
+    quiet: bool,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new(path)
         .arg("version")
         .stdout(Stdio::piped())
@@ -98,9 +102,11 @@ pub fn check_xurl_version(path: &Path) -> Result<String, Box<dyn std::error::Err
             semver::Version::parse(MIN_VERSION),
         ) && current < minimum
         {
-            eprintln!(
+            diag!(
+                quiet,
                 "[transport] warning: xurl {} is below minimum {}; consider upgrading",
-                version, MIN_VERSION
+                version,
+                MIN_VERSION
             );
         }
     }

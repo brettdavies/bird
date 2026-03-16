@@ -4,6 +4,7 @@
 use crate::db::{
     ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
 };
+use crate::diag;
 use crate::output;
 use crate::requirements::AuthType;
 
@@ -42,6 +43,7 @@ pub fn run_usage(
     since: Option<&str>,
     sync: bool,
     pretty: bool,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let since_ymd = parse_since(since)?;
 
@@ -52,7 +54,7 @@ pub fn run_usage(
         } else {
             "Store database is unavailable. Run `bird cache clear` to reset."
         };
-        eprintln!("[usage] {}", msg);
+        diag!(quiet, "[usage] {}", msg);
         if !pretty {
             println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
         }
@@ -70,7 +72,10 @@ pub fn run_usage(
     };
 
     if summary.total_calls == 0 && !sync {
-        eprintln!("[usage] No usage data recorded yet. Run some API commands first.");
+        diag!(
+            quiet,
+            "[usage] No usage data recorded yet. Run some API commands first."
+        );
     }
 
     // Optionally: sync actual usage from X API
@@ -86,13 +91,14 @@ pub fn run_usage(
         if let Some(since_date) = since_date {
             let days_back = (now - since_date).num_days();
             if days_back > 90 {
-                eprintln!(
+                diag!(
+                    quiet,
                     "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
                 );
             }
         }
 
-        match sync_actual_usage(client)? {
+        match sync_actual_usage(client, quiet)? {
             Some(actuals) => {
                 sync_status = "success";
                 Some(actuals)
@@ -215,6 +221,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 /// Sync actual usage from X API via xurl with `--auth app` (Bearer token).
 fn sync_actual_usage(
     client: &mut BirdClient,
+    quiet: bool,
 ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
     let url = "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage";
 
@@ -231,9 +238,13 @@ fn sync_actual_usage(
     if !response.is_success() {
         let msg = output::sanitize_for_stderr(&response.body, 200);
         if response.body.contains("429") || response.body.contains("Too Many") {
-            eprintln!("[usage] Rate limited. Showing local data only.");
+            diag!(quiet, "[usage] Rate limited. Showing local data only.");
         } else {
-            eprintln!("[usage] Sync failed: {}. Showing local data only.", msg);
+            diag!(
+                quiet,
+                "[usage] Sync failed: {}. Showing local data only.",
+                msg
+            );
         }
         return Ok(None);
     }
@@ -247,7 +258,8 @@ fn sync_actual_usage(
     let db = match client.db() {
         Some(db) => db,
         None => {
-            eprintln!(
+            diag!(
+                quiet,
                 "[usage] Cache database unavailable for storing actuals. Showing local data only."
             );
             return Ok(None);
@@ -284,7 +296,8 @@ fn sync_actual_usage(
         });
     }
 
-    eprintln!(
+    diag!(
+        quiet,
         "[usage] synced {} days of actual usage from X API",
         results.len()
     );

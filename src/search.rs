@@ -2,6 +2,7 @@
 
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
+use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -21,6 +22,7 @@ pub fn run_search(
     client: &mut BirdClient,
     opts: SearchOpts<'_>,
     use_color: bool,
+    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Validate sort key before any API calls (fail fast)
@@ -63,7 +65,7 @@ pub fn run_search(
         let page = response.json.ok_or("invalid JSON from search")?;
 
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&estimate, use_color);
+        cost::display_cost(&estimate, use_color, quiet);
 
         // Break on empty data (handles phantom next_token)
         let data = match page.get("data").and_then(|d| d.as_array()) {
@@ -104,7 +106,8 @@ pub fn run_search(
             }
         }
 
-        eprintln!(
+        diag!(
+            quiet,
             "[search] page {}/{}: {} new tweets ({} total)",
             page_num,
             opts.pages,
@@ -144,7 +147,8 @@ pub fn run_search(
         println!("{}", serde_json::to_string(&output)?);
     }
 
-    eprintln!(
+    diag!(
+        quiet,
         "[search] {} results | sorted by {} | {} pages fetched",
         all_tweets.len(),
         opts.sort,
