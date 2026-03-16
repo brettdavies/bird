@@ -1,37 +1,27 @@
 //! Curated bookmarks command: GET /2/users/{id}/bookmarks with pagination, max_results=100.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
-use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, BookmarkRow, RequestContext};
+use crate::fields;
 use crate::output;
-use reqwest::header::HeaderMap;
+use crate::requirements::AuthType;
 
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
-pub async fn run_bookmarks(
-    client: &mut CachedClient,
-    config: &ResolvedConfig,
+pub fn run_bookmarks(
+    client: &mut BirdClient,
     pretty: bool,
     use_color: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = resolve_token_for_command(client.http(), config, "bookmarks").await?;
-    let (access, resolved_auth_type) = match token {
-        CommandToken::Bearer { token, auth_type } => (token, auth_type),
-        CommandToken::OAuth1 => unreachable!("bookmarks accepts OAuth2 user only per spec"),
-    };
-
+    // Bookmarks require OAuth2 user context
+    let auth_type = AuthType::OAuth2User;
     let ctx = RequestContext {
-        auth_type: &resolved_auth_type,
-        username: config.username.as_deref(),
+        auth_type: &auth_type,
+        username: None,
     };
 
-    // Fetch user ID via /2/users/me (goes through cache)
-    let mut me_headers = HeaderMap::new();
-    me_headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-    let me_response = client
-        .get("https://api.x.com/2/users/me", &ctx, me_headers)
-        .await?;
-    if !me_response.status.is_success() {
+    // Fetch user ID via /2/users/me (goes through entity store)
+    let me_response = client.get("https://api.x.com/2/users/me", &ctx)?;
+    if !me_response.is_success() {
         return Err(format!(
             "GET /2/users/me failed: {}",
             output::sanitize_for_stderr(&me_response.body, 200)
@@ -52,8 +42,18 @@ pub async fn run_bookmarks(
     );
     cost::display_cost(&me_estimate, use_color);
 
+    // Extract username from /users/me for bookmark relationship storage
+    let me_username = me_json
+        .get("data")
+        .and_then(|d| d.get("username"))
+        .and_then(|u| u.as_str())
+        .unwrap_or("")
+        .to_string();
+
     let mut pagination_token: Option<String> = None;
     let mut first_item = true;
+    let mut bookmark_rows: Vec<BookmarkRow> = Vec::new();
+    let mut position: i64 = 0;
 
     // Open the JSON array wrapper
     if pretty {
@@ -63,21 +63,25 @@ pub async fn run_bookmarks(
     }
 
     loop {
-        let mut url = format!(
-            "https://api.x.com/2/users/{}/bookmarks?max_results=100",
-            user_id
-        );
-        if let Some(ref pt) = pagination_token {
-            url.push_str("&pagination_token=");
-            url.push_str(pt);
-        }
+        let url = {
+            let mut u =
+                url::Url::parse(&format!("https://api.x.com/2/users/{}/bookmarks", user_id))
+                    .unwrap();
+            {
+                let mut pairs = u.query_pairs_mut();
+                pairs.append_pair("max_results", "100");
+                for (key, value) in fields::tweet_query_params() {
+                    pairs.append_pair(key, value);
+                }
+                if let Some(ref pt) = pagination_token {
+                    pairs.append_pair("pagination_token", pt);
+                }
+            }
+            u.to_string()
+        };
 
-        // Paginated requests have pagination_token in URL — cache layer skips them automatically.
-        // Non-paginated first page is cacheable.
-        let mut headers = HeaderMap::new();
-        headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-        let response = client.get(&url, &ctx, headers).await?;
-        if !response.status.is_success() {
+        let response = client.get(&url, &ctx)?;
+        if !response.is_success() {
             return Err(format!(
                 "GET bookmarks failed: {}",
                 output::sanitize_for_stderr(&response.body, 200)
@@ -107,6 +111,16 @@ pub async fn run_bookmarks(
                 } else {
                     print!("{}", serde_json::to_string(item)?);
                 }
+                // Accumulate bookmark relationships for storage
+                if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
+                    bookmark_rows.push(BookmarkRow {
+                        username: me_username.clone(),
+                        tweet_id: tweet_id.to_string(),
+                        position,
+                        refreshed_at: crate::db::unix_now(),
+                    });
+                    position += 1;
+                }
             }
         }
         pagination_token = page
@@ -117,6 +131,15 @@ pub async fn run_bookmarks(
         if pagination_token.is_none() {
             break;
         }
+    }
+
+    // Store bookmark relationships in entity store
+    if !me_username.is_empty()
+        && !bookmark_rows.is_empty()
+        && let Some(db) = client.db()
+        && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
+    {
+        eprintln!("[store] warning: bookmark storage failed: {e}");
     }
 
     // Close the JSON array wrapper

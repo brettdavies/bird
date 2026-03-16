@@ -78,3 +78,29 @@ fn watchlist_add_remove_list() {
         .success()
         .stdout(predicate::str::contains("alice").not());
 }
+
+#[test]
+fn username_invalid_chars_rejected() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--username", "'; DROP TABLE", "doctor"])
+        .env("HOME", tmp.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .failure()
+        .code(78)
+        .stderr(predicate::str::contains("--username"));
+}
+
+#[test]
+fn username_at_prefix_normalized() {
+    // @validuser should be accepted (normalized to validuser).
+    // Doctor runs successfully — the username value is valid after stripping @.
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--username", "@validuser", "doctor"])
+        .env("HOME", tmp.path())
+        .env("NO_COLOR", "1")
+        .assert()
+        .success();
+}

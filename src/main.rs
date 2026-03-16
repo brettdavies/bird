@@ -1,12 +1,11 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
-mod auth;
 mod bookmarks;
-mod cache;
 mod config;
 mod cost;
+mod db;
 mod doctor;
-mod login;
+mod fields;
 mod output;
 mod profile;
 mod raw;
@@ -14,6 +13,8 @@ mod requirements;
 mod schema;
 mod search;
 mod thread;
+mod transport;
+mod types;
 mod usage;
 mod watchlist;
 
@@ -23,14 +24,13 @@ use config::{ArgOverrides, ResolvedConfig};
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
-use std::time::Duration;
 
-/// Structured error for the CLI. Each variant carries the command name and maps to a distinct exit code.
+/// Structured error for the CLI. Each variant maps to a distinct exit code.
 enum BirdError {
     /// Configuration error (exit code 78 — EX_CONFIG)
     Config(Box<dyn std::error::Error + Send + Sync>),
-    /// Auth error — no valid credentials for the command (exit code 77 — EX_NOPERM)
-    Auth(requirements::AuthRequiredError),
+    /// Authentication error (exit code 77)
+    Auth(Box<dyn std::error::Error + Send + Sync>),
     /// Command execution error — API, network, I/O (exit code 1)
     Command {
         name: &'static str,
@@ -63,10 +63,15 @@ impl BirdError {
     }
 }
 
-impl From<requirements::AuthRequiredError> for BirdError {
-    fn from(e: requirements::AuthRequiredError) -> Self {
-        BirdError::Auth(e)
+/// Centralized error mapping: detects XurlError::Auth and maps to BirdError::Auth,
+/// otherwise wraps in BirdError::Command. Used by all command dispatch closures.
+fn map_cmd_error(name: &'static str, e: Box<dyn std::error::Error + Send + Sync>) -> BirdError {
+    if let Some(xurl_err) = e.downcast_ref::<transport::XurlError>()
+        && matches!(xurl_err, transport::XurlError::Auth(_))
+    {
+        return BirdError::Auth(e);
     }
+    BirdError::Command { name, source: e }
 }
 
 fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
@@ -75,18 +80,6 @@ fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
     let term_dumb = std::env::var("TERM").as_deref() == Ok("dumb");
     let default_on = stderr_tty && !no_color_env && !term_dumb;
     default_on && !plain && !no_color
-}
-
-fn format_duration(secs: i64) -> String {
-    if secs < 60 {
-        format!("{}s", secs)
-    } else if secs < 3600 {
-        format!("{}m", secs / 60)
-    } else if secs < 86400 {
-        format!("{}h", secs / 3600)
-    } else {
-        format!("{}d", secs / 86400)
-    }
 }
 
 fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
@@ -105,25 +98,9 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 
-    /// OAuth2 client ID (overrides config and env)
-    #[arg(long, global = true)]
-    client_id: Option<String>,
-
-    /// OAuth2 client secret (overrides config and env)
-    #[arg(long, global = true)]
-    client_secret: Option<String>,
-
-    /// Access token (overrides config and env)
-    #[arg(long, global = true)]
-    access_token: Option<String>,
-
-    /// Refresh token (overrides config and env)
-    #[arg(long, global = true)]
-    refresh_token: Option<String>,
-
-    /// Account name for multi-account token selection (matches stored token key)
-    #[arg(long, global = true)]
-    account: Option<String>,
+    /// Username for multi-user token selection (maps to xurl -u)
+    #[arg(long, short = 'u', global = true)]
+    username: Option<String>,
 
     /// Plain output (no color, no hyperlinks; script-friendly)
     #[arg(long, global = true)]
@@ -133,22 +110,22 @@ struct Cli {
     #[arg(long, global = true)]
     no_color: bool,
 
-    /// Bypass cache read, still write response to cache
+    /// Bypass store read, still write response to store
     #[arg(long, global = true)]
     refresh: bool,
 
-    /// Disable cache entirely (no read, no write)
+    /// Disable entity store entirely (no read, no write)
     #[arg(long, global = true)]
     no_cache: bool,
 
-    /// Override cache TTL for this request (seconds)
-    #[arg(long, global = true, value_name = "SECONDS")]
-    cache_ttl: Option<u64>,
+    /// Only serve from local store; never make API requests
+    #[arg(long, global = true)]
+    cache_only: bool,
 }
 
 #[derive(clap::Subcommand)]
 enum Command {
-    /// OAuth2 login: open browser, store tokens by username
+    /// Authenticate via xurl (OAuth2 PKCE browser flow)
     Login,
 
     /// Show current user (GET /2/users/me)
@@ -259,7 +236,7 @@ enum Command {
         pretty: bool,
     },
 
-    /// Monitor accounts: check recent activity, manage watchlist
+    /// Monitor users: check recent activity, manage watchlist
     Watchlist {
         #[command(subcommand)]
         action: WatchlistCommand,
@@ -273,7 +250,7 @@ enum Command {
         /// Show usage since this date (YYYY-MM-DD; default: 30 days ago)
         #[arg(long)]
         since: Option<String>,
-        /// Sync actual usage from X API (requires Bearer token)
+        /// Sync actual usage from X API (requires Bearer token via xurl)
         #[arg(long)]
         sync: bool,
         /// Pretty-print output
@@ -281,7 +258,92 @@ enum Command {
         pretty: bool,
     },
 
-    /// Show what is available: auth state, effective config, and which commands can run (JSON by default; --pretty for human summary). Optional command name for scoped report (e.g. bird doctor me).
+    /// Post a tweet (via xurl)
+    Tweet {
+        /// Tweet text
+        text: String,
+        /// Media ID to attach
+        #[arg(long)]
+        media_id: Option<String>,
+    },
+
+    /// Reply to a tweet (via xurl)
+    Reply {
+        /// Tweet ID to reply to
+        tweet_id: String,
+        /// Reply text
+        text: String,
+    },
+
+    /// Like a tweet (via xurl)
+    Like {
+        /// Tweet ID to like
+        tweet_id: String,
+    },
+
+    /// Unlike a tweet (via xurl)
+    Unlike {
+        /// Tweet ID to unlike
+        tweet_id: String,
+    },
+
+    /// Repost (retweet) a tweet (via xurl)
+    Repost {
+        /// Tweet ID to repost
+        tweet_id: String,
+    },
+
+    /// Undo a repost (via xurl)
+    Unrepost {
+        /// Tweet ID to unrepost
+        tweet_id: String,
+    },
+
+    /// Follow a user (via xurl)
+    Follow {
+        /// Username to follow
+        username: String,
+    },
+
+    /// Unfollow a user (via xurl)
+    Unfollow {
+        /// Username to unfollow
+        username: String,
+    },
+
+    /// Send a direct message (via xurl)
+    Dm {
+        /// Username to message
+        username: String,
+        /// Message text
+        text: String,
+    },
+
+    /// Block a user (via xurl)
+    Block {
+        /// Username to block
+        username: String,
+    },
+
+    /// Unblock a user (via xurl)
+    Unblock {
+        /// Username to unblock
+        username: String,
+    },
+
+    /// Mute a user (via xurl)
+    Mute {
+        /// Username to mute
+        username: String,
+    },
+
+    /// Unmute a user (via xurl)
+    Unmute {
+        /// Username to unmute
+        username: String,
+    },
+
+    /// Show what is available: xurl status, commands, and entity store health
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get)
         command: Option<String>,
@@ -309,14 +371,14 @@ enum CacheAction {
 
 #[derive(clap::Subcommand)]
 enum WatchlistCommand {
-    /// Check recent activity for all watched accounts
+    /// Check recent activity for all watched users
     Check,
-    /// Add an account to the watchlist
+    /// Add a user to the watchlist
     Add {
         /// X/Twitter username (with or without @)
         username: String,
     },
-    /// Remove an account from the watchlist
+    /// Remove a user from the watchlist
     Remove {
         /// X/Twitter username to remove
         username: String,
@@ -325,33 +387,68 @@ enum WatchlistCommand {
     List,
 }
 
-async fn run(
+/// Resolve the default auth type for a command name using requirements.rs.
+/// Returns the first accepted auth type for the command.
+fn default_auth_type(command_name: &str) -> requirements::AuthType {
+    requirements::requirements_for_command(command_name)
+        .and_then(|r| r.accepted.first().copied())
+        .unwrap_or(requirements::AuthType::OAuth2User)
+}
+
+/// Call xurl for a write command and print the JSON result.
+fn xurl_write_call(
+    args: &[&str],
+    username: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut full_args: Vec<&str> = Vec::new();
+    if let Some(u) = username {
+        full_args.extend(["-u", u]);
+    }
+    full_args.extend_from_slice(args);
+    let json = transport::xurl_call(&full_args)?;
+    println!("{}", serde_json::to_string(&json)?);
+    Ok(())
+}
+
+/// Guard + dispatch for write commands: reject --cache-only, then run the closure.
+fn xurl_write(
+    cache_only: bool,
+    name: &'static str,
+    f: impl FnOnce() -> Result<(), Box<dyn std::error::Error + Send + Sync>>,
+) -> Result<(), BirdError> {
+    if cache_only {
+        return Err(BirdError::Command {
+            name,
+            source: "write commands require network access; remove --cache-only".into(),
+        });
+    }
+    f().map_err(|e| map_cmd_error(name, e))
+}
+
+fn run(
     command: Command,
     config: ResolvedConfig,
-    client: &mut cache::CachedClient,
+    client: &mut db::BirdClient,
     use_color: bool,
-    use_hyperlinks: bool,
+    cache_only: bool,
 ) -> Result<(), BirdError> {
     match command {
         Command::Login => {
-            login::run_login(client.http(), config, use_color, use_hyperlinks)
-                .await
-                .map_err(|e| BirdError::Command {
-                    name: "login",
-                    source: e,
-                })?;
-            // Security: clear cache after re-auth to prevent stale data from previous context
-            if let Some(Ok(count)) = client.cache_clear() {
-                if count > 0 {
-                    eprintln!("[cache] Cleared {} cached entries after login.", count);
-                }
+            // Delegate to xurl for OAuth2 authentication
+            transport::xurl_passthrough(&["auth", "oauth2"])
+                .map_err(|e| map_cmd_error("login", e))?;
+            // Verify login and clear store
+            if let Some(Ok(count)) = client.db_clear()
+                && count > 0
+            {
+                eprintln!("[store] Cleared {} stored entries after login.", count);
             }
         }
         Command::Me { pretty } => {
             let params = HashMap::new();
+            let auth_type = default_auth_type("me");
             raw::run_raw(
                 client,
-                &config,
                 "GET",
                 "/2/users/me",
                 &params,
@@ -359,36 +456,26 @@ async fn run(
                 None,
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "me",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("me", e))?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, &config, pretty, use_color)
-                .await
-                .map_err(|e| BirdError::Command {
-                    name: "bookmarks",
-                    source: e,
-                })?;
+            bookmarks::run_bookmarks(client, pretty, use_color)
+                .map_err(|e| map_cmd_error("bookmarks", e))?;
         }
         Command::Profile { username, pretty } => {
+            let auth_type = default_auth_type("profile");
             profile::run_profile(
                 client,
-                &config,
                 profile::ProfileOpts {
                     username: &username,
                     pretty,
                 },
                 use_color,
+                &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "profile",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("profile", e))?;
         }
         Command::Search {
             query,
@@ -398,6 +485,7 @@ async fn run(
             max_results,
             pages,
         } => {
+            let auth_type = default_auth_type("search");
             let opts = search::SearchOpts {
                 query: &query,
                 pretty,
@@ -406,33 +494,26 @@ async fn run(
                 max_results: max_results.unwrap_or(100).clamp(10, 100),
                 pages: pages.unwrap_or(1).clamp(1, 10),
             };
-            search::run_search(client, &config, opts, use_color)
-                .await
-                .map_err(|e| BirdError::Command {
-                    name: "search",
-                    source: e,
-                })?;
+            search::run_search(client, opts, use_color, &auth_type)
+                .map_err(|e| map_cmd_error("search", e))?;
         }
         Command::Thread {
             tweet_id,
             pretty,
             max_pages,
         } => {
+            let auth_type = default_auth_type("thread");
             thread::run_thread(
                 client,
-                &config,
                 thread::ThreadOpts {
                     tweet_id: &tweet_id,
                     pretty,
                     max_pages,
                 },
                 use_color,
+                &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "thread",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("thread", e))?;
         }
         Command::Get {
             path,
@@ -441,14 +522,11 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("get");
             raw::run_raw(
-                client, &config, "GET", &path, &params, &query, None, pretty, use_color,
+                client, "GET", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "get",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("get", e))?;
         }
         Command::Post {
             path,
@@ -458,9 +536,9 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("post");
             raw::run_raw(
                 client,
-                &config,
                 "POST",
                 &path,
                 &params,
@@ -468,12 +546,9 @@ async fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "post",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("post", e))?;
         }
         Command::Put {
             path,
@@ -483,9 +558,9 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("put");
             raw::run_raw(
                 client,
-                &config,
                 "PUT",
                 &path,
                 &params,
@@ -493,12 +568,9 @@ async fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "put",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("put", e))?;
         }
         Command::Delete {
             path,
@@ -507,23 +579,17 @@ async fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let auth_type = default_auth_type("delete");
             raw::run_raw(
-                client, &config, "DELETE", &path, &params, &query, None, pretty, use_color,
+                client, "DELETE", &path, &params, &query, None, pretty, use_color, &auth_type,
             )
-            .await
-            .map_err(|e| BirdError::Command {
-                name: "delete",
-                source: e,
-            })?;
+            .map_err(|e| map_cmd_error("delete", e))?;
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
-                watchlist::run_watchlist_check(client, &config, pretty, use_color)
-                    .await
-                    .map_err(|e| BirdError::Command {
-                        name: "watchlist",
-                        source: e,
-                    })?;
+                let auth_type = default_auth_type("watchlist_check");
+                watchlist::run_watchlist_check(client, &config, pretty, use_color, &auth_type)
+                    .map_err(|e| map_cmd_error("watchlist", e))?;
             }
             WatchlistCommand::Add { username } => {
                 watchlist::run_watchlist_add(&config, &username).map_err(BirdError::Config)?;
@@ -532,10 +598,8 @@ async fn run(
                 watchlist::run_watchlist_remove(&config, &username).map_err(BirdError::Config)?;
             }
             WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty).map_err(|e| BirdError::Command {
-                    name: "watchlist",
-                    source: e,
-                })?;
+                watchlist::run_watchlist_list(&config, pretty)
+                    .map_err(|e| map_cmd_error("watchlist", e))?;
             }
         },
         Command::Usage {
@@ -543,76 +607,145 @@ async fn run(
             sync,
             pretty,
         } => {
-            usage::run_usage(client, &config, since.as_deref(), sync, pretty)
-                .await
-                .map_err(|e| BirdError::Command {
-                    name: "usage",
-                    source: e,
-                })?;
+            usage::run_usage(client, since.as_deref(), sync, pretty)
+                .map_err(|e| map_cmd_error("usage", e))?;
+        }
+        // -- Write commands (xurl passthrough) --
+        Command::Tweet { text, media_id } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "tweet", || {
+                let mut args = vec!["post", &text];
+                let media_owned;
+                if let Some(ref id) = media_id {
+                    media_owned = id.clone();
+                    args.extend(["--media-id", &media_owned]);
+                }
+                xurl_write_call(&args, username)
+            })?;
+        }
+        Command::Reply { tweet_id, text } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "reply", || {
+                xurl_write_call(&["reply", &tweet_id, &text], username)
+            })?;
+        }
+        Command::Like { tweet_id } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "like", || {
+                xurl_write_call(&["like", &tweet_id], username)
+            })?;
+        }
+        Command::Unlike { tweet_id } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unlike", || {
+                xurl_write_call(&["unlike", &tweet_id], username)
+            })?;
+        }
+        Command::Repost { tweet_id } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "repost", || {
+                xurl_write_call(&["repost", &tweet_id], username)
+            })?;
+        }
+        Command::Unrepost { tweet_id } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unrepost", || {
+                xurl_write_call(&["unrepost", &tweet_id], username)
+            })?;
+        }
+        Command::Follow { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "follow", || {
+                xurl_write_call(&["follow", &target], username)
+            })?;
+        }
+        Command::Unfollow { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unfollow", || {
+                xurl_write_call(&["unfollow", &target], username)
+            })?;
+        }
+        Command::Dm {
+            username: target,
+            text,
+        } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "dm", || {
+                xurl_write_call(&["dm", &target, &text], username)
+            })?;
+        }
+        Command::Block { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "block", || {
+                xurl_write_call(&["block", &target], username)
+            })?;
+        }
+        Command::Unblock { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unblock", || {
+                xurl_write_call(&["unblock", &target], username)
+            })?;
+        }
+        Command::Mute { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "mute", || {
+                xurl_write_call(&["mute", &target], username)
+            })?;
+        }
+        Command::Unmute { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unmute", || {
+                xurl_write_call(&["unmute", &target], username)
+            })?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
             let use_emoji = use_color && pretty;
-            doctor::run_doctor(&config, client, pretty, scope, use_color, use_emoji).map_err(
-                |e| BirdError::Command {
-                    name: "doctor",
-                    source: e,
-                },
-            )?;
+            doctor::run_doctor(client, pretty, scope, use_color, use_emoji)
+                .map_err(|e| map_cmd_error("doctor", e))?;
         }
         Command::Cache { action } => match action {
-            CacheAction::Clear => match client.cache_clear() {
+            CacheAction::Clear => match client.db_clear() {
                 Some(Ok(count)) => {
-                    let stats = client.cache_stats().and_then(|r| r.ok());
+                    let stats = client.db_stats().and_then(|r| r.ok());
                     let size_str =
                         stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    eprintln!("Cleared {} cache entries ({} MB).", count, size_str);
+                    eprintln!("Cleared {} stored entities ({} MB).", count, size_str);
                 }
                 Some(Err(e)) => {
                     return Err(BirdError::Command {
                         name: "cache",
-                        source: format!("failed to clear cache: {}", e).into(),
+                        source: format!("failed to clear store: {}", e).into(),
                     });
                 }
                 None => {
-                    eprintln!("Cache is not available.");
+                    eprintln!("Store is not available.");
                 }
             },
-            CacheAction::Stats { pretty } => match client.cache_stats() {
+            CacheAction::Stats { pretty } => match client.db_stats() {
                 Some(Ok(stats)) => {
+                    let path = client
+                        .db_path()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
                     if pretty {
-                        let path = client
-                            .cache_path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
-                        println!("Cache: {}", path);
+                        println!("Store: {}", path);
                         println!(
                             "Size:  {:.1} MB / {:.0} MB limit",
                             stats.size_mb(),
                             stats.max_size_mb()
                         );
-                        println!("Entries: {}", stats.entry_count);
-                        if let (Some(oldest), Some(newest)) =
-                            (stats.oldest_seconds_ago, stats.newest_seconds_ago)
-                        {
-                            println!(
-                                "Oldest: {} ago | Newest: {} ago",
-                                format_duration(oldest),
-                                format_duration(newest)
-                            );
-                        }
+                        println!("Tweets: {}", stats.tweet_count);
+                        println!("Users:  {}", stats.user_count);
+                        println!("Raw:    {}", stats.raw_response_count);
                     } else {
-                        let path = client
-                            .cache_path()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "unknown".to_string());
                         let json = serde_json::json!({
                             "path": path,
                             "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
                             "max_size_mb": stats.max_size_mb() as u64,
-                            "entries": stats.entry_count,
-                            "oldest_seconds_ago": stats.oldest_seconds_ago,
-                            "newest_seconds_ago": stats.newest_seconds_ago,
+                            "tweets": stats.tweet_count,
+                            "users": stats.user_count,
+                            "raw_responses": stats.raw_response_count,
                             "healthy": stats.healthy(),
                         });
                         println!(
@@ -627,11 +760,11 @@ async fn run(
                 Some(Err(e)) => {
                     return Err(BirdError::Command {
                         name: "cache",
-                        source: format!("failed to read cache stats: {}", e).into(),
+                        source: format!("failed to read store stats: {}", e).into(),
                     });
                 }
                 None => {
-                    eprintln!("Cache is not available.");
+                    eprintln!("Store is not available.");
                 }
             },
         },
@@ -639,8 +772,7 @@ async fn run(
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -659,27 +791,40 @@ async fn main() -> ExitCode {
     };
 
     let use_color = use_color_from_cli(cli.plain, cli.no_color);
-    let use_hyperlinks = use_color && std::io::stderr().is_terminal();
 
+    // Fail-fast if xurl is not installed
+    if let Err(e) = transport::resolve_xurl_path() {
+        let err = BirdError::Config(e);
+        err.print(use_color);
+        return ExitCode::from(err.exit_code());
+    }
+
+    // Validate --username if provided (strips @, checks charset)
+    let cli_username = match cli.username {
+        Some(ref raw) => match schema::validate_username(raw) {
+            Ok(clean) => Some(clean.to_string()),
+            Err(e) => {
+                let err = BirdError::Config(format!("--username: {}", e).into());
+                err.print(use_color);
+                return ExitCode::from(err.exit_code());
+            }
+        },
+        None => None,
+    };
+    // X_API_USERNAME is lowest priority (below config file)
+    let env_username =
+        std::env::var("X_API_USERNAME")
+            .ok()
+            .and_then(|u| match schema::validate_username(&u) {
+                Ok(s) => Some(s.to_string()),
+                Err(e) => {
+                    eprintln!("[config] warning: X_API_USERNAME invalid, ignoring: {}", e);
+                    None
+                }
+            });
     let overrides = ArgOverrides {
-        client_id: cli
-            .client_id
-            .or_else(|| std::env::var("X_API_CLIENT_ID").ok()),
-        client_secret: cli
-            .client_secret
-            .or_else(|| std::env::var("X_API_CLIENT_SECRET").ok()),
-        access_token: cli
-            .access_token
-            .or_else(|| std::env::var("X_API_ACCESS_TOKEN").ok()),
-        refresh_token: cli
-            .refresh_token
-            .or_else(|| std::env::var("X_API_REFRESH_TOKEN").ok()),
-        bearer_token: std::env::var("X_API_BEARER_TOKEN").ok(),
-        username: cli.account.or_else(|| std::env::var("X_API_USERNAME").ok()),
-        oauth1_consumer_key: None,
-        oauth1_consumer_secret: None,
-        oauth1_access_token: None,
-        oauth1_access_token_secret: None,
+        username: cli_username,
+        env_username,
     };
 
     let config = match ResolvedConfig::load(overrides) {
@@ -691,29 +836,78 @@ async fn main() -> ExitCode {
         }
     };
 
-    let http_client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .timeout(Duration::from_secs(30))
-        .build()
-        .expect("failed to build HTTP client");
-
-    let cache_opts = cache::CacheOpts {
-        no_cache: cli.no_cache || !config.cache_enabled,
+    let transport = Box::new(transport::XurlTransport);
+    let cache_opts = db::CacheOpts {
+        no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
-        cache_ttl: cli.cache_ttl,
+        cache_only: cli.cache_only,
     };
-    let mut client = cache::CachedClient::new(
-        http_client,
+    let mut client = db::BirdClient::new(
+        transport,
         &config.cache_path,
         cache_opts,
         config.cache_max_size_mb,
+        config.username.clone(),
     );
 
-    match run(cli.command, config, &mut client, use_color, use_hyperlinks).await {
+    match run(cli.command, config, &mut client, use_color, cli.cache_only) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             e.print(use_color);
             ExitCode::from(e.exit_code())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bird_error_exit_codes() {
+        assert_eq!(
+            BirdError::Config("test".into()).exit_code(),
+            78,
+            "Config errors should exit 78"
+        );
+        assert_eq!(
+            BirdError::Auth("test".into()).exit_code(),
+            77,
+            "Auth errors should exit 77"
+        );
+        assert_eq!(
+            BirdError::Command {
+                name: "test",
+                source: "test".into(),
+            }
+            .exit_code(),
+            1,
+            "Command errors should exit 1"
+        );
+    }
+
+    #[test]
+    fn map_cmd_error_detects_auth() {
+        let auth_err: Box<dyn std::error::Error + Send + Sync> =
+            Box::new(transport::XurlError::Auth("unauthorized".to_string()));
+        let mapped = map_cmd_error("test", auth_err);
+        assert_eq!(
+            mapped.exit_code(),
+            77,
+            "XurlError::Auth should map to exit 77"
+        );
+    }
+
+    #[test]
+    fn map_cmd_error_preserves_command_for_non_auth() {
+        let api_err: Box<dyn std::error::Error + Send + Sync> = Box::new(
+            transport::XurlError::Process("connection failed".to_string()),
+        );
+        let mapped = map_cmd_error("profile", api_err);
+        assert_eq!(
+            mapped.exit_code(),
+            1,
+            "Non-auth XurlError should map to exit 1"
+        );
     }
 }

@@ -1,9 +1,11 @@
 //! Usage command: API cost visibility from local SQLite + optional X API sync.
 //! Reads the `usage` table for estimated costs; `--sync` fetches actuals from GET /2/usage/tweets.
 
-use crate::cache::{ActualUsageDay, CachedClient, DailyUsage, EndpointUsage, UsageSummary};
-use crate::config::ResolvedConfig;
+use crate::db::{
+    ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
+};
 use crate::output;
+use crate::requirements::AuthType;
 
 /// Parse --since into a YYYYMMDD integer for date_ymd column filtering.
 fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
@@ -35,9 +37,8 @@ fn ymd_to_display(ymd: i64) -> String {
     )
 }
 
-pub async fn run_usage(
-    client: &mut CachedClient,
-    config: &ResolvedConfig,
+pub fn run_usage(
+    client: &mut BirdClient,
     since: Option<&str>,
     sync: bool,
     pretty: bool,
@@ -46,10 +47,10 @@ pub async fn run_usage(
 
     // Check DB availability (graceful degradation per D5)
     if client.db().is_none() {
-        let msg = if client.cache_disabled() {
-            "Usage tracking requires the cache. Remove --no-cache to enable."
+        let msg = if client.db_disabled() {
+            "Usage tracking requires the store. Remove --no-cache to enable."
         } else {
-            "Cache database is unavailable. Run `bird cache clear` to reset."
+            "Store database is unavailable. Run `bird cache clear` to reset."
         };
         eprintln!("[usage] {}", msg);
         if !pretty {
@@ -85,13 +86,13 @@ pub async fn run_usage(
         if let Some(since_date) = since_date {
             let days_back = (now - since_date).num_days();
             if days_back > 90 {
-                eprintln!("[usage] warning: X API only returns 90 days of history; --since may exceed that range");
+                eprintln!(
+                    "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
+                );
             }
         }
 
-        let token =
-            crate::auth::resolve_token_for_command(client.http(), config, "usage_sync").await?;
-        match sync_actual_usage(client, &token).await? {
+        match sync_actual_usage(client)? {
             Some(actuals) => {
                 sync_status = "success";
                 Some(actuals)
@@ -176,30 +177,30 @@ fn print_usage_pretty(report: &UsageReport) {
         }
     }
 
-    if let Some(ref actuals) = report.comparison {
-        if !actuals.is_empty() {
-            let synced_at = actuals
-                .first()
-                .and_then(|a| a.synced_at)
-                .map(|ts| {
-                    chrono::DateTime::from_timestamp(ts, 0)
-                        .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
-                })
-                .unwrap_or_else(|| "unknown".to_string());
+    if let Some(ref actuals) = report.comparison
+        && !actuals.is_empty()
+    {
+        let synced_at = actuals
+            .first()
+            .and_then(|a| a.synced_at)
+            .map(|ts| {
+                chrono::DateTime::from_timestamp(ts, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
+                    .unwrap_or_else(|| "unknown".to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
 
-            println!("\nEstimated vs Actual (synced {})", synced_at);
-            println!("{}", "-".repeat(50));
+        println!("\nEstimated vs Actual (synced {})", synced_at);
+        println!("{}", "-".repeat(50));
+        println!(
+            "  {:<12} {:<14} {:<8} Diff",
+            "Date", "Est. tweets", "Actual"
+        );
+        for actual in actuals {
             println!(
-                "  {:<12} {:<14} {:<8} Diff",
-                "Date", "Est. tweets", "Actual"
+                "  {:<12} {:<14} {:<8}",
+                actual.date, "-", actual.tweet_count
             );
-            for actual in actuals {
-                println!(
-                    "  {:<12} {:<14} {:<8}",
-                    actual.date, "-", actual.tweet_count
-                );
-            }
         }
     }
 }
@@ -211,48 +212,33 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
         .unwrap_or(0)
 }
 
-async fn sync_actual_usage(
-    client: &mut CachedClient,
-    token: &crate::auth::CommandToken,
+/// Sync actual usage from X API via xurl with `--auth app` (Bearer token).
+fn sync_actual_usage(
+    client: &mut BirdClient,
 ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
-    use reqwest::header::HeaderMap;
+    let url = "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage";
 
-    let access = match token {
-        crate::auth::CommandToken::Bearer { token, .. } => token,
-        crate::auth::CommandToken::OAuth1 => {
-            return Err("--sync requires a Bearer token".into());
-        }
+    // Usage sync requires Bearer (app-only) auth
+    let auth_type = AuthType::Bearer;
+    let ctx = RequestContext {
+        auth_type: &auth_type,
+        username: None,
     };
 
-    let url = "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage";
-    let mut headers = HeaderMap::new();
-    headers.insert("Authorization", format!("Bearer {}", access).parse()?);
-
-    // Bypass cache — always want fresh usage data from X (http_get logs automatically)
-    let response = client.http_get(url, headers).await?;
+    let response = client.get(url, &ctx)?;
 
     // Graceful degradation: show local data on sync failure (D5)
-    if response.status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        let reset_msg = parse_rate_limit_reset(&response.headers)
-            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
-            .map(|dt| format!("Resets at {}.", dt.format("%H:%M UTC")))
-            .unwrap_or_default();
-        eprintln!(
-            "[usage] Rate limited (429). {} Showing local data only.",
-            reset_msg
-        );
-        return Ok(None);
-    }
-    if !response.status.is_success() {
-        eprintln!(
-            "[usage] Sync failed ({}: {}). Showing local data only.",
-            response.status,
-            output::sanitize_for_stderr(&response.body, 100)
-        );
+    if !response.is_success() {
+        let msg = output::sanitize_for_stderr(&response.body, 200);
+        if response.body.contains("429") || response.body.contains("Too Many") {
+            eprintln!("[usage] Rate limited. Showing local data only.");
+        } else {
+            eprintln!("[usage] Sync failed: {}. Showing local data only.", msg);
+        }
         return Ok(None);
     }
 
-    let body: serde_json::Value = serde_json::from_str(&response.body)?;
+    let body = response.json.ok_or("invalid JSON from /2/usage/tweets")?;
     let daily = body
         .pointer("/data/daily_project_usage")
         .and_then(|d| d.as_array())
@@ -303,23 +289,6 @@ async fn sync_actual_usage(
         results.len()
     );
     Ok(Some(results))
-}
-
-/// Parse x-rate-limit-reset header and validate bounds.
-fn parse_rate_limit_reset(headers: &reqwest::header::HeaderMap) -> Option<i64> {
-    let ts: i64 = headers
-        .get("x-rate-limit-reset")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse().ok())?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    // Reject timestamps in the past or more than 1 hour in the future
-    if ts < now || ts > now + 3600 {
-        return None;
-    }
-    Some(ts)
 }
 
 /// Build an empty report for machine consumers when DB is unavailable.

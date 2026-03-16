@@ -146,9 +146,22 @@ The cache DB file is pre-created with `0o600` permissions before SQLite opens it
 - `cost::tests` — cache hit zero cost, tweet/user counting, includes counting, bookmarks endpoint, empty response
 - `doctor::tests` — updated with `no_cache_client()` helper
 
+## Migration Notice (2026-02-18)
+
+This request-level cache (`CachedClient` + `cache.db`) has been replaced by an entity-level store (`BirdClient` + `bird.db`). The new system:
+
+- Stores entities (tweets, users) by ID instead of full HTTP responses
+- Uses UTC-day freshness instead of per-endpoint TTLs (aligned with X API billing)
+- Splits batch requests to only fetch stale/missing entities
+- Shares entity data across auth methods (OAuth1/OAuth2/Bearer)
+
+See `src/db/` for the new implementation: `db.rs` (entity store), `client.rs` (transport layer), `usage.rs` (usage tracking).
+
+The old `src/cache/` module has been removed. The concepts in this document (graceful degradation, WAL mode, anti-tamper, file permissions, cost display) carry forward into the new system.
+
 ## Prevention Strategies
 
-- **Regression guard**: The 14 cache unit tests cover all cache key, TTL, expiry, and prune logic. Any behavioral change will break tests.
+- **Regression guard**: 49 entity store tests (32 db + 17 client) cover entity CRUD, freshness, batch splitting, decomposition, and cache key logic.
 - **Cost visibility**: The stderr `[cost]` line makes billing impact visible on every request — developers notice cost problems immediately.
-- **Graceful degradation test**: The `Option<BirdDb>` pattern means any cache test that opens a real DB also implicitly tests the fallback path when `db = None`.
-- **Permission test**: Verify `0o600` on cache.db in CI to catch permission regressions.
+- **Graceful degradation test**: The `Option<BirdDb>` pattern means any store test that opens a real DB also implicitly tests the fallback path when `db = None`.
+- **Permission test**: Verify `0o600` on bird.db in CI to catch permission regressions.

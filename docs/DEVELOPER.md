@@ -62,7 +62,7 @@ Location: `~/.config/bird/config.toml` (XDG). Example:
 # client_id = "your_oauth2_client_id"
 # client_secret = "your_oauth2_client_secret"   # only for confidential client
 # redirect_uri = "http://127.0.0.1:8765/callback"
-# username = "your_handle"   # which stored account to use
+# username = "your_handle"   # which xurl username for multi-user token selection
 ```
 
 Redirect URI must be `http://127.0.0.1:8765/callback` in the X Developer Portal for local login.

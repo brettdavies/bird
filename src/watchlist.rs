@@ -1,30 +1,13 @@
-//! Watchlist command: manage and check a curated list of X/Twitter accounts.
+//! Watchlist command: manage and check a curated list of X users.
 //! Config-driven (config.toml), uses toml_edit for formatting-preserving writes.
 
 use crate::config::{FileConfig, ResolvedConfig};
+use crate::db::{BirdClient, RequestContext};
+use crate::fields;
+use crate::requirements::AuthType;
+use crate::schema;
 use std::path::Path;
 use toml_edit::{Array, DocumentMut, Item};
-
-/// Validate a username (after @ stripping). Called before any TOML modification.
-fn validate_username(username: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if username.is_empty() {
-        return Err("username must not be empty".into());
-    }
-    if username.len() > 15 {
-        return Err(format!("username '{}' exceeds X's 15-character limit", username).into());
-    }
-    if !username
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        return Err(format!(
-            "username '{}' contains invalid characters (only a-z, A-Z, 0-9, _ allowed)",
-            username
-        )
-        .into());
-    }
-    Ok(())
-}
 
 /// Load watchlist from config.toml. Returns empty vec if file missing.
 fn load_watchlist(
@@ -48,17 +31,17 @@ fn add_to_watchlist(
     let mut doc = content.parse::<DocumentMut>()?;
 
     // Check for duplicates (case-insensitive)
-    if let Some(existing) = doc.get("watchlist") {
-        if let Some(arr) = existing.as_array() {
-            for val in arr.iter() {
-                if val
-                    .as_str()
-                    .map(|u| u.eq_ignore_ascii_case(username))
-                    .unwrap_or(false)
-                {
-                    eprintln!("@{} is already in the watchlist.", username);
-                    return Ok(());
-                }
+    if let Some(existing) = doc.get("watchlist")
+        && let Some(arr) = existing.as_array()
+    {
+        for val in arr.iter() {
+            if val
+                .as_str()
+                .map(|u| u.eq_ignore_ascii_case(username))
+                .unwrap_or(false)
+            {
+                eprintln!("@{} is already in the watchlist.", username);
+                return Ok(());
             }
         }
     }
@@ -144,7 +127,7 @@ pub fn run_watchlist_list(
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add accounts with: bird watchlist add <username>");
+        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
     }
 
     if pretty {
@@ -155,25 +138,24 @@ pub fn run_watchlist_list(
     Ok(())
 }
 
-/// `bird watchlist add <username>` — add an account to the watchlist (idempotent).
+/// `bird watchlist add <username>` — add a user to the watchlist (idempotent).
 pub fn run_watchlist_add(
     config: &ResolvedConfig,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let clean = username.strip_prefix('@').unwrap_or(username);
-    validate_username(clean)?;
+    let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     add_to_watchlist(&config_path, clean)?;
     eprintln!("Added @{} to watchlist.", clean);
     Ok(())
 }
 
-/// `bird watchlist remove <username>` — remove an account from the watchlist (idempotent).
+/// `bird watchlist remove <username>` — remove a user from the watchlist (idempotent).
 pub fn run_watchlist_remove(
     config: &ResolvedConfig,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let clean = username.strip_prefix('@').unwrap_or(username);
+    let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     let removed = remove_from_watchlist(&config_path, clean)?;
     if removed {
@@ -184,24 +166,27 @@ pub fn run_watchlist_remove(
     Ok(())
 }
 
-/// `bird watchlist check` — check recent activity for all watched accounts.
-/// Streams NDJSON (one JSON object per line) per account as they complete.
-pub async fn run_watchlist_check(
-    client: &mut crate::cache::CachedClient,
+/// `bird watchlist check` — check recent activity for all watched users.
+/// Streams NDJSON (one JSON object per line) per user as they complete.
+pub fn run_watchlist_check(
+    client: &mut BirdClient,
     config: &ResolvedConfig,
     pretty: bool,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add accounts with: bird watchlist add <username>");
+        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
         return Ok(());
     }
 
-    let token =
-        crate::auth::resolve_token_for_command(client.http(), config, "watchlist_check").await?;
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
 
     use std::io::Write;
     let stdout = std::io::stdout();
@@ -219,7 +204,7 @@ pub async fn run_watchlist_check(
         let query = format!("from:{} -is:retweet", username);
         let search_url = build_check_url(&query);
 
-        let activity = match execute_check(client, config, &token, &search_url, use_color).await {
+        let activity = match execute_check(client, &ctx, &search_url, use_color) {
             Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
                 username: username.clone(),
                 recent_tweets: tweet_count,
@@ -250,40 +235,26 @@ pub async fn run_watchlist_check(
 
 fn build_check_url(query: &str) -> String {
     let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
-    url.query_pairs_mut()
-        .append_pair("query", query)
-        .append_pair("max_results", "10")
-        .append_pair("tweet.fields", "created_at,public_metrics,author_id")
-        .append_pair("expansions", "author_id")
-        .append_pair("user.fields", "username,name,public_metrics");
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("query", query);
+        pairs.append_pair("max_results", "10");
+        for (key, value) in fields::tweet_query_params() {
+            pairs.append_pair(key, value);
+        }
+    }
     url.to_string()
 }
 
-async fn execute_check(
-    client: &mut crate::cache::CachedClient,
-    config: &ResolvedConfig,
-    token: &crate::auth::CommandToken,
+fn execute_check(
+    client: &mut BirdClient,
+    ctx: &RequestContext<'_>,
     url: &str,
     use_color: bool,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
-    use crate::auth::CommandToken;
-    use crate::cache::RequestContext;
-    use reqwest::header::HeaderMap;
+    let response = client.get(url, ctx)?;
 
-    let response = match token {
-        CommandToken::Bearer { token, auth_type } => {
-            let mut headers = HeaderMap::new();
-            headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-            let ctx = RequestContext {
-                auth_type,
-                username: config.username.as_deref(),
-            };
-            client.get(url, &ctx, headers).await?
-        }
-        CommandToken::OAuth1 => client.oauth1_request("GET", url, config, None).await?,
-    };
-
-    if !response.status.is_success() {
+    if !response.is_success() {
         return Err(format!(
             "GET search {}: {}",
             response.status,
@@ -359,34 +330,6 @@ mod tests {
 
     fn setup_config_dir() -> TempDir {
         TempDir::new().unwrap()
-    }
-
-    // -- validate_username tests --
-
-    #[test]
-    fn validate_username_valid() {
-        assert!(validate_username("elonmusk").is_ok());
-        assert!(validate_username("a").is_ok());
-        assert!(validate_username("user_name_123").is_ok());
-        assert!(validate_username("A_B_C").is_ok());
-    }
-
-    #[test]
-    fn validate_username_empty() {
-        assert!(validate_username("").is_err());
-    }
-
-    #[test]
-    fn validate_username_too_long() {
-        assert!(validate_username("abcdefghijklmnop").is_err()); // 16 chars
-    }
-
-    #[test]
-    fn validate_username_invalid_chars() {
-        assert!(validate_username("user-name").is_err());
-        assert!(validate_username("user.name").is_err());
-        assert!(validate_username("user name").is_err());
-        assert!(validate_username("user@name").is_err());
     }
 
     // -- load_watchlist tests --

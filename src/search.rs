@@ -1,17 +1,11 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
-use crate::auth::{resolve_token_for_command, CommandToken};
-use crate::cache::{CachedClient, RequestContext};
-use crate::config::ResolvedConfig;
 use crate::cost;
+use crate::db::{BirdClient, RequestContext};
+use crate::fields;
 use crate::output;
-use reqwest::header::HeaderMap;
+use crate::requirements::AuthType;
 use std::collections::HashSet;
-
-// Sensible defaults for research workflows. Extract to shared module when Plan 3 needs it.
-const TWEET_FIELDS: &str = "created_at,public_metrics,author_id,conversation_id,referenced_tweets";
-const USER_FIELDS: &str = "username,name";
-const EXPANSIONS: &str = "author_id";
 
 /// Search options bundled to avoid clippy::too_many_arguments.
 pub struct SearchOpts<'a> {
@@ -23,11 +17,11 @@ pub struct SearchOpts<'a> {
     pub pages: u32,
 }
 
-pub async fn run_search(
-    client: &mut CachedClient,
-    config: &ResolvedConfig,
+pub fn run_search(
+    client: &mut BirdClient,
     opts: SearchOpts<'_>,
     use_color: bool,
+    auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Validate sort key before any API calls (fail fast)
     if !matches!(opts.sort, "recent" | "likes") {
@@ -39,7 +33,11 @@ pub async fn run_search(
     }
 
     let effective_query = apply_noise_reduction(opts.query);
-    let token = resolve_token_for_command(client.http(), config, "search").await?;
+
+    let ctx = RequestContext {
+        auth_type,
+        username: None,
+    };
 
     let mut all_tweets: Vec<serde_json::Value> = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
@@ -51,20 +49,9 @@ pub async fn run_search(
     for page_num in 1..=opts.pages {
         let url = build_search_url(&effective_query, opts.max_results, next_token.as_deref());
 
-        let response = match &token {
-            CommandToken::Bearer { token, auth_type } => {
-                let mut headers = HeaderMap::new();
-                headers.insert("Authorization", format!("Bearer {}", token).parse()?);
-                let ctx = RequestContext {
-                    auth_type,
-                    username: config.username.as_deref(),
-                };
-                client.get(&url, &ctx, headers).await?
-            }
-            CommandToken::OAuth1 => client.oauth1_request("GET", &url, config, None).await?,
-        };
+        let response = client.get(&url, &ctx)?;
 
-        if !response.status.is_success() {
+        if !response.is_success() {
             return Err(format!(
                 "GET search {}: {}",
                 response.status,
@@ -75,7 +62,6 @@ pub async fn run_search(
 
         let page = response.json.ok_or("invalid JSON from search")?;
 
-        // Manual cost display per page
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
         cost::display_cost(&estimate, use_color);
 
@@ -95,10 +81,10 @@ pub async fn run_search(
             if is_retweet(tweet) {
                 continue;
             }
-            if let Some(min) = opts.min_likes {
-                if extract_metric(tweet, "like_count") < min {
-                    continue;
-                }
+            if let Some(min) = opts.min_likes
+                && extract_metric(tweet, "like_count") < min
+            {
+                continue;
             }
             seen_ids.insert(id.to_string());
             all_tweets.push(tweet.clone());
@@ -107,13 +93,13 @@ pub async fn run_search(
         pages_fetched = page_num;
 
         // Collect included users (deduplicated across pages)
-        if let Some(includes) = page.get("includes") {
-            if let Some(users) = includes.get("users").and_then(|u| u.as_array()) {
-                for user in users {
-                    let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                    if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
-                        all_users.push(user.clone());
-                    }
+        if let Some(includes) = page.get("includes")
+            && let Some(users) = includes.get("users").and_then(|u| u.as_array())
+        {
+            for user in users {
+                let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
+                    all_users.push(user.clone());
                 }
             }
         }
@@ -139,7 +125,7 @@ pub async fn run_search(
 
         // Rate limiting between pages
         if page_num < opts.pages {
-            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            std::thread::sleep(std::time::Duration::from_millis(150));
         }
     }
 
@@ -170,12 +156,14 @@ pub async fn run_search(
 
 fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> String {
     let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
-    url.query_pairs_mut()
-        .append_pair("query", query)
-        .append_pair("tweet.fields", TWEET_FIELDS)
-        .append_pair("user.fields", USER_FIELDS)
-        .append_pair("expansions", EXPANSIONS)
-        .append_pair("max_results", &max_results.to_string());
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("query", query);
+        for (key, value) in fields::tweet_query_params() {
+            pairs.append_pair(key, value);
+        }
+        pairs.append_pair("max_results", &max_results.to_string());
+    }
     if let Some(token) = next_token {
         url.query_pairs_mut().append_pair("next_token", token);
     }
@@ -262,7 +250,6 @@ mod tests {
     #[test]
     fn build_url_escapes_query() {
         let url = build_search_url("test&evil=true", 100, None);
-        // The & should be encoded, not treated as a param separator
         assert!(url.contains("query=test%26evil%3Dtrue"));
     }
 
@@ -332,7 +319,6 @@ mod tests {
 
     #[test]
     fn noise_reduction_ignores_substrings() {
-        // "crisis:retweet" contains "is:retweet" as a substring but is NOT the operator
         assert_eq!(
             apply_noise_reduction("crisis:retweet analysis"),
             "crisis:retweet analysis -is:retweet"
