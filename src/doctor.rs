@@ -232,7 +232,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     if report.auth.authenticated {
         if let Some(ref username) = report.auth.username {
             out.push_str(&format!(
-                "  user: {}\n",
+                "  username: {}\n",
                 output::muted(&format!("@{}", username), use_color)
             ));
         }

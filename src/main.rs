@@ -101,9 +101,9 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 
-    /// Account name for multi-account token selection (maps to xurl -u)
-    #[arg(long, global = true)]
-    account: Option<String>,
+    /// Username for multi-user token selection (maps to xurl -u)
+    #[arg(long, short = 'u', global = true)]
+    username: Option<String>,
 
     /// Plain output (no color, no hyperlinks; script-friendly)
     #[arg(long, global = true)]
@@ -239,7 +239,7 @@ enum Command {
         pretty: bool,
     },
 
-    /// Monitor accounts: check recent activity, manage watchlist
+    /// Monitor users: check recent activity, manage watchlist
     Watchlist {
         #[command(subcommand)]
         action: WatchlistCommand,
@@ -374,14 +374,14 @@ enum CacheAction {
 
 #[derive(clap::Subcommand)]
 enum WatchlistCommand {
-    /// Check recent activity for all watched accounts
+    /// Check recent activity for all watched users
     Check,
-    /// Add an account to the watchlist
+    /// Add a user to the watchlist
     Add {
         /// X/Twitter username (with or without @)
         username: String,
     },
-    /// Remove an account from the watchlist
+    /// Remove a user from the watchlist
     Remove {
         /// X/Twitter username to remove
         username: String,
@@ -401,11 +401,11 @@ fn default_auth_type(command_name: &str) -> requirements::AuthType {
 /// Call xurl for a write command and print the JSON result.
 fn xurl_write_call(
     args: &[&str],
-    account: Option<&str>,
+    username: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut full_args: Vec<&str> = Vec::new();
-    if let Some(acct) = account {
-        full_args.extend(["-u", acct]);
+    if let Some(u) = username {
+        full_args.extend(["-u", u]);
     }
     full_args.extend_from_slice(args);
     let json = transport::xurl_call(&full_args)?;
@@ -615,7 +615,7 @@ fn run(
         }
         // -- Write commands (xurl passthrough) --
         Command::Tweet { text, media_id } => {
-            let account = config.username.as_deref();
+            let username = config.username.as_deref();
             xurl_write(cache_only, "tweet", || {
                 let mut args = vec!["post", &text];
                 let media_owned;
@@ -623,58 +623,58 @@ fn run(
                     media_owned = id.clone();
                     args.extend(["--media-id", &media_owned]);
                 }
-                xurl_write_call(&args, account)
+                xurl_write_call(&args, username)
             })?;
         }
         Command::Reply { tweet_id, text } => {
-            let account = config.username.as_deref();
+            let username = config.username.as_deref();
             xurl_write(cache_only, "reply", || {
-                xurl_write_call(&["reply", &tweet_id, &text], account)
+                xurl_write_call(&["reply", &tweet_id, &text], username)
             })?;
         }
         Command::Like { tweet_id } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id], account))?;
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id], username))?;
         }
         Command::Unlike { tweet_id } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id], account))?;
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id], username))?;
         }
         Command::Repost { tweet_id } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id], account))?;
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id], username))?;
         }
         Command::Unrepost { tweet_id } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id], account))?;
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id], username))?;
         }
-        Command::Follow { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &username], account))?;
+        Command::Follow { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &target], username))?;
         }
-        Command::Unfollow { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &username], account))?;
+        Command::Unfollow { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &target], username))?;
         }
-        Command::Dm { username, text } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &username, &text], account))?;
+        Command::Dm { username: target, text } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &target, &text], username))?;
         }
-        Command::Block { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "block", || xurl_write_call(&["block", &username], account))?;
+        Command::Block { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "block", || xurl_write_call(&["block", &target], username))?;
         }
-        Command::Unblock { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &username], account))?;
+        Command::Unblock { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &target], username))?;
         }
-        Command::Mute { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &username], account))?;
+        Command::Mute { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &target], username))?;
         }
-        Command::Unmute { username } => {
-            let account = config.username.as_deref();
-            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &username], account))?;
+        Command::Unmute { username: target } => {
+            let username = config.username.as_deref();
+            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &target], username))?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
@@ -777,12 +777,12 @@ fn main() -> ExitCode {
         return ExitCode::from(err.exit_code());
     }
 
-    // Validate --account if provided (strips @, checks charset)
-    let cli_account = match cli.account {
-        Some(ref acct) => match schema::validate_username(acct) {
+    // Validate --username if provided (strips @, checks charset)
+    let cli_username = match cli.username {
+        Some(ref raw) => match schema::validate_username(raw) {
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
-                let err = BirdError::Config(format!("--account: {}", e).into());
+                let err = BirdError::Config(format!("--username: {}", e).into());
                 err.print(use_color);
                 return ExitCode::from(err.exit_code());
             }
@@ -800,7 +800,7 @@ fn main() -> ExitCode {
         }
     });
     let overrides = ArgOverrides {
-        username: cli_account,
+        username: cli_username,
         env_username,
     };
 

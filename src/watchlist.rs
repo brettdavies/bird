@@ -1,4 +1,4 @@
-//! Watchlist command: manage and check a curated list of X/Twitter accounts.
+//! Watchlist command: manage and check a curated list of X users.
 //! Config-driven (config.toml), uses toml_edit for formatting-preserving writes.
 
 use crate::config::{FileConfig, ResolvedConfig};
@@ -127,7 +127,7 @@ pub fn run_watchlist_list(
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add accounts with: bird watchlist add <username>");
+        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
     }
 
     if pretty {
@@ -138,7 +138,7 @@ pub fn run_watchlist_list(
     Ok(())
 }
 
-/// `bird watchlist add <username>` — add an account to the watchlist (idempotent).
+/// `bird watchlist add <username>` — add a user to the watchlist (idempotent).
 pub fn run_watchlist_add(
     config: &ResolvedConfig,
     username: &str,
@@ -150,7 +150,7 @@ pub fn run_watchlist_add(
     Ok(())
 }
 
-/// `bird watchlist remove <username>` — remove an account from the watchlist (idempotent).
+/// `bird watchlist remove <username>` — remove a user from the watchlist (idempotent).
 pub fn run_watchlist_remove(
     config: &ResolvedConfig,
     username: &str,
@@ -166,8 +166,8 @@ pub fn run_watchlist_remove(
     Ok(())
 }
 
-/// `bird watchlist check` — check recent activity for all watched accounts.
-/// Streams NDJSON (one JSON object per line) per account as they complete.
+/// `bird watchlist check` — check recent activity for all watched users.
+/// Streams NDJSON (one JSON object per line) per user as they complete.
 pub fn run_watchlist_check(
     client: &mut BirdClient,
     config: &ResolvedConfig,
@@ -179,7 +179,7 @@ pub fn run_watchlist_check(
     let entries = load_watchlist(&config_path)?;
 
     if entries.is_empty() {
-        eprintln!("Watchlist is empty. Add accounts with: bird watchlist add <username>");
+        eprintln!("Watchlist is empty. Add users with: bird watchlist add <username>");
         return Ok(());
     }
 

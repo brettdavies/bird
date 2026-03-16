@@ -80,25 +80,25 @@ fn watchlist_add_remove_list() {
 }
 
 #[test]
-fn account_invalid_chars_rejected() {
+fn username_invalid_chars_rejected() {
     let tmp = tempfile::TempDir::new().unwrap();
     bird()
-        .args(["--account", "'; DROP TABLE", "doctor"])
+        .args(["--username", "'; DROP TABLE", "doctor"])
         .env("HOME", tmp.path())
         .env("NO_COLOR", "1")
         .assert()
         .failure()
         .code(78)
-        .stderr(predicate::str::contains("--account"));
+        .stderr(predicate::str::contains("--username"));
 }
 
 #[test]
-fn account_at_prefix_normalized() {
+fn username_at_prefix_normalized() {
     // @validuser should be accepted (normalized to validuser).
-    // Doctor runs successfully — the account value is valid after stripping @.
+    // Doctor runs successfully — the username value is valid after stripping @.
     let tmp = tempfile::TempDir::new().unwrap();
     bird()
-        .args(["--account", "@validuser", "doctor"])
+        .args(["--username", "@validuser", "doctor"])
         .env("HOME", tmp.path())
         .env("NO_COLOR", "1")
         .assert()

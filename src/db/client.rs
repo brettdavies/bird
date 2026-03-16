@@ -215,8 +215,8 @@ pub struct BirdClient {
     transport: Box<dyn Transport>,
     db: Option<BirdDb>,
     cache_opts: CacheOpts,
-    /// Username for --account flag (maps to xurl -u)
-    account: Option<String>,
+    /// Username for xurl -u flag (multi-user token selection)
+    username: Option<String>,
 }
 
 impl BirdClient {
@@ -226,14 +226,14 @@ impl BirdClient {
         store_path: &Path,
         cache_opts: CacheOpts,
         max_size_mb: u64,
-        account: Option<String>,
+        username: Option<String>,
     ) -> Self {
         if cache_opts.no_store {
             return Self {
                 transport,
                 db: None,
                 cache_opts,
-                account,
+                username,
             };
         }
         let db = match BirdDb::open(store_path, max_size_mb) {
@@ -261,7 +261,7 @@ impl BirdClient {
             transport,
             db,
             cache_opts,
-            account,
+            username,
         }
     }
 
@@ -356,8 +356,8 @@ impl BirdClient {
         if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
             args.extend_from_slice(&["--auth".into(), flag.into()]);
         }
-        if let Some(ref account) = self.account {
-            args.extend_from_slice(&["-u".into(), account.clone()]);
+        if let Some(ref username) = self.username {
+            args.extend_from_slice(&["-u".into(), username.clone()]);
         }
         if let Some(b) = body {
             args.extend_from_slice(&["-d".into(), b.into()]);
@@ -436,14 +436,14 @@ impl BirdClient {
 
     // -- Private helpers --
 
-    /// Build xurl args for a GET request with auth and account flags.
+    /// Build xurl args for a GET request with auth and username flags.
     fn build_get_args(&self, url: &str, ctx: &RequestContext<'_>) -> Vec<String> {
         let mut args: Vec<String> = Vec::new();
         if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
             args.extend_from_slice(&["--auth".into(), flag.into()]);
         }
-        if let Some(ref account) = self.account {
-            args.extend_from_slice(&["-u".into(), account.clone()]);
+        if let Some(ref username) = self.username {
+            args.extend_from_slice(&["-u".into(), username.clone()]);
         }
         args.push(url.into());
         args
@@ -750,7 +750,7 @@ mod tests {
             transport: Box::new(MockTransport::new(vec![])),
             db: Some(db),
             cache_opts: CacheOpts::default(),
-            account: None,
+            username: None,
         }
     }
 
