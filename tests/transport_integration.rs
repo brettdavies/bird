@@ -164,8 +164,10 @@ fn no_color_env_suppresses_ansi() {
     );
 }
 
+/// Doctor now bypasses the xurl fail-fast check and reports xurl status via stdout JSON.
+/// These tests verify that doctor succeeds (exit 0) and reports xurl as unavailable.
 #[test]
-fn bird_xurl_path_nonexistent_does_not_crash() {
+fn bird_xurl_path_nonexistent_doctor_reports_unavailable() {
     #[allow(deprecated)]
     let output = assert_cmd::Command::cargo_bin("bird")
         .unwrap()
@@ -176,16 +178,17 @@ fn bird_xurl_path_nonexistent_does_not_crash() {
         .output()
         .unwrap();
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("does not exist"),
-        "Should report nonexistent path, got stderr={}",
-        stderr
+        output.status.success(),
+        "doctor should exit 0 even without xurl"
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["xurl"]["available"], false);
 }
 
 #[test]
-fn bird_xurl_path_directory_rejected() {
+fn bird_xurl_path_directory_doctor_reports_unavailable() {
     let tmp = tempfile::TempDir::new().unwrap();
     #[allow(deprecated)]
     let output = assert_cmd::Command::cargo_bin("bird")
@@ -197,17 +200,18 @@ fn bird_xurl_path_directory_rejected() {
         .output()
         .unwrap();
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("is not a file"),
-        "Should reject directory path, got stderr={}",
-        stderr
+        output.status.success(),
+        "doctor should exit 0 even with invalid xurl path"
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["xurl"]["available"], false);
 }
 
 #[cfg(unix)]
 #[test]
-fn bird_xurl_path_not_executable_rejected() {
+fn bird_xurl_path_not_executable_doctor_reports_unavailable() {
     let tmp = tempfile::TempDir::new().unwrap();
     let path = tmp.path().join("fake_xurl");
     fs::write(&path, "not a script").unwrap();
@@ -223,10 +227,37 @@ fn bird_xurl_path_not_executable_rejected() {
         .output()
         .unwrap();
 
+    assert!(
+        output.status.success(),
+        "doctor should exit 0 even with non-executable xurl"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["xurl"]["available"], false);
+}
+
+/// API commands should still fail-fast when xurl is missing (exit 78).
+#[test]
+fn bird_me_without_xurl_still_fails_fast() {
+    #[allow(deprecated)]
+    let output = assert_cmd::Command::cargo_bin("bird")
+        .unwrap()
+        .args(["me"])
+        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_binary_12345")
+        .env("HOME", tempfile::TempDir::new().unwrap().path())
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(78),
+        "API commands should exit 78 when xurl is missing"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("is not executable"),
-        "Should reject non-executable file, got stderr={}",
+        stderr.contains("does not exist"),
+        "Should report xurl not found on stderr, got: {}",
         stderr
     );
 }
