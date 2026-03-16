@@ -31,6 +31,9 @@ const KILL_GRACE_SECS: u64 = 5;
 /// Minimum supported xurl version.
 const MIN_VERSION: &str = "1.0.3";
 
+/// Centralized xurl install guidance (DRY across transport.rs and doctor.rs).
+pub const XURL_INSTALL_HINT: &str = "Install xurl: brew install xdevplatform/tap/xurl (or download from https://github.com/xdevplatform/xurl/releases)";
+
 /// Cached absolute path to the xurl binary, resolved once at startup.
 static XURL_PATH: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
@@ -63,8 +66,7 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
             }
             return Ok(p);
         }
-        which::which("xurl")
-            .map_err(|_| "xurl not found. Install: brew install xdevplatform/tap/xurl".to_string())
+        which::which("xurl").map_err(|_| format!("xurl not found. {}", XURL_INSTALL_HINT))
     });
     match result {
         Ok(p) => Ok(p.as_path()),
@@ -154,9 +156,10 @@ pub fn xurl_call(
     {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(Box::new(XurlError::NotFound(
-                "xurl not found. Install: brew install xdevplatform/tap/xurl".into(),
-            )));
+            return Err(Box::new(XurlError::NotFound(format!(
+                "xurl not found. {}",
+                XURL_INSTALL_HINT
+            ))));
         }
         Err(e) => {
             return Err(Box::new(XurlError::Process(format!(
@@ -219,9 +222,10 @@ pub fn xurl_passthrough(args: &[&str]) -> Result<(), Box<dyn std::error::Error +
         .status()
         .map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                Box::new(XurlError::NotFound(
-                    "xurl not found. Install: brew install xdevplatform/tap/xurl".into(),
-                )) as Box<dyn std::error::Error + Send + Sync>
+                Box::new(XurlError::NotFound(format!(
+                    "xurl not found. {}",
+                    XURL_INSTALL_HINT
+                ))) as Box<dyn std::error::Error + Send + Sync>
             } else {
                 Box::new(XurlError::Process(format!("failed to run xurl: {}", e)))
                     as Box<dyn std::error::Error + Send + Sync>
