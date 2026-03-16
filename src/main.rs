@@ -356,6 +356,13 @@ enum Command {
         #[command(subcommand)]
         action: CacheAction,
     },
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(clap::Subcommand)]
@@ -698,11 +705,11 @@ fn run(
                 xurl_write_call(&["unmute", &target], username)
             })?;
         }
-        Command::Doctor { command, pretty } => {
-            let scope = command.as_deref();
-            let use_emoji = use_color && pretty;
-            doctor::run_doctor(client, pretty, scope, use_color, use_emoji)
-                .map_err(|e| map_cmd_error("doctor", e))?;
+        Command::Doctor { .. } => {
+            unreachable!("doctor is handled before the xurl gate in main()")
+        }
+        Command::Completions { .. } => {
+            unreachable!("completions is handled before config init in main()")
         }
         Command::Cache { action } => match action {
             CacheAction::Clear => match client.db_clear() {
@@ -773,6 +780,14 @@ fn run(
 }
 
 fn main() -> ExitCode {
+    // Restore default SIGPIPE handling so piped commands exit cleanly.
+    // Without this, Rust masks SIGPIPE and all writes to closed pipes panic.
+    // The `libc` crate is already a dependency.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -792,12 +807,13 @@ fn main() -> ExitCode {
 
     let use_color = use_color_from_cli(cli.plain, cli.no_color);
 
-    // Fail-fast if xurl is not installed
-    if let Err(e) = transport::resolve_xurl_path() {
-        let err = BirdError::Config(e);
-        err.print(use_color);
-        return ExitCode::from(err.exit_code());
+    // --- Meta-commands: need nothing beyond parsed args ---
+    if let Command::Completions { shell } = &cli.command {
+        clap_complete::generate(*shell, &mut Cli::command(), "bird", &mut std::io::stdout());
+        return ExitCode::SUCCESS;
     }
+
+    // --- Username validation + config + DB init (no xurl needed) ---
 
     // Validate --username if provided (strips @, checks charset)
     let cli_username = match cli.username {
@@ -849,6 +865,30 @@ fn main() -> ExitCode {
         config.cache_max_size_mb,
         config.username.clone(),
     );
+
+    // --- Diagnostic commands: need config/DB but not xurl ---
+    if let Command::Doctor { command, pretty } = &cli.command {
+        let scope = command.as_deref();
+        let use_emoji = use_color && *pretty;
+        match doctor::run_doctor(&client, *pretty, scope, use_color, use_emoji) {
+            Ok(()) => return ExitCode::SUCCESS,
+            Err(e) => {
+                let err = BirdError::Command {
+                    name: "doctor",
+                    source: e,
+                };
+                err.print(use_color);
+                return ExitCode::from(err.exit_code());
+            }
+        }
+    }
+
+    // --- xurl gate: only for API commands ---
+    if let Err(e) = transport::resolve_xurl_path() {
+        let err = BirdError::Config(e);
+        err.print(use_color);
+        return ExitCode::from(err.exit_code());
+    }
 
     match run(cli.command, config, &mut client, use_color, cli.cache_only) {
         Ok(()) => ExitCode::SUCCESS,
