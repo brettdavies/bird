@@ -15,26 +15,45 @@ git push origin main --tags
 
 This triggers `.github/workflows/release.yml` which:
 
-- Builds binaries for 3 targets (linux x86_64, macos aarch64, windows x86_64)
-- Creates a GitHub Release with all binaries attached
+- Verifies the tag matches `Cargo.toml` version
+- Runs `cargo deny` (license + advisory + ban checking)
+- Builds binaries for 5 targets (linux x86_64/aarch64, macos x86_64/aarch64, windows x86_64)
+- Ad-hoc codesigns macOS binaries
+- Creates `.tar.gz` archives with binary + LICENSE + README
+- Publishes to crates.io
+- Generates changelog via git-cliff
+- Creates a GitHub Release with archives attached
+- Dispatches a `repository_dispatch` event to `brettdavies/homebrew-tap`, which automatically updates the formula's version and SHA256
 
-Changelog is auto-generated on every push to main via git-cliff.
+### Pipeline order
+
+```text
+check-version + audit -> build (5 targets) -> publish-crate -> release -> homebrew
+```
+
+`cargo publish` runs BEFORE GitHub Release creation. If publish fails, no release
+is advertised and no Homebrew update is triggered.
 
 ## Required GitHub Secrets
 
 | Secret | Purpose | Rotation |
 |--------|---------|----------|
+| `CARGO_REGISTRY_TOKEN` | crates.io API token | Remove after Trusted Publishing is configured |
 | `HOMEBREW_TAP_TOKEN` | Fine-grained PAT with `contents:write` on `brettdavies/homebrew-tap` | Max 1 year; renew before expiry |
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions.
 
-## Future: crates.io Publishing
+Both secrets are stored in 1Password (`secrets-dev` vault).
 
-After manual `cargo publish` for v0.1.0:
+## Trusted Publishing (after first release)
 
-1. Configure Trusted Publishing on crates.io (owner=`brettdavies`, repo=`bird`, workflow=`release.yml`)
-2. Add `publish-crate` job to release workflow
-3. Enable "Enforce Trusted Publishing" on crates.io to disable API token publishing
+After the manual `cargo publish` for v0.1.0:
+
+1. Go to `https://crates.io/settings/tokens/trusted-publishing`
+2. Add trusted publisher: owner=`brettdavies`, repo=`bird`, workflow=`release.yml`
+3. Enable "Enforce Trusted Publishing" to disable token-based publishing
+4. Remove the `CARGO_REGISTRY_TOKEN` secret from the repo
+5. Update `release.yml` `publish-crate` job to use `rust-lang/crates-io-auth-action@v1` instead of `CARGO_REGISTRY_TOKEN`
 
 ## Distribution Channels
 
