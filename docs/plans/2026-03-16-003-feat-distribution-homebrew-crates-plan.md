@@ -1,7 +1,7 @@
 ---
 title: "feat: Distribution via Homebrew tap and crates.io"
 type: feat
-status: active
+status: completed
 date: 2026-03-16
 deepened: 2026-03-16
 origin: docs/brainstorms/2026-03-16-distribution-dx-completions-brainstorm.md
