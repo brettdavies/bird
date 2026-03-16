@@ -104,3 +104,117 @@ fn username_at_prefix_normalized() {
         .assert()
         .success();
 }
+
+// --- Completions tests ---
+
+#[test]
+fn completions_bash_exits_zero() {
+    bird()
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_zsh_contains_function_name() {
+    bird()
+        .args(["completions", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("_bird"));
+}
+
+#[test]
+fn completions_fish_exits_zero() {
+    bird()
+        .args(["completions", "fish"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_powershell_exits_zero() {
+    bird()
+        .args(["completions", "powershell"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_elvish_exits_zero() {
+    bird()
+        .args(["completions", "elvish"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_invalid_shell_exits_two() {
+    bird()
+        .args(["completions", "invalid-shell"])
+        .assert()
+        .failure()
+        .code(2);
+}
+
+#[test]
+fn completions_no_argument_exits_two() {
+    bird().args(["completions"]).assert().failure().code(2);
+}
+
+#[test]
+fn completions_bash_contains_subcommand_names() {
+    let output = bird().args(["completions", "bash"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("me"),
+        "bash completions should contain 'me' subcommand"
+    );
+    assert!(
+        stdout.contains("bookmarks"),
+        "bash completions should contain 'bookmarks' subcommand"
+    );
+    assert!(
+        stdout.contains("completions"),
+        "bash completions should contain 'completions' subcommand"
+    );
+}
+
+#[test]
+fn completions_bash_output_is_substantial() {
+    let output = bird().args(["completions", "bash"]).output().unwrap();
+    assert!(
+        output.stdout.len() > 1024,
+        "bash completions should be >1KB for 28+ subcommands, got {} bytes",
+        output.stdout.len()
+    );
+}
+
+#[test]
+fn completions_works_without_xurl() {
+    bird()
+        .args(["completions", "bash"])
+        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_does_not_create_config() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["completions", "bash"])
+        .env("HOME", tmp.path())
+        .assert()
+        .success();
+    // Completions should not create any config directory
+    assert!(
+        !tmp.path().join(".config/bird").exists(),
+        "completions should not create config directory"
+    );
+}
