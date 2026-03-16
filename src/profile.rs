@@ -54,14 +54,14 @@ pub fn run_profile(
     let json = response.json.ok_or("invalid JSON in API response")?;
 
     // X API returns HTTP 200 with errors array for not-found users (not 404)
-    if let Some(errors) = json.get("errors").and_then(|e| e.as_array()) {
-        if let Some(err) = errors.first() {
-            let detail = err
-                .get("detail")
-                .and_then(|d| d.as_str())
-                .unwrap_or("unknown error");
-            return Err(format!("profile failed: {}", detail).into());
-        }
+    if let Some(errors) = json.get("errors").and_then(|e| e.as_array())
+        && let Some(err) = errors.first()
+    {
+        let detail = err
+            .get("detail")
+            .and_then(|d| d.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("profile failed: {}", detail).into());
     }
 
     let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
@@ -75,4 +75,3 @@ pub fn run_profile(
 
     Ok(())
 }
-

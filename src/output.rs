@@ -86,20 +86,12 @@ pub fn sanitize_for_stderr(s: &str, max_chars: usize) -> String {
 
 /// Emoji for "available" when use_emoji; otherwise empty string.
 pub fn emoji_available(use_emoji: bool) -> &'static str {
-    if use_emoji {
-        "✅ "
-    } else {
-        ""
-    }
+    if use_emoji { "✅ " } else { "" }
 }
 
 /// Emoji for "unavailable" when use_emoji; otherwise empty string.
 pub fn emoji_unavailable(use_emoji: bool) -> &'static str {
-    if use_emoji {
-        "❌ "
-    } else {
-        ""
-    }
+    if use_emoji { "❌ " } else { "" }
 }
 
 #[cfg(test)]

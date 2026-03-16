@@ -29,10 +29,7 @@ pub fn validate_username(username: &str) -> Result<&str, Box<dyn std::error::Err
     if clean.is_empty() || clean.len() > 15 {
         return Err(format!("username must be 1-15 characters, got '{}'", username).into());
     }
-    if !clean
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
+    if !clean.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(format!(
             "username must be alphanumeric or underscore, got '{}'",
             username

@@ -59,14 +59,14 @@ pub fn run_thread(
     cost::display_cost(&estimate, use_color);
 
     // Check for errors array (X API returns 200 + errors for not-found)
-    if let Some(errors) = root_response.get("errors").and_then(|e| e.as_array()) {
-        if let Some(err) = errors.first() {
-            let detail = err
-                .get("detail")
-                .and_then(|d| d.as_str())
-                .unwrap_or("unknown error");
-            return Err(format!("thread failed: {}", detail).into());
-        }
+    if let Some(errors) = root_response.get("errors").and_then(|e| e.as_array())
+        && let Some(err) = errors.first()
+    {
+        let detail = err
+            .get("detail")
+            .and_then(|d| d.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("thread failed: {}", detail).into());
     }
 
     let root_tweet = root_response
@@ -306,10 +306,10 @@ fn build_thread_tree(
     }
 
     for i in 0..nodes.len() {
-        if let Some(ref parent_id) = nodes[i].parent_id {
-            if let Some(&parent_idx) = id_to_index.get(parent_id) {
-                nodes[parent_idx].children.push(i);
-            }
+        if let Some(ref parent_id) = nodes[i].parent_id
+            && let Some(&parent_idx) = id_to_index.get(parent_id)
+        {
+            nodes[parent_idx].children.push(i);
         }
     }
 
@@ -511,7 +511,11 @@ mod tests {
         let ts = format!("{:04}-{:02}-{:02}T00:00:00Z", year, month, day);
         let age = parse_age_days(&ts);
         assert!(age.is_some());
-        assert!(age.unwrap() <= 2, "recent tweet should be ~0 days old, got {}", age.unwrap());
+        assert!(
+            age.unwrap() <= 2,
+            "recent tweet should be ~0 days old, got {}",
+            age.unwrap()
+        );
     }
 
     #[test]

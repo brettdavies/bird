@@ -31,17 +31,17 @@ fn add_to_watchlist(
     let mut doc = content.parse::<DocumentMut>()?;
 
     // Check for duplicates (case-insensitive)
-    if let Some(existing) = doc.get("watchlist") {
-        if let Some(arr) = existing.as_array() {
-            for val in arr.iter() {
-                if val
-                    .as_str()
-                    .map(|u| u.eq_ignore_ascii_case(username))
-                    .unwrap_or(false)
-                {
-                    eprintln!("@{} is already in the watchlist.", username);
-                    return Ok(());
-                }
+    if let Some(existing) = doc.get("watchlist")
+        && let Some(arr) = existing.as_array()
+    {
+        for val in arr.iter() {
+            if val
+                .as_str()
+                .map(|u| u.eq_ignore_ascii_case(username))
+                .unwrap_or(false)
+            {
+                eprintln!("@{} is already in the watchlist.", username);
+                return Ok(());
             }
         }
     }

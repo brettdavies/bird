@@ -6330,8 +6330,8 @@ pub mod builder {
         pub fn properties<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-            >,
+                    ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+                >,
             T::Error: ::std::fmt::Display,
         {
             self.properties = value
@@ -6564,8 +6564,8 @@ pub mod builder {
         pub fn meta<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::std::option::Option<super::Get2TweetsSearchRecentResponseMeta>,
-            >,
+                    ::std::option::Option<super::Get2TweetsSearchRecentResponseMeta>,
+                >,
             T::Error: ::std::fmt::Display,
         {
             self.meta = value
@@ -6819,8 +6819,8 @@ pub mod builder {
         pub fn meta<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::std::option::Option<super::Get2UsersIdBookmarksResponseMeta>,
-            >,
+                    ::std::option::Option<super::Get2UsersIdBookmarksResponseMeta>,
+                >,
             T::Error: ::std::fmt::Display,
         {
             self.meta = value
@@ -8177,8 +8177,8 @@ pub mod builder {
         pub fn reply_settings<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::std::option::Option<super::ReplySettingsWithVerifiedUsers>,
-            >,
+                    ::std::option::Option<super::ReplySettingsWithVerifiedUsers>,
+                >,
             T::Error: ::std::fmt::Display,
         {
             self.reply_settings = value
@@ -8219,8 +8219,8 @@ pub mod builder {
         pub fn suggested_source_links_with_counts<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::std::option::Option<super::TweetSuggestedSourceLinksWithCounts>,
-            >,
+                    ::std::option::Option<super::TweetSuggestedSourceLinksWithCounts>,
+                >,
             T::Error: ::std::fmt::Display,
         {
             self.suggested_source_links_with_counts = value.try_into().map_err(|e| {

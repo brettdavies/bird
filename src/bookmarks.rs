@@ -134,12 +134,12 @@ pub fn run_bookmarks(
     }
 
     // Store bookmark relationships in entity store
-    if !me_username.is_empty() && !bookmark_rows.is_empty() {
-        if let Some(db) = client.db() {
-            if let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows) {
-                eprintln!("[store] warning: bookmark storage failed: {e}");
-            }
-        }
+    if !me_username.is_empty()
+        && !bookmark_rows.is_empty()
+        && let Some(db) = client.db()
+        && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
+    {
+        eprintln!("[store] warning: bookmark storage failed: {e}");
     }
 
     // Close the JSON array wrapper

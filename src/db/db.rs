@@ -3,9 +3,9 @@
 //! Single connection per CLI invocation -- no pool needed (short-lived process).
 //! Blocking SQLite calls are fine: bird is synchronous (no async runtime).
 
-use rusqlite::params;
 use rusqlite::Connection;
-use rusqlite_migration::{Migrations, M};
+use rusqlite::params;
+use rusqlite_migration::{M, Migrations};
 use std::path::{Path, PathBuf};
 
 use super::unix_now;
@@ -179,9 +179,7 @@ pub(crate) fn migrations() -> Migrations<'static> {
             );",
         ),
         // Migration 3: rename account_username → username in bookmarks (xurl alignment)
-        M::up(
-            "ALTER TABLE bookmarks RENAME COLUMN account_username TO username;",
-        ),
+        M::up("ALTER TABLE bookmarks RENAME COLUMN account_username TO username;"),
     ])
 }
 
@@ -604,9 +602,9 @@ impl BirdDb {
     }
 
     pub fn get_raw_response(&self, key: &str) -> Result<Option<RawResponseRow>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT status_code, body FROM raw_responses WHERE key = ?1",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT status_code, body FROM raw_responses WHERE key = ?1")?;
         let result = stmt.query_row(params![key], |row| {
             Ok(RawResponseRow {
                 status_code: row.get(0)?,

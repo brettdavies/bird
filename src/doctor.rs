@@ -1,7 +1,7 @@
 //! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
 use crate::db::BirdClient;
-use crate::requirements::{command_names_with_auth, requirements_for_command, AuthType};
+use crate::requirements::{AuthType, command_names_with_auth, requirements_for_command};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -112,10 +112,7 @@ fn build_commands_section(
             Some(r) => r,
             None => continue,
         };
-        let needs_auth = reqs
-            .accepted
-            .iter()
-            .any(|at| !matches!(at, AuthType::None));
+        let needs_auth = reqs.accepted.iter().any(|at| !matches!(at, AuthType::None));
         let available = if needs_auth {
             xurl_available && authenticated
         } else {
@@ -128,19 +125,13 @@ fn build_commands_section(
         } else {
             None
         };
-        cmds.insert(
-            name.to_string(),
-            CommandStatus { available, reason },
-        );
+        cmds.insert(name.to_string(), CommandStatus { available, reason });
     }
     cmds
 }
 
 /// Build full or scoped report.
-pub(crate) fn report(
-    client: &BirdClient,
-    scope: Option<&str>,
-) -> DoctorReport {
+pub(crate) fn report(client: &BirdClient, scope: Option<&str>) -> DoctorReport {
     let xurl = build_xurl_status();
     let auth = if xurl.available {
         detect_auth()
@@ -151,11 +142,11 @@ pub(crate) fn report(
         }
     };
     let mut commands = build_commands_section(xurl.available, auth.authenticated);
-    if let Some(cmd) = scope {
-        if let Some(status) = commands.remove(cmd) {
-            commands.clear();
-            commands.insert(cmd.to_string(), status);
-        }
+    if let Some(cmd) = scope
+        && let Some(status) = commands.remove(cmd)
+    {
+        commands.clear();
+        commands.insert(cmd.to_string(), status);
     }
 
     let cache = match client.db_stats() {
@@ -204,10 +195,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     out.push_str(&format!("{}\n", output::section("Xurl", use_color)));
     if report.xurl.available {
         if let Some(ref path) = report.xurl.path {
-            out.push_str(&format!(
-                "  path: {}\n",
-                output::muted(path, use_color)
-            ));
+            out.push_str(&format!("  path: {}\n", output::muted(path, use_color)));
         }
         if let Some(ref version) = report.xurl.version {
             out.push_str(&format!(
@@ -395,7 +383,14 @@ mod tests {
         assert!(cmds.get("login").unwrap().available);
         // me requires auth, should be unavailable
         assert!(!cmds.get("me").unwrap().available);
-        assert!(cmds.get("me").unwrap().reason.as_ref().unwrap().contains("not authenticated"));
+        assert!(
+            cmds.get("me")
+                .unwrap()
+                .reason
+                .as_ref()
+                .unwrap()
+                .contains("not authenticated")
+        );
         // usage is local-only (AuthType::None), always available
         assert!(cmds.get("usage").unwrap().available);
     }

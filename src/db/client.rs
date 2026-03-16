@@ -278,8 +278,7 @@ impl BirdClient {
             return self.direct_get(url, ctx);
         }
 
-        let parsed_url = url::Url::parse(url)
-            .map_err(|e| format!("invalid URL: {e}"))?;
+        let parsed_url = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
         let entity_type = is_entity_endpoint(&parsed_url);
         // Effective refresh: cache_only suppresses refresh
         let skip_reads = self.cache_opts.refresh && !self.cache_opts.cache_only;
@@ -330,13 +329,13 @@ impl BirdClient {
         // Standard: xurl GET + entity decomposition
         let response = self.xurl_get(url, ctx)?;
 
-        if response.is_success() {
-            if let Some(ref jv) = response.json {
-                if entity_type.is_some() {
-                    self.decompose_and_upsert(url, jv);
-                } else {
-                    self.store_raw_response(url, response.status, &response.body);
-                }
+        if response.is_success()
+            && let Some(ref jv) = response.json
+        {
+            if entity_type.is_some() {
+                self.decompose_and_upsert(url, jv);
+            } else {
+                self.store_raw_response(url, response.status, &response.body);
             }
         }
 
@@ -530,10 +529,10 @@ impl BirdClient {
         // No store hits -> standard request (no URL rebuild needed)
         if from_store.is_empty() {
             let response = self.xurl_get(url, ctx)?;
-            if response.is_success() {
-                if let Some(ref jv) = response.json {
-                    self.decompose_and_upsert(url, jv);
-                }
+            if response.is_success()
+                && let Some(ref jv) = response.json
+            {
+                self.decompose_and_upsert(url, jv);
             }
             self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
             return Ok(response);
@@ -566,10 +565,10 @@ impl BirdClient {
         for id in ids {
             if let Some(item) = api_data.get(id) {
                 merged.push(item.clone());
-            } else if let Some(tweet) = store_map.get(id.as_str()) {
-                if let Ok(j) = serde_json::from_str(&tweet.raw_json) {
-                    merged.push(j);
-                }
+            } else if let Some(tweet) = store_map.get(id.as_str())
+                && let Ok(j) = serde_json::from_str(&tweet.raw_json)
+            {
+                merged.push(j);
             }
         }
 
@@ -622,24 +621,24 @@ impl BirdClient {
         }
 
         // Extract included users (deduplicated within response by API)
-        if let Some(includes) = json.get("includes") {
-            if let Some(inc_users) = includes.get("users").and_then(|u| u.as_array()) {
-                for item in inc_users {
-                    if let Some(user) = UserRow::from_api_json(item) {
-                        users.push(user);
-                    }
+        if let Some(includes) = json.get("includes")
+            && let Some(inc_users) = includes.get("users").and_then(|u| u.as_array())
+        {
+            for item in inc_users {
+                if let Some(user) = UserRow::from_api_json(item) {
+                    users.push(user);
                 }
             }
         }
 
         // Handle error-in-200 pattern: log but continue processing available data
-        if let Some(errors) = json.get("errors").and_then(|e| e.as_array()) {
-            if !errors.is_empty() {
-                eprintln!(
-                    "[store] {} API error(s) in 200 response (processing available data)",
-                    errors.len()
-                );
-            }
+        if let Some(errors) = json.get("errors").and_then(|e| e.as_array())
+            && !errors.is_empty()
+        {
+            eprintln!(
+                "[store] {} API error(s) in 200 response (processing available data)",
+                errors.len()
+            );
         }
 
         if let Err(e) = db.upsert_entities(&tweets, &users) {
@@ -655,7 +654,6 @@ impl BirdClient {
             eprintln!("[store] warning: raw response store failed: {e}");
         }
     }
-
 }
 
 // -- Free helper functions --
@@ -668,10 +666,10 @@ fn extract_tweets(data: &serde_json::Value, tweets: &mut Vec<TweetRow>) {
                 tweets.push(tweet);
             }
         }
-    } else if data.is_object() {
-        if let Some(tweet) = TweetRow::from_api_json(data) {
-            tweets.push(tweet);
-        }
+    } else if data.is_object()
+        && let Some(tweet) = TweetRow::from_api_json(data)
+    {
+        tweets.push(tweet);
     }
 }
 
@@ -683,10 +681,10 @@ fn extract_users(data: &serde_json::Value, users: &mut Vec<UserRow>) {
                 users.push(user);
             }
         }
-    } else if data.is_object() {
-        if let Some(user) = UserRow::from_api_json(data) {
-            users.push(user);
-        }
+    } else if data.is_object()
+        && let Some(user) = UserRow::from_api_json(data)
+    {
+        users.push(user);
     }
 }
 
@@ -761,7 +759,9 @@ mod tests {
     #[test]
     fn entity_endpoint_classification() {
         assert!(matches!(
-            is_entity_endpoint(&parse("https://api.x.com/2/tweets/search/recent?query=test")),
+            is_entity_endpoint(&parse(
+                "https://api.x.com/2/tweets/search/recent?query=test"
+            )),
             Some(EntityType::Tweet)
         ));
         assert!(matches!(
@@ -786,21 +786,30 @@ mod tests {
         ));
         // Non-entity endpoints
         assert!(is_entity_endpoint(&parse("https://api.x.com/2/usage/tweets")).is_none());
-        assert!(is_entity_endpoint(&parse("https://api.x.com/2/tweets/search/counts/recent")).is_none());
+        assert!(
+            is_entity_endpoint(&parse("https://api.x.com/2/tweets/search/counts/recent")).is_none()
+        );
         assert!(is_entity_endpoint(&parse("https://api.x.com/2/oauth2/token")).is_none());
     }
 
     #[test]
     fn batch_ids_extraction() {
         assert_eq!(
-            extract_batch_ids(&parse("https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text")),
+            extract_batch_ids(&parse(
+                "https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text"
+            )),
             Some(vec!["1".into(), "2".into(), "3".into()])
         );
         assert_eq!(
             extract_batch_ids(&parse("https://api.x.com/2/users/by?usernames=alice,bob")),
             Some(vec!["alice".into(), "bob".into()])
         );
-        assert!(extract_batch_ids(&parse("https://api.x.com/2/tweets/search/recent?query=rust")).is_none());
+        assert!(
+            extract_batch_ids(&parse(
+                "https://api.x.com/2/tweets/search/recent?query=rust"
+            ))
+            .is_none()
+        );
         assert!(extract_batch_ids(&parse("https://api.x.com/2/users/me")).is_none());
     }
 
@@ -811,7 +820,9 @@ mod tests {
             Some("1234567890".into())
         );
         // Not a numeric ID
-        assert!(extract_single_tweet_id(&parse("https://api.x.com/2/tweets/search/recent")).is_none());
+        assert!(
+            extract_single_tweet_id(&parse("https://api.x.com/2/tweets/search/recent")).is_none()
+        );
         // Too short
         assert!(extract_single_tweet_id(&parse("https://api.x.com/2/tweets/1")).is_none());
     }

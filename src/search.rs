@@ -81,10 +81,10 @@ pub fn run_search(
             if is_retweet(tweet) {
                 continue;
             }
-            if let Some(min) = opts.min_likes {
-                if extract_metric(tweet, "like_count") < min {
-                    continue;
-                }
+            if let Some(min) = opts.min_likes
+                && extract_metric(tweet, "like_count") < min
+            {
+                continue;
             }
             seen_ids.insert(id.to_string());
             all_tweets.push(tweet.clone());
@@ -93,13 +93,13 @@ pub fn run_search(
         pages_fetched = page_num;
 
         // Collect included users (deduplicated across pages)
-        if let Some(includes) = page.get("includes") {
-            if let Some(users) = includes.get("users").and_then(|u| u.as_array()) {
-                for user in users {
-                    let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                    if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
-                        all_users.push(user.clone());
-                    }
+        if let Some(includes) = page.get("includes")
+            && let Some(users) = includes.get("users").and_then(|u| u.as_array())
+        {
+            for user in users {
+                let uid = user.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                if !uid.is_empty() && seen_user_ids.insert(uid.to_string()) {
+                    all_users.push(user.clone());
                 }
             }
         }

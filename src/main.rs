@@ -65,14 +65,11 @@ impl BirdError {
 
 /// Centralized error mapping: detects XurlError::Auth and maps to BirdError::Auth,
 /// otherwise wraps in BirdError::Command. Used by all command dispatch closures.
-fn map_cmd_error(
-    name: &'static str,
-    e: Box<dyn std::error::Error + Send + Sync>,
-) -> BirdError {
-    if let Some(xurl_err) = e.downcast_ref::<transport::XurlError>() {
-        if matches!(xurl_err, transport::XurlError::Auth(_)) {
-            return BirdError::Auth(e);
-        }
+fn map_cmd_error(name: &'static str, e: Box<dyn std::error::Error + Send + Sync>) -> BirdError {
+    if let Some(xurl_err) = e.downcast_ref::<transport::XurlError>()
+        && matches!(xurl_err, transport::XurlError::Auth(_))
+    {
+        return BirdError::Auth(e);
     }
     BirdError::Command { name, source: e }
 }
@@ -441,10 +438,10 @@ fn run(
             transport::xurl_passthrough(&["auth", "oauth2"])
                 .map_err(|e| map_cmd_error("login", e))?;
             // Verify login and clear store
-            if let Some(Ok(count)) = client.db_clear() {
-                if count > 0 {
-                    eprintln!("[store] Cleared {} stored entries after login.", count);
-                }
+            if let Some(Ok(count)) = client.db_clear()
+                && count > 0
+            {
+                eprintln!("[store] Cleared {} stored entries after login.", count);
             }
         }
         Command::Me { pretty } => {
@@ -634,47 +631,72 @@ fn run(
         }
         Command::Like { tweet_id } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "like", || xurl_write_call(&["like", &tweet_id], username))?;
+            xurl_write(cache_only, "like", || {
+                xurl_write_call(&["like", &tweet_id], username)
+            })?;
         }
         Command::Unlike { tweet_id } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "unlike", || xurl_write_call(&["unlike", &tweet_id], username))?;
+            xurl_write(cache_only, "unlike", || {
+                xurl_write_call(&["unlike", &tweet_id], username)
+            })?;
         }
         Command::Repost { tweet_id } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "repost", || xurl_write_call(&["repost", &tweet_id], username))?;
+            xurl_write(cache_only, "repost", || {
+                xurl_write_call(&["repost", &tweet_id], username)
+            })?;
         }
         Command::Unrepost { tweet_id } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "unrepost", || xurl_write_call(&["unrepost", &tweet_id], username))?;
+            xurl_write(cache_only, "unrepost", || {
+                xurl_write_call(&["unrepost", &tweet_id], username)
+            })?;
         }
         Command::Follow { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "follow", || xurl_write_call(&["follow", &target], username))?;
+            xurl_write(cache_only, "follow", || {
+                xurl_write_call(&["follow", &target], username)
+            })?;
         }
         Command::Unfollow { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "unfollow", || xurl_write_call(&["unfollow", &target], username))?;
+            xurl_write(cache_only, "unfollow", || {
+                xurl_write_call(&["unfollow", &target], username)
+            })?;
         }
-        Command::Dm { username: target, text } => {
+        Command::Dm {
+            username: target,
+            text,
+        } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "dm", || xurl_write_call(&["dm", &target, &text], username))?;
+            xurl_write(cache_only, "dm", || {
+                xurl_write_call(&["dm", &target, &text], username)
+            })?;
         }
         Command::Block { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "block", || xurl_write_call(&["block", &target], username))?;
+            xurl_write(cache_only, "block", || {
+                xurl_write_call(&["block", &target], username)
+            })?;
         }
         Command::Unblock { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "unblock", || xurl_write_call(&["unblock", &target], username))?;
+            xurl_write(cache_only, "unblock", || {
+                xurl_write_call(&["unblock", &target], username)
+            })?;
         }
         Command::Mute { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "mute", || xurl_write_call(&["mute", &target], username))?;
+            xurl_write(cache_only, "mute", || {
+                xurl_write_call(&["mute", &target], username)
+            })?;
         }
         Command::Unmute { username: target } => {
             let username = config.username.as_deref();
-            xurl_write(cache_only, "unmute", || xurl_write_call(&["unmute", &target], username))?;
+            xurl_write(cache_only, "unmute", || {
+                xurl_write_call(&["unmute", &target], username)
+            })?;
         }
         Command::Doctor { command, pretty } => {
             let scope = command.as_deref();
@@ -790,15 +812,16 @@ fn main() -> ExitCode {
         None => None,
     };
     // X_API_USERNAME is lowest priority (below config file)
-    let env_username = std::env::var("X_API_USERNAME").ok().and_then(|u| {
-        match schema::validate_username(&u) {
-            Ok(s) => Some(s.to_string()),
-            Err(e) => {
-                eprintln!("[config] warning: X_API_USERNAME invalid, ignoring: {}", e);
-                None
-            }
-        }
-    });
+    let env_username =
+        std::env::var("X_API_USERNAME")
+            .ok()
+            .and_then(|u| match schema::validate_username(&u) {
+                Ok(s) => Some(s.to_string()),
+                Err(e) => {
+                    eprintln!("[config] warning: X_API_USERNAME invalid, ignoring: {}", e);
+                    None
+                }
+            });
     let overrides = ArgOverrides {
         username: cli_username,
         env_username,
@@ -868,14 +891,23 @@ mod tests {
         let auth_err: Box<dyn std::error::Error + Send + Sync> =
             Box::new(transport::XurlError::Auth("unauthorized".to_string()));
         let mapped = map_cmd_error("test", auth_err);
-        assert_eq!(mapped.exit_code(), 77, "XurlError::Auth should map to exit 77");
+        assert_eq!(
+            mapped.exit_code(),
+            77,
+            "XurlError::Auth should map to exit 77"
+        );
     }
 
     #[test]
     fn map_cmd_error_preserves_command_for_non_auth() {
-        let api_err: Box<dyn std::error::Error + Send + Sync> =
-            Box::new(transport::XurlError::Process("connection failed".to_string()));
+        let api_err: Box<dyn std::error::Error + Send + Sync> = Box::new(
+            transport::XurlError::Process("connection failed".to_string()),
+        );
         let mapped = map_cmd_error("profile", api_err);
-        assert_eq!(mapped.exit_code(), 1, "Non-auth XurlError should map to exit 1");
+        assert_eq!(
+            mapped.exit_code(),
+            1,
+            "Non-auth XurlError should map to exit 1"
+        );
     }
 }

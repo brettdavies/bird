@@ -43,26 +43,22 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
             if !p.exists() {
                 return Err(format!("BIRD_XURL_PATH={} does not exist", path));
             }
-            let p = p.canonicalize().map_err(|e| {
-                format!("BIRD_XURL_PATH={} cannot be resolved: {}", path, e)
-            })?;
+            let p = p
+                .canonicalize()
+                .map_err(|e| format!("BIRD_XURL_PATH={} cannot be resolved: {}", path, e))?;
             if !p.is_file() {
-                return Err(format!(
-                    "BIRD_XURL_PATH={} is not a file",
-                    p.display()
-                ));
+                return Err(format!("BIRD_XURL_PATH={} is not a file", p.display()));
             }
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                let mode = p.metadata().map_err(|e| {
-                    format!("BIRD_XURL_PATH={}: {}", path, e)
-                })?.permissions().mode();
+                let mode = p
+                    .metadata()
+                    .map_err(|e| format!("BIRD_XURL_PATH={}: {}", path, e))?
+                    .permissions()
+                    .mode();
                 if mode & 0o111 == 0 {
-                    return Err(format!(
-                        "BIRD_XURL_PATH={} is not executable",
-                        path
-                    ));
+                    return Err(format!("BIRD_XURL_PATH={} is not executable", path));
                 }
             }
             return Ok(p);
@@ -77,9 +73,7 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
 }
 
 /// Run `xurl version` and return the version string. Warns if below minimum.
-pub fn check_xurl_version(
-    path: &Path,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub fn check_xurl_version(path: &Path) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new(path)
         .arg("version")
         .stdout(Stdio::piped())
@@ -100,13 +94,12 @@ pub fn check_xurl_version(
         if let (Ok(current), Ok(minimum)) = (
             semver::Version::parse(clean),
             semver::Version::parse(MIN_VERSION),
-        ) {
-            if current < minimum {
-                eprintln!(
-                    "[transport] warning: xurl {} is below minimum {}; consider upgrading",
-                    version, MIN_VERSION
-                );
-            }
+        ) && current < minimum
+        {
+            eprintln!(
+                "[transport] warning: xurl {} is below minimum {}; consider upgrading",
+                version, MIN_VERSION
+            );
         }
     }
 
@@ -215,9 +208,7 @@ pub fn xurl_call(
 
 /// Run xurl with inherited stdio (for interactive flows like `bird login`).
 /// No timeout: OAuth2 flows require user interaction in a browser; user can Ctrl+C.
-pub fn xurl_passthrough(
-    args: &[&str],
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub fn xurl_passthrough(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = resolve_xurl_path()?;
 
     let status = Command::new(path)
@@ -254,10 +245,7 @@ fn classify_error(
 ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
     // Try to parse stdout as JSON error response
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(stdout) {
-        let status = json
-            .get("status")
-            .and_then(|s| s.as_u64())
-            .unwrap_or(0) as u16;
+        let status = json.get("status").and_then(|s| s.as_u64()).unwrap_or(0) as u16;
 
         let detail = json
             .get("detail")
@@ -322,9 +310,7 @@ fn wait_with_timeout(
                         match child.try_wait()? {
                             Some(status) => return Ok(status),
                             None => {
-                                if grace_start.elapsed()
-                                    >= Duration::from_secs(KILL_GRACE_SECS)
-                                {
+                                if grace_start.elapsed() >= Duration::from_secs(KILL_GRACE_SECS) {
                                     // SIGKILL and reap to prevent zombie
                                     let _ = child.kill();
                                     let _ = child.wait();
@@ -483,18 +469,27 @@ pub mod tests {
     #[test]
     fn version_comparison_multi_digit() {
         // The bug: lexicographic "1.0.9" > "1.0.10" because '9' > '1'
-        assert!(semver::Version::parse("1.0.9").unwrap() < semver::Version::parse("1.0.10").unwrap());
-        assert!(!(semver::Version::parse("1.0.10").unwrap() < semver::Version::parse("1.0.3").unwrap()));
+        assert!(
+            semver::Version::parse("1.0.9").unwrap() < semver::Version::parse("1.0.10").unwrap()
+        );
+        assert!(
+            (semver::Version::parse("1.0.10").unwrap() >= semver::Version::parse("1.0.3").unwrap())
+        );
     }
 
     #[test]
     fn version_comparison_major() {
-        assert!(!(semver::Version::parse("2.0.0").unwrap() < semver::Version::parse("1.0.3").unwrap()));
+        assert!(
+            (semver::Version::parse("2.0.0").unwrap() >= semver::Version::parse("1.0.3").unwrap())
+        );
     }
 
     #[test]
     fn version_comparison_prerelease() {
         // semver spec: pre-release < release
-        assert!(semver::Version::parse("1.0.3-beta").unwrap() < semver::Version::parse("1.0.3").unwrap());
+        assert!(
+            semver::Version::parse("1.0.3-beta").unwrap()
+                < semver::Version::parse("1.0.3").unwrap()
+        );
     }
 }

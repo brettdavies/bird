@@ -1,7 +1,9 @@
 //! Usage command: API cost visibility from local SQLite + optional X API sync.
 //! Reads the `usage` table for estimated costs; `--sync` fetches actuals from GET /2/usage/tweets.
 
-use crate::db::{ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary};
+use crate::db::{
+    ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
+};
 use crate::output;
 use crate::requirements::AuthType;
 
@@ -84,7 +86,9 @@ pub fn run_usage(
         if let Some(since_date) = since_date {
             let days_back = (now - since_date).num_days();
             if days_back > 90 {
-                eprintln!("[usage] warning: X API only returns 90 days of history; --since may exceed that range");
+                eprintln!(
+                    "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
+                );
             }
         }
 
@@ -173,30 +177,30 @@ fn print_usage_pretty(report: &UsageReport) {
         }
     }
 
-    if let Some(ref actuals) = report.comparison {
-        if !actuals.is_empty() {
-            let synced_at = actuals
-                .first()
-                .and_then(|a| a.synced_at)
-                .map(|ts| {
-                    chrono::DateTime::from_timestamp(ts, 0)
-                        .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
-                })
-                .unwrap_or_else(|| "unknown".to_string());
+    if let Some(ref actuals) = report.comparison
+        && !actuals.is_empty()
+    {
+        let synced_at = actuals
+            .first()
+            .and_then(|a| a.synced_at)
+            .map(|ts| {
+                chrono::DateTime::from_timestamp(ts, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M UTC").to_string())
+                    .unwrap_or_else(|| "unknown".to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
 
-            println!("\nEstimated vs Actual (synced {})", synced_at);
-            println!("{}", "-".repeat(50));
+        println!("\nEstimated vs Actual (synced {})", synced_at);
+        println!("{}", "-".repeat(50));
+        println!(
+            "  {:<12} {:<14} {:<8} Diff",
+            "Date", "Est. tweets", "Actual"
+        );
+        for actual in actuals {
             println!(
-                "  {:<12} {:<14} {:<8} Diff",
-                "Date", "Est. tweets", "Actual"
+                "  {:<12} {:<14} {:<8}",
+                actual.date, "-", actual.tweet_count
             );
-            for actual in actuals {
-                println!(
-                    "  {:<12} {:<14} {:<8}",
-                    actual.date, "-", actual.tweet_count
-                );
-            }
         }
     }
 }

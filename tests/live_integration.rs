@@ -61,6 +61,7 @@ impl TestEnv {
     }
 
     /// Build a `bird` command isolated to this test environment.
+    #[allow(deprecated)]
     fn bird(&self) -> Command {
         let mut cmd = Command::cargo_bin("bird").unwrap();
         cmd.env("HOME", &self.home);
@@ -179,11 +180,12 @@ fn live_entity_store_integration() {
     eprintln!("  profile elonmusk: exit {}", exit_code);
 
     if exit_code != 0 {
-        let is_auth = exit_code == 77
-            || stderr.contains("no valid auth")
-            || stderr.contains("auth failed");
+        let is_auth =
+            exit_code == 77 || stderr.contains("no valid auth") || stderr.contains("auth failed");
         if is_auth {
-            eprintln!("SKIP: Auth not available. Run `bird login` to refresh tokens, or set X_API_BEARER_TOKEN.");
+            eprintln!(
+                "SKIP: Auth not available. Run `bird login` to refresh tokens, or set X_API_BEARER_TOKEN."
+            );
         } else {
             eprintln!(
                 "SKIP: Command failed (exit {}). Likely API/network issue.",
@@ -197,10 +199,7 @@ fn live_entity_store_integration() {
     let profile_json: serde_json::Value =
         serde_json::from_str(&stdout).expect("Phase 1: profile stdout should be valid JSON");
     assert!(
-        profile_json
-            .get("data")
-            .and_then(|d| d.get("id"))
-            .is_some(),
+        profile_json.get("data").and_then(|d| d.get("id")).is_some(),
         "Phase 1: profile should have data.id"
     );
     assert!(
@@ -324,8 +323,8 @@ fn live_entity_store_integration() {
         "AC #6: --cache-only for cached user should succeed"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let _: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("AC #6: --cache-only stdout should be valid JSON");
+    let _: serde_json::Value =
+        serde_json::from_str(&stdout).expect("AC #6: --cache-only stdout should be valid JSON");
 
     // Failure: unknown user not in store
     let output = env
@@ -523,10 +522,7 @@ fn live_entity_store_integration() {
         .expect("run cache stats");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    assert!(
-        output.status.success(),
-        "AC #9: cache stats should succeed"
-    );
+    assert!(output.status.success(), "AC #9: cache stats should succeed");
     let stats: serde_json::Value =
         serde_json::from_str(&stdout).expect("AC #9: cache stats should be valid JSON");
     let tweets = stats.get("tweets").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -547,11 +543,7 @@ fn live_entity_store_integration() {
     // ================================================================
     eprintln!("\n=== Phase 11: Usage works with data (AC #12) ===");
 
-    let output = env
-        .bird()
-        .args(["usage"])
-        .output()
-        .expect("run usage");
+    let output = env.bird().args(["usage"]).output().expect("run usage");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(output.status.success(), "AC #12: usage should succeed");
@@ -562,10 +554,7 @@ fn live_entity_store_integration() {
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
     eprintln!("  total_calls={}", total_calls);
-    assert!(
-        total_calls > 0,
-        "AC #12: usage should have recorded calls"
-    );
+    assert!(total_calls > 0, "AC #12: usage should have recorded calls");
     eprintln!("  Phase 11: PASS");
 
     // ================================================================
@@ -691,10 +680,7 @@ fn live_entity_store_integration() {
         let journal_mode: String = conn
             .query_row("PRAGMA journal_mode", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(
-            journal_mode, "wal",
-            "AC #16: journal_mode should be wal"
-        );
+        assert_eq!(journal_mode, "wal", "AC #16: journal_mode should be wal");
         eprintln!("  Journal mode: {}", journal_mode);
 
         // AC #19: WITHOUT ROWID on bookmarks

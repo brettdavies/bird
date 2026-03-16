@@ -4,6 +4,7 @@
 //! Store failures are never fatal: the Option<BirdDb> pattern degrades to API-only mode.
 
 pub mod client;
+#[allow(clippy::module_inception)]
 pub mod db;
 pub mod usage;
 

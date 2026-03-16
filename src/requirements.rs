@@ -57,22 +57,41 @@ const RAW_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, Auth
 /// Returns requirements for a command by name. Used by execution and doctor.
 pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
     Some(match name {
-        "me" => CommandReqs { accepted: ME_ACCEPTED },
-        "bookmarks" => CommandReqs { accepted: OAUTH2_ONLY },
-        "get" | "post" | "put" | "delete" => CommandReqs { accepted: RAW_ACCEPTED },
-        "profile" => CommandReqs { accepted: PROFILE_ACCEPTED },
-        "search" => CommandReqs { accepted: SEARCH_ACCEPTED },
-        "thread" => CommandReqs { accepted: THREAD_ACCEPTED },
+        "me" => CommandReqs {
+            accepted: ME_ACCEPTED,
+        },
+        "bookmarks" => CommandReqs {
+            accepted: OAUTH2_ONLY,
+        },
+        "get" | "post" | "put" | "delete" => CommandReqs {
+            accepted: RAW_ACCEPTED,
+        },
+        "profile" => CommandReqs {
+            accepted: PROFILE_ACCEPTED,
+        },
+        "search" => CommandReqs {
+            accepted: SEARCH_ACCEPTED,
+        },
+        "thread" => CommandReqs {
+            accepted: THREAD_ACCEPTED,
+        },
         // Write commands (all require OAuth2User)
-        "tweet" | "reply" | "like" | "unlike" | "repost" | "unrepost"
-        | "follow" | "unfollow" | "dm" | "block" | "unblock"
-        | "mute" | "unmute" => CommandReqs { accepted: OAUTH2_ONLY },
-        "watchlist_check" => CommandReqs { accepted: SEARCH_ACCEPTED },
-        "watchlist_add" | "watchlist_remove" | "watchlist_list" => {
-            CommandReqs { accepted: &[AuthType::None] }
-        }
-        "usage" => CommandReqs { accepted: &[AuthType::None] },
-        "usage_sync" => CommandReqs { accepted: &[AuthType::Bearer] },
+        "tweet" | "reply" | "like" | "unlike" | "repost" | "unrepost" | "follow" | "unfollow"
+        | "dm" | "block" | "unblock" | "mute" | "unmute" => CommandReqs {
+            accepted: OAUTH2_ONLY,
+        },
+        "watchlist_check" => CommandReqs {
+            accepted: SEARCH_ACCEPTED,
+        },
+        "watchlist_add" | "watchlist_remove" | "watchlist_list" => CommandReqs {
+            accepted: &[AuthType::None],
+        },
+        "usage" => CommandReqs {
+            accepted: &[AuthType::None],
+        },
+        "usage_sync" => CommandReqs {
+            accepted: &[AuthType::Bearer],
+        },
         "login" => return None,
         _ => return None,
     })
