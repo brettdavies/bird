@@ -3,6 +3,7 @@
 
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
+use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -21,6 +22,7 @@ pub fn run_thread(
     client: &mut BirdClient,
     opts: ThreadOpts<'_>,
     use_color: bool,
+    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     validate_tweet_id(opts.tweet_id)?;
@@ -56,7 +58,7 @@ pub fn run_thread(
 
     let root_response = response.json.ok_or("invalid JSON from tweet lookup")?;
     let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
-    cost::display_cost(&estimate, use_color);
+    cost::display_cost(&estimate, use_color, quiet);
 
     // Check for errors array (X API returns 200 + errors for not-found)
     if let Some(errors) = root_response.get("errors").and_then(|e| e.as_array())
@@ -81,7 +83,8 @@ pub fn run_thread(
     validate_tweet_id(conversation_id)?;
 
     if conversation_id != opts.tweet_id {
-        eprintln!(
+        diag!(
+            quiet,
             "[thread] input tweet is a reply; following to root conversation {}",
             conversation_id
         );
@@ -94,7 +97,8 @@ pub fn run_thread(
         .unwrap_or(0);
 
     if root_age_days > 7 {
-        eprintln!(
+        diag!(
+            quiet,
             "[thread] warning: root tweet is {} days old; search/recent only covers 7 days",
             root_age_days
         );
@@ -126,7 +130,7 @@ pub fn run_thread(
 
         let page = response.json.ok_or("invalid JSON from search")?;
         let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
-        cost::display_cost(&estimate, use_color);
+        cost::display_cost(&estimate, use_color, quiet);
 
         let data = match page.get("data").and_then(|d| d.as_array()) {
             Some(arr) if !arr.is_empty() => arr,
@@ -191,7 +195,8 @@ pub fn run_thread(
         println!("{}", serde_json::to_string(&output)?);
     }
 
-    eprintln!(
+    diag!(
+        quiet,
         "[thread] {} tweets | {} pages fetched | {}",
         thread_array.len(),
         pages_fetched,

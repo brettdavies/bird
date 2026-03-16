@@ -9,6 +9,7 @@ use rusqlite_migration::{M, Migrations};
 use std::path::{Path, PathBuf};
 
 use super::unix_now;
+use crate::diag;
 
 // -- Model structs --
 
@@ -293,7 +294,7 @@ impl BirdDb {
 
     /// Attempt to migrate usage data from the old cache.db on first open.
     /// Idempotent: checks a sentinel row in migrations_meta.
-    pub fn migrate_usage_from_cache(&self, cache_db_path: &Path) {
+    pub fn migrate_usage_from_cache(&self, cache_db_path: &Path, quiet: bool) {
         if !cache_db_path.exists() {
             return;
         }
@@ -332,13 +333,15 @@ impl BirdDb {
         match has_tables {
             Ok(true) => {}
             Ok(false) => {
-                eprintln!(
+                diag!(
+                    quiet,
                     "[store] warning: cache.db missing expected tables, skipping usage migration"
                 );
                 return;
             }
             Err(e) => {
-                eprintln!(
+                diag!(
+                    quiet,
                     "[store] warning: could not probe cache.db for migration: {}",
                     e
                 );
@@ -370,10 +373,10 @@ impl BirdDb {
 
         match result {
             Ok(()) => {
-                eprintln!("[store] migrated usage data from cache.db");
+                diag!(quiet, "[store] migrated usage data from cache.db");
             }
             Err(e) => {
-                eprintln!("[store] warning: usage migration failed: {}", e);
+                diag!(quiet, "[store] warning: usage migration failed: {}", e);
                 let _ = self.conn.execute_batch("DETACH DATABASE old_cache");
             }
         }
@@ -1238,7 +1241,7 @@ mod tests {
             )
             .unwrap();
         // Should be a no-op (doesn't crash)
-        db.migrate_usage_from_cache(Path::new("/nonexistent/path"));
+        db.migrate_usage_from_cache(Path::new("/nonexistent/path"), false);
     }
 
     #[cfg(unix)]

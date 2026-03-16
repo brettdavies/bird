@@ -47,10 +47,10 @@ pub struct DoctorReport {
     pub cache: Option<CacheStatus>,
 }
 
-fn build_xurl_status() -> XurlStatus {
+fn build_xurl_status(quiet: bool) -> XurlStatus {
     match crate::transport::resolve_xurl_path() {
         Ok(path) => {
-            let version = crate::transport::check_xurl_version(path).ok();
+            let version = crate::transport::check_xurl_version(path, quiet).ok();
             XurlStatus {
                 path: Some(path.display().to_string()),
                 version,
@@ -137,8 +137,8 @@ fn build_commands_section(
 }
 
 /// Build full or scoped report.
-pub(crate) fn report(client: &BirdClient, scope: Option<&str>) -> DoctorReport {
-    let xurl = build_xurl_status();
+pub(crate) fn report(client: &BirdClient, scope: Option<&str>, quiet: bool) -> DoctorReport {
+    let xurl = build_xurl_status(quiet);
     let auth = if xurl.available {
         detect_auth()
     } else {
@@ -323,8 +323,9 @@ pub fn run_doctor(
     scope: Option<&str>,
     use_color: bool,
     use_emoji: bool,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let r = report(client, scope);
+    let r = report(client, scope, quiet);
     if pretty {
         println!("{}", format_pretty(&r, use_color, use_emoji));
     } else {
@@ -352,13 +353,14 @@ mod tests {
             },
             100,
             None,
+            false,
         )
     }
 
     #[test]
     fn doctor_report_has_commands() {
         let client = no_cache_client();
-        let r = report(&client, None);
+        let r = report(&client, None, false);
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -367,7 +369,7 @@ mod tests {
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
         let client = no_cache_client();
-        let r = report(&client, Some("me"));
+        let r = report(&client, Some("me"), false);
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
     }
@@ -375,7 +377,7 @@ mod tests {
     #[test]
     fn doctor_report_json_serializable() {
         let client = no_cache_client();
-        let r = report(&client, None);
+        let r = report(&client, None, false);
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));

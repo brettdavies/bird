@@ -218,3 +218,97 @@ fn completions_does_not_create_config() {
         "completions should not create config directory"
     );
 }
+
+// --- Quiet flag tests ---
+
+#[test]
+fn quiet_flag_with_help() {
+    bird()
+        .args(["--quiet", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage:").or(predicate::str::contains("usage:")));
+}
+
+#[test]
+fn quiet_flag_accepted_by_clap() {
+    // --quiet with completions should succeed (no xurl needed)
+    bird()
+        .args(["--quiet", "completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn quiet_short_flag_accepted() {
+    bird()
+        .args(["-q", "completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn bird_quiet_env_var_activates_quiet() {
+    // BIRD_QUIET=1 should suppress stderr diagnostics
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["watchlist", "list"])
+        .env("HOME", tmp.path())
+        .env("BIRD_QUIET", "1")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn bird_quiet_env_var_zero_does_not_activate() {
+    // BIRD_QUIET=0 should NOT suppress stderr (FalseyValueParser)
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["watchlist", "list"])
+        .env("HOME", tmp.path())
+        .env("BIRD_QUIET", "0")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Watchlist is empty"));
+}
+
+#[test]
+fn quiet_flag_suppresses_watchlist_empty_hint() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--quiet", "watchlist", "list"])
+        .env("HOME", tmp.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn quiet_flag_suppresses_watchlist_add_confirmation() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--quiet", "watchlist", "add", "alice"])
+        .env("HOME", tmp.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn quiet_flag_suppresses_watchlist_remove_message() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--quiet", "watchlist", "remove", "alice"])
+        .env("HOME", tmp.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn invalid_flag_exits_two() {
+    bird().arg("--invalid-flag").assert().failure().code(2);
+}

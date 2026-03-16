@@ -3,6 +3,18 @@
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
+/// Diagnostic output macro — prints to stderr unless quiet mode is active.
+/// Use this instead of bare `eprintln!` for all informational output.
+/// Fatal errors use `BirdError::print()` directly (never suppressed).
+#[macro_export]
+macro_rules! diag {
+    ($quiet:expr, $($arg:tt)*) => {
+        if !$quiet {
+            eprintln!($($arg)*);
+        }
+    };
+}
+
 /// Color choice for clap help/errors: respect NO_COLOR and TERM=dumb, and TTY.
 pub fn color_choice_for_clap() -> clap::ColorChoice {
     let stderr_tty = std::io::stderr().is_terminal();

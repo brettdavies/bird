@@ -18,6 +18,7 @@ pub fn run_raw(
     body: Option<&str>,
     pretty: bool,
     use_color: bool,
+    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = resolve_path(path, params)?;
@@ -43,7 +44,7 @@ pub fn run_raw(
             &url,
             response.cache_hit,
         );
-        cost::display_cost(&estimate, use_color);
+        cost::display_cost(&estimate, use_color, quiet);
         response
     } else {
         client.request(&method_upper, &url, &ctx, body)?

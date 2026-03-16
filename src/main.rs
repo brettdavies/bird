@@ -121,6 +121,16 @@ struct Cli {
     /// Only serve from local store; never make API requests
     #[arg(long, global = true)]
     cache_only: bool,
+
+    /// Suppress informational stderr output (keep only fatal errors)
+    #[arg(
+        long,
+        short = 'q',
+        global = true,
+        env = "BIRD_QUIET",
+        value_parser = clap::builder::FalseyValueParser::new(),
+    )]
+    quiet: bool,
 }
 
 #[derive(clap::Subcommand)]
@@ -437,6 +447,7 @@ fn run(
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     use_color: bool,
+    quiet: bool,
     cache_only: bool,
 ) -> Result<(), BirdError> {
     match command {
@@ -448,7 +459,11 @@ fn run(
             if let Some(Ok(count)) = client.db_clear()
                 && count > 0
             {
-                eprintln!("[store] Cleared {} stored entries after login.", count);
+                diag!(
+                    quiet,
+                    "[store] Cleared {} stored entries after login.",
+                    count
+                );
             }
         }
         Command::Me { pretty } => {
@@ -463,12 +478,13 @@ fn run(
                 None,
                 pretty,
                 use_color,
+                quiet,
                 &auth_type,
             )
             .map_err(|e| map_cmd_error("me", e))?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, pretty, use_color)
+            bookmarks::run_bookmarks(client, pretty, use_color, quiet)
                 .map_err(|e| map_cmd_error("bookmarks", e))?;
         }
         Command::Profile { username, pretty } => {
@@ -480,6 +496,7 @@ fn run(
                     pretty,
                 },
                 use_color,
+                quiet,
                 &auth_type,
             )
             .map_err(|e| map_cmd_error("profile", e))?;
@@ -501,7 +518,7 @@ fn run(
                 max_results: max_results.unwrap_or(100).clamp(10, 100),
                 pages: pages.unwrap_or(1).clamp(1, 10),
             };
-            search::run_search(client, opts, use_color, &auth_type)
+            search::run_search(client, opts, use_color, quiet, &auth_type)
                 .map_err(|e| map_cmd_error("search", e))?;
         }
         Command::Thread {
@@ -518,6 +535,7 @@ fn run(
                     max_pages,
                 },
                 use_color,
+                quiet,
                 &auth_type,
             )
             .map_err(|e| map_cmd_error("thread", e))?;
@@ -531,7 +549,7 @@ fn run(
             let params = parse_param_vec(&param);
             let auth_type = default_auth_type("get");
             raw::run_raw(
-                client, "GET", &path, &params, &query, None, pretty, use_color, &auth_type,
+                client, "GET", &path, &params, &query, None, pretty, use_color, quiet, &auth_type,
             )
             .map_err(|e| map_cmd_error("get", e))?;
         }
@@ -553,6 +571,7 @@ fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                quiet,
                 &auth_type,
             )
             .map_err(|e| map_cmd_error("post", e))?;
@@ -575,6 +594,7 @@ fn run(
                 body.as_deref(),
                 pretty,
                 use_color,
+                quiet,
                 &auth_type,
             )
             .map_err(|e| map_cmd_error("put", e))?;
@@ -588,24 +608,29 @@ fn run(
             let params = parse_param_vec(&param);
             let auth_type = default_auth_type("delete");
             raw::run_raw(
-                client, "DELETE", &path, &params, &query, None, pretty, use_color, &auth_type,
+                client, "DELETE", &path, &params, &query, None, pretty, use_color, quiet,
+                &auth_type,
             )
             .map_err(|e| map_cmd_error("delete", e))?;
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
                 let auth_type = default_auth_type("watchlist_check");
-                watchlist::run_watchlist_check(client, &config, pretty, use_color, &auth_type)
-                    .map_err(|e| map_cmd_error("watchlist", e))?;
+                watchlist::run_watchlist_check(
+                    client, &config, pretty, use_color, quiet, &auth_type,
+                )
+                .map_err(|e| map_cmd_error("watchlist", e))?;
             }
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, &username).map_err(BirdError::Config)?;
+                watchlist::run_watchlist_add(&config, &username, quiet)
+                    .map_err(BirdError::Config)?;
             }
             WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, &username).map_err(BirdError::Config)?;
+                watchlist::run_watchlist_remove(&config, &username, quiet)
+                    .map_err(BirdError::Config)?;
             }
             WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty)
+                watchlist::run_watchlist_list(&config, pretty, quiet)
                     .map_err(|e| map_cmd_error("watchlist", e))?;
             }
         },
@@ -614,7 +639,7 @@ fn run(
             sync,
             pretty,
         } => {
-            usage::run_usage(client, since.as_deref(), sync, pretty)
+            usage::run_usage(client, since.as_deref(), sync, pretty, quiet)
                 .map_err(|e| map_cmd_error("usage", e))?;
         }
         // -- Write commands (xurl passthrough) --
@@ -717,7 +742,12 @@ fn run(
                     let stats = client.db_stats().and_then(|r| r.ok());
                     let size_str =
                         stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    eprintln!("Cleared {} stored entities ({} MB).", count, size_str);
+                    diag!(
+                        quiet,
+                        "Cleared {} stored entities ({} MB).",
+                        count,
+                        size_str
+                    );
                 }
                 Some(Err(e)) => {
                     return Err(BirdError::Command {
@@ -726,7 +756,7 @@ fn run(
                     });
                 }
                 None => {
-                    eprintln!("Store is not available.");
+                    diag!(quiet, "Store is not available.");
                 }
             },
             CacheAction::Stats { pretty } => match client.db_stats() {
@@ -771,7 +801,7 @@ fn run(
                     });
                 }
                 None => {
-                    eprintln!("Store is not available.");
+                    diag!(quiet, "Store is not available.");
                 }
             },
         },
@@ -834,7 +864,11 @@ fn main() -> ExitCode {
             .and_then(|u| match schema::validate_username(&u) {
                 Ok(s) => Some(s.to_string()),
                 Err(e) => {
-                    eprintln!("[config] warning: X_API_USERNAME invalid, ignoring: {}", e);
+                    diag!(
+                        cli.quiet,
+                        "[config] warning: X_API_USERNAME invalid, ignoring: {}",
+                        e
+                    );
                     None
                 }
             });
@@ -864,13 +898,14 @@ fn main() -> ExitCode {
         cache_opts,
         config.cache_max_size_mb,
         config.username.clone(),
+        cli.quiet,
     );
 
     // --- Diagnostic commands: need config/DB but not xurl ---
     if let Command::Doctor { command, pretty } = &cli.command {
         let scope = command.as_deref();
         let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(&client, *pretty, scope, use_color, use_emoji) {
+        match doctor::run_doctor(&client, *pretty, scope, use_color, use_emoji, cli.quiet) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::Command {
@@ -890,7 +925,14 @@ fn main() -> ExitCode {
         return ExitCode::from(err.exit_code());
     }
 
-    match run(cli.command, config, &mut client, use_color, cli.cache_only) {
+    match run(
+        cli.command,
+        config,
+        &mut client,
+        use_color,
+        cli.quiet,
+        cli.cache_only,
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             e.print(use_color);
