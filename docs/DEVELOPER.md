@@ -1,77 +1,16 @@
 # Developer guide
 
-For advanced users who want to override the default OAuth2 app, rebuild bird with their own client ID, or understand how credentials and builds work.
+## Architecture
 
----
+bird is a CLI for the X (Twitter) API. All HTTP transport and authentication is delegated to [xurl](https://github.com/xdevplatform/xurl) via a subprocess transport layer (`src/transport.rs`). bird owns the intelligence layer: entity store, caching, cost tracking, and UX.
 
-## Overriding the client ID at runtime
-
-You do **not** need to rebuild. Override via environment or config:
-
-- **Environment:** set `X_API_CLIENT_ID` (and optionally `X_API_CLIENT_SECRET` for a confidential client).
-- **Config file:** in `~/.config/bird/config.toml` set `client_id` and optionally `client_secret`.
-
-Priority is always: CLI args > config file > env > built-in default. So as soon as you set `X_API_CLIENT_ID` or `client_id` in config, that value is used instead of the shipped default.
-
-Same callback URI applies: `http://127.0.0.1:8765/callback` must be registered for your app in the [X Developer Portal](https://developer.x.com).
-
----
-
-## Rebuilding with your own app (build-time client ID)
-
-If you want the **default** (when no env or config is set) to be your app’s client ID, build with:
-
-```bash
-BIRD_DEFAULT_CLIENT_ID="your_oauth2_client_id" cargo build --release
+```text
+bird (CLI + intelligence) --> xurl (subprocess: auth + HTTP) --> X API
 ```
-
-- The binary will use that client ID when the user has not set `X_API_CLIENT_ID` or config.
-- Use this for private builds or forks where you want your app to be the default.
-- **Do not** ship a client secret in the binary; use the public client flow (no secret) for distributable builds.
-
----
-
-## Dev vs prod default
-
-- **Dev builds** (e.g. `cargo build` with no env): use the baked-in **dev** app client ID in `src/config.rs` (`OAUTH2_CLIENT_ID_DEV`). Intended for local development.
-- **Release builds** (CI): the release workflow sets `BIRD_DEFAULT_CLIENT_ID` from the GitHub secret, so release binaries use the **prod** app client ID.
-
-To update the baked-in dev client ID, edit `OAUTH2_CLIENT_ID_DEV` in `src/config.rs`. The value should match the dev app’s OAuth2 client ID (see [SECRETS.md](SECRETS.md) for the 1Password path).
-
----
-
-## 1Password paths (maintainers)
-
-Canonical op paths for app credentials:
-
-| Purpose | op path |
-|--------|---------|
-| **Dev app** (baked-in default for `cargo build`) | `op://secrets-dev/x_twitter_app_meum_dev/environment` |
-| **Prod app** (releases; GitHub secret `BIRD_DEFAULT_CLIENT_ID`) | `op://secrets-dev/x_twitter_app_bird_prod/environment` |
-
-Details: [SECRETS.md](SECRETS.md).
-
----
-
-## Config file reference
-
-Location: `~/.config/bird/config.toml` (XDG). Example:
-
-```toml
-# Optional: use your own app instead of the default
-# client_id = "your_oauth2_client_id"
-# client_secret = "your_oauth2_client_secret"   # only for confidential client
-# redirect_uri = "http://127.0.0.1:8765/callback"
-# username = "your_handle"   # which xurl username for multi-user token selection
-```
-
-Redirect URI must be `http://127.0.0.1:8765/callback` in the X Developer Portal for local login.
-
----
 
 ## Building from source
 
-**Requirements:** Rust (stable), e.g. via [rustup](https://rustup.rs).
+**Requirements:** Rust stable (1.85+), xurl installed.
 
 ```bash
 git clone https://github.com/brettdavies/bird
@@ -79,8 +18,6 @@ cd bird
 git config core.hooksPath .githooks
 cargo build --release
 ```
-
-The `git config` command activates the local git hooks (see below).
 
 Run tests:
 
@@ -96,53 +33,63 @@ cargo run --release -- me --pretty
 ./target/release/bird me --pretty
 ```
 
----
+## Project layout
+
+| Path | Purpose |
+|------|---------|
+| `src/main.rs` | CLI definition, `main()`, command dispatch |
+| `src/transport.rs` | xurl subprocess transport layer (all API calls) |
+| `src/config.rs` | Config load with priority: args > file > env > default |
+| `src/doctor.rs` | Diagnostic report: xurl status, auth, commands, store health |
+| `src/db/` | SQLite entity store: caching, usage tracking, migrations |
+| `src/cost.rs` | API cost estimation |
+| `src/output.rs` | Color, formatting, ANSI sanitization |
+| `src/requirements.rs` | Per-command auth requirements (single source of truth) |
+| `src/schema.rs` | OpenAPI schema parsing for path templates |
+
+## Authentication
+
+bird does not handle authentication directly. All auth flows (OAuth2 PKCE, token refresh, bearer tokens) are handled by xurl. bird passes the `-u <username>` flag to xurl for multi-user token selection.
+
+To authenticate: `bird login` delegates to `xurl auth oauth2`.
+
+To use environment-based auth (agents, CI): set `X_API_ACCESS_TOKEN` or `X_API_BEARER_TOKEN` — xurl reads these automatically.
+
+## Config file
+
+Location: `~/.config/bird/config.toml` (XDG). Example:
+
+```toml
+# Which xurl username for multi-user token selection
+# username = "your_handle"
+
+# Watchlist of usernames to monitor
+# watchlist = ["alice", "bob"]
+```
+
+Legacy fields (`client_id`, `client_secret`, `redirect_uri`) are tolerated by serde but unused since auth was delegated to xurl.
 
 ## Git hooks
 
-The repo includes a `.githooks/` directory with local git hooks. After cloning, activate them:
+After cloning, activate local hooks:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-**`pre-push`** — Prevents direct pushes to `main`. All changes to main should go through a PR.
-
----
+**`pre-push`** — Prevents direct pushes to `main`. All changes go through PRs.
 
 ## Branching workflow
 
+```text
+main              <-- releases tagged here
+  |
+development       <-- integration branch, all feature PRs target here
+  |-- feat/...       (short-lived, PR to development)
+  |-- fix/...
+  |-- chore/...
 ```
-main              ← releases tagged here, no engineering docs
-  │
-development       ← integration branch, all feature PRs target here
-  ├── feat/...       (short-lived, PR to development)
-  ├── fix/...        (short-lived, PR to development)
-  └── chore/...      (short-lived, PR to development)
-```
 
-1. Create a feature branch from `development`
-2. Open a PR targeting `development`
-3. CI runs on the PR (fmt, clippy, test)
-4. Merge to `development`
+## Releasing
 
-When ready to release, merge `development` into `main` via a release branch that strips `docs/plans/`, `docs/solutions/`, and `docs/brainstorms/` (the guard workflow enforces this). Tag on `main`.
-
----
-
-## Project layout (relevant to credentials)
-
-- **`src/config.rs`** — Config load order; `OAUTH2_CLIENT_ID_DEV` constant; `option_env!("BIRD_DEFAULT_CLIENT_ID")` fallback at runtime.
-- **`src/login.rs`** — OAuth2 PKCE login flow; uses resolved `client_id` and optional `client_secret`.
-- **`src/auth.rs`** — Token exchange and refresh; supports both public client (no secret) and confidential client (Basic auth).
-
----
-
-## Summary
-
-| Goal | Approach |
-|------|----------|
-| Use your app without rebuilding | Set `X_API_CLIENT_ID` (and optionally `X_API_CLIENT_SECRET`) or config file. |
-| Default in your build is your app | Build with `BIRD_DEFAULT_CLIENT_ID=your_id cargo build --release`. |
-| Update the dev app in source | Edit `OAUTH2_CLIENT_ID_DEV` in `src/config.rs`; value from op dev path. |
-| Release binaries use prod app | Set GitHub repo secret `BIRD_DEFAULT_CLIENT_ID` to prod app’s client ID (from op prod path). |
+See [RELEASING.md](../RELEASING.md).
