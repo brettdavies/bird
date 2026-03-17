@@ -291,24 +291,30 @@ permits or if specific subsystems need extra confidence.
   (24 hours) in `effective_ttl()`. Verify the entry expires after 24h, not
   100000s (difficult to test in-session; note as known cap).
 - [ ] **B3.** Corrupted database test: instead of renaming, corrupt the file:
+
   ```bash
   cp ~/.config/bird/cache.db ~/.config/bird/cache.db.bak
   echo "corrupted" > ~/.config/bird/cache.db
   bird me --pretty  # should work (graceful degradation)
   cp ~/.config/bird/cache.db.bak ~/.config/bird/cache.db
   ```
+
 - [ ] **B4.** Debug output redaction:
+
   ```bash
   RUST_LOG=bird=trace bird me --pretty 2>trace.log
   ```
+
   Search `trace.log` for any token values — should contain only `[REDACTED]`.
   Clean up: `rm trace.log`
 - [ ] **B5.** Concurrent access test (validates WAL mode and busy_timeout):
+
   ```bash
   bird me --pretty &
   bird profile <username> --pretty &
   wait
   ```
+
   Both should succeed without SQLite lock errors.
 - [ ] **B6.** `NO_COLOR=1 bird me --pretty` — verify no ANSI escape codes in
   output. Also test `TERM=dumb bird doctor --pretty`.
@@ -358,6 +364,7 @@ pagination, real caching, real cost tracking.
 ### Cost Estimate
 
 Based on X API pricing ($0.005/tweet, $0.01/user):
+
 - `me` + `profile`: ~$0.02
 - Bookmarks (500 bookmarks): ~$2.50
 - Bookmarks (2000 bookmarks): ~$10.00

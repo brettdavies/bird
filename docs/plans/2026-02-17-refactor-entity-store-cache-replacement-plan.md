@@ -133,6 +133,7 @@ erDiagram
 ```
 
 **Schema changes from original plan:**
+
 - Tweets table reduced from 14 columns to 4 (only lookup-relevant + raw_json); `first_seen_at` removed (YAGNI)
 - Users table reduced from 16 columns to 4 (only lookup-relevant + raw_json); `first_seen_at` removed (YAGNI)
 - Bookmarks table uses composite primary key `(account_username, tweet_id)`
@@ -188,6 +189,7 @@ Build the new storage layer alongside the existing cache (no removal yet). This 
     - **Set 0o600 on WAL/SHM sidecar files** after enabling WAL mode
   - Schema migration: `WITHOUT ROWID` on bookmarks only (tweets/users use standard rowid tables for large `raw_json`), all indexes defined above
   - `upsert_tweet(&self, tweet: &TweetRow) -> Result<(), rusqlite::Error>`:
+
     ```sql
     INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
     VALUES (?1, ?2, ?3, ?4, ?5)
@@ -197,6 +199,7 @@ Build the new storage layer alongside the existing cache (no removal yet). This 
         raw_json = excluded.raw_json,
         last_refreshed_at = excluded.last_refreshed_at
     ```
+
   - `upsert_user(&self, user: &UserRow) -> Result<(), rusqlite::Error>` -- same ON CONFLICT pattern
   - `upsert_entities(&self, tweets: &[TweetRow], users: &[UserRow]) -> Result<(), rusqlite::Error>`:
     - `debug_assert!(self.conn.is_autocommit())` before transaction (catches accidental nesting in tests)
@@ -236,6 +239,7 @@ Build the new storage layer alongside the existing cache (no removal yet). This 
     - If validation fails, log warning and skip migration (do not block startup)
     - Note: skip `PRAGMA integrity_check` (too slow for large DBs) and file size checks (over-engineered per simplicity review)
   - Use `ATTACH DATABASE` pattern for bulk copy:
+
     ```sql
     ATTACH DATABASE '/path/to/cache.db' AS old_cache;
     -- Exclude id column to avoid AUTOINCREMENT collisions; let new DB generate fresh IDs
@@ -244,6 +248,7 @@ Build the new storage layer alongside the existing cache (no removal yet). This 
     INSERT OR IGNORE INTO usage_actual SELECT * FROM old_cache.usage_actual;
     DETACH DATABASE old_cache;
     ```
+
   - Wrap in transaction for atomicity
   - Write migration sentinel (row in `migrations_meta` or pragma) so migration is idempotent
   - If migration fails, log warning and continue (do not block)
@@ -296,6 +301,7 @@ Replace `CachedClient` with `BirdClient` that wraps the entity store and handles
 **Tasks:**
 
 - [x] Create `BirdClient` in `src/db/client.rs` (separate file for 200-line rule):
+
   ```
   pub struct BirdClient {
       http: reqwest::Client,
@@ -303,7 +309,9 @@ Replace `CachedClient` with `BirdClient` that wraps the entity store and handles
       cache_opts: CacheOpts,
   }
   ```
+
 - [x] Define `CacheOpts` (field names preserved from current codebase):
+
   ```
   pub struct CacheOpts {
       pub no_store: bool,      // --no-cache: disable entirely
@@ -311,6 +319,7 @@ Replace `CachedClient` with `BirdClient` that wraps the entity store and handles
       pub cache_only: bool,    // --cache-only: no API calls
   }
   ```
+
   - Flag precedence (silent, no errors): `no_store` wins all (disables cache_only and refresh). `cache_only` suppresses `refresh`. No user-facing errors for conflicting flags.
 - [x] Implement core methods matching current `CachedClient` API:
   - `new(http, store_path, cache_opts, max_size_mb) -> Self`
@@ -335,6 +344,7 @@ Replace `CachedClient` with `BirdClient` that wraps the entity store and handles
   - `log_api_call()` -- preserved, calls through to `BirdDb`
 - [x] Implement response decomposition:
   - `is_entity_endpoint(url: &str) -> Option<EntityType>` -- explicit classification to prevent misclassification:
+
     ```rust
     fn is_entity_endpoint(url: &str) -> Option<EntityType> {
         let path = url::Url::parse(url).ok()?.path().to_string();
@@ -346,6 +356,7 @@ Replace `CachedClient` with `BirdClient` that wraps the entity store and handles
         }
     }
     ```
+
     When `None`, request falls through to raw HTTP without entity decomposition.
   - `decompose_response(url, json) -> DecomposedEntities`:
     - Parse `data` (single object or array) → `Vec<TweetRow>` or `Vec<UserRow>` depending on endpoint

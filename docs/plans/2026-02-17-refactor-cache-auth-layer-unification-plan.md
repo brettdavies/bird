@@ -190,6 +190,7 @@ let ctx = RequestContext {
 ```
 
 Key design decisions:
+
 - **Cache check happens BEFORE OAuth1 signing** — signing involves crypto operations
   (HMAC-SHA1 with nonce/timestamp). Cache hits skip signing entirely.
 - **Credential extraction happens AFTER cache check** — The four `ok_or()` credential

@@ -47,6 +47,7 @@ All 15 findings were fixed across 7 dependency-ordered batches. Each batch was v
 ### Batch 1: Dead Code Cleanup + Trivial Fixes (#012, #013, #014)
 
 **Dead code removal:**
+
 - Deleted `SchemaPaths`, `load_schema_paths`, `path_params_for_path` from `schema.rs`
 - Deleted unused `API_BASE` constant from `config.rs`
 - Deleted unused `accepts()` function and `command_name` field from `requirements.rs`
@@ -54,12 +55,14 @@ All 15 findings were fixed across 7 dependency-ordered batches. Each batch was v
 - Removed all `#[allow(dead_code)]` annotations
 
 **Added `--version` flag:**
+
 ```rust
 #[command(name = "bird", about = "X API CLI", version)]
 struct Cli { ... }
 ```
 
 **Minimized tokio features:**
+
 ```toml
 # Before
 tokio = { version = "1", features = ["full"] }
@@ -69,6 +72,7 @@ tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "sync", "
 ```
 
 Changed runtime to single-threaded:
+
 ```rust
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode { ... }
@@ -91,6 +95,7 @@ Removed 5 separate `Client::new()` calls across `raw.rs`, `bookmarks.rs`, `auth.
 ### Batch 3: Login Hardening + XSS Fix (#004, #005)
 
 **XSS fix:** Replaced dynamic error interpolation with static HTML:
+
 ```rust
 // Before (vulnerable)
 format!("<html><body>Authorization failed: {}</body></html>", err)
@@ -100,6 +105,7 @@ format!("<html><body>Authorization failed: {}</body></html>", err)
 ```
 
 **Login timeout:** Wrapped `rx.await` with 120s timeout:
+
 ```rust
 let result = tokio::time::timeout(Duration::from_secs(120), rx).await;
 match result {
@@ -112,6 +118,7 @@ match result {
 ### Batch 4: Auth Security (#001, #010, #011)
 
 **Token file permissions (Unix 0o600):**
+
 ```rust
 use std::os::unix::fs::OpenOptionsExt;
 
@@ -131,6 +138,7 @@ file.write_all(s.as_bytes())?;
 ### Batch 5: Replace run_me + Path Validation (#006, #008)
 
 **Replaced `run_me` with `run_raw`:** Deleted the 40-line bespoke `run_me()` function and replaced the `Me` command dispatch with:
+
 ```rust
 Command::Me { pretty } => {
     let params = HashMap::new();
@@ -141,6 +149,7 @@ Command::Me { pretty } => {
 ```
 
 **Path parameter validation:** Added `validate_param_value()` to reject injection attempts:
+
 ```rust
 fn validate_param_value(name: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if value.is_empty() {
@@ -187,6 +196,7 @@ This reduces peak memory from O(total_bookmarks) to O(page_size).
 ### Batch 7: Structured Errors + AuthType Unification (#007, #015)
 
 **Unified AuthType enums:** Added `None` variant to `requirements::AuthType` with serde rename attributes, deleted the duplicate `doctor::AuthType` enum:
+
 ```rust
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum AuthType {
@@ -202,6 +212,7 @@ pub enum AuthType {
 ```
 
 **Structured error handling:** Created `BirdError` enum with distinct exit codes:
+
 ```rust
 enum BirdError {
     Config(Box<dyn std::error::Error + Send + Sync>),       // exit 78 (EX_CONFIG)

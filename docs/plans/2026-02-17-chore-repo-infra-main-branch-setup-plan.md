@@ -113,6 +113,7 @@ three parallel jobs for an 11k-line project.
 - [x] **2a.** Create `.github/workflows/ci.yml`:
 
 **`ci.yml`:**
+
 ```yaml
 name: CI
 
@@ -213,10 +214,13 @@ The cleanest approach: reset main to development's HEAD, then force push.
 Main's current 2-commit history has no unique value.
 
 - [x] **3a.** Create a backup tag before force push:
+
   ```bash
   git tag backup/main-pre-sync main
   ```
+
 - [x] **3b.** Reset main to development, then strip compound-engineering docs:
+
   ```bash
   git checkout main
   git reset --hard development
@@ -224,11 +228,15 @@ Main's current 2-commit history has no unique value.
   git commit -m "chore: sync main from development, exclude engineering docs"
   git push --force-with-lease --force-if-includes origin main
   ```
+
 - [x] **3c.** Switch default branch on GitHub:
+
   ```bash
   gh api repos/brettdavies/bird -X PATCH -f default_branch=main
   ```
+
 - [x] **3d.** Verify development is unchanged:
+
   ```bash
   git checkout development
   ```
@@ -303,6 +311,7 @@ Since branch protection is unavailable on the free plan, add a local pre-push
 hook to prevent accidental direct pushes to main.
 
 - [x] **4a.** Create `.githooks/pre-push`:
+
   ```bash
   #!/usr/bin/env bash
   protected_branch='main'
@@ -313,18 +322,24 @@ hook to prevent accidental direct pushes to main.
     exit 1
   fi
   ```
+
 - [x] **4b.** Make the hook executable and verify git tracks the permission:
+
   ```bash
   chmod +x .githooks/pre-push
   git ls-files -s .githooks/pre-push  # Should show mode 100755
   ```
+
 - [x] **4c.** Configure git to use the hooks directory:
+
   ```bash
   git config core.hooksPath .githooks
   ```
+
 - [x] **4d.** Document in DEVELOPER.md that new clones should run the
   `git config` command
 - [x] **4e.** Commit on development:
+
   ```bash
   git checkout development
   git add .githooks/ docs/DEVELOPER.md
@@ -429,10 +444,12 @@ stripped) and switches the default branch.
 ## Follow-Up Recommendations (from review agents)
 
 **Security (medium priority):**
+
 - Add a `cargo audit` scheduled workflow (weekly + on `Cargo.lock` changes)
 - SHA-pin action references in `release.yml` (supply-chain hardening for
   workflow with `contents: write` and secret access)
 
 **Operational (low priority):**
+
 - Create `script/setup` to automate `git config core.hooksPath .githooks`
 - Consider `just init` target (common in Rust ecosystem)

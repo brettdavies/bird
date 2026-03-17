@@ -15,6 +15,7 @@ related_prs: [4]
 ## Problem
 
 Bird CLI needed two new curated commands:
+
 1. **`bird profile <username>`** -- Look up a user by username (single API call)
 2. **`bird thread <tweet_id>`** -- Reconstruct a full conversation thread (multi-step, paginated)
 
@@ -62,6 +63,7 @@ validate_tweet_id(conversation_id)?;
 Search `GET /2/tweets/search/recent?query=conversation_id:{id}` with pagination up to `MAX_PAGES_CAP=25` pages of 100 tweets.
 
 Key defenses:
+
 - Root tweet seeded in `seen_ids` to prevent duplication
 - Empty data array breaks loop (phantom `next_token` defense)
 - 150ms inter-page delay for rate limiting
@@ -81,6 +83,7 @@ struct ThreadNode {
 ```
 
 Why arena over `Box<Node>`:
+
 - No recursive types, no `Box` indirection
 - Children are indices into the same `Vec`
 - Easy to iterate, sort, and serialize
@@ -165,17 +168,20 @@ Key learnings from 5-agent code review (Architecture, Security, Performance, Pat
 ## Prevention: Additions to Curated Command Checklist
 
 ### Tree/Graph Data Structures
+
 - [ ] Use index-based arena (`Vec<Node>` + `HashMap<Id, usize>`) over `Box<Node>` trees
 - [ ] BFS/DFS must have cycle guard (visited set) even when cycles "can't happen"
 - [ ] Use iterative traversal, not recursive, when depth is unbounded
 - [ ] Use `std::mem::take` to avoid clone when sorting children in-place
 
 ### Multi-Step API Commands
+
 - [ ] Validate API-returned IDs before injecting into subsequent queries
 - [ ] Extract shared fetch helper when same auth dispatch runs in a loop
 - [ ] Warn users about API coverage limits (e.g., 7-day search window)
 
 ### Dead Code Prevention
+
 - [ ] Never use `#[allow(dead_code)]` on struct fields -- remove the field instead
 - [ ] If collecting data across pages, ensure it appears in the output JSON
 - [ ] If a function exists solely to serve dead code, remove both

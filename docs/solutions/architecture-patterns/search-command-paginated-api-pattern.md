@@ -148,21 +148,25 @@ Key learnings from 7-agent code review:
 ## Prevention: Checklist for New Curated Commands
 
 ### Error Handling
+
 - [ ] No silent failures: never `unwrap_or(default)` on parse operations; use `?`
 - [ ] Invariants have guards: use `ok_or()` not `unwrap()` for config values
 - [ ] Numeric inputs bounded: cap unbounded `u64` to prevent overflow
 
 ### API Integration
+
 - [ ] Dedicated auth constant in `requirements.rs`
 - [ ] `cache_hit` propagated from response to cost estimation
 - [ ] Query operator detection is token-based, not substring
 
 ### Pagination
+
 - [ ] All entity types deduplicated across pages (tweets AND users)
 - [ ] Pagination URLs excluded from cache (`next_token=`, `pagination_token=`)
 - [ ] Empty data array breaks loop (handles phantom `next_token`)
 
 ### Testing
+
 - [ ] Tests exercise actual code paths, not stdlib behavior
 - [ ] Edge cases for operator detection (substring false positives)
 - [ ] Sort validation tested (or eliminated via enum)

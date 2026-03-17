@@ -115,6 +115,7 @@ rusqlite_migration = "2.4"
 ### Auto-Pruning
 
 Every 20th cache write, the system:
+
 1. Deletes expired entries (past TTL)
 2. If still over `max_size_mb`, deletes oldest entries until under 90% of limit
 
