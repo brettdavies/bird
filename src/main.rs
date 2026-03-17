@@ -681,13 +681,10 @@ fn main() -> ExitCode {
                 watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::Config)
             }
             WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, username, quiet)
-                    .map_err(BirdError::Config)
+                watchlist::run_watchlist_remove(&config, username, quiet).map_err(BirdError::Config)
             }
-            WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty, quiet)
-                    .map_err(|e| map_cmd_error("watchlist", e))
-            }
+            WatchlistCommand::List => watchlist::run_watchlist_list(&config, pretty, quiet)
+                .map_err(|e| map_cmd_error("watchlist", e)),
             WatchlistCommand::Check => unreachable!(),
         };
         return match result {
