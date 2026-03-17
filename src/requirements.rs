@@ -1,7 +1,7 @@
 //! Central command requirements: which auth types each command accepts.
 //! Used by execution, doctor (availability), and auth_flag mapping for xurl.
 
-/// Auth types that a command can accept. Matches OpenAPI spec (OAuth2UserToken, UserToken, BearerToken).
+/// Auth types that a command can accept (OAuth2UserToken, OAuth1 UserToken, BearerToken).
 /// The None variant indicates no authentication is available.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum AuthType {

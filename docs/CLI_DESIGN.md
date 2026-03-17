@@ -39,10 +39,10 @@ The same requirement definitions drive **doctor** availability and reason string
 
 ## Source of truth
 
-- The **OpenAPI spec** (`openapi/x-api-openapi.json`) defines which endpoints accept which security schemes.
-- Curated commands (me, bookmarks, login) and raw commands are mapped to those rules in a **central module** (`src/requirements.rs`). That module is used by:
-  - **Execution** — “resolve token for command X” tries accepted auth types in a defined order and returns a structured “auth required” error with hints when none work.
-  - **Errors** — Subcommand failure formatting uses the same hint strings.
-  - **Doctor** — Availability and reasons are computed from the same requirements.
+Auth requirements for each command are defined in a **central module** (`src/requirements.rs`). That module is used by:
 
-For v1 the mapping is hand-maintained (no runtime OpenAPI parsing). Raw commands are treated as “any auth” with a generic hint unless we later add path-based lookup.
+- **Execution** — “resolve token for command X” tries accepted auth types in a defined order and returns a structured “auth required” error with hints when none work.
+- **Errors** — Subcommand failure formatting uses the same hint strings.
+- **Doctor** — Availability and reasons are computed from the same requirements.
+
+The mapping is hand-maintained. Raw commands are treated as “any auth” with a generic hint.

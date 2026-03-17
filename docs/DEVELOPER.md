@@ -45,7 +45,7 @@ cargo run --release -- me --pretty
 | `src/cost.rs` | API cost estimation |
 | `src/output.rs` | Color, formatting, ANSI sanitization |
 | `src/requirements.rs` | Per-command auth requirements (single source of truth) |
-| `src/schema.rs` | OpenAPI schema parsing for path templates |
+| `src/schema.rs` | Path template resolution with param substitution |
 
 ## Authentication
 
@@ -53,7 +53,7 @@ bird does not handle authentication directly. All auth flows (OAuth2 PKCE, token
 
 To authenticate: `bird login` delegates to `xurl auth oauth2`.
 
-To use environment-based auth (agents, CI): set `X_API_ACCESS_TOKEN` or `X_API_BEARER_TOKEN` — xurl reads these automatically.
+For environment-based auth (agents, CI), configure xurl's environment variables directly — see [xurl documentation](https://github.com/xdevplatform/xurl).
 
 ## Config file
 

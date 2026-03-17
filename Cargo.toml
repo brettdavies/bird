@@ -1,6 +1,6 @@
 [package]
 name = "bird"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "X API CLI with entity caching, search, threads, and watchlists"
 license = "MIT OR Apache-2.0"
@@ -18,9 +18,7 @@ exclude = [
     ".githooks/",
     "cliff.toml",
     "docs/",
-    "openapi/",
     "rustfmt.toml",
-    "scripts/",
     "tests/",
     "todos/",
 ]

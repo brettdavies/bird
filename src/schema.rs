@@ -1,4 +1,4 @@
-//! OpenAPI schema: path template resolution with param substitution.
+//! Path template resolution with param substitution.
 
 use std::collections::HashMap;
 
