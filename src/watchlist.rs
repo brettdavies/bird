@@ -360,7 +360,7 @@ mod tests {
     fn load_watchlist_no_key() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "client_id = \"abc\"\n").unwrap();
+        fs::write(&path, "username = \"alice\"\n").unwrap();
         let result = load_watchlist(&path).unwrap();
         assert!(result.is_empty());
     }
@@ -463,13 +463,13 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         let original =
-            "# My bird config\nclient_id = \"abc\"\n# secret stuff\nclient_secret = \"xyz\"\n";
+            "# My bird config\nusername = \"bob\"\n# monitoring\n";
         fs::write(&path, original).unwrap();
         add_to_watchlist(&path, "alice", false).unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("# My bird config"));
-        assert!(content.contains("# secret stuff"));
-        assert!(content.contains("client_id = \"abc\""));
+        assert!(content.contains("# monitoring"));
+        assert!(content.contains("username = \"bob\""));
         assert!(content.contains("alice"));
     }
 
@@ -477,12 +477,12 @@ mod tests {
     fn remove_preserves_comments() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let original = "# My config\nclient_id = \"abc\"\nwatchlist = [\"alice\", \"bob\"]\n";
+        let original = "# My config\nusername = \"bob\"\nwatchlist = [\"alice\", \"bob\"]\n";
         fs::write(&path, original).unwrap();
         remove_from_watchlist(&path, "alice").unwrap();
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("# My config"));
-        assert!(content.contains("client_id = \"abc\""));
+        assert!(content.contains("username = \"bob\""));
         assert!(!content.contains("alice"));
         assert!(content.contains("bob"));
     }

@@ -24,7 +24,7 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **watchlist add/remove/list**: no auth required (local config.toml operations).
 - **usage**: no auth required (reads local SQLite usage table).
 - **usage --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
-- **login**: N/A (uses default client_id; optional client_secret for your own app).
+- **login**: N/A (delegates to `xurl auth oauth2` for OAuth2 PKCE browser flow).
 - **get / post / put / delete** (raw): any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 
 When a command fails because auth is missing or the wrong type, the CLI prints:

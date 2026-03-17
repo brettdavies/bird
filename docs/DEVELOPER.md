@@ -67,8 +67,6 @@ Location: `~/.config/bird/config.toml` (XDG). Example:
 # watchlist = ["alice", "bob"]
 ```
 
-Legacy fields (`client_id`, `client_secret`, `redirect_uri`) are tolerated by serde but unused since auth was delegated to xurl.
-
 ## Git hooks
 
 After cloning, activate local hooks:
