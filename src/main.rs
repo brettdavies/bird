@@ -15,7 +15,6 @@ mod schema;
 mod search;
 mod thread;
 mod transport;
-mod types;
 mod usage;
 mod watchlist;
 
