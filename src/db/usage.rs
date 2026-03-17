@@ -48,7 +48,7 @@ pub struct ActualUsageDay {
     pub synced_at: Option<i64>,
 }
 
-// -- BirdDb usage methods (cross-module impl) --
+// -- BirdDb usage methods --
 
 impl BirdDb {
     /// Log an API call to the usage table for cost tracking.
@@ -76,9 +76,6 @@ impl BirdDb {
             entry.username
         ])?;
 
-        // Shared write_count: both cache writes (put) and usage writes trigger periodic cleanup.
-        // This is intentional — both are write operations, and the counter just needs to
-        // trigger cleanup at a reasonable interval.
         self.write_count += 1;
         if self.write_count.is_multiple_of(50) {
             self.prune_old_usage(now)?;
@@ -213,7 +210,6 @@ mod tests {
     #[test]
     fn log_usage_and_query_summary() {
         let mut db = in_memory_db();
-        // Log a cache miss (cost should be counted)
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
@@ -224,7 +220,6 @@ mod tests {
             username: Some("alice"),
         })
         .unwrap();
-        // Log a cache hit (cost recorded for savings calculation per D3)
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
@@ -246,8 +241,6 @@ mod tests {
     #[test]
     fn query_daily_usage_groups_by_day() {
         let db = in_memory_db();
-        // Insert entries for different "days" by manipulating date_ymd directly
-        // Since log_usage uses current time, we insert directly via SQL
         db.conn.execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1000, 20260210, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
@@ -266,7 +259,6 @@ mod tests {
 
         let daily = db.query_daily_usage(20260210).unwrap();
         assert_eq!(daily.len(), 2);
-        // Results are ordered by date_ymd DESC
         assert_eq!(daily[0].date_ymd, 20260211);
         assert_eq!(daily[0].calls, 2);
         assert_eq!(daily[0].cache_hits, 1);
@@ -277,7 +269,6 @@ mod tests {
     #[test]
     fn query_top_endpoints_aggregates() {
         let db = in_memory_db();
-        // Insert multiple entries for different endpoints
         for _ in 0..3 {
             db.conn.execute(
                 "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
@@ -293,7 +284,6 @@ mod tests {
 
         let top = db.query_top_endpoints(20260210).unwrap();
         assert_eq!(top.len(), 2);
-        // Ordered by cost DESC: tweets (3 * 0.005 = 0.015) > users (0.010)
         assert_eq!(top[0].endpoint, "/2/tweets/search/recent");
         assert_eq!(top[0].calls, 3);
         assert!((top[0].cost - 0.015).abs() < f64::EPSILON);
@@ -313,14 +303,12 @@ mod tests {
     #[test]
     fn usage_pruning_via_write_count() {
         let mut db = in_memory_db();
-        // Insert an "old" entry (timestamp = 1, well beyond 90-day cutoff)
         db.conn.execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1, 20200101, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
             [],
         ).unwrap();
 
-        // Set write_count to 49 so the next log_usage call hits the 50-write boundary
         db.write_count = 49;
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
@@ -333,11 +321,21 @@ mod tests {
         })
         .unwrap();
 
-        // The old entry (timestamp=1) should have been pruned; only the fresh entry remains
         let summary = db.query_usage_summary(0).unwrap();
         assert_eq!(
             summary.total_calls, 1,
             "old entry should be pruned, leaving only the fresh one"
         );
+    }
+
+    #[test]
+    fn actual_usage_round_trip() {
+        let db = in_memory_db();
+        db.upsert_actual_usage("2026-02-18", 42).unwrap();
+        let actuals = db.query_actual_usage(20260201).unwrap().unwrap();
+        assert_eq!(actuals.len(), 1);
+        assert_eq!(actuals[0].date, "2026-02-18");
+        assert_eq!(actuals[0].tweet_count, 42);
+        assert!(actuals[0].synced_at.is_some());
     }
 }

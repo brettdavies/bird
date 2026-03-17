@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+protected_branch='main'
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$current_branch" = "$protected_branch" ]; then
+  echo "[Policy] Never push directly to main. Use a PR from a feature branch."
+  exit 1
+fi
