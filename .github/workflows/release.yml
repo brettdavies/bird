@@ -97,6 +97,7 @@ jobs:
           mkdir -p "$STAGING"
           cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "$STAGING/"
           cp LICENSE-MIT LICENSE-APACHE README.md "$STAGING/"
+          cp -r completions "$STAGING/"
           if [[ "${{ matrix.target }}" == *windows* ]]; then
             7z a "${STAGING}.zip" "$STAGING"
           else

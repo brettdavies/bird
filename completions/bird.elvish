@@ -1,0 +1,701 @@
+
+use builtin;
+use str;
+
+set edit:completion:arg-completer[bird] = {|@words|
+    fn spaces {|n|
+        builtin:repeat $n ' ' | str:join ''
+    }
+    fn cand {|text desc|
+        edit:complex-candidate $text &display=$text' '(spaces (- 14 (wcswidth $text)))$desc
+    }
+    var command = 'bird'
+    for word $words[1..-1] {
+        if (str:has-prefix $word '-') {
+            break
+        }
+        set command = $command';'$word
+    }
+    var completions = [
+        &'bird'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+            cand -V 'Print version'
+            cand --version 'Print version'
+            cand login 'Authenticate via xurl (OAuth2 PKCE browser flow)'
+            cand me 'Show current user (GET /2/users/me)'
+            cand get 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)'
+            cand post 'POST request to path'
+            cand put 'PUT request to path'
+            cand bookmarks 'List bookmarks for the current user (paginated, max_results=100)'
+            cand profile 'Look up a user profile by username'
+            cand search 'Search recent tweets (GET /2/tweets/search/recent)'
+            cand thread 'Reconstruct a conversation thread from a tweet'
+            cand delete 'DELETE request to path'
+            cand watchlist 'Monitor users: check recent activity, manage watchlist'
+            cand usage 'View API usage and costs'
+            cand tweet 'Post a tweet (via xurl)'
+            cand reply 'Reply to a tweet (via xurl)'
+            cand like 'Like a tweet (via xurl)'
+            cand unlike 'Unlike a tweet (via xurl)'
+            cand repost 'Repost (retweet) a tweet (via xurl)'
+            cand unrepost 'Undo a repost (via xurl)'
+            cand follow 'Follow a user (via xurl)'
+            cand unfollow 'Unfollow a user (via xurl)'
+            cand dm 'Send a direct message (via xurl)'
+            cand block 'Block a user (via xurl)'
+            cand unblock 'Unblock a user (via xurl)'
+            cand mute 'Mute a user (via xurl)'
+            cand unmute 'Unmute a user (via xurl)'
+            cand doctor 'Show what is available: xurl status, commands, and entity store health'
+            cand cache 'Manage the HTTP response cache'
+            cand completions 'Generate shell completions'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;login'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;me'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'Human-readable output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;get'= {
+            cand -p 'p'
+            cand --param 'param'
+            cand --query 'query'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;post'= {
+            cand -p 'p'
+            cand --param 'param'
+            cand --query 'query'
+            cand --body 'body'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;put'= {
+            cand -p 'p'
+            cand --param 'param'
+            cand --query 'query'
+            cand --body 'body'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;bookmarks'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;profile'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'Pretty-print JSON output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;search'= {
+            cand --sort 'Sort results: recent (default), likes'
+            cand --min-likes 'Minimum like count threshold'
+            cand --max-results 'Maximum results per page (10-100, default: 100)'
+            cand --pages 'Number of pages to fetch (1-10, default: 1)'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'Pretty-print JSON output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;thread'= {
+            cand --max-pages 'Maximum number of search result pages (default: 10, max: 25)'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'Pretty-print JSON output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;delete'= {
+            cand -p 'p'
+            cand --param 'param'
+            cand --query 'query'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;watchlist'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'Pretty-print JSON output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+            cand check 'Check recent activity for all watched users'
+            cand add 'Add a user to the watchlist'
+            cand remove 'Remove a user from the watchlist'
+            cand list 'Show the current watchlist'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;watchlist;check'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;watchlist;add'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;watchlist;remove'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;watchlist;list'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;watchlist;help'= {
+            cand check 'Check recent activity for all watched users'
+            cand add 'Add a user to the watchlist'
+            cand remove 'Remove a user from the watchlist'
+            cand list 'Show the current watchlist'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;watchlist;help;check'= {
+        }
+        &'bird;watchlist;help;add'= {
+        }
+        &'bird;watchlist;help;remove'= {
+        }
+        &'bird;watchlist;help;list'= {
+        }
+        &'bird;watchlist;help;help'= {
+        }
+        &'bird;usage'= {
+            cand --since 'Show usage since this date (YYYY-MM-DD; default: 30 days ago)'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --sync 'Sync actual usage from X API (requires Bearer token via xurl)'
+            cand --pretty 'Pretty-print output'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;tweet'= {
+            cand --media-id 'Media ID to attach'
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;reply'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;like'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;unlike'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;repost'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;unrepost'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;follow'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;unfollow'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;dm'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;block'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;unblock'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;mute'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;unmute'= {
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;doctor'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;cache'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+            cand clear 'Delete all cache entries'
+            cand stats 'Show cache status (JSON default, --pretty for human-readable)'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;cache;clear'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;cache;stats'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --pretty 'pretty'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;cache;help'= {
+            cand clear 'Delete all cache entries'
+            cand stats 'Show cache status (JSON default, --pretty for human-readable)'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;cache;help;clear'= {
+        }
+        &'bird;cache;help;stats'= {
+        }
+        &'bird;cache;help;help'= {
+        }
+        &'bird;completions'= {
+            cand -u 'Username for multi-user token selection (maps to xurl -u)'
+            cand --username 'Username for multi-user token selection (maps to xurl -u)'
+            cand --output 'Error output format: text (default for TTY), json (default for non-TTY)'
+            cand --plain 'Plain output (no color, no hyperlinks; script-friendly)'
+            cand --no-color 'Disable ANSI colors (or set NO_COLOR)'
+            cand --refresh 'Bypass store read, still write response to store'
+            cand --no-cache 'Disable entity store entirely (no read, no write)'
+            cand --cache-only 'Only serve from local store; never make API requests'
+            cand -q 'Suppress informational stderr output (keep only fatal errors)'
+            cand --quiet 'Suppress informational stderr output (keep only fatal errors)'
+            cand -h 'Print help (see more with ''--help'')'
+            cand --help 'Print help (see more with ''--help'')'
+        }
+        &'bird;help'= {
+            cand login 'Authenticate via xurl (OAuth2 PKCE browser flow)'
+            cand me 'Show current user (GET /2/users/me)'
+            cand get 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)'
+            cand post 'POST request to path'
+            cand put 'PUT request to path'
+            cand bookmarks 'List bookmarks for the current user (paginated, max_results=100)'
+            cand profile 'Look up a user profile by username'
+            cand search 'Search recent tweets (GET /2/tweets/search/recent)'
+            cand thread 'Reconstruct a conversation thread from a tweet'
+            cand delete 'DELETE request to path'
+            cand watchlist 'Monitor users: check recent activity, manage watchlist'
+            cand usage 'View API usage and costs'
+            cand tweet 'Post a tweet (via xurl)'
+            cand reply 'Reply to a tweet (via xurl)'
+            cand like 'Like a tweet (via xurl)'
+            cand unlike 'Unlike a tweet (via xurl)'
+            cand repost 'Repost (retweet) a tweet (via xurl)'
+            cand unrepost 'Undo a repost (via xurl)'
+            cand follow 'Follow a user (via xurl)'
+            cand unfollow 'Unfollow a user (via xurl)'
+            cand dm 'Send a direct message (via xurl)'
+            cand block 'Block a user (via xurl)'
+            cand unblock 'Unblock a user (via xurl)'
+            cand mute 'Mute a user (via xurl)'
+            cand unmute 'Unmute a user (via xurl)'
+            cand doctor 'Show what is available: xurl status, commands, and entity store health'
+            cand cache 'Manage the HTTP response cache'
+            cand completions 'Generate shell completions'
+            cand help 'Print this message or the help of the given subcommand(s)'
+        }
+        &'bird;help;login'= {
+        }
+        &'bird;help;me'= {
+        }
+        &'bird;help;get'= {
+        }
+        &'bird;help;post'= {
+        }
+        &'bird;help;put'= {
+        }
+        &'bird;help;bookmarks'= {
+        }
+        &'bird;help;profile'= {
+        }
+        &'bird;help;search'= {
+        }
+        &'bird;help;thread'= {
+        }
+        &'bird;help;delete'= {
+        }
+        &'bird;help;watchlist'= {
+            cand check 'Check recent activity for all watched users'
+            cand add 'Add a user to the watchlist'
+            cand remove 'Remove a user from the watchlist'
+            cand list 'Show the current watchlist'
+        }
+        &'bird;help;watchlist;check'= {
+        }
+        &'bird;help;watchlist;add'= {
+        }
+        &'bird;help;watchlist;remove'= {
+        }
+        &'bird;help;watchlist;list'= {
+        }
+        &'bird;help;usage'= {
+        }
+        &'bird;help;tweet'= {
+        }
+        &'bird;help;reply'= {
+        }
+        &'bird;help;like'= {
+        }
+        &'bird;help;unlike'= {
+        }
+        &'bird;help;repost'= {
+        }
+        &'bird;help;unrepost'= {
+        }
+        &'bird;help;follow'= {
+        }
+        &'bird;help;unfollow'= {
+        }
+        &'bird;help;dm'= {
+        }
+        &'bird;help;block'= {
+        }
+        &'bird;help;unblock'= {
+        }
+        &'bird;help;mute'= {
+        }
+        &'bird;help;unmute'= {
+        }
+        &'bird;help;doctor'= {
+        }
+        &'bird;help;cache'= {
+            cand clear 'Delete all cache entries'
+            cand stats 'Show cache status (JSON default, --pretty for human-readable)'
+        }
+        &'bird;help;cache;clear'= {
+        }
+        &'bird;help;cache;stats'= {
+        }
+        &'bird;help;completions'= {
+        }
+        &'bird;help;help'= {
+        }
+    ]
+    $completions[$command]
+}

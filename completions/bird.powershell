@@ -1,0 +1,787 @@
+
+using namespace System.Management.Automation
+using namespace System.Management.Automation.Language
+
+Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+
+    $commandElements = $commandAst.CommandElements
+    $command = @(
+        'bird'
+        for ($i = 1; $i -lt $commandElements.Count; $i++) {
+            $element = $commandElements[$i]
+            if ($element -isnot [StringConstantExpressionAst] -or
+                $element.StringConstantType -ne [StringConstantType]::BareWord -or
+                $element.Value.StartsWith('-') -or
+                $element.Value -eq $wordToComplete) {
+                break
+        }
+        $element.Value
+    }) -join ';'
+
+    $completions = @(switch ($command) {
+        'bird' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('-V', '-V ', [CompletionResultType]::ParameterName, 'Print version')
+            [CompletionResult]::new('--version', '--version', [CompletionResultType]::ParameterName, 'Print version')
+            [CompletionResult]::new('login', 'login', [CompletionResultType]::ParameterValue, 'Authenticate via xurl (OAuth2 PKCE browser flow)')
+            [CompletionResult]::new('me', 'me', [CompletionResultType]::ParameterValue, 'Show current user (GET /2/users/me)')
+            [CompletionResult]::new('get', 'get', [CompletionResultType]::ParameterValue, 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)')
+            [CompletionResult]::new('post', 'post', [CompletionResultType]::ParameterValue, 'POST request to path')
+            [CompletionResult]::new('put', 'put', [CompletionResultType]::ParameterValue, 'PUT request to path')
+            [CompletionResult]::new('bookmarks', 'bookmarks', [CompletionResultType]::ParameterValue, 'List bookmarks for the current user (paginated, max_results=100)')
+            [CompletionResult]::new('profile', 'profile', [CompletionResultType]::ParameterValue, 'Look up a user profile by username')
+            [CompletionResult]::new('search', 'search', [CompletionResultType]::ParameterValue, 'Search recent tweets (GET /2/tweets/search/recent)')
+            [CompletionResult]::new('thread', 'thread', [CompletionResultType]::ParameterValue, 'Reconstruct a conversation thread from a tweet')
+            [CompletionResult]::new('delete', 'delete', [CompletionResultType]::ParameterValue, 'DELETE request to path')
+            [CompletionResult]::new('watchlist', 'watchlist', [CompletionResultType]::ParameterValue, 'Monitor users: check recent activity, manage watchlist')
+            [CompletionResult]::new('usage', 'usage', [CompletionResultType]::ParameterValue, 'View API usage and costs')
+            [CompletionResult]::new('tweet', 'tweet', [CompletionResultType]::ParameterValue, 'Post a tweet (via xurl)')
+            [CompletionResult]::new('reply', 'reply', [CompletionResultType]::ParameterValue, 'Reply to a tweet (via xurl)')
+            [CompletionResult]::new('like', 'like', [CompletionResultType]::ParameterValue, 'Like a tweet (via xurl)')
+            [CompletionResult]::new('unlike', 'unlike', [CompletionResultType]::ParameterValue, 'Unlike a tweet (via xurl)')
+            [CompletionResult]::new('repost', 'repost', [CompletionResultType]::ParameterValue, 'Repost (retweet) a tweet (via xurl)')
+            [CompletionResult]::new('unrepost', 'unrepost', [CompletionResultType]::ParameterValue, 'Undo a repost (via xurl)')
+            [CompletionResult]::new('follow', 'follow', [CompletionResultType]::ParameterValue, 'Follow a user (via xurl)')
+            [CompletionResult]::new('unfollow', 'unfollow', [CompletionResultType]::ParameterValue, 'Unfollow a user (via xurl)')
+            [CompletionResult]::new('dm', 'dm', [CompletionResultType]::ParameterValue, 'Send a direct message (via xurl)')
+            [CompletionResult]::new('block', 'block', [CompletionResultType]::ParameterValue, 'Block a user (via xurl)')
+            [CompletionResult]::new('unblock', 'unblock', [CompletionResultType]::ParameterValue, 'Unblock a user (via xurl)')
+            [CompletionResult]::new('mute', 'mute', [CompletionResultType]::ParameterValue, 'Mute a user (via xurl)')
+            [CompletionResult]::new('unmute', 'unmute', [CompletionResultType]::ParameterValue, 'Unmute a user (via xurl)')
+            [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Show what is available: xurl status, commands, and entity store health')
+            [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
+            [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;login' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;me' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Human-readable output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;get' {
+            [CompletionResult]::new('-p', '-p', [CompletionResultType]::ParameterName, 'p')
+            [CompletionResult]::new('--param', '--param', [CompletionResultType]::ParameterName, 'param')
+            [CompletionResult]::new('--query', '--query', [CompletionResultType]::ParameterName, 'query')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;post' {
+            [CompletionResult]::new('-p', '-p', [CompletionResultType]::ParameterName, 'p')
+            [CompletionResult]::new('--param', '--param', [CompletionResultType]::ParameterName, 'param')
+            [CompletionResult]::new('--query', '--query', [CompletionResultType]::ParameterName, 'query')
+            [CompletionResult]::new('--body', '--body', [CompletionResultType]::ParameterName, 'body')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;put' {
+            [CompletionResult]::new('-p', '-p', [CompletionResultType]::ParameterName, 'p')
+            [CompletionResult]::new('--param', '--param', [CompletionResultType]::ParameterName, 'param')
+            [CompletionResult]::new('--query', '--query', [CompletionResultType]::ParameterName, 'query')
+            [CompletionResult]::new('--body', '--body', [CompletionResultType]::ParameterName, 'body')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;bookmarks' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;profile' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;search' {
+            [CompletionResult]::new('--sort', '--sort', [CompletionResultType]::ParameterName, 'Sort results: recent (default), likes')
+            [CompletionResult]::new('--min-likes', '--min-likes', [CompletionResultType]::ParameterName, 'Minimum like count threshold')
+            [CompletionResult]::new('--max-results', '--max-results', [CompletionResultType]::ParameterName, 'Maximum results per page (10-100, default: 100)')
+            [CompletionResult]::new('--pages', '--pages', [CompletionResultType]::ParameterName, 'Number of pages to fetch (1-10, default: 1)')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;thread' {
+            [CompletionResult]::new('--max-pages', '--max-pages', [CompletionResultType]::ParameterName, 'Maximum number of search result pages (default: 10, max: 25)')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;delete' {
+            [CompletionResult]::new('-p', '-p', [CompletionResultType]::ParameterName, 'p')
+            [CompletionResult]::new('--param', '--param', [CompletionResultType]::ParameterName, 'param')
+            [CompletionResult]::new('--query', '--query', [CompletionResultType]::ParameterName, 'query')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;watchlist' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('check', 'check', [CompletionResultType]::ParameterValue, 'Check recent activity for all watched users')
+            [CompletionResult]::new('add', 'add', [CompletionResultType]::ParameterValue, 'Add a user to the watchlist')
+            [CompletionResult]::new('remove', 'remove', [CompletionResultType]::ParameterValue, 'Remove a user from the watchlist')
+            [CompletionResult]::new('list', 'list', [CompletionResultType]::ParameterValue, 'Show the current watchlist')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;watchlist;check' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;watchlist;add' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;watchlist;remove' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;watchlist;list' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;watchlist;help' {
+            [CompletionResult]::new('check', 'check', [CompletionResultType]::ParameterValue, 'Check recent activity for all watched users')
+            [CompletionResult]::new('add', 'add', [CompletionResultType]::ParameterValue, 'Add a user to the watchlist')
+            [CompletionResult]::new('remove', 'remove', [CompletionResultType]::ParameterValue, 'Remove a user from the watchlist')
+            [CompletionResult]::new('list', 'list', [CompletionResultType]::ParameterValue, 'Show the current watchlist')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;watchlist;help;check' {
+            break
+        }
+        'bird;watchlist;help;add' {
+            break
+        }
+        'bird;watchlist;help;remove' {
+            break
+        }
+        'bird;watchlist;help;list' {
+            break
+        }
+        'bird;watchlist;help;help' {
+            break
+        }
+        'bird;usage' {
+            [CompletionResult]::new('--since', '--since', [CompletionResultType]::ParameterName, 'Show usage since this date (YYYY-MM-DD; default: 30 days ago)')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--sync', '--sync', [CompletionResultType]::ParameterName, 'Sync actual usage from X API (requires Bearer token via xurl)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print output')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;tweet' {
+            [CompletionResult]::new('--media-id', '--media-id', [CompletionResultType]::ParameterName, 'Media ID to attach')
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;reply' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;like' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;unlike' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;repost' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;unrepost' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;follow' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;unfollow' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;dm' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;block' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;unblock' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;mute' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;unmute' {
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;doctor' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;cache' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete all cache entries')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show cache status (JSON default, --pretty for human-readable)')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;cache;clear' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;cache;stats' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;cache;help' {
+            [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete all cache entries')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show cache status (JSON default, --pretty for human-readable)')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;cache;help;clear' {
+            break
+        }
+        'bird;cache;help;stats' {
+            break
+        }
+        'bird;cache;help;help' {
+            break
+        }
+        'bird;completions' {
+            [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
+            [CompletionResult]::new('--output', '--output', [CompletionResultType]::ParameterName, 'Error output format: text (default for TTY), json (default for non-TTY)')
+            [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Plain output (no color, no hyperlinks; script-friendly)')
+            [CompletionResult]::new('--no-color', '--no-color', [CompletionResultType]::ParameterName, 'Disable ANSI colors (or set NO_COLOR)')
+            [CompletionResult]::new('--refresh', '--refresh', [CompletionResultType]::ParameterName, 'Bypass store read, still write response to store')
+            [CompletionResult]::new('--no-cache', '--no-cache', [CompletionResultType]::ParameterName, 'Disable entity store entirely (no read, no write)')
+            [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
+            [CompletionResult]::new('-q', '-q', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('--quiet', '--quiet', [CompletionResultType]::ParameterName, 'Suppress informational stderr output (keep only fatal errors)')
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'bird;help' {
+            [CompletionResult]::new('login', 'login', [CompletionResultType]::ParameterValue, 'Authenticate via xurl (OAuth2 PKCE browser flow)')
+            [CompletionResult]::new('me', 'me', [CompletionResultType]::ParameterValue, 'Show current user (GET /2/users/me)')
+            [CompletionResult]::new('get', 'get', [CompletionResultType]::ParameterValue, 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)')
+            [CompletionResult]::new('post', 'post', [CompletionResultType]::ParameterValue, 'POST request to path')
+            [CompletionResult]::new('put', 'put', [CompletionResultType]::ParameterValue, 'PUT request to path')
+            [CompletionResult]::new('bookmarks', 'bookmarks', [CompletionResultType]::ParameterValue, 'List bookmarks for the current user (paginated, max_results=100)')
+            [CompletionResult]::new('profile', 'profile', [CompletionResultType]::ParameterValue, 'Look up a user profile by username')
+            [CompletionResult]::new('search', 'search', [CompletionResultType]::ParameterValue, 'Search recent tweets (GET /2/tweets/search/recent)')
+            [CompletionResult]::new('thread', 'thread', [CompletionResultType]::ParameterValue, 'Reconstruct a conversation thread from a tweet')
+            [CompletionResult]::new('delete', 'delete', [CompletionResultType]::ParameterValue, 'DELETE request to path')
+            [CompletionResult]::new('watchlist', 'watchlist', [CompletionResultType]::ParameterValue, 'Monitor users: check recent activity, manage watchlist')
+            [CompletionResult]::new('usage', 'usage', [CompletionResultType]::ParameterValue, 'View API usage and costs')
+            [CompletionResult]::new('tweet', 'tweet', [CompletionResultType]::ParameterValue, 'Post a tweet (via xurl)')
+            [CompletionResult]::new('reply', 'reply', [CompletionResultType]::ParameterValue, 'Reply to a tweet (via xurl)')
+            [CompletionResult]::new('like', 'like', [CompletionResultType]::ParameterValue, 'Like a tweet (via xurl)')
+            [CompletionResult]::new('unlike', 'unlike', [CompletionResultType]::ParameterValue, 'Unlike a tweet (via xurl)')
+            [CompletionResult]::new('repost', 'repost', [CompletionResultType]::ParameterValue, 'Repost (retweet) a tweet (via xurl)')
+            [CompletionResult]::new('unrepost', 'unrepost', [CompletionResultType]::ParameterValue, 'Undo a repost (via xurl)')
+            [CompletionResult]::new('follow', 'follow', [CompletionResultType]::ParameterValue, 'Follow a user (via xurl)')
+            [CompletionResult]::new('unfollow', 'unfollow', [CompletionResultType]::ParameterValue, 'Unfollow a user (via xurl)')
+            [CompletionResult]::new('dm', 'dm', [CompletionResultType]::ParameterValue, 'Send a direct message (via xurl)')
+            [CompletionResult]::new('block', 'block', [CompletionResultType]::ParameterValue, 'Block a user (via xurl)')
+            [CompletionResult]::new('unblock', 'unblock', [CompletionResultType]::ParameterValue, 'Unblock a user (via xurl)')
+            [CompletionResult]::new('mute', 'mute', [CompletionResultType]::ParameterValue, 'Mute a user (via xurl)')
+            [CompletionResult]::new('unmute', 'unmute', [CompletionResultType]::ParameterValue, 'Unmute a user (via xurl)')
+            [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Show what is available: xurl status, commands, and entity store health')
+            [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
+            [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'bird;help;login' {
+            break
+        }
+        'bird;help;me' {
+            break
+        }
+        'bird;help;get' {
+            break
+        }
+        'bird;help;post' {
+            break
+        }
+        'bird;help;put' {
+            break
+        }
+        'bird;help;bookmarks' {
+            break
+        }
+        'bird;help;profile' {
+            break
+        }
+        'bird;help;search' {
+            break
+        }
+        'bird;help;thread' {
+            break
+        }
+        'bird;help;delete' {
+            break
+        }
+        'bird;help;watchlist' {
+            [CompletionResult]::new('check', 'check', [CompletionResultType]::ParameterValue, 'Check recent activity for all watched users')
+            [CompletionResult]::new('add', 'add', [CompletionResultType]::ParameterValue, 'Add a user to the watchlist')
+            [CompletionResult]::new('remove', 'remove', [CompletionResultType]::ParameterValue, 'Remove a user from the watchlist')
+            [CompletionResult]::new('list', 'list', [CompletionResultType]::ParameterValue, 'Show the current watchlist')
+            break
+        }
+        'bird;help;watchlist;check' {
+            break
+        }
+        'bird;help;watchlist;add' {
+            break
+        }
+        'bird;help;watchlist;remove' {
+            break
+        }
+        'bird;help;watchlist;list' {
+            break
+        }
+        'bird;help;usage' {
+            break
+        }
+        'bird;help;tweet' {
+            break
+        }
+        'bird;help;reply' {
+            break
+        }
+        'bird;help;like' {
+            break
+        }
+        'bird;help;unlike' {
+            break
+        }
+        'bird;help;repost' {
+            break
+        }
+        'bird;help;unrepost' {
+            break
+        }
+        'bird;help;follow' {
+            break
+        }
+        'bird;help;unfollow' {
+            break
+        }
+        'bird;help;dm' {
+            break
+        }
+        'bird;help;block' {
+            break
+        }
+        'bird;help;unblock' {
+            break
+        }
+        'bird;help;mute' {
+            break
+        }
+        'bird;help;unmute' {
+            break
+        }
+        'bird;help;doctor' {
+            break
+        }
+        'bird;help;cache' {
+            [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete all cache entries')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show cache status (JSON default, --pretty for human-readable)')
+            break
+        }
+        'bird;help;cache;clear' {
+            break
+        }
+        'bird;help;cache;stats' {
+            break
+        }
+        'bird;help;completions' {
+            break
+        }
+        'bird;help;help' {
+            break
+        }
+    })
+
+    $completions.Where{ $_.CompletionText -like "$wordToComplete*" } |
+        Sort-Object -Property ListItemText
+}
