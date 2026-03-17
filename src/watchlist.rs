@@ -462,8 +462,7 @@ mod tests {
     fn add_preserves_comments() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let original =
-            "# My bird config\nusername = \"bob\"\n# monitoring\n";
+        let original = "# My bird config\nusername = \"bob\"\n# monitoring\n";
         fs::write(&path, original).unwrap();
         add_to_watchlist(&path, "alice", false).unwrap();
         let content = fs::read_to_string(&path).unwrap();
