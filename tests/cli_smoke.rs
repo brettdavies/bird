@@ -265,9 +265,10 @@ fn bird_quiet_env_var_activates_quiet() {
 #[test]
 fn bird_quiet_env_var_zero_does_not_activate() {
     // BIRD_QUIET=0 should NOT suppress stderr (FalseyValueParser)
+    // --output text forces text mode in non-TTY test environment
     let tmp = tempfile::TempDir::new().unwrap();
     bird()
-        .args(["watchlist", "list"])
+        .args(["--output", "text", "watchlist", "list"])
         .env("HOME", tmp.path())
         .env("BIRD_QUIET", "0")
         .assert()
@@ -311,4 +312,104 @@ fn quiet_flag_suppresses_watchlist_remove_message() {
 #[test]
 fn invalid_flag_exits_two() {
     bird().arg("--invalid-flag").assert().failure().code(2);
+}
+
+// --- JSON error output tests ---
+
+#[test]
+fn output_json_config_error_schema() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = bird()
+        .args(["--output", "json", "--username", "'; DROP TABLE", "doctor"])
+        .env("HOME", tmp.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["kind"], "config");
+    assert_eq!(json["code"], 78);
+    assert!(json["error"].as_str().is_some());
+    assert!(json.get("command").is_none());
+}
+
+#[test]
+fn output_json_command_error_schema() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = bird()
+        .args(["--output", "json", "me"])
+        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
+        .env("HOME", tmp.path())
+        .output()
+        .unwrap();
+
+    // xurl not found => config error (exit 78)
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["kind"], "config");
+    assert_eq!(json["code"], 78);
+}
+
+#[test]
+fn output_json_suppresses_diagnostics() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    bird()
+        .args(["--output", "json", "watchlist", "list"])
+        .env("HOME", tmp.path())
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn output_text_explicit_shows_text_errors() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = bird()
+        .args(["--output", "text", "--username", "'; DROP TABLE", "doctor"])
+        .env("HOME", tmp.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("config failed:"),
+        "Text mode should show human-readable errors, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn bird_output_env_var_json() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = bird()
+        .args(["--username", "'; DROP TABLE", "doctor"])
+        .env("BIRD_OUTPUT", "json")
+        .env("HOME", tmp.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["kind"], "config");
+}
+
+#[test]
+fn non_tty_defaults_to_json_errors() {
+    // In test environment stderr is not a TTY, so auto-detection should pick JSON
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = bird()
+        .args(["--username", "'; DROP TABLE", "doctor"])
+        .env("HOME", tmp.path())
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(78));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should be parseable as JSON (auto-detected non-TTY -> json)
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["kind"], "config");
 }

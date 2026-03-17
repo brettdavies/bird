@@ -22,6 +22,7 @@ use clap::CommandFactory;
 use clap::FromArgMatches;
 use cli::{CacheAction, Cli, Command, WatchlistCommand};
 use config::{ArgOverrides, ResolvedConfig};
+use output::{OutputConfig, OutputFormat};
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
@@ -48,7 +49,15 @@ impl BirdError {
         }
     }
 
-    fn print(&self, use_color: bool) {
+    fn print(&self, out: &OutputConfig) {
+        if out.format == OutputFormat::Json {
+            self.print_json();
+        } else {
+            self.print_text(out.use_color);
+        }
+    }
+
+    fn print_text(&self, use_color: bool) {
         match self {
             BirdError::Config(e) => {
                 eprintln!("{}{}", output::error("config failed: ", use_color), e);
@@ -60,6 +69,39 @@ impl BirdError {
                 let prefix = format!("{} failed: ", name);
                 eprintln!("{}{}", output::error(&prefix, use_color), source);
             }
+        }
+    }
+
+    fn print_json(&self) {
+        let mut json = serde_json::json!({
+            "error": output::sanitize_for_stderr(&self.message(), 500),
+            "kind": self.kind(),
+            "code": self.exit_code(),
+        });
+        if let BirdError::Command { name, source } = self {
+            json["command"] = serde_json::Value::String((*name).to_string());
+            if let Some(xurl_err) = source.downcast_ref::<transport::XurlError>()
+                && let transport::XurlError::Api { status, .. } = xurl_err
+                && *status > 0
+            {
+                json["status"] = serde_json::json!(status);
+            }
+        }
+        eprintln!("{}", json);
+    }
+
+    fn kind(&self) -> &'static str {
+        match self {
+            BirdError::Config(_) => "config",
+            BirdError::Auth(_) => "auth",
+            BirdError::Command { .. } => "command",
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            BirdError::Config(e) | BirdError::Auth(e) => e.to_string(),
+            BirdError::Command { source, .. } => source.to_string(),
         }
     }
 }
@@ -135,10 +177,11 @@ fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
-    use_color: bool,
-    quiet: bool,
+    out: &OutputConfig,
     cache_only: bool,
 ) -> Result<(), BirdError> {
+    let use_color = out.use_color;
+    let quiet = out.suppress_diag();
     match command {
         Command::Login => {
             // Delegate to xurl for OAuth2 authentication
@@ -526,6 +569,20 @@ fn main() -> ExitCode {
 
     let use_color = use_color_from_cli(cli.plain, cli.no_color);
 
+    // Resolve output format: explicit flag > env var > auto-detect from stderr TTY
+    let output_format = cli.output.unwrap_or_else(|| {
+        if std::io::stderr().is_terminal() {
+            OutputFormat::Text
+        } else {
+            OutputFormat::Json
+        }
+    });
+    let out = OutputConfig {
+        format: output_format,
+        use_color,
+        quiet: cli.quiet,
+    };
+
     // --- Meta-commands: need nothing beyond parsed args ---
     if let Command::Completions { shell } = &cli.command {
         clap_complete::generate(*shell, &mut Cli::command(), "bird", &mut std::io::stdout());
@@ -540,7 +597,7 @@ fn main() -> ExitCode {
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
                 let err = BirdError::Config(format!("--username: {}", e).into());
-                err.print(use_color);
+                err.print(&out);
                 return ExitCode::from(err.exit_code());
             }
         },
@@ -554,7 +611,7 @@ fn main() -> ExitCode {
                 Ok(s) => Some(s.to_string()),
                 Err(e) => {
                     diag!(
-                        cli.quiet,
+                        out.suppress_diag(),
                         "[config] warning: X_API_USERNAME invalid, ignoring: {}",
                         e
                     );
@@ -570,7 +627,7 @@ fn main() -> ExitCode {
         Ok(c) => c,
         Err(e) => {
             let err = BirdError::Config(e);
-            err.print(use_color);
+            err.print(&out);
             return ExitCode::from(err.exit_code());
         }
     };
@@ -587,21 +644,28 @@ fn main() -> ExitCode {
         cache_opts,
         config.cache_max_size_mb,
         config.username.clone(),
-        cli.quiet,
+        out.suppress_diag(),
     );
 
     // --- Diagnostic commands: need config/DB but not xurl ---
     if let Command::Doctor { command, pretty } = &cli.command {
         let scope = command.as_deref();
         let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(&client, *pretty, scope, use_color, use_emoji, cli.quiet) {
+        match doctor::run_doctor(
+            &client,
+            *pretty,
+            scope,
+            use_color,
+            use_emoji,
+            out.suppress_diag(),
+        ) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::Command {
                     name: "doctor",
                     source: e,
                 };
-                err.print(use_color);
+                err.print(&out);
                 return ExitCode::from(err.exit_code());
             }
         }
@@ -611,23 +675,25 @@ fn main() -> ExitCode {
     if let Command::Watchlist { ref action, pretty } = cli.command
         && !matches!(action, WatchlistCommand::Check)
     {
+        let quiet = out.suppress_diag();
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, username, cli.quiet)
-                    .map_err(BirdError::Config)
+                watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::Config)
             }
             WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, username, cli.quiet)
+                watchlist::run_watchlist_remove(&config, username, quiet)
                     .map_err(BirdError::Config)
             }
-            WatchlistCommand::List => watchlist::run_watchlist_list(&config, pretty, cli.quiet)
-                .map_err(|e| map_cmd_error("watchlist", e)),
+            WatchlistCommand::List => {
+                watchlist::run_watchlist_list(&config, pretty, quiet)
+                    .map_err(|e| map_cmd_error("watchlist", e))
+            }
             WatchlistCommand::Check => unreachable!(),
         };
         return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                e.print(use_color);
+                e.print(&out);
                 ExitCode::from(e.exit_code())
             }
         };
@@ -636,21 +702,14 @@ fn main() -> ExitCode {
     // --- xurl gate: only for API commands ---
     if let Err(e) = transport::resolve_xurl_path() {
         let err = BirdError::Config(e);
-        err.print(use_color);
+        err.print(&out);
         return ExitCode::from(err.exit_code());
     }
 
-    match run(
-        cli.command,
-        config,
-        &mut client,
-        use_color,
-        cli.quiet,
-        cli.cache_only,
-    ) {
+    match run(cli.command, config, &mut client, &out, cli.cache_only) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            e.print(use_color);
+            e.print(&out);
             ExitCode::from(e.exit_code())
         }
     }

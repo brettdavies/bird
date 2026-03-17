@@ -2,6 +2,7 @@
 //!
 //! Pure data structures with no runtime behavior. Command dispatch lives in main.rs.
 
+use crate::output::OutputFormat;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -43,6 +44,10 @@ pub(crate) struct Cli {
         value_parser = clap::builder::FalseyValueParser::new(),
     )]
     pub quiet: bool,
+
+    /// Error output format: text (default for TTY), json (default for non-TTY)
+    #[arg(long, global = true, value_enum, env = "BIRD_OUTPUT")]
+    pub output: Option<OutputFormat>,
 }
 
 #[derive(clap::Subcommand)]

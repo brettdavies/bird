@@ -153,6 +153,27 @@ bird me
 bird bookmarks
 ```
 
+### Structured error output
+
+Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is the default.
+
+```json
+{"error":"message","kind":"config","code":78}
+{"error":"message","kind":"auth","code":77}
+{"error":"message","kind":"command","command":"me","code":1}
+{"error":"message","kind":"command","command":"get","status":429,"code":1}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error` | string | Error message |
+| `kind` | string | `config`, `auth`, or `command` |
+| `code` | number | Exit code (78, 77, or 1) |
+| `command` | string | Command name (only for `kind: "command"`) |
+| `status` | number | HTTP status (only for API errors with an HTTP status) |
+
+JSON output implicitly suppresses diagnostics (same as `--quiet`).
+
 ---
 
 ## Updating the API schema

@@ -1,7 +1,33 @@
 //! Terminal output: color choice for clap, styled helpers, and hyperlinks.
 
+use clap::ValueEnum;
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
+
+/// Output format for machine/human consumption.
+#[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Default: colored, human-readable
+    Text,
+    /// Machine-readable JSON, no color
+    Json,
+}
+
+/// Output configuration threaded through command handlers.
+/// Replaces separate `use_color` + `quiet` boolean parameters.
+#[derive(Clone, Debug)]
+pub struct OutputConfig {
+    pub format: OutputFormat,
+    pub use_color: bool,
+    pub quiet: bool,
+}
+
+impl OutputConfig {
+    /// Whether diagnostics should be suppressed (quiet mode or JSON output).
+    pub fn suppress_diag(&self) -> bool {
+        self.quiet || self.format == OutputFormat::Json
+    }
+}
 
 /// Diagnostic output macro — prints to stderr unless quiet mode is active.
 /// Use this instead of bare `eprintln!` for all informational output.
