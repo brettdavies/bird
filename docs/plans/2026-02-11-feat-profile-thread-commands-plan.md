@@ -1,6 +1,7 @@
 ---
 title: "feat: Profile and Thread Commands"
 type: feat
+status: completed
 date: 2026-02-11
 series: "Research Commands & Caching Layer"
 plan: 3 of 4
@@ -81,6 +82,7 @@ bird thread <tweet_id> [--pretty] [--max-pages N]
 ```
 
 A two-step fetch:
+
 1. Get the root tweet to extract `conversation_id`
 2. Search for all tweets in the conversation via `GET /2/tweets/search/recent?query=conversation_id:{id}`
 3. Build a thread tree from `referenced_tweets` relationships
@@ -114,6 +116,7 @@ pub async fn run_profile(
 ### Research Insights: Profile Handler
 
 **Signature corrections (from pattern recognition review):**
+
 - Must be `&mut CachedClient` (not `&CachedClient`) -- all existing handlers use `&mut`
 - Must include `use_color: bool` parameter -- all existing handlers include it
 - Must use opts struct -- follows `SearchOpts` pattern from `src/search.rs`, avoids `clippy::too_many_arguments`
@@ -121,6 +124,7 @@ pub async fn run_profile(
 **API endpoint:** `GET /2/users/by/username/{username}`
 
 **Query parameters (standard set):**
+
 ```
 user.fields=created_at,public_metrics,description,profile_image_url,location,verified,url
 ```
@@ -128,6 +132,7 @@ user.fields=created_at,public_metrics,description,profile_image_url,location,ver
 **Auth:** OAuth2User, OAuth1, or Bearer -- same as raw GET commands. All three auth types support the users/by endpoint per the X API spec.
 
 **Cache behavior:**
+
 - Endpoint pattern `/2/users/by/*` matches Plan 1's 1-hour TTL (see Plan 1, "Per-Endpoint TTL Defaults" table)
 - Cache key includes username, auth type, and effective user (from Plan 1's cache key design)
 - `--refresh` bypasses cache (passes through to `CachedClient`)
@@ -212,6 +217,7 @@ if let Some(errors) = body.get("errors").and_then(|e| e.as_array()) {
 ```
 
 **Security (from security review):**
+
 - Username validation prevents path traversal (already handled by alphanumeric check)
 - Do NOT echo untrusted usernames in error messages verbatim if outputting to terminal -- the validation step ensures only safe characters pass through
 
@@ -240,6 +246,7 @@ pub async fn run_thread(
 ### Research Insights: Thread Handler
 
 **Signature corrections (from pattern recognition + spec flow reviews):**
+
 - Must be `&mut CachedClient` (not `&CachedClient`)
 - Must include `use_color: bool` parameter
 - Must include `max_pages` in opts struct (was missing from original handler signature)
@@ -254,6 +261,7 @@ const THREAD_ACCEPTED: &[AuthType] = &[AuthType::OAuth2User, AuthType::OAuth1, A
 ```
 
 **Cache behavior:**
+
 - Root tweet fetch: `/2/tweets/{id}` has 15-minute TTL (Plan 1)
 - Conversation search: `/2/tweets/search/recent` has 15-minute TTL (Plan 1)
 - First search page is cacheable; subsequent pages skipped via `should_skip_cache()` checking `next_token=`
@@ -334,16 +342,19 @@ struct ThreadNode {
 ### Research Insights: Tree Data Structure
 
 **From framework docs research:**
+
 - `Vec<ThreadNode>` + `HashMap<String, usize>` (index-based arena) is idiomatic Rust for trees -- avoids lifetime complexity of reference-based trees
 - `VecDeque` for BFS depth computation is idiomatic (from `std::collections`)
 - `serde_json::Value` is acceptable for CLI passthrough (no need for typed structs)
 
 **From performance review:**
+
 - Convert recursive DFS (`flatten_thread`) to iterative with explicit stack to prevent stack overflow on deeply nested threads (1000+ depth possible on viral conversations)
 - Use lexicographic string comparison for `created_at` sorting (ISO 8601 format sorts correctly as strings)
 - ~10MB peak memory at 10,000 tweets is acceptable for a CLI tool
 
 **From spec flow review -- circular reference guard:**
+
 - Add a `visited: HashSet<usize>` in BFS depth computation to guard against circular references (shouldn't happen with valid API data, but defensive programming)
 
 ```rust
@@ -825,6 +836,7 @@ let ck = config.oauth1_consumer_key.as_ref()
 ### 2. Thread via Reverse Walk (reply chain up from any tweet)
 
 **Considered.** Alternative approach: start from a reply tweet, walk UP the chain via `referenced_tweets[type=replied_to].id` until reaching the root (where `conversation_id == id`), then walk DOWN from root. This would avoid the search endpoint entirely but:
+
 - Requires N sequential API calls to walk up the chain (one per ancestor)
 - Cannot discover sibling branches (other replies at the same level)
 - Loses the "full conversation" view that search provides
@@ -890,18 +902,21 @@ The two-step approach (fetch root + search conversation) is both faster (2 API c
 Consolidated from all three solution documents. Apply to both profile and thread:
 
 ### Error Handling
+
 - [ ] No silent failures: never `unwrap_or(default)` on parse operations; use `?`
 - [ ] Invariants have guards: use `ok_or()` not `unwrap()` for config values
 - [ ] Numeric inputs bounded: cap unbounded `u64`/`u32` to prevent overflow
 - [ ] Check `errors` array in HTTP 200 responses (X API pattern for not-found)
 
 ### API Integration
+
 - [ ] Dedicated auth constant in `requirements.rs` (e.g., `PROFILE_ACCEPTED`, `THREAD_ACCEPTED`)
 - [ ] `cache_hit` propagated from response to cost estimation
 - [ ] Query operator detection is token-based, not substring (if applicable)
 - [ ] OAuth1 credential access via `ok_or()`, never `unwrap()`
 
 ### Pagination (thread only)
+
 - [ ] All entity types deduplicated across pages (tweets AND users)
 - [ ] Pagination URLs excluded from cache (`next_token=`)
 - [ ] Empty data array breaks loop (handles phantom `next_token`)
@@ -909,12 +924,14 @@ Consolidated from all three solution documents. Apply to both profile and thread
 - [ ] `max_pages` parameter capped at reasonable maximum (25)
 
 ### Handler Signature
+
 - [ ] Uses `&mut CachedClient` (not `&CachedClient`)
 - [ ] Includes `use_color: bool` parameter
 - [ ] Uses opts struct to avoid `clippy::too_many_arguments`
 - [ ] Returns `Result<(), Box<dyn std::error::Error + Send + Sync>>`
 
 ### Registration
+
 - [ ] `mod` declaration in `main.rs` (alphabetical order)
 - [ ] `Command` enum variant in `main.rs`
 - [ ] Match arm in `run()` function in `main.rs`
@@ -922,6 +939,7 @@ Consolidated from all three solution documents. Apply to both profile and thread
 - [ ] Command name in `command_names_with_auth()`
 
 ### Testing
+
 - [ ] Tests exercise actual code paths, not stdlib behavior
 - [ ] Edge cases for input validation
 - [ ] Tree topology tests (thread only)

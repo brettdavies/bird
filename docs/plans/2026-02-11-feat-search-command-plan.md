@@ -1,6 +1,7 @@
 ---
 title: "feat: Search Command with Filtering and Sorting"
 type: feat
+status: completed
 date: 2026-02-11
 series: "Research Commands & Caching Layer"
 plan: 2 of 4
@@ -77,6 +78,7 @@ Research workflows on X/Twitter require searching for tweets by topic, filtering
 **Concrete pain points:**
 
 1. **Manual query building:** Users must remember `tweet.fields`, `user.fields`, `expansions`, `max_results`, and X search operator syntax. A single search requires a command like:
+
    ```
    bird get /2/tweets/search/recent --query "query=rust lang -is:retweet&tweet.fields=created_at,public_metrics,author_id,conversation_id&user.fields=username,name&expansions=author_id&max_results=100"
    ```
@@ -669,7 +671,7 @@ mod search;
 | Phantom `next_token` on last page causes extra API call | Medium | Low | Break on empty `data` array, not just missing token |
 | Duplicate tweets at page boundaries | Medium | Low | `HashSet<String>` dedup by tweet ID |
 | Post-fetch sorting reverses X's dedup benefit | Low | Low | Sorting is in-memory only; does not cause additional API calls |
-| Large result sets use significant memory | Low | Low | 100 tweets * 10 pages * ~2KB = ~2MB; well within CLI budget |
+| Large result sets use significant memory | Low | Low | 100 tweets *10 pages* ~2KB = ~2MB; well within CLI budget |
 | `public_metrics` field becomes restricted | Low | High | Graceful degradation: `extract_metric` defaults to 0 |
 
 ## Future Considerations

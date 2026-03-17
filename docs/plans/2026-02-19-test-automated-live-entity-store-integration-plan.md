@@ -1,7 +1,7 @@
 ---
 title: "test: Automated Live Integration Tests for Entity Store"
 type: test
-status: active
+status: completed
 date: 2026-02-19
 supersedes: 2026-02-17-test-live-production-validation-plan.md
 related:

@@ -1,7 +1,7 @@
 # Brainstorm: Research Commands & Transparent Caching Layer
 
 **Date:** 2026-02-11
-**Status:** Draft
+**Status:** Completed
 
 ---
 
@@ -34,6 +34,7 @@ A SQLite-backed cache (`~/.config/bird/cache.db`) that intercepts ALL outgoing H
 | Default (all other) | 15 minutes | Safe fallback |
 
 **Cache controls:**
+
 - `--refresh` — bypass cache for this request
 - `--cache-ttl <seconds>` — override TTL for this request
 - `--no-cache` — disable cache entirely for this request
@@ -47,6 +48,7 @@ A SQLite-backed cache (`~/.config/bird/cache.db`) that intercepts ALL outgoing H
 ### The X API is expensive
 
 **Billing is per-object returned, not per-request** ([source](https://jesusiniesta.es/blog/x-api-pricing-tiers-what-you-actually-get)):
+
 - $0.005 per post read (returned in any endpoint response)
 - $0.010 per user lookup
 - $0.010 per post creation
@@ -68,6 +70,7 @@ Auth (OAuth2 PKCE, OAuth1, Bearer), HTTP client with timeouts, streaming output,
 **Decision:** SQLite at `~/.config/bird/cache.db` as a transparent layer on all HTTP calls.
 
 **Why not file-based:**
+
 - Atomic reads/writes (no race conditions with concurrent bird invocations)
 - TTL-based pruning is a single SQL DELETE
 - Size limits are enforceable
@@ -75,6 +78,7 @@ Auth (OAuth2 PKCE, OAuth1, Bearer), HTTP client with timeouts, streaming output,
 - Single file vs. hundreds of cache files
 
 **Schema (conceptual):**
+
 - `cache` table: key (hash), url, method, status_code, headers, body, created_at, ttl_seconds
 - `usage` table: timestamp, endpoint, method, object_type (tweet/user), object_count, estimated_cost_usd, cache_hit (bool)
 - `usage_actual` table: date (UTC), tweet_count (from X API `GET /2/usage/tweets`), synced_at
@@ -84,6 +88,7 @@ Auth (OAuth2 PKCE, OAuth1, Bearer), HTTP client with timeouts, streaming output,
 **Decision:** Define field "profiles" that bundle tweet.fields, user.fields, and expansions.
 
 **Profiles:**
+
 - `minimal` — Just text and author_id. Cheapest, for quick checks.
 - `standard` (default) — created_at, public_metrics, author_id, conversation_id, entities + author expansion + username, name, public_metrics. Optimal balance of data and cost.
 - `full` — Everything above plus referenced_tweets, context_annotations, geo, attachments, edit_history. Most expensive.
@@ -93,6 +98,7 @@ Auth (OAuth2 PKCE, OAuth1, Bearer), HTTP client with timeouts, streaming output,
 ### 3. Cost tracking: estimated + actual
 
 **Decision:** Three-pronged approach:
+
 - **stderr on every call:** Print estimated cost and cache hit/miss to stderr (e.g., `[cost] 10 tweets read, ~$0.05 (cache miss)` or `[cost] cache hit, $0.00`)
 - **SQLite accumulation:** Every API call (cached or not) is logged to the `usage` table with raw object counts (tweets, users), object type, and estimated dollar cost. Storing counts (not just dollars) allows recalculation if pricing changes.
 - **Actual usage from X API:** `GET /2/usage/tweets` returns daily project-level tweet consumption for up to 90 days ([source](https://devcommunity.x.com/t/announcing-the-new-usage-endpoint-in-the-x-api-v2/208160)). `bird usage --sync` fetches actual usage from X and stores it alongside estimates. Over time, comparing estimated vs. actual reveals how accurate our tracking is and whether we're missing charges (e.g., from expansions or other billing nuances).
@@ -120,6 +126,7 @@ note = "OpenAI official"
 **Critical insight — X's 24hr dedup is billing-only, not data-staleness:** When you re-request a tweet within the 24hr UTC window, X returns **fresh data** (updated metrics) but **doesn't charge you**. This means re-requesting tweets within the dedup window is effectively free — you get updated like/retweet/reply counts at no cost.
 
 **Implication for our cache:** A 24hr cache TTL on tweets would actually prevent us from getting free metric updates. Instead:
+
 - Cache tweet **text/content** for 24hr (immutable, never changes)
 - Cache tweet **metrics** for 15min (changes frequently, but re-fetching within 24hr window is free)
 - This gives us fresh engagement data at zero additional cost
@@ -131,6 +138,7 @@ note = "OpenAI official"
 **Decision:** Since billing is per-object (not per-request), the cache layer should optimize what gets requested:
 
 **How it works:** Before sending a multi-object GET (e.g., `GET /2/tweets?ids=1,2,3,4,5`), check the cache for each ID. If IDs 1 and 3 are cached and valid:
+
 1. Remove them from the outgoing request (`GET /2/tweets?ids=2,4,5`)
 2. Backfill the response by merging cached objects with fresh API results
 3. Return the combined set to the caller as if all 5 were fetched
@@ -144,6 +152,7 @@ note = "OpenAI official"
 ### 6. Search output formatting
 
 **Decision:** JSON-first, consistent with all other bird commands:
+
 - Default: Compact JSON to stdout. Agents parse this directly.
 - `--pretty`: Pretty-printed JSON with syntax highlighting (colored keys, strings, numbers when stderr is a TTY). Uses `owo-colors` (already a dependency).
 - `--format telegram`: Compact one-line-per-tweet with engagement indicators.
@@ -152,6 +161,7 @@ note = "OpenAI official"
 ### 7. Noise filtering and sorting
 
 **Decision:** Built into `bird search`:
+
 - Auto `-is:retweet` (unless query already contains `is:retweet`)
 - `--quality` flag adds `min_likes >= 10`
 - `--sort likes|impressions|retweets|replies|recent` (default: likes)

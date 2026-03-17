@@ -1,6 +1,7 @@
 ---
 title: "feat: Transparent Cache Layer with Cost Tracking"
 type: feat
+status: completed
 date: 2026-02-11
 series: "Research Commands & Caching Layer"
 plan: 1 of 4
@@ -198,6 +199,7 @@ fn migrations_are_valid() { MIGRATIONS.validate().unwrap(); }
 #### Research Insights: Schema Simplification
 
 **Removed from original plan (YAGNI):**
+
 - `method` column — only GETs are cached; method is always GET
 - `content_type` column — never read by any code
 - `auth_type`, `username` columns — baked into the cache key hash
@@ -359,6 +361,7 @@ impl fmt::Debug for ApiResponse {
 #### Research Insights: API Design
 
 **Naming fixes (pattern recognition):**
+
 - `CacheStore` renamed to `BirdDb` — reflects dual responsibility (cache now, usage later)
 - `CachedResponse` renamed to `ApiResponse` — the struct is returned for both hits and misses
 - `CacheOpts.ttl_override` renamed to `cache_ttl` — matches CLI flag `--cache-ttl`
@@ -436,6 +439,7 @@ pub fn display_cost(estimate: &CostEstimate, use_color: bool) { ... }
 **Deferred to Plan 4:** The `usage` table, `log_usage()`, `query_usage()`, and persistent cost accumulation. The stateless stderr display provides immediate value without database complexity.
 
 **What gets counted:**
+
 - `data` array items: tweets or users depending on endpoint
 - `includes.users`: additional user objects (billed separately)
 - `includes.tweets`: referenced tweets (billed separately)
@@ -558,6 +562,7 @@ if self.write_count % 20 == 0 {
 **Original plan:** Check `SUM(body_size)` on every write. For 10,000 entries, this is 10-50ms per write — exceeds the <5ms latency target.
 
 **Better approach: Counter-cache** (architecture + performance reviewers agree):
+
 ```sql
 -- Track total size in a lightweight counter
 -- Updated atomically on INSERT/DELETE via the BirdDb methods
@@ -621,6 +626,7 @@ fn open_cache_db(path: &Path) -> Result<Connection> {
 **F-03 (HIGH): Usage/stats endpoint column.** When the `usage` table is added in Plan 4, the `endpoint` column must store the URL **path only** (e.g., `/2/tweets/search/recent`), with all query parameters stripped. Search queries in URLs (e.g., `query=from%3Ajournalist+corruption`) would create a permanent, queryable log of sensitive research.
 
 **F-07 (MEDIUM): Malicious cache.db.** On open:
+
 - Reject databases with SQLite triggers (`SELECT count(*) FROM sqlite_master WHERE type='trigger'`)
 - Cap individual entry reads at 50MB (prevents OOM from crafted BLOBs)
 - If `PRAGMA user_version` > current version, treat as corrupted (not read-only)
@@ -644,6 +650,7 @@ fn open_cache_db(path: &Path) -> Result<Connection> {
   - [x] `stats()` — entry count, total size, health check
   - [x] `clear()` — delete all cache entries + `PRAGMA incremental_vacuum`
   - [x] Add passive WAL checkpoint on `Drop`:
+
     ```rust
     impl Drop for BirdDb {
         fn drop(&mut self) {
@@ -651,6 +658,7 @@ fn open_cache_db(path: &Path) -> Result<Connection> {
         }
     }
     ```
+
 - [x] Unit tests (using `Connection::open_in_memory()`): open, put/get, TTL expiry, pruning, migration validation
 - [x] Integration tests (using `tempfile::tempdir()`): WAL mode, file permissions, corruption recovery
 

@@ -1,7 +1,7 @@
 # Entity Store: Cache Redesign
 
-**Date:** 2026-02-17  
-**Status:** Draft  
+**Date:** 2026-02-17
+**Status:** Completed
 **Scope:** Replace request-level TTL cache with entity-level permanent data store
 
 ---

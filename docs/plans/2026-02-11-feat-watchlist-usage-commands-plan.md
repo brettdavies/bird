@@ -1,6 +1,7 @@
 ---
 title: "feat: Watchlist and Usage Commands"
 type: feat
+status: completed
 date: 2026-02-11
 series: "Research Commands & Caching Layer"
 plan: 4 of 4
@@ -259,6 +260,7 @@ fn set_file_permissions_0600(path: &Path) -> std::io::Result<()> {
 ```
 
 Apply `0o600` to:
+
 1. The temp file before rename in `safe_write_config()`
 2. Any newly created `config.toml` (when it doesn't exist yet)
 
@@ -598,6 +600,7 @@ fn maybe_prune_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
 The usage command runs pure SQL aggregation queries against this table. No API calls are needed (except `--sync`).
 
 **SQLite best practices (from research):**
+
 - Use `COALESCE()` for NULL-safe aggregation (SUM of empty result set returns NULL, not 0)
 - Use `CAST(SUM(...) AS INTEGER)` to prevent integer overflow in aggregation
 - (R2) Pre-computed `date_ymd INTEGER` column avoids `date(timestamp, 'unixepoch')` in GROUP BY (3x faster at 1M rows)
@@ -690,6 +693,7 @@ chrono = { version = "0.4", default-features = false, features = ["now"] }
 > **Research finding (R4):** The `clock` feature pulls in `winapi` (Windows) and `iana-time-zone` (all platforms) — unnecessary for this use case. The `now` feature (added in chrono 0.4.35) is sufficient for `Utc::now()` and implies `std`. Smaller dependency footprint, faster builds.
 
 **Date parsing edge cases (from research):**
+
 - Leap year dates (e.g., `2024-02-29`) parse correctly with `NaiveDate`; invalid dates (e.g., `2025-02-29`) produce a clear error
 - `--since` dates in the future: allow but produce empty results (no special handling needed)
 - `--since` dates older than 90 days with `--sync`: warn that X API only returns 90 days of history
@@ -1253,16 +1257,19 @@ The `@` is stripped in the caller (`run_watchlist_add`, `run_watchlist_remove`) 
 ### How Both Commands Use CachedClient and Cost Tracking
 
 **Watchlist `check`:**
+
 - Each search query goes through `CachedClient::get(&mut self, url, &CacheContext, HeaderMap)`, which handles cache lookup, cost estimation, usage logging, and rate limiting (all from Plan 1).
 - Cost is displayed on stderr per account: `[cost] 10 tweets, ~$0.05 (cache miss)`.
 - On a repeated check within the 15-minute TTL, each account returns from cache: `[cost] cache hit, $0.00 (10 tweets)`.
 - All calls are logged to the `usage` table, so `bird usage` reflects watchlist costs accurately.
 
 **Usage (default, no `--sync`):**
+
 - Does not use `CachedClient` at all. Opens the SQLite database directly via `BirdDb` for read-only queries.
 - No API calls, no cost incurred, no auth required.
 
 **Usage with `--sync`:**
+
 - Uses `client.http_get()` (bypassing cache) to fetch `GET /2/usage/tweets` with Bearer auth — we always want fresh actuals from X, not cached stale data.
 - This is itself a billable API call. The cost is logged to the usage table.
 

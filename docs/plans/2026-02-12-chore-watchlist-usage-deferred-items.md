@@ -1,6 +1,7 @@
 ---
 title: "chore: Watchlist & Usage Deferred Items"
 type: chore
+status: completed
 date: 2026-02-12
 revised: 2026-02-15
 depends_on: "2026-02-11-feat-watchlist-usage-commands-plan"
@@ -50,6 +51,7 @@ logging into every path that makes an API call or returns cached data.
 **File:** `src/cache.rs` (new function, near `default_ttl_for_endpoint`)
 
 Segment-based normalization that:
+
 - Extracts URL path via `url::Url::parse(url).map(|u| u.path().to_string())`
   (same pattern as `default_ttl_for_endpoint` at line 817)
 - Replaces numeric ID segments with `:id`
@@ -58,6 +60,7 @@ Segment-based normalization that:
   `bookmarks`, `me`, etc.) — no regex
 
 Test cases:
+
 - `/2/tweets/search/recent` → unchanged
 - `/2/users/me` → unchanged
 - `/2/tweets/1234567890` → `/2/tweets/:id`
@@ -181,6 +184,7 @@ return 0 objects / $0.00, which is correct (the X API charges for reads, not
 writes). The log entry still provides visibility into mutation frequency.
 
 `CacheContext` is not currently passed to `request()`. Either:
+
 - Add `ctx: &CacheContext<'_>` parameter (preferred — matches `get()` signature)
 - Or pass `username: Option<&str>` directly
 
@@ -234,6 +238,7 @@ if self.write_count.is_multiple_of(50) {
 ```
 
 Delete `maybe_prune_usage()` and replace with:
+
 ```rust
 fn prune_old_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
     let cutoff = now_ts - (90 * 24 * 60 * 60);
@@ -257,6 +262,7 @@ query planning during pagination loops.
 ### 1i. Remove `#[allow(dead_code)]` annotations -- Implemented
 
 After wiring is complete, remove these annotations:
+
 - Line 282: `log_usage()`
 - Line 443: `UsageLogEntry`
 - Line 707: `db_mut()`
@@ -271,6 +277,7 @@ After wiring is complete, remove these annotations:
 **File:** `src/usage.rs`, line 70-71
 
 The current code uses YYYYMMDD integer subtraction:
+
 ```rust
 let days_back = now_ymd - since_ymd;
 if days_back > 90_00_00 { ... }
@@ -280,6 +287,7 @@ if days_back > 90_00_00 { ... }
 trigger for ~90-year differences. The validation is non-functional.
 
 Fix: use `chrono` to compute actual day difference:
+
 ```rust
 let now = chrono::Utc::now().date_naive();
 let since = chrono::NaiveDate::parse_from_str(&format!(
@@ -303,9 +311,11 @@ sums zeros.
 **Fix:** Per decision D3, `log_usage()` always records the real cost of the data
 (computed with `cache_hit: false`). The `cache_hit` column stores the truth
 separately. Then the existing SQL for `estimated_savings` works correctly:
+
 ```sql
 SUM(CASE WHEN cache_hit = 1 THEN estimated_cost ELSE 0 END)
 ```
+
 — because `estimated_cost` now reflects what the request would have cost.
 
 No SQL changes needed. The fix is entirely in how `log_usage()` is called (Item
@@ -345,6 +355,7 @@ Add a `pub fn cache_disabled(&self) -> bool` accessor to `CachedClient` that
 returns `self.cache_opts.no_cache`.
 
 Replace the `ok_or(...)` pattern with a match:
+
 ```rust
 let db = match client.db() {
     Some(db) => db,
@@ -374,6 +385,7 @@ Apply the same pattern at line 229-231 in `sync_actual_usage()`.
 ### Current problem
 
 At `usage.rs:78`:
+
 ```rust
 Some(sync_actual_usage(client, &token).await?)
 ```
@@ -397,6 +409,7 @@ enrichment.
 | Network timeout | "Request timed out. Showing local data only." | `null` |
 
 When actuals are unavailable, the JSON report includes:
+
 ```json
 {
   "actuals": null,
@@ -424,6 +437,7 @@ fn parse_rate_limit_reset(headers: &reqwest::header::HeaderMap) -> Option<i64> {
 ```
 
 Format the reset time for display:
+
 ```rust
 chrono::DateTime::from_timestamp(ts, 0)
     .map(|dt| dt.format("%H:%M UTC").to_string())
@@ -503,11 +517,13 @@ and updated to use `sanitize_for_stderr()` in a separate chore.
 Following Rust CLI best practices, use a two-layer approach:
 
 **Layer 1: Binary smoke tests with `assert_cmd`** (`tests/cli_smoke.rs`)
+
 - Verify exit codes and basic output for each command
 - No network, no mocking — tests against the compiled binary
 - Fast, reliable, catches argument parsing regressions
 
 **Layer 2: HTTP integration tests with `wiremock`** (`tests/api_integration.rs`)
+
 - Stand up a local mock HTTP server per test
 - Test full request/response flows including rate limits, pagination, errors
 - Requires making the API base URL configurable
@@ -547,21 +563,25 @@ construction.
 Tests with `wiremock`:
 
 **Watchlist check lifecycle:**
+
 - Mock `GET /2/tweets/search/recent` → 200 with tweet data
 - Run `execute_check()` against mock server
 - Verify NDJSON output shape and content
 - Verify usage is logged (check BirdDb after execution)
 
 **Rate limit handling:**
+
 - Mock endpoint → 429 with `x-rate-limit-reset` header
 - Verify warning message is printed
 - Verify local data is still shown (for `--sync` case)
 
 **Pagination logging:**
+
 - Mock endpoint → page 1 with `next_token`, page 2 without
 - Verify both pages are logged to usage table
 
 **Cache hit vs miss logging:**
+
 - Make same request twice (first: cache miss, second: cache hit)
 - Verify both are logged with correct `cache_hit` values
 - Verify `estimated_cost` is non-zero for both (raw data recording)
@@ -588,6 +608,7 @@ Change `run_watchlist_check` to accept `impl Write` instead of writing to
 process-level redirection.
 
 **Add test config helper:**
+
 ```rust
 #[cfg(test)]
 fn assert_not_real_config(path: &Path) {
@@ -624,6 +645,7 @@ fn assert_not_real_config(path: &Path) {
 ```
 
 Parallelizable groups:
+
 - **Group A** (foundations): 1a, 1b, 1b2, 2a, 2c, 1g, 1h — 1b2 depends on 1a+1b; rest independent
 - **Group B** (wiring): 1c, 1d, 1e, 1f — depend on 1b2 (Group A), independent of each other
 - **Group C** (UX): 3, 4 — independent of everything else
