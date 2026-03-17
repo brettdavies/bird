@@ -1,0 +1,10 @@
+/target
+/dist
+*.pdb
+.env
+.env.local
+*.local
+config.local.toml
+tokens.json
+/todos
+node_modules/

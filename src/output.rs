@@ -1,0 +1,200 @@
+//! Terminal output: color choice for clap, styled helpers, and hyperlinks.
+
+use clap::ValueEnum;
+use owo_colors::OwoColorize;
+use std::io::IsTerminal;
+
+/// Output format for machine/human consumption.
+#[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// Default: colored, human-readable
+    Text,
+    /// Machine-readable JSON, no color
+    Json,
+}
+
+/// Output configuration threaded through command handlers.
+/// Replaces separate `use_color` + `quiet` boolean parameters.
+#[derive(Clone, Debug)]
+pub struct OutputConfig {
+    pub format: OutputFormat,
+    pub use_color: bool,
+    pub quiet: bool,
+}
+
+impl OutputConfig {
+    /// Whether diagnostics should be suppressed (quiet mode or JSON output).
+    pub fn suppress_diag(&self) -> bool {
+        self.quiet || self.format == OutputFormat::Json
+    }
+}
+
+/// Diagnostic output macro — prints to stderr unless quiet mode is active.
+/// Use this instead of bare `eprintln!` for all informational output.
+/// Fatal errors use `BirdError::print()` directly (never suppressed).
+#[macro_export]
+macro_rules! diag {
+    ($quiet:expr, $($arg:tt)*) => {
+        if !$quiet {
+            eprintln!($($arg)*);
+        }
+    };
+}
+
+/// Color choice for clap help/errors: respect NO_COLOR and TERM=dumb, and TTY.
+pub fn color_choice_for_clap() -> clap::ColorChoice {
+    let stderr_tty = std::io::stderr().is_terminal();
+    let no_color_env = std::env::var("NO_COLOR").is_ok();
+    let term_dumb = std::env::var("TERM").as_deref() == Ok("dumb");
+    if !stderr_tty || no_color_env || term_dumb {
+        clap::ColorChoice::Never
+    } else {
+        clap::ColorChoice::Auto
+    }
+}
+
+/// Section header (bold white). When use_color is false, returns s unchanged.
+pub fn section(s: &str, use_color: bool) -> String {
+    if use_color {
+        s.bold().white().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Command name (bold cyan).
+pub fn command(s: &str, use_color: bool) -> String {
+    if use_color {
+        s.bold().cyan().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Muted/secondary text (dim gray).
+pub fn muted(s: &str, use_color: bool) -> String {
+    if use_color {
+        s.bright_black().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Error prefix (red).
+pub fn error(s: &str, use_color: bool) -> String {
+    if use_color {
+        s.red().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Success (green).
+pub fn success(s: &str, use_color: bool) -> String {
+    if use_color {
+        s.green().to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Strip lines containing ANSI escape sequences from stdout output.
+/// Used as fallback when `NO_COLOR=1` doesn't suppress hardcoded ANSI in xurl error paths.
+/// Filters complete lines (not individual sequences) to avoid corrupting JSON structure.
+pub fn strip_ansi_lines(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains('\x1b') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    std::borrow::Cow::Owned(
+        s.lines()
+            .filter(|line| !line.contains('\x1b'))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+/// Sanitize untrusted text for stderr display: replace control chars with '?', truncate.
+/// Prevents terminal escape injection from API response bodies.
+pub fn sanitize_for_stderr(s: &str, max_chars: usize) -> String {
+    s.chars()
+        .take(max_chars)
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
+}
+
+/// Emoji for "available" when use_emoji; otherwise empty string.
+pub fn emoji_available(use_emoji: bool) -> &'static str {
+    if use_emoji { "✅ " } else { "" }
+}
+
+/// Emoji for "unavailable" when use_emoji; otherwise empty string.
+pub fn emoji_unavailable(use_emoji: bool) -> &'static str {
+    if use_emoji { "❌ " } else { "" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strip_ansi_lines_clean_json() {
+        let input = "{\"data\":{\"id\":\"1\"}}\n";
+        // Fast path: no ANSI present, returns borrowed input unchanged (including trailing newline)
+        assert_eq!(strip_ansi_lines(input), input);
+    }
+
+    #[test]
+    fn strip_ansi_lines_removes_colored_error() {
+        let input = "{\"data\":{\"id\":\"1\"}}\n\x1b[31mError: request failed\x1b[0m";
+        assert_eq!(strip_ansi_lines(input), "{\"data\":{\"id\":\"1\"}}");
+    }
+
+    #[test]
+    fn strip_ansi_lines_preserves_all_clean() {
+        let input = "line one\nline two\nline three";
+        assert_eq!(strip_ansi_lines(input), input);
+    }
+
+    #[test]
+    fn strip_ansi_lines_empty() {
+        assert_eq!(strip_ansi_lines(""), "");
+    }
+
+    #[test]
+    fn sanitize_normal_text() {
+        assert_eq!(sanitize_for_stderr("hello world", 100), "hello world");
+    }
+
+    #[test]
+    fn sanitize_strips_escape() {
+        assert_eq!(
+            sanitize_for_stderr("a\x1b[31mred\x1b[0m", 100),
+            "a?[31mred?[0m"
+        );
+    }
+
+    #[test]
+    fn sanitize_strips_bel() {
+        assert_eq!(sanitize_for_stderr("a\x07b", 100), "a?b");
+    }
+
+    #[test]
+    fn sanitize_strips_newlines() {
+        assert_eq!(sanitize_for_stderr("line1\nline2", 100), "line1?line2");
+    }
+
+    #[test]
+    fn sanitize_truncates() {
+        assert_eq!(sanitize_for_stderr("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn sanitize_empty() {
+        assert_eq!(sanitize_for_stderr("", 100), "");
+    }
+
+    #[test]
+    fn sanitize_at_exact_limit() {
+        assert_eq!(sanitize_for_stderr("abc", 3), "abc");
+    }
+}
