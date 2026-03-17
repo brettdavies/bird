@@ -4,11 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-17
+
 ### Changed
 
 - Remove legacy OAuth config fields and cleanup
 - Remove remaining legacy auth references
 - Remove unused OpenAPI spec, scripts, and references
+- Reflow markdown to 120-char lines and fix MD060 table alignment
+- Add project-level markdownlint-cli2 config (120-char line length)
+- Update RELEASING.md with release branch pattern and Trusted Publishing status
+
+### Fixed
+
+- Fix Trusted Publishing token wiring for crates.io publish
+- Fix rustfmt drift in watchlist tests
 
 ## [0.1.0] - 2026-03-17
 
