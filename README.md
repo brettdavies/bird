@@ -42,11 +42,17 @@ cargo build --release
 
 ### Prerequisite: xurl
 
-bird requires [xurl](https://github.com/xdevplatform/xurl) for X API authentication:
+bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go [xurl](https://github.com/xdevplatform/xurl)) for X API authentication:
 
 ```bash
+# Recommended: xurl-rs (Rust)
+brew install brettdavies/tap/xurl-rs
+
+# Alternative: xurl (Go original)
 brew install xdevplatform/tap/xurl
 ```
+
+bird checks for `xr` (xurl-rs) first, then `xurl` (Go). Override with `BIRD_XURL_PATH`.
 
 Verify your setup: `bird doctor`
 

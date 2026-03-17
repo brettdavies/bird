@@ -33,13 +33,15 @@ const KILL_GRACE_SECS: u64 = 5;
 const MIN_VERSION: &str = "1.0.3";
 
 /// Centralized xurl install guidance (DRY across transport.rs and doctor.rs).
-pub const XURL_INSTALL_HINT: &str = "Install xurl: brew install xdevplatform/tap/xurl (or download from https://github.com/xdevplatform/xurl/releases)";
+pub const XURL_INSTALL_HINT: &str = "Install xurl-rs: brew install brettdavies/tap/xurl-rs (or Go xurl: brew install xdevplatform/tap/xurl)";
 
 /// Cached absolute path to the xurl binary, resolved once at startup.
 static XURL_PATH: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
 /// Resolve and cache the absolute path to the xurl binary.
-/// Checks `BIRD_XURL_PATH` env var first, falls back to `which::which("xurl")`.
+/// Checks `BIRD_XURL_PATH` env var first, falls back to `which::which("xr")`
+/// then `which::which("xurl")`. Resolved paths are canonicalized and version-checked
+/// as an integrity gate (rejects binaries that don't report a valid version).
 pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + Send + Sync>> {
     let result = XURL_PATH.get_or_init(|| {
         if let Ok(path) = std::env::var("BIRD_XURL_PATH") {
@@ -67,7 +69,19 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
             }
             return Ok(p);
         }
-        which::which("xurl").map_err(|_| format!("xurl not found. {}", XURL_INSTALL_HINT))
+        // Try xr (xurl-rs) first, then xurl (Go original).
+        // Canonicalize to resolve symlinks and mitigate impersonation.
+        // Version check acts as integrity gate: reject binaries that don't
+        // report a parseable version with "xurl " or "xr " prefix.
+        for name in &["xr", "xurl"] {
+            if let Ok(found) = which::which(name) {
+                let canonical = found.canonicalize().unwrap_or(found);
+                if verify_xurl_binary(&canonical) {
+                    return Ok(canonical);
+                }
+            }
+        }
+        Err(format!("xurl not found. {}", XURL_INSTALL_HINT))
     });
     match result {
         Ok(p) => Ok(p.as_path()),
@@ -75,7 +89,34 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
     }
 }
 
-/// Run `xurl version` and return the version string. Warns if below minimum.
+/// Verify a candidate binary is a genuine xurl/xr by checking its version output.
+/// Returns true if the binary reports a parseable version string.
+fn verify_xurl_binary(path: &Path) -> bool {
+    let Ok(output) = Command::new(path)
+        .arg("version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+    else {
+        return false;
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_version_string(stdout.trim()).is_some()
+}
+
+/// Parse a version string from xurl/xr version output.
+/// Accepts formats: "xurl X.Y.Z", "xr X.Y.Z", or bare "X.Y.Z" (with optional v prefix).
+fn parse_version_string(s: &str) -> Option<semver::Version> {
+    let version_part = s
+        .strip_prefix("xurl ")
+        .or_else(|| s.strip_prefix("xr "))
+        .unwrap_or(s);
+    let clean = version_part.strip_prefix('v').unwrap_or(version_part);
+    semver::Version::parse(clean).ok()
+}
+
+/// Run `xurl version` (or `xr version`) and return the version string.
+/// Warns if below minimum. Handles both "xurl X.Y.Z" and "xr X.Y.Z" prefixes.
 pub fn check_xurl_version(
     path: &Path,
     quiet: bool,
@@ -88,30 +129,24 @@ pub fn check_xurl_version(
         .map_err(|e| format!("failed to run xurl version: {}", e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // xurl version output: "xurl 1.0.3\n"
-    let version = stdout
-        .trim()
-        .strip_prefix("xurl ")
-        .unwrap_or(stdout.trim())
-        .to_string();
+    let trimmed = stdout.trim();
 
-    if !version.is_empty() {
-        let clean = version.strip_prefix('v').unwrap_or(&version);
-        if let (Ok(current), Ok(minimum)) = (
-            semver::Version::parse(clean),
-            semver::Version::parse(MIN_VERSION),
-        ) && current < minimum
+    if let Some(current) = parse_version_string(trimmed) {
+        if let Ok(minimum) = semver::Version::parse(MIN_VERSION)
+            && current < minimum
         {
             diag!(
                 quiet,
                 "[transport] warning: xurl {} is below minimum {}; consider upgrading",
-                version,
+                current,
                 MIN_VERSION
             );
         }
+        Ok(current.to_string())
+    } else {
+        // Return raw output if we can't parse — still useful for diagnostics
+        Ok(trimmed.to_string())
     }
-
-    Ok(version)
 }
 
 /// Error from an xurl subprocess call.
