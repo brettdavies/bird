@@ -104,16 +104,16 @@ Six PRs in sequence, each independently testable and reviewable.
 
 **Acceptance criteria:**
 
-- [ ] `bird me` works when only `xr` is on PATH
-- [ ] `bird me` works when only `xurl` is on PATH
-- [ ] When both are present, `xr` is preferred
-- [ ] `BIRD_XURL_PATH` overrides all auto-detection
-- [ ] Binary that fails version check is rejected (falls through to next candidate)
-- [ ] Resolved path is canonicalized (symlink attacks mitigated)
-- [ ] Version parsing handles both `"xurl X.Y.Z"` and `"xr X.Y.Z"` prefixes
-- [ ] Install hint references both xurl-rs and Go xurl
-- [ ] All existing transport integration tests pass
-- [ ] README xurl install instructions updated
+- [x] `bird me` works when only `xr` is on PATH
+- [x] `bird me` works when only `xurl` is on PATH
+- [x] When both are present, `xr` is preferred
+- [x] `BIRD_XURL_PATH` overrides all auto-detection
+- [x] Binary that fails version check is rejected (falls through to next candidate)
+- [x] Resolved path is canonicalized (symlink attacks mitigated)
+- [x] Version parsing handles both `"xurl X.Y.Z"` and `"xr X.Y.Z"` prefixes
+- [x] Install hint references both xurl-rs and Go xurl
+- [x] All existing transport integration tests pass
+- [x] README xurl install instructions updated
 
 #### Research Insights
 
@@ -159,13 +159,13 @@ Six PRs in sequence, each independently testable and reviewable.
 
 **Acceptance criteria:**
 
-- [ ] `cargo build` succeeds
-- [ ] `cargo test` — all 201 tests pass with zero changes to test code
-- [ ] `cargo clippy --all-targets` clean
-- [ ] main.rs drops from ~1,021 to ~710 lines
-- [ ] cli.rs is ~310 lines of pure clap derive definitions
-- [ ] No public visibility leakage (all types are `pub(crate)`)
-- [ ] Three-tier gating comments remain in main.rs with dispatch logic
+- [x] `cargo build` succeeds
+- [x] `cargo test` — all 201 tests pass with zero changes to test code
+- [x] `cargo clippy --all-targets` clean
+- [x] main.rs drops from ~1,021 to ~710 lines
+- [x] cli.rs is ~310 lines of pure clap derive definitions
+- [x] No public visibility leakage (all types are `pub(crate)`)
+- [x] Three-tier gating comments remain in main.rs with dispatch logic
 
 #### Research Insights
 
@@ -207,12 +207,12 @@ Six PRs in sequence, each independently testable and reviewable.
 
 **Acceptance criteria:**
 
-- [ ] `cargo build` succeeds
-- [ ] `cargo test` — all tests pass (none reference types module)
-- [ ] `cargo clippy --all-targets` clean
-- [ ] `cargo publish --dry-run` passes
-- [ ] `scripts/generate-types.sh` still exists for future regeneration
-- [ ] `openapi/x-api-openapi.json` still exists as source material
+- [x] `cargo build` succeeds
+- [x] `cargo test` — all tests pass (none reference types module)
+- [x] `cargo clippy --all-targets` clean
+- [x] `cargo publish --dry-run` passes
+- [x] `scripts/generate-types.sh` still exists for future regeneration
+- [x] `openapi/x-api-openapi.json` still exists as source material
 
 #### Research Insights
 
@@ -253,12 +253,12 @@ Six PRs in sequence, each independently testable and reviewable.
 
 **Acceptance criteria:**
 
-- [ ] AGENTS.md exists at repo root
-- [ ] Content is 50-80 lines
-- [ ] Cross-references to DEVELOPER.md and CLI_DESIGN.md are valid relative paths
-- [ ] Documents exit code divergence from xurl-rs
-- [ ] Lists known debt items
-- [ ] Passes markdownlint
+- [x] AGENTS.md exists at repo root
+- [x] Content is 50-80 lines
+- [x] Cross-references to DEVELOPER.md and CLI_DESIGN.md are valid relative paths
+- [x] Documents exit code divergence from xurl-rs
+- [x] Lists known debt items
+- [x] Passes markdownlint
 
 #### Research Insights
 
@@ -327,19 +327,19 @@ The `"status"` field is present only when the underlying error is an `XurlError:
 
 **Acceptance criteria:**
 
-- [ ] `bird --output json me` (with no xurl) emits JSON error to stderr
-- [ ] `BIRD_OUTPUT=json bird me` emits JSON error to stderr
-- [ ] `bird me 2>/tmp/err.json` (stderr non-TTY) defaults to JSON errors
-- [ ] Interactive TTY defaults to human-readable text errors
-- [ ] `--plain` alone does NOT change error format (only suppresses color)
-- [ ] `--output json` implicitly suppresses `diag!` output
-- [ ] JSON schema matches spec for all three BirdError variants
-- [ ] `"status"` field present only for API errors with HTTP status
-- [ ] Error messages pass through `sanitize_for_stderr()` before serialization
-- [ ] Contract tests pin exact JSON field names and types
-- [ ] Exit codes unchanged (78, 77, 1)
-- [ ] README documents the JSON error contract and `BIRD_OUTPUT` env var
-- [ ] Clap errors (exit 2) remain in clap's native format
+- [x] `bird --output json me` (with no xurl) emits JSON error to stderr
+- [x] `BIRD_OUTPUT=json bird me` emits JSON error to stderr
+- [x] `bird me 2>/tmp/err.json` (stderr non-TTY) defaults to JSON errors
+- [x] Interactive TTY defaults to human-readable text errors
+- [x] `--plain` alone does NOT change error format (only suppresses color)
+- [x] `--output json` implicitly suppresses `diag!` output
+- [x] JSON schema matches spec for all three BirdError variants
+- [x] `"status"` field present only for API errors with HTTP status
+- [x] Error messages pass through `sanitize_for_stderr()` before serialization
+- [x] Contract tests pin exact JSON field names and types
+- [x] Exit codes unchanged (78, 77, 1)
+- [x] README documents the JSON error contract and `BIRD_OUTPUT` env var
+- [x] Clap errors (exit 2) remain in clap's native format
 
 #### Research Insights
 
@@ -372,15 +372,15 @@ The `"status"` field is present only when the underlying error is an `XurlError:
 
 **Pre-release checklist:**
 
-- [ ] PRs 1-5 (or 1-4 if PR 5 deferred) merged to `development` via squash merge
+- [x] PRs 1-5 (or 1-4 if PR 5 deferred) merged to `development` via squash merge
 - [ ] `development` squash-merged to `main`
-- [ ] `cargo publish --dry-run` passes on main
-- [ ] `cargo package --list` excludes sensitive files (docs/SECRETS.md, etc.)
-- [ ] `cargo deny check` clean
-- [ ] Full test suite passes on main
+- [x] `cargo publish --dry-run` passes on main
+- [x] `cargo package --list` excludes sensitive files (docs/SECRETS.md, etc.)
+- [x] `cargo deny check` clean
+- [x] Full test suite passes on main
 - [ ] `CARGO_REGISTRY_TOKEN` repository secret configured
 - [ ] `HOMEBREW_TAP_TOKEN` repository secret configured and not expired
-- [ ] The single TODO at `db/client.rs:38` is documented as accepted debt (in AGENTS.md)
+- [x] The single TODO at `db/client.rs:38` is documented as accepted debt (in AGENTS.md)
 
 **Release steps:**
 
@@ -413,11 +413,11 @@ CI pipeline: `check-version + audit -> build (5 targets) -> publish-crate -> rel
 
 ## Acceptance Criteria
 
-- [ ] `xr` binary resolution works alongside `xurl` with security hardening (PR 1)
-- [ ] main.rs clap definitions extracted to cli.rs (PR 2)
-- [ ] `types/generated.rs` deleted; generation script retained (PR 3)
-- [ ] AGENTS.md exists at repo root with known debt documented (PR 4)
-- [ ] JSON errors emitted via `--output json` / `BIRD_OUTPUT` (PR 5, or deferred)
+- [x] `xr` binary resolution works alongside `xurl` with security hardening (PR 1)
+- [x] main.rs clap definitions extracted to cli.rs (PR 2)
+- [x] `types/generated.rs` deleted; generation script retained (PR 3)
+- [x] AGENTS.md exists at repo root with known debt documented (PR 4)
+- [x] JSON errors emitted via `--output json` / `BIRD_OUTPUT` (PR 5)
 - [ ] v0.1.0 tagged and released to crates.io, GitHub, and Homebrew (PR 6)
 
 ## Dependencies & Risks

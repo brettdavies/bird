@@ -1,7 +1,7 @@
 # GA Release Readiness: Infrastructure-First v0.1.0
 
 **Date:** 2026-03-16
-**Status:** Ready for planning
+**Status:** Completed
 **Scope:** Infrastructure hardening, refactoring, and quality improvements before first public release (v0.1.0)
 **Alignment reference:** `~/dev/xurl-rs/` patterns and conventions
 

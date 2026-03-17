@@ -1,7 +1,7 @@
 # Brainstorm: Wrap xurl vs Maintain Native API Client
 
 **Date**: 2026-03-12
-**Status**: decided
+**Status**: Completed
 **Decision**: Architecture A — Full Wrap (xurl as sole transport layer)
 **Trigger**: X team released `xurl` (v1.0.3) — official CLI for X API with OAuth2 PAYG support
 
