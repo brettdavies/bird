@@ -1,14 +1,36 @@
 # Releasing bird
 
-## Automated (preferred)
+## Merging development to main
 
-Tag a version and push — CI handles everything:
+Engineering docs (`docs/plans/`, `docs/solutions/`, `docs/brainstorms/`) live on
+`development` only. `guard-main-docs.yml` blocks them from `main`. You MUST use
+the release branch pattern:
 
 ```bash
-# 1. Bump version in Cargo.toml
-# 2. Commit and tag
-git add Cargo.toml
-git commit -m "chore: bump version to 0.2.0"
+# 1. Branch from main, NOT development
+git checkout -b release/v0.2.0 origin/main
+
+# 2. Cherry-pick only non-docs commits from development
+git cherry-pick <commit1> <commit2> ...
+
+# 3. Verify no docs paths leaked through
+git diff origin/main --stat
+
+# 4. Push and open a PR to main
+git push -u origin release/v0.2.0
+gh pr create --base main
+```
+
+**CRITICAL:** Always branch from `origin/main`. Branching from `development`
+causes `add/add` merge conflicts when dev and main have divergent histories
+(e.g., after squash merges).
+
+## Tagging and releasing
+
+After the PR merges to main, tag and push:
+
+```bash
+git checkout main && git pull
 git tag v0.2.0
 git push origin main --tags
 ```
@@ -19,11 +41,11 @@ This triggers `.github/workflows/release.yml` which:
 - Runs `cargo deny` (license + advisory + ban checking)
 - Builds binaries for 5 targets (linux x86_64/aarch64, macos x86_64/aarch64, windows x86_64)
 - Ad-hoc codesigns macOS binaries
-- Creates `.tar.gz` archives with binary + LICENSE + README
-- Publishes to crates.io
+- Creates `.tar.gz` archives with binary + LICENSE + README + shell completions
+- Publishes to crates.io via Trusted Publishing (OIDC, no static token)
 - Generates changelog via git-cliff
 - Creates a GitHub Release with archives attached
-- Dispatches a `repository_dispatch` event to `brettdavies/homebrew-tap`, which automatically updates the formula's version and SHA256
+- Dispatches `repository_dispatch` to `brettdavies/homebrew-tap`, which auto-updates the formula version and SHA256
 
 ### Pipeline order
 
@@ -36,31 +58,33 @@ is advertised and no Homebrew update is triggered.
 
 ## Required GitHub Secrets
 
-| Secret | Purpose | Rotation |
-|--------|---------|----------|
-| `CARGO_REGISTRY_TOKEN` | crates.io API token | Remove after Trusted Publishing is configured |
+| Secret               | Purpose                                                              | Rotation                        |
+| -------------------- | -------------------------------------------------------------------- | ------------------------------- |
 | `HOMEBREW_TAP_TOKEN` | Fine-grained PAT with `contents:write` on `brettdavies/homebrew-tap` | Max 1 year; renew before expiry |
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions.
 
-Both secrets are stored in 1Password (`secrets-dev` vault).
+Secrets are stored in 1Password (`secrets-dev` vault).
 
-## Trusted Publishing (after first release)
+## crates.io Publishing
 
-After the manual `cargo publish` for v0.1.0:
+Publishing uses [Trusted Publishing](https://doc.rust-lang.org/cargo/reference/registry-authentication.html#trusted-publishing)
+via `rust-lang/crates-io-auth-action`. No static API token is needed — OIDC
+exchanges a short-lived GitHub Actions token for a ~30-minute crates.io token.
+
+Trusted Publishing was configured after the v0.1.0 manual publish. If it ever
+needs reconfiguration:
 
 1. Go to `https://crates.io/settings/tokens/trusted-publishing`
 2. Add trusted publisher: owner=`brettdavies`, repo=`bird`, workflow=`release.yml`
 3. Enable "Enforce Trusted Publishing" to disable token-based publishing
-4. Remove the `CARGO_REGISTRY_TOKEN` secret from the repo
-5. Update `release.yml` `publish-crate` job to use `rust-lang/crates-io-auth-action@v1` instead of `CARGO_REGISTRY_TOKEN`
 
 ## Distribution Channels
 
-| Channel | How |
-|---------|-----|
-| Homebrew | `brew install brettdavies/tap/bird` |
-| Pre-built binary | Download from [GitHub Releases](https://github.com/brettdavies/bird/releases) |
-| Rust crate | `cargo install bird` |
-| Fast binary | `cargo binstall bird` |
-| From source | `git clone && cargo build --release` |
+| Channel          | How                                                                             |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Homebrew         | `brew install brettdavies/tap/bird`                                             |
+| Pre-built binary | Download from [GitHub Releases](https://github.com/brettdavies/bird/releases)   |
+| Rust crate       | `cargo install bird`                                                            |
+| Fast binary      | `cargo binstall bird`                                                           |
+| From source      | `git clone && cargo build --release`                                            |

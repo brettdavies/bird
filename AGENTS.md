@@ -1,6 +1,8 @@
 # bird
 
-A CLI for the X (Twitter) API. Wraps [xurl-rs](https://github.com/brettdavies/xurl-rs) (or Go [xurl](https://github.com/xdevplatform/xurl)) for transport; bird owns entity store, caching, cost tracking, and UX.
+A CLI for the X (Twitter) API. Wraps [xurl-rs](https://github.com/brettdavies/xurl-rs)
+(or Go [xurl](https://github.com/xdevplatform/xurl)) for transport; bird owns entity store, caching, cost tracking,
+and UX.
 
 ## Binary & Package
 
@@ -35,12 +37,12 @@ Requires `xr` (xurl-rs) or `xurl` (Go) on PATH. Override: `BIRD_XURL_PATH`. Mini
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Command error (API, network, I/O) |
-| 77 | Auth error (HTTP 401/403) |
-| 78 | Config error (EX_CONFIG) |
+| Code | Meaning                           |
+| ---- | --------------------------------- |
+| 0    | Success                           |
+| 1    | Command error (API, network, I/O) |
+| 77   | Auth error (HTTP 401/403)         |
+| 78   | Config error (EX_CONFIG)          |
 
 Note: differs from xurl-rs's sequential 0-5 scheme.
 

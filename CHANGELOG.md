@@ -76,4 +76,3 @@ All notable changes to this project will be documented in this file.
 - Restore exit code 77 for auth errors with map_cmd_error helper
 - Validate and canonicalize BIRD_XURL_PATH
 - Correct cargo pkgid version extraction in release workflow
-
