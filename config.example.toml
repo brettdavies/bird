@@ -1,6 +1,0 @@
-# Copy to ~/.config/bird/config.toml
-# username selects which xurl username for multi-user token selection.
-
-# username = "your_handle"
-
-# watchlist = ["user1", "user2"]
