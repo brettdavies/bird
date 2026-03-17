@@ -19,10 +19,6 @@ pub struct ResolvedConfig {
 pub struct FileConfig {
     pub username: Option<String>,
     pub watchlist: Option<Vec<String>>,
-    // Legacy fields are tolerated by serde but unused
-    pub client_id: Option<String>,
-    pub client_secret: Option<String>,
-    pub redirect_uri: Option<String>,
 }
 
 /// Overrides from CLI args (highest priority).

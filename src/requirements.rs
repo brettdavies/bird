@@ -98,7 +98,6 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
 }
 
 /// All command names that have auth requirements (for doctor full report).
-/// All command names that have auth requirements (for doctor full report).
 pub fn command_names_with_auth() -> &'static [&'static str] {
     &[
         "login",
