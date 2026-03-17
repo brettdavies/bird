@@ -28,6 +28,7 @@ jobs:
               per_page: 100,
             });
             const forbidden = files
+              .filter(f => f.status === 'added' || f.status === 'modified')
               .map(f => f.filename)
               .filter(f =>
                 f.startsWith('docs/plans/') ||
