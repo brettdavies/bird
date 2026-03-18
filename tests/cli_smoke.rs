@@ -1,9 +1,18 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::path::Path;
 
 #[allow(deprecated)]
 fn bird() -> Command {
     Command::cargo_bin("bird").unwrap()
+}
+
+/// Set HOME and XDG_CONFIG_HOME to isolate config from the CI environment.
+/// Without this, XDG_CONFIG_HOME (if set on the runner) overrides HOME,
+/// causing parallel tests to share one config file — a race condition.
+fn with_temp_home<'a>(cmd: &'a mut Command, tmp: &Path) -> &'a mut Command {
+    cmd.env("HOME", tmp)
+        .env("XDG_CONFIG_HOME", tmp.join(".config"))
 }
 
 #[test]
@@ -32,9 +41,8 @@ fn no_args_shows_usage() {
 #[test]
 fn watchlist_list_empty_config() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "list"])
-        .env("HOME", tmp.path())
         .assert()
         .success();
 }
@@ -43,15 +51,13 @@ fn watchlist_list_empty_config() {
 fn watchlist_add_and_list() {
     let tmp = tempfile::TempDir::new().unwrap();
     // Add alice
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "add", "alice"])
-        .env("HOME", tmp.path())
         .assert()
         .success();
     // List should contain alice
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "list"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("alice"));
@@ -60,20 +66,17 @@ fn watchlist_add_and_list() {
 #[test]
 fn watchlist_add_remove_list() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "add", "alice"])
-        .env("HOME", tmp.path())
         .assert()
         .success();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "remove", "alice"])
-        .env("HOME", tmp.path())
         .assert()
         .success();
     // List should be empty (no "alice")
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "list"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("alice").not());
@@ -82,9 +85,8 @@ fn watchlist_add_remove_list() {
 #[test]
 fn username_invalid_chars_rejected() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--username", "'; DROP TABLE", "doctor"])
-        .env("HOME", tmp.path())
         .env("NO_COLOR", "1")
         .assert()
         .failure()
@@ -97,9 +99,8 @@ fn username_at_prefix_normalized() {
     // @validuser should be accepted (normalized to validuser).
     // Doctor runs successfully — the username value is valid after stripping @.
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--username", "@validuser", "doctor"])
-        .env("HOME", tmp.path())
         .env("NO_COLOR", "1")
         .assert()
         .success();
@@ -207,9 +208,8 @@ fn completions_works_without_xurl() {
 #[test]
 fn completions_does_not_create_config() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["completions", "bash"])
-        .env("HOME", tmp.path())
         .assert()
         .success();
     // Completions should not create any config directory
@@ -253,9 +253,8 @@ fn quiet_short_flag_accepted() {
 fn bird_quiet_env_var_activates_quiet() {
     // BIRD_QUIET=1 should suppress stderr diagnostics
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["watchlist", "list"])
-        .env("HOME", tmp.path())
         .env("BIRD_QUIET", "1")
         .assert()
         .success()
@@ -267,9 +266,8 @@ fn bird_quiet_env_var_zero_does_not_activate() {
     // BIRD_QUIET=0 should NOT suppress stderr (FalseyValueParser)
     // --output text forces text mode in non-TTY test environment
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--output", "text", "watchlist", "list"])
-        .env("HOME", tmp.path())
         .env("BIRD_QUIET", "0")
         .assert()
         .success()
@@ -279,9 +277,8 @@ fn bird_quiet_env_var_zero_does_not_activate() {
 #[test]
 fn quiet_flag_suppresses_watchlist_empty_hint() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--quiet", "watchlist", "list"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -290,9 +287,8 @@ fn quiet_flag_suppresses_watchlist_empty_hint() {
 #[test]
 fn quiet_flag_suppresses_watchlist_add_confirmation() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--quiet", "watchlist", "add", "alice"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -301,9 +297,8 @@ fn quiet_flag_suppresses_watchlist_add_confirmation() {
 #[test]
 fn quiet_flag_suppresses_watchlist_remove_message() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--quiet", "watchlist", "remove", "alice"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -319,9 +314,8 @@ fn invalid_flag_exits_two() {
 #[test]
 fn output_json_config_error_schema() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let output = bird()
+    let output = with_temp_home(&mut bird(), tmp.path())
         .args(["--output", "json", "--username", "'; DROP TABLE", "doctor"])
-        .env("HOME", tmp.path())
         .output()
         .unwrap();
 
@@ -337,10 +331,9 @@ fn output_json_config_error_schema() {
 #[test]
 fn output_json_command_error_schema() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let output = bird()
+    let output = with_temp_home(&mut bird(), tmp.path())
         .args(["--output", "json", "me"])
         .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .env("HOME", tmp.path())
         .output()
         .unwrap();
 
@@ -355,9 +348,8 @@ fn output_json_command_error_schema() {
 #[test]
 fn output_json_suppresses_diagnostics() {
     let tmp = tempfile::TempDir::new().unwrap();
-    bird()
+    with_temp_home(&mut bird(), tmp.path())
         .args(["--output", "json", "watchlist", "list"])
-        .env("HOME", tmp.path())
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -366,9 +358,8 @@ fn output_json_suppresses_diagnostics() {
 #[test]
 fn output_text_explicit_shows_text_errors() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let output = bird()
+    let output = with_temp_home(&mut bird(), tmp.path())
         .args(["--output", "text", "--username", "'; DROP TABLE", "doctor"])
-        .env("HOME", tmp.path())
         .output()
         .unwrap();
 
@@ -384,10 +375,9 @@ fn output_text_explicit_shows_text_errors() {
 #[test]
 fn bird_output_env_var_json() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let output = bird()
+    let output = with_temp_home(&mut bird(), tmp.path())
         .args(["--username", "'; DROP TABLE", "doctor"])
         .env("BIRD_OUTPUT", "json")
-        .env("HOME", tmp.path())
         .output()
         .unwrap();
 
@@ -401,9 +391,8 @@ fn bird_output_env_var_json() {
 fn non_tty_defaults_to_json_errors() {
     // In test environment stderr is not a TTY, so auto-detection should pick JSON
     let tmp = tempfile::TempDir::new().unwrap();
-    let output = bird()
+    let output = with_temp_home(&mut bird(), tmp.path())
         .args(["--username", "'; DROP TABLE", "doctor"])
-        .env("HOME", tmp.path())
         .output()
         .unwrap();
 
