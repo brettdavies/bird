@@ -11,7 +11,8 @@ fn bird() -> Command {
 /// Without this, XDG_CONFIG_HOME (if set on the runner) overrides HOME,
 /// causing parallel tests to share one config file — a race condition.
 fn with_temp_home<'a>(cmd: &'a mut Command, tmp: &Path) -> &'a mut Command {
-    cmd.env("HOME", tmp).env("XDG_CONFIG_HOME", tmp.join(".config"))
+    cmd.env("HOME", tmp)
+        .env("XDG_CONFIG_HOME", tmp.join(".config"))
 }
 
 #[test]
