@@ -6,7 +6,7 @@ bird delegates all authentication to [xurl](https://github.com/xdevplatform/xurl
 
 | Secret | Purpose |
 |--------|---------|
-| `HOMEBREW_TAP_TOKEN` | Fine-grained PAT with `contents:write` on `brettdavies/homebrew-tap` for automated formula updates |
+| `CI_RELEASE_TOKEN` | Fine-grained PAT with `contents:write` for CI release automation (Homebrew dispatch, changelog, rulesets) |
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions.
 
@@ -14,7 +14,7 @@ bird delegates all authentication to [xurl](https://github.com/xdevplatform/xurl
 
 | Purpose | op path |
 |---------|---------|
-| Homebrew tap PAT | `op://secrets-dev/github_pat_homebrew_tap/credential` |
+| CI release PAT | `op://secrets-dev/CI_RELEASE_TOKEN/credential` |
 
 ## Removed
 

@@ -60,7 +60,7 @@ is advertised and no Homebrew update is triggered.
 
 | Secret               | Purpose                                                              | Rotation                        |
 | -------------------- | -------------------------------------------------------------------- | ------------------------------- |
-| `HOMEBREW_TAP_TOKEN` | Fine-grained PAT with `contents:write` on `brettdavies/homebrew-tap` | Max 1 year; renew before expiry |
+| `CI_RELEASE_TOKEN` | Fine-grained PAT with `contents:write` for CI release automation (Homebrew dispatch, changelog, rulesets) | Max 1 year; renew before expiry |
 
 `GITHUB_TOKEN` is provided automatically by GitHub Actions.
 
