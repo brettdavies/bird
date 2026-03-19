@@ -12,3 +12,5 @@ permissions:
 jobs:
   ci:
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+    secrets:
+      CHANGELOG_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
