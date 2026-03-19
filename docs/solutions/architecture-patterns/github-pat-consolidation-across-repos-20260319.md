@@ -95,7 +95,7 @@ no token had an expiration date set.
 | **Name** | `CI_RELEASE_TOKEN` |
 | **Type** | Fine-grained PAT |
 | **Repository access** | All repositories |
-| **Permissions** | Contents: Read and write |
+| **Permissions** | Contents: Read and write, Pull requests: Read and write |
 | **All other permissions** | No access |
 | **Expiration** | 1 year (2027-03-19) |
 
@@ -114,6 +114,8 @@ covers all current CI operations:
 | Git push (formula updates) | HTTPS push | Contents: write |
 | Checkout with token | HTTPS clone | Contents: read |
 | Release create/upload | `POST /repos/.../releases` | Contents: write |
+| PR creation (formula update) | GraphQL `createPullRequest` | Pull requests: write |
+| PR comment/close (bottle publish) | `POST /repos/.../pulls/comments` | Pull requests: write |
 
 ### Token verification before deployment
 
