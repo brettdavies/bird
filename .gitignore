@@ -8,3 +8,4 @@ config.local.toml
 tokens.json
 /todos
 node_modules/
+docs/solutions
