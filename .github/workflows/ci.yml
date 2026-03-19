@@ -7,10 +7,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   ci:
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
-    secrets:
-      CI_RELEASE_TOKEN: ${{ secrets.CI_RELEASE_TOKEN }}
