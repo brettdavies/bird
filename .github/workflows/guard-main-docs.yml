@@ -33,7 +33,8 @@ jobs:
               .filter(f =>
                 f.startsWith('docs/plans/') ||
                 f.startsWith('docs/solutions/') ||
-                f.startsWith('docs/brainstorms/')
+                f.startsWith('docs/brainstorms/') ||
+                f.startsWith('docs/reviews/')
               );
             if (forbidden.length > 0) {
               core.setFailed(
