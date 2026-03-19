@@ -341,7 +341,7 @@ impl BirdClient {
             && let Some(ref jv) = response.json
         {
             if entity_type.is_some() {
-                self.decompose_and_upsert(url, jv);
+                self.decompose_and_upsert_parsed(&parsed_url, jv);
             } else {
                 self.store_raw_response(url, response.status, &response.body);
             }
@@ -603,13 +603,10 @@ impl BirdClient {
     }
 
     /// Decompose an API response into entities and upsert them.
-    fn decompose_and_upsert(&self, url: &str, json: &serde_json::Value) {
+    /// Accepts a pre-parsed URL when available to avoid redundant parsing.
+    fn decompose_and_upsert_parsed(&self, parsed: &url::Url, json: &serde_json::Value) {
         let Some(ref db) = self.db else { return };
-        let parsed = match url::Url::parse(url) {
-            Ok(u) => u,
-            Err(_) => return,
-        };
-        let Some(entity_type) = is_entity_endpoint(&parsed) else {
+        let Some(entity_type) = is_entity_endpoint(parsed) else {
             return;
         };
 
@@ -653,6 +650,14 @@ impl BirdClient {
         if let Err(e) = db.upsert_entities(&tweets, &users) {
             diag!(self.quiet, "[store] warning: entity upsert failed: {e}");
         }
+    }
+
+    /// Convenience: parse URL then decompose. Used when a pre-parsed URL is not available.
+    fn decompose_and_upsert(&self, url: &str, json: &serde_json::Value) {
+        let Ok(parsed) = url::Url::parse(url) else {
+            return;
+        };
+        self.decompose_and_upsert_parsed(&parsed, json);
     }
 
     /// Store a raw response for non-entity endpoints.

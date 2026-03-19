@@ -24,7 +24,7 @@ pub(crate) struct Cli {
     pub no_color: bool,
 
     /// Bypass store read, still write response to store
-    #[arg(long, global = true)]
+    #[arg(long, global = true, conflicts_with = "no_cache")]
     pub refresh: bool,
 
     /// Disable entity store entirely (no read, no write)
@@ -32,7 +32,7 @@ pub(crate) struct Cli {
     pub no_cache: bool,
 
     /// Only serve from local store; never make API requests
-    #[arg(long, global = true)]
+    #[arg(long, global = true, conflicts_with = "no_cache")]
     pub cache_only: bool,
 
     /// Suppress informational stderr output (keep only fatal errors)

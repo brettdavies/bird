@@ -181,6 +181,8 @@ pub(crate) fn migrations() -> Migrations<'static> {
         ),
         // Migration 3: rename account_username → username in bookmarks (xurl alignment)
         M::up("ALTER TABLE bookmarks RENAME COLUMN account_username TO username;"),
+        // Migration 4: index on usage.timestamp for prune_old_usage performance
+        M::up("CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON usage(timestamp);"),
     ])
 }
 
@@ -254,12 +256,12 @@ impl BirdDb {
     }
 
     /// Pre-create file with 0o600 permissions so WAL/SHM sidecars inherit restrictive permissions.
+    /// Always runs (even for existing files) to ensure parent dirs exist and permissions are correct.
     fn ensure_file_permissions(path: &Path) {
-        if path.exists() {
-            return;
-        }
         if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+            if !path.exists() {
+                let _ = std::fs::create_dir_all(parent);
+            }
         }
         #[cfg(unix)]
         {
@@ -747,19 +749,21 @@ impl BirdDb {
             params![seven_days_ago],
         )?;
 
-        // Check live size against limit
-        let live_size = self.live_size_bytes()?;
-        if live_size <= self.max_bytes {
+        // Check live size against limit (single PRAGMA call)
+        let mut current_size = self.live_size_bytes()? as i64;
+        if current_size as u64 <= self.max_bytes {
             return Ok(());
         }
 
         // Prune to 80% of limit (hysteresis)
         let target_bytes = (self.max_bytes as f64 * 0.8) as i64;
 
+        // Cache page_size (constant for the lifetime of the connection)
+        let page_size: i64 = self.conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
+
         // Delete oldest tweets by last_refreshed_at
         loop {
-            let current = self.live_size_bytes()? as i64;
-            if current <= target_bytes {
+            if current_size <= target_bytes {
                 break;
             }
             let deleted = self.conn.execute(
@@ -771,12 +775,13 @@ impl BirdDb {
             if deleted == 0 {
                 break;
             }
+            // Estimate freed bytes instead of re-querying 3 PRAGMAs per iteration
+            current_size -= deleted as i64 * page_size;
         }
 
         // Delete oldest users by last_refreshed_at if still over
         loop {
-            let current = self.live_size_bytes()? as i64;
-            if current <= target_bytes {
+            if current_size <= target_bytes {
                 break;
             }
             let deleted = self.conn.execute(
@@ -788,6 +793,7 @@ impl BirdDb {
             if deleted == 0 {
                 break;
             }
+            current_size -= deleted as i64 * page_size;
         }
 
         Ok(())
