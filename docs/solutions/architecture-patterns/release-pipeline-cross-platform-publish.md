@@ -35,7 +35,7 @@ Uses `cargo pkgid` (zero extra dependencies) instead of `cargo metadata` + jq:
 - name: Verify tag matches Cargo.toml version
   run: |
     TAG_VERSION="${GITHUB_REF_NAME#v}"
-    CARGO_VERSION=$(cargo pkgid | sed 's/.*@//')
+    CARGO_VERSION=$(cargo pkgid | sed 's/.*#//')
     if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
       echo "::error::Tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${CARGO_VERSION}"
       exit 1
@@ -76,6 +76,7 @@ Uses `shell: bash` to work on all platforms including Windows. Windows uses `7z`
     mkdir -p "$STAGING"
     cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "$STAGING/"
     cp LICENSE-MIT LICENSE-APACHE README.md "$STAGING/"
+    cp -r completions "$STAGING/"
     if [[ "${{ matrix.target }}" == *windows* ]]; then
       7z a "${STAGING}.zip" "$STAGING"
     else
@@ -109,12 +110,16 @@ run: |
     -f 'client_payload[repo]=brettdavies/bird'
 ```
 
-### Trusted Publishing lifecycle
+### Trusted Publishing (OIDC)
 
-Mandatory transition after first manual publish:
+The `publish-crate` job uses `rust-lang/crates-io-auth-action` to
+exchange a GitHub OIDC token for a crates.io publish credential — no
+long-lived `CARGO_REGISTRY_TOKEN` secret needed. Trusted Publishing is
+configured and enforced on crates.io for this crate.
 
-1. First publish uses `CARGO_REGISTRY_TOKEN` (chicken-and-egg: Trusted Publishing requires crate to exist)
-2. Immediately after: configure Trusted Publishing on crates.io, enable enforcement, remove `CARGO_REGISTRY_TOKEN` secret, update workflow to use `rust-lang/crates-io-auth-action`
+**Bootstrap note:** The first publish of any new crate requires a
+manual `cargo publish` with `CARGO_REGISTRY_TOKEN` because Trusted
+Publishing can only be configured on a crate that already exists.
 
 ## Prevention Strategies
 
@@ -134,9 +139,11 @@ The `aarch64-unknown-linux-gnu` target uses `cross` which runs builds inside Doc
 
 Actions are correctly pinned by SHA, but there is no Dependabot configuration to propose updates. Add `.github/dependabot.yml` with `package-ecosystem: github-actions` to get automated update PRs.
 
-### HOMEBREW_TAP_TOKEN expiration
+### CI_RELEASE_TOKEN expiration
 
-The current design relies on job failure + GitHub email notification as the monitoring mechanism. Record the actual PAT expiration date in RELEASING.md and set a calendar reminder.
+The current design relies on job failure + GitHub email notification
+as the monitoring mechanism. Record the actual PAT expiration date in
+RELEASING.md and set a calendar reminder.
 
 ## Common Pitfalls
 
@@ -144,7 +151,9 @@ The current design relies on job failure + GitHub email notification as the moni
 - **Pre-release tags won't trigger**: Pattern `v[0-9]+.[0-9]+.[0-9]+` does not match `v0.2.0-rc.1`.
 - **`dtolnay/rust-toolchain@stable` is intentionally not SHA-pinned**: This is the community convention (dtolnay does not publish tags). Do not "fix" this.
 - **`cargo publish` is irreversible**: A published version cannot be unpublished, only yanked.
-- **The `docs/` exclude in Cargo.toml is security-critical**: It prevents `docs/notes/bird-alignment.md` (containing 1Password vault paths) from being published to crates.io.
+- **The `docs/` exclude in Cargo.toml is security-critical**: It
+  prevents any docs (which may contain 1Password vault paths or
+  internal notes) from being published to crates.io.
 
 ## Maintenance Checklist
 
@@ -165,7 +174,7 @@ The current design relies on job failure + GitHub email notification as the moni
 
 ### Periodic
 
-- **Monthly**: Check `HOMEBREW_TAP_TOKEN` PAT expiration
+- **Monthly**: Check `CI_RELEASE_TOKEN` PAT expiration
 - **Quarterly**: Run `cargo deny check` locally for new advisories
 - **September 2026**: Evaluate dropping `x86_64-apple-darwin` when macOS Intel moves to Homebrew Tier 3
 
@@ -175,7 +184,12 @@ The current design relies on job failure + GitHub email notification as the moni
 - [shell-completions-main-dependency-gating.md](shell-completions-main-dependency-gating.md) -- Homebrew formula requires `bird completions` subcommand
 - [quiet-flag-diagnostic-suppression-pattern.md](quiet-flag-diagnostic-suppression-pattern.md) -- `--quiet` flag for clean CI/scripting output
 - [ci-formatting-drift-rust-edition-2024.md](../build-errors/ci-formatting-drift-rust-edition-2024.md) -- Foundational CI patterns and rust-toolchain.toml pinning
-- [xurl-subprocess-transport-layer.md](xurl-subprocess-transport-layer.md) -- External binary dependency pattern informing release concerns
+- [xurl-subprocess-transport-layer.md](xurl-subprocess-transport-layer.md) --
+  External binary dependency pattern informing release concerns
+- [github-pat-consolidation-across-repos-20260319.md](github-pat-consolidation-across-repos-20260319.md) --
+  `CI_RELEASE_TOKEN` consolidation and permissions spec
+- [changelog-as-committed-artifact-20260319.md](changelog-as-committed-artifact-20260319.md) --
+  CHANGELOG.md managed during release prep, not auto-generated
 
 ## Key Files
 
