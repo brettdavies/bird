@@ -1,7 +1,7 @@
 ---
 title: "chore: Consolidate CI tokens into a single CI_RELEASE_TOKEN"
 type: chore
-status: active
+status: completed
 date: 2026-03-19
 ---
 
