@@ -53,6 +53,9 @@
             "context": "ci / Security audit (bans licenses sources)"
           },
           {
+            "context": "ci / Changelog"
+          },
+          {
             "context": "guard-docs / check-forbidden-docs"
           }
         ]
