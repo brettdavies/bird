@@ -1,0 +1,12 @@
+name: Finalize Release
+
+on:
+  repository_dispatch:
+    types: [finalize-release]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    uses: brettdavies/.github/.github/workflows/rust-finalize-release.yml@main

@@ -94,22 +94,22 @@ pub fn display_cost(estimate: &CostEstimate, use_color: bool, quiet: bool) {
         ));
     }
 
-    let source = if estimate.cache_hit {
+    let hit_miss = if estimate.cache_hit {
         "from store"
     } else {
-        "from api"
+        "cache miss"
     };
 
     let msg = if estimate.cache_hit {
-        format!("[cost] $0.00 ({})", source)
+        format!("[cost] $0.00 ({})", hit_miss)
     } else if parts.is_empty() {
-        format!("[cost] $0.00 (no billable objects, {})", source)
+        format!("[cost] $0.00 (no billable objects, {})", hit_miss)
     } else {
         format!(
             "[cost] ~${:.4} ({}, {})",
             estimate.estimated_usd,
             parts.join(", "),
-            source
+            hit_miss
         )
     };
 
