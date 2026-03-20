@@ -7,4 +7,5 @@
 config.local.toml
 tokens.json
 /todos
+docs/solutions
 node_modules/
