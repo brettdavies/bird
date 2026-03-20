@@ -57,6 +57,9 @@
           },
           {
             "context": "guard-docs / check-forbidden-docs"
+          },
+          {
+            "context": "guard-provenance / check-provenance"
           }
         ]
       }
