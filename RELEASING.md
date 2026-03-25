@@ -21,9 +21,7 @@ git push -u origin release/v0.2.0
 gh pr create --base main
 ```
 
-**CRITICAL:** Always branch from `origin/main`. Branching from `development`
-causes `add/add` merge conflicts when dev and main have divergent histories
-(e.g., after squash merges).
+**CRITICAL:** Always branch from `origin/main`. Branching from `development` causes `add/add` merge conflicts when dev and main have divergent histories (e.g., after squash merges).
 
 ## Tagging and releasing
 
@@ -53,8 +51,7 @@ This triggers `.github/workflows/release.yml` which:
 check-version + audit -> build (5 targets) -> publish-crate -> release -> homebrew
 ```
 
-`cargo publish` runs BEFORE GitHub Release creation. If publish fails, no release
-is advertised and no Homebrew update is triggered.
+`cargo publish` runs BEFORE GitHub Release creation. If publish fails, no release is advertised and no Homebrew update is triggered.
 
 ## Required GitHub Secrets
 
@@ -68,12 +65,9 @@ Secrets are stored in 1Password (`secrets-dev` vault).
 
 ## crates.io Publishing
 
-Publishing uses [Trusted Publishing](https://doc.rust-lang.org/cargo/reference/registry-authentication.html#trusted-publishing)
-via `rust-lang/crates-io-auth-action`. No static API token is needed — OIDC
-exchanges a short-lived GitHub Actions token for a ~30-minute crates.io token.
+Publishing uses [Trusted Publishing](https://doc.rust-lang.org/cargo/reference/registry-authentication.html#trusted-publishing) via `rust-lang/crates-io-auth-action`. No static API token is needed — OIDC exchanges a short-lived GitHub Actions token for a ~30-minute crates.io token.
 
-Trusted Publishing was configured after the v0.1.0 manual publish. If it ever
-needs reconfiguration:
+Trusted Publishing was configured after the v0.1.0 manual publish. If it ever needs reconfiguration:
 
 1. Go to `https://crates.io/settings/tokens/trusted-publishing`
 2. Add trusted publisher: owner=`brettdavies`, repo=`bird`, workflow=`release.yml`
