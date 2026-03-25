@@ -2,8 +2,9 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use std::path::Path;
 
+#[allow(deprecated)]
 fn bird() -> Command {
-    assert_cmd::cargo::cargo_bin_cmd!("bird")
+    Command::cargo_bin("bird").unwrap()
 }
 
 /// Set HOME and XDG_CONFIG_HOME to isolate config from the CI environment.

@@ -210,36 +210,25 @@ pub fn xurl_call(
         }
     };
 
-    // Drain stdout/stderr in background threads to prevent pipe-buffer deadlock.
-    // If we wait for exit before reading, the child can block writing to a full
-    // pipe buffer (typically 64 KB on Linux), deadlocking both processes.
-    let stdout_thread = child.stdout.take().map(|out| {
-        std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            out.take(MAX_STDOUT_BYTES as u64).read_to_end(&mut buf).ok();
-            buf
-        })
-    });
-    let stderr_thread = child.stderr.take().map(|err| {
-        std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            err.take(MAX_STDOUT_BYTES as u64).read_to_end(&mut buf).ok();
-            buf
-        })
-    });
-
-    // Wait with timeout (child can now write freely — readers are draining)
+    // Wait with timeout
     let status = wait_with_timeout(&mut child, Duration::from_secs(TIMEOUT_SECS))?;
 
-    // Join reader threads
-    let stdout_buf = stdout_thread
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
+    // Capture stdout (capped at MAX_STDOUT_BYTES)
+    let mut stdout_buf = Vec::new();
+    if let Some(stdout) = child.stdout.take() {
+        stdout
+            .take(MAX_STDOUT_BYTES as u64)
+            .read_to_end(&mut stdout_buf)?;
+    }
     let stdout_str = String::from_utf8_lossy(&stdout_buf);
 
-    let stderr_buf = stderr_thread
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
+    // Capture stderr
+    let mut stderr_buf = Vec::new();
+    if let Some(stderr) = child.stderr.take() {
+        stderr
+            .take(MAX_STDOUT_BYTES as u64)
+            .read_to_end(&mut stderr_buf)?;
+    }
     let stderr_str = String::from_utf8_lossy(&stderr_buf);
 
     // Strip ANSI lines as fallback (hardcoded escape codes in xurl error paths)

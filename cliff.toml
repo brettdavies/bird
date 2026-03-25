@@ -13,10 +13,7 @@ body = """
     ### {{ group | upper_first }}
     {% for commit in commits %}
         - {{ commit.message | upper_first }}\
-            {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif %}\
-            {% if commit.remote.pr_number %} in \
-              [#{{ commit.remote.pr_number }}](https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/pull/{{ commit.remote.pr_number }}){%- endif %}
-    {%- endfor %}
+    {% endfor %}
 {% endfor %}\n
 """
 footer = """
@@ -72,10 +69,6 @@ footer = """
 - Correct cargo pkgid version extraction in release workflow
 """
 trim = true
-
-[remote.github]
-owner = "brettdavies"
-repo = "bird"
 
 [git]
 conventional_commits = true
