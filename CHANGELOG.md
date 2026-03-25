@@ -2,11 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.1.3] - 2026-03-25
+
+### Added
+
+- Add changelog check and pull-requests permission
+- Add commit provenance guard for PRs to main
+
+### Changed
+
+- Convert guard-main-docs to reusable workflow caller
+
+### Documentation
+
+- Rewrap RELEASING.md prose lines
 
 ### Fixed
 
-- Add v0.1.0 and v0.1.1 release notes to cliff.toml footer
+- Drain stdout/stderr in threads to prevent pipe deadlock
 
 ## [0.1.2] - 2026-03-19
 
