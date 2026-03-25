@@ -1,0 +1,16 @@
+# Source repo guard-main-provenance wrapper — calls the centralized reusable workflow.
+#
+# Verifies commits in PRs to main came from squash-merged PRs to dev
+# (have (#N) references). Only needs pull-requests: read.
+name: Guard main commit provenance
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  guard-provenance:
+    uses: brettdavies/.github/.github/workflows/guard-main-provenance.yml@main
