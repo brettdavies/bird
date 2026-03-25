@@ -1,6 +1,6 @@
 [package]
 name = "bird"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "X API CLI with entity caching, search, threads, and watchlists"
 license = "MIT OR Apache-2.0"
