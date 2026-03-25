@@ -61,9 +61,8 @@ impl TestEnv {
     }
 
     /// Build a `bird` command isolated to this test environment.
-    #[allow(deprecated)]
     fn bird(&self) -> Command {
-        let mut cmd = Command::cargo_bin("bird").unwrap();
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("bird");
         cmd.env("HOME", &self.home);
         cmd.env("XDG_CONFIG_HOME", self.home.join(".config"));
         cmd.env("NO_COLOR", "1");
