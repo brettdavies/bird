@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 
 - Rewrap RELEASING.md prose lines
 
+### Testing
+
+- Add pipe deadlock regression tests (large stdout, large stderr, simultaneous, signal death)
+
 ### Fixed
 
 - Drain stdout/stderr in threads to prevent pipe deadlock
