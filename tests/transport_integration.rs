@@ -3,6 +3,11 @@
 //! Tests the subprocess security properties and mock xurl behavior.
 //! Unit tests for classify_error, MockTransport, and XurlError live in
 //! src/transport.rs (in-crate tests that can access private items).
+//!
+//! All tests use Unix shell scripts as mock xurl binaries and are
+//! compiled only on Unix targets.
+
+#![cfg(unix)]
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -168,9 +173,7 @@ fn no_color_env_suppresses_ansi() {
 /// These tests verify that doctor succeeds (exit 0) and reports xurl as unavailable.
 #[test]
 fn bird_xurl_path_nonexistent_doctor_reports_unavailable() {
-    #[allow(deprecated)]
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["doctor"])
         .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_binary_12345")
         .env("HOME", tempfile::TempDir::new().unwrap().path())
@@ -190,9 +193,7 @@ fn bird_xurl_path_nonexistent_doctor_reports_unavailable() {
 #[test]
 fn bird_xurl_path_directory_doctor_reports_unavailable() {
     let tmp = tempfile::TempDir::new().unwrap();
-    #[allow(deprecated)]
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["doctor"])
         .env("BIRD_XURL_PATH", tmp.path())
         .env("HOME", tempfile::TempDir::new().unwrap().path())
@@ -209,7 +210,6 @@ fn bird_xurl_path_directory_doctor_reports_unavailable() {
     assert_eq!(json["xurl"]["available"], false);
 }
 
-#[cfg(unix)]
 #[test]
 fn bird_xurl_path_not_executable_doctor_reports_unavailable() {
     let tmp = tempfile::TempDir::new().unwrap();
@@ -217,9 +217,7 @@ fn bird_xurl_path_not_executable_doctor_reports_unavailable() {
     fs::write(&path, "not a script").unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
 
-    #[allow(deprecated)]
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["doctor"])
         .env("BIRD_XURL_PATH", &path)
         .env("HOME", tempfile::TempDir::new().unwrap().path())
@@ -239,9 +237,7 @@ fn bird_xurl_path_not_executable_doctor_reports_unavailable() {
 /// API commands should still fail-fast when xurl is missing (exit 78).
 #[test]
 fn bird_me_without_xurl_still_fails_fast() {
-    #[allow(deprecated)]
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["me"])
         .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_binary_12345")
         .env("HOME", tempfile::TempDir::new().unwrap().path())
@@ -276,7 +272,6 @@ fn bird_me_without_xurl_still_fails_fast() {
 /// Regression: xurl writing >64KB to stdout must not deadlock bird.
 /// Before the fix, bird called waitpid() before reading stdout. If xurl
 /// wrote more than the pipe buffer, both processes blocked forever.
-#[cfg(unix)]
 #[test]
 fn large_stdout_no_deadlock() {
     let tmp = tempfile::TempDir::new().unwrap();
@@ -292,8 +287,7 @@ fn large_stdout_no_deadlock() {
         ),
     );
 
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["get", "/2/users/me"])
         .env("BIRD_XURL_PATH", &script)
         .env("XDG_CONFIG_HOME", tmp.path())
@@ -318,7 +312,6 @@ fn large_stdout_no_deadlock() {
 /// Regression: xurl writing >64KB to stderr must not deadlock bird.
 /// stderr uses the same pipe buffer as stdout — both must be drained
 /// concurrently in background threads.
-#[cfg(unix)]
 #[test]
 fn large_stderr_no_deadlock() {
     let tmp = tempfile::TempDir::new().unwrap();
@@ -333,8 +326,7 @@ fn large_stderr_no_deadlock() {
         ),
     );
 
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["get", "/2/users/me"])
         .env("BIRD_XURL_PATH", &script)
         .env("XDG_CONFIG_HOME", tmp.path())
@@ -353,7 +345,6 @@ fn large_stderr_no_deadlock() {
 /// Regression: xurl writing >64KB to BOTH stdout and stderr simultaneously
 /// must not deadlock. A regression that serializes the drain threads (e.g.,
 /// joining stdout before spawning stderr) would deadlock when both pipes fill.
-#[cfg(unix)]
 #[test]
 fn large_stdout_and_stderr_simultaneous_no_deadlock() {
     let tmp = tempfile::TempDir::new().unwrap();
@@ -372,8 +363,7 @@ fn large_stdout_and_stderr_simultaneous_no_deadlock() {
         ),
     );
 
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["get", "/2/users/me"])
         .env("BIRD_XURL_PATH", &script)
         .env("XDG_CONFIG_HOME", tmp.path())
@@ -398,7 +388,6 @@ fn large_stdout_and_stderr_simultaneous_no_deadlock() {
 /// xurl killed by a signal (SIGSEGV, SIGABRT) should produce a clean error,
 /// not hang or panic. When a process dies by signal, status.code() is None
 /// and only status.signal() has a value — bird must handle this gracefully.
-#[cfg(unix)]
 #[test]
 fn child_signal_death_reported_cleanly() {
     let tmp = tempfile::TempDir::new().unwrap();
@@ -413,8 +402,7 @@ fn child_signal_death_reported_cleanly() {
         ),
     );
 
-    let output = assert_cmd::Command::cargo_bin("bird")
-        .unwrap()
+    let output = assert_cmd::cargo::cargo_bin_cmd!("bird")
         .args(["get", "/2/users/me"])
         .env("BIRD_XURL_PATH", &script)
         .env("XDG_CONFIG_HOME", tmp.path())
