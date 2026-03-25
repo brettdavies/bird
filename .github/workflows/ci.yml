@@ -2,12 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE-*'
+      - 'docs/**'
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   ci:

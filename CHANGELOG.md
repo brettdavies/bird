@@ -2,11 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.1.3] - 2026-03-25
+
+### Added
+
+- Add changelog enforcement check for PRs to main (`ci / Changelog` required status check) by @brettdavies in [#25](https://github.com/brettdavies/bird/pull/25)
+- Add commit provenance guard for PRs to main — verifies non-exempt commits have PR references, auto-skipped for `release/*` branches
+
+### Changed
+
+- Convert guard-main-docs from inline JavaScript to centralized reusable workflow caller by @brettdavies in [#25](https://github.com/brettdavies/bird/pull/25)
 
 ### Fixed
 
-- Add v0.1.0 and v0.1.1 release notes to cliff.toml footer
+- Drain stdout/stderr in background threads to prevent pipe-buffer deadlock in xurl transport by @brettdavies in [#24](https://github.com/brettdavies/bird/pull/24)
+
+**Full Changelog**: [v0.1.2...v0.1.3](https://github.com/brettdavies/bird/compare/v0.1.2...v0.1.3)
 
 ## [0.1.2] - 2026-03-19
 
