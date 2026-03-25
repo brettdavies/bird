@@ -2,12 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-
-### Fixed
-
-- Add v0.1.0 and v0.1.1 release notes to cliff.toml footer
-
 ## [0.1.2] - 2026-03-19
 
 ### Fixed
