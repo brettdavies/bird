@@ -251,9 +251,9 @@ fn sync_actual_usage(
 
     let body = response.json.ok_or("invalid JSON from /2/usage/tweets")?;
     let daily = body
-        .pointer("/data/daily_project_usage")
+        .pointer("/data/daily_project_usage/usage")
         .and_then(|d| d.as_array())
-        .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage)")?;
+        .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage.usage)")?;
 
     let db = match client.db() {
         Some(db) => db,
@@ -275,13 +275,7 @@ fn sync_actual_usage(
         // Parse "2026-02-11T00:00:00.000Z" to "2026-02-11"
         let date = &date_str[..10.min(date_str.len())];
 
-        let usage_count = day_entry
-            .get("usage")
-            .and_then(|u| u.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|u| u.get("usage"))
-            .map(parse_usage_count)
-            .unwrap_or(0);
+        let usage_count = day_entry.get("usage").map(parse_usage_count).unwrap_or(0);
 
         db.upsert_actual_usage(date, usage_count)?;
         results.push(ActualUsageDay {
