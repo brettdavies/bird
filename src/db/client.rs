@@ -273,6 +273,18 @@ impl BirdClient {
         }
     }
 
+    /// Test-only constructor with explicit transport and in-memory DB.
+    #[cfg(test)]
+    pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::db::BirdDb) -> Self {
+        Self {
+            transport,
+            db: Some(db),
+            cache_opts: CacheOpts::default(),
+            username: None,
+            quiet: true,
+        }
+    }
+
     /// Entity-aware GET. For entity endpoints: checks store freshness, splits batch IDs,
     /// decomposes responses into entities, and merges results.
     /// For non-entity endpoints: stores raw responses.
