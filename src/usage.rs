@@ -251,9 +251,9 @@ fn sync_actual_usage(
 
     let body = response.json.ok_or("invalid JSON from /2/usage/tweets")?;
     let daily = body
-        .pointer("/data/daily_project_usage")
+        .pointer("/data/daily_project_usage/usage")
         .and_then(|d| d.as_array())
-        .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage)")?;
+        .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage.usage)")?;
 
     let db = match client.db() {
         Some(db) => db,
@@ -275,13 +275,7 @@ fn sync_actual_usage(
         // Parse "2026-02-11T00:00:00.000Z" to "2026-02-11"
         let date = &date_str[..10.min(date_str.len())];
 
-        let usage_count = day_entry
-            .get("usage")
-            .and_then(|u| u.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|u| u.get("usage"))
-            .map(parse_usage_count)
-            .unwrap_or(0);
+        let usage_count = day_entry.get("usage").map(parse_usage_count).unwrap_or(0);
 
         db.upsert_actual_usage(date, usage_count)?;
         results.push(ActualUsageDay {
@@ -340,6 +334,247 @@ struct UsageReport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::BirdClient;
+    use crate::db::db::in_memory_db;
+    use crate::transport::tests::MockTransport;
+
+    /// Build a BirdClient backed by MockTransport + in-memory DB.
+    fn sync_client(responses: Vec<serde_json::Value>) -> BirdClient {
+        let mock = MockTransport::new(responses.into_iter().map(Ok).collect());
+        BirdClient::new_test(Box::new(mock), in_memory_db())
+    }
+
+    /// Helper: call sync_actual_usage with a mock client.
+    fn do_sync(
+        client: &mut BirdClient,
+    ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
+        sync_actual_usage(client, true)
+    }
+
+    // -- Regression tests for the bug we fixed --
+
+    #[test]
+    fn sync_parses_live_api_response_shape() {
+        // Real response shape from X API /2/usage/tweets
+        let api_response = serde_json::json!({
+            "data": {
+                "project_cap": "2000000",
+                "project_id": "2020044302890438656",
+                "project_usage": "399",
+                "cap_reset_day": 19,
+                "daily_project_usage": {
+                    "project_id": "2020044302890438656",
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "299"},
+                        {"date": "2026-03-26T00:00:00.000Z", "usage": "100"}
+                    ]
+                },
+                "daily_client_app_usage": [
+                    {"client_app_id": "32371675", "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "299"}
+                    ], "usage_result_count": 1}
+                ]
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].date, "2026-03-25");
+        assert_eq!(result[0].tweet_count, 299);
+        assert_eq!(result[1].date, "2026-03-26");
+        assert_eq!(result[1].tweet_count, 100);
+    }
+
+    #[test]
+    fn sync_usage_as_integer_not_string() {
+        // API could return usage as integer instead of string
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": 42}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tweet_count, 42);
+    }
+
+    #[test]
+    fn sync_empty_usage_array() {
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": []
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn sync_missing_daily_project_usage_returns_error() {
+        // API returns data but no daily_project_usage key
+        let api_response = serde_json::json!({
+            "data": {
+                "project_usage": "399"
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let err = do_sync(&mut client).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("missing daily_project_usage.usage")
+        );
+    }
+
+    #[test]
+    fn sync_missing_data_key_returns_error() {
+        // API returns JSON but no data wrapper (e.g., error response)
+        let api_response = serde_json::json!({
+            "errors": [{"message": "something went wrong"}]
+        });
+        let mut client = sync_client(vec![api_response]);
+        let err = do_sync(&mut client).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("missing daily_project_usage.usage")
+        );
+    }
+
+    #[test]
+    fn sync_null_usage_treated_as_zero() {
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": null}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tweet_count, 0);
+    }
+
+    #[test]
+    fn sync_missing_usage_field_treated_as_zero() {
+        // Day entry has date but no usage field at all
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tweet_count, 0);
+    }
+
+    #[test]
+    fn sync_missing_date_field_returns_error() {
+        // Day entry has usage but no date — should fail
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"usage": "299"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let err = do_sync(&mut client).unwrap_err();
+        assert!(err.to_string().contains("missing date field"));
+    }
+
+    #[test]
+    fn sync_short_date_truncated_safely() {
+        // Date shorter than 10 chars — code uses min(10, len)
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03", "usage": "10"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let result = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(result[0].date, "2026-03");
+        assert_eq!(result[0].tweet_count, 10);
+    }
+
+    #[test]
+    fn sync_persists_to_db() {
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "299"},
+                        {"date": "2026-03-26T00:00:00.000Z", "usage": "100"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        do_sync(&mut client).unwrap();
+
+        // Verify data was persisted to DB
+        let actuals = client.db().unwrap().query_actual_usage(20260301).unwrap();
+        assert!(actuals.is_some());
+        let days = actuals.unwrap();
+        assert_eq!(days.len(), 2);
+        let mut counts: Vec<u64> = days.iter().map(|d| d.tweet_count).collect();
+        counts.sort();
+        assert_eq!(counts, vec![100, 299]);
+    }
+
+    // -- parse_usage_count edge cases from red-team --
+
+    #[test]
+    fn parse_usage_count_float_treated_as_zero() {
+        let v = serde_json::json!(42.5);
+        assert_eq!(parse_usage_count(&v), 0);
+    }
+
+    #[test]
+    fn parse_usage_count_negative_treated_as_zero() {
+        let v = serde_json::json!(-5);
+        assert_eq!(parse_usage_count(&v), 0);
+    }
+
+    #[test]
+    fn parse_usage_count_non_numeric_string_treated_as_zero() {
+        let v = serde_json::json!("not-a-number");
+        assert_eq!(parse_usage_count(&v), 0);
+    }
+
+    #[test]
+    fn parse_usage_count_bool_treated_as_zero() {
+        let v = serde_json::json!(true);
+        assert_eq!(parse_usage_count(&v), 0);
+    }
+
+    #[test]
+    fn parse_usage_count_large_string_number() {
+        let v = serde_json::json!("999999999");
+        assert_eq!(parse_usage_count(&v), 999999999);
+    }
+
+    // -- Existing tests --
 
     #[test]
     fn parse_since_valid_date() {
