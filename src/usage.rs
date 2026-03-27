@@ -80,7 +80,7 @@ pub fn run_usage(
 
     // Optionally: sync actual usage from X API
     let mut sync_status = if sync { "failed" } else { "skipped" };
-    let actuals = if sync {
+    let (actuals, cap, per_app) = if sync {
         // Validate --since with --sync: warn if older than 90 days
         let now = chrono::Utc::now().date_naive();
         let since_date = chrono::NaiveDate::from_ymd_opt(
@@ -99,20 +99,24 @@ pub fn run_usage(
         }
 
         match sync_actual_usage(client, quiet)? {
-            Some(actuals) => {
+            Some(sync_data) => {
                 sync_status = "success";
-                Some(actuals)
+                (Some(sync_data.daily), sync_data.cap, sync_data.per_app)
             }
-            None => client
-                .db()
-                .and_then(|db| db.query_actual_usage(since_ymd).ok())
-                .flatten(),
+            None => {
+                let fallback = client
+                    .db()
+                    .and_then(|db| db.query_actual_usage(since_ymd).ok())
+                    .flatten();
+                (fallback, None, vec![])
+            }
         }
     } else {
-        client
+        let fallback = client
             .db()
             .and_then(|db| db.query_actual_usage(since_ymd).ok())
-            .flatten()
+            .flatten();
+        (fallback, None, vec![])
     };
 
     let since_display = since
@@ -127,6 +131,8 @@ pub fn run_usage(
         daily,
         top_endpoints,
         comparison: actuals,
+        cap,
+        per_app,
         sync_status,
     };
 
@@ -138,9 +144,49 @@ pub fn run_usage(
     Ok(())
 }
 
+/// Format a u64 with comma separators (e.g., 2000000 -> "2,000,000").
+fn format_number(n: u64) -> String {
+    let s = n.to_string();
+    let mut result = String::with_capacity(s.len() + s.len() / 3);
+    for (i, ch) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(ch);
+    }
+    result
+}
+
+/// Format a day-of-month with ordinal suffix (e.g., 1 -> "1st", 19 -> "19th").
+fn ordinal_day(day: u32) -> String {
+    let suffix = match (day % 10, day % 100) {
+        (1, 11) | (2, 12) | (3, 13) => "th",
+        (1, _) => "st",
+        (2, _) => "nd",
+        (3, _) => "rd",
+        _ => "th",
+    };
+    format!("{}{}", day, suffix)
+}
+
 fn print_usage_pretty(report: &UsageReport) {
     println!("API Usage ({} to {})", report.since, report.until);
     println!("{}", "-".repeat(45));
+
+    if let Some(ref cap) = report.cap {
+        let pct = if cap.project_cap > 0 {
+            cap.project_usage as f64 / cap.project_cap as f64 * 100.0
+        } else {
+            0.0
+        };
+        println!(
+            "Project cap:           {} / {} ({:.2}%)",
+            format_number(cap.project_usage),
+            format_number(cap.project_cap),
+            pct
+        );
+        println!("Cap reset day:         {}", ordinal_day(cap.cap_reset_day));
+    }
 
     let total_calls = report.summary.total_calls;
     let cache_rate = if total_calls > 0 {
@@ -209,6 +255,18 @@ fn print_usage_pretty(report: &UsageReport) {
             );
         }
     }
+
+    if !report.per_app.is_empty() {
+        println!("\nPer-app breakdown:");
+        for entry in &report.per_app {
+            println!(
+                "  app={}  {}  {} tweets",
+                entry.client_app_id,
+                entry.date,
+                format_number(entry.tweet_count)
+            );
+        }
+    }
 }
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
@@ -222,8 +280,9 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 fn sync_actual_usage(
     client: &mut BirdClient,
     quiet: bool,
-) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage";
+) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
+    let url =
+        "https://api.x.com/2/usage/tweets?usage.fields=daily_project_usage,daily_client_app_usage";
 
     // Usage sync requires Bearer (app-only) auth
     let auth_type = AuthType::Bearer;
@@ -250,10 +309,51 @@ fn sync_actual_usage(
     }
 
     let body = response.json.ok_or("invalid JSON from /2/usage/tweets")?;
-    let daily = body
-        .pointer("/data/daily_project_usage/usage")
+    let data = body.get("data");
+    let daily = data
+        .and_then(|d| d.pointer("/daily_project_usage/usage"))
         .and_then(|d| d.as_array())
         .ok_or("unexpected response from /2/usage/tweets (missing daily_project_usage.usage)")?;
+
+    // Extract project cap info (optional — not all responses include it)
+    let cap = data.and_then(|d| {
+        let project_usage = d.get("project_usage").map(parse_usage_count)?;
+        let project_cap = d.get("project_cap").map(parse_usage_count)?;
+        let cap_reset_day = d
+            .get("cap_reset_day")
+            .map(|v| parse_usage_count(v) as u32)?;
+        Some(ProjectCap {
+            project_usage,
+            project_cap,
+            cap_reset_day,
+        })
+    });
+
+    // Extract per-app daily usage (optional)
+    let mut per_app = Vec::new();
+    if let Some(apps) = data
+        .and_then(|d| d.get("daily_client_app_usage"))
+        .and_then(|a| a.as_array())
+    {
+        for app in apps {
+            let app_id = app
+                .get("client_app_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            if let Some(usage_arr) = app.get("usage").and_then(|u| u.as_array()) {
+                for entry in usage_arr {
+                    let date_str = entry.get("date").and_then(|d| d.as_str()).unwrap_or("");
+                    let date = &date_str[..10.min(date_str.len())];
+                    let count = entry.get("usage").map(parse_usage_count).unwrap_or(0);
+                    per_app.push(AppDailyUsage {
+                        client_app_id: app_id.to_string(),
+                        date: date.to_string(),
+                        tweet_count: count,
+                    });
+                }
+            }
+        }
+    }
 
     let db = match client.db() {
         Some(db) => db,
@@ -295,7 +395,11 @@ fn sync_actual_usage(
         "[usage] synced {} days of actual usage from X API",
         results.len()
     );
-    Ok(Some(results))
+    Ok(Some(SyncData {
+        daily: results,
+        cap,
+        per_app,
+    }))
 }
 
 /// Build an empty report for machine consumers when DB is unavailable.
@@ -314,8 +418,31 @@ fn empty_report(since_ymd: i64) -> UsageReport {
         daily: vec![],
         top_endpoints: vec![],
         comparison: None,
+        cap: None,
+        per_app: vec![],
         sync_status: "skipped",
     }
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ProjectCap {
+    project_usage: u64,
+    project_cap: u64,
+    cap_reset_day: u32,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct AppDailyUsage {
+    client_app_id: String,
+    date: String,
+    tweet_count: u64,
+}
+
+#[derive(Debug)]
+struct SyncData {
+    daily: Vec<ActualUsageDay>,
+    cap: Option<ProjectCap>,
+    per_app: Vec<AppDailyUsage>,
 }
 
 #[derive(serde::Serialize)]
@@ -327,6 +454,10 @@ struct UsageReport {
     top_endpoints: Vec<EndpointUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     comparison: Option<Vec<ActualUsageDay>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cap: Option<ProjectCap>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    per_app: Vec<AppDailyUsage>,
     /// Machine-readable sync status: "success", "failed", or "skipped".
     sync_status: &'static str,
 }
@@ -347,7 +478,7 @@ mod tests {
     /// Helper: call sync_actual_usage with a mock client.
     fn do_sync(
         client: &mut BirdClient,
-    ) -> Result<Option<Vec<ActualUsageDay>>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
         sync_actual_usage(client, true)
     }
 
@@ -377,12 +508,23 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].date, "2026-03-25");
-        assert_eq!(result[0].tweet_count, 299);
-        assert_eq!(result[1].date, "2026-03-26");
-        assert_eq!(result[1].tweet_count, 100);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        // Daily
+        assert_eq!(sync_data.daily.len(), 2);
+        assert_eq!(sync_data.daily[0].date, "2026-03-25");
+        assert_eq!(sync_data.daily[0].tweet_count, 299);
+        assert_eq!(sync_data.daily[1].date, "2026-03-26");
+        assert_eq!(sync_data.daily[1].tweet_count, 100);
+        // Cap
+        let cap = sync_data.cap.unwrap();
+        assert_eq!(cap.project_usage, 399);
+        assert_eq!(cap.project_cap, 2_000_000);
+        assert_eq!(cap.cap_reset_day, 19);
+        // Per-app
+        assert_eq!(sync_data.per_app.len(), 1);
+        assert_eq!(sync_data.per_app[0].client_app_id, "32371675");
+        assert_eq!(sync_data.per_app[0].date, "2026-03-25");
+        assert_eq!(sync_data.per_app[0].tweet_count, 299);
     }
 
     #[test]
@@ -398,9 +540,9 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].tweet_count, 42);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(sync_data.daily.len(), 1);
+        assert_eq!(sync_data.daily[0].tweet_count, 42);
     }
 
     #[test]
@@ -413,8 +555,8 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert!(result.is_empty());
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert!(sync_data.daily.is_empty());
     }
 
     #[test]
@@ -459,9 +601,9 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].tweet_count, 0);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(sync_data.daily.len(), 1);
+        assert_eq!(sync_data.daily[0].tweet_count, 0);
     }
 
     #[test]
@@ -477,9 +619,9 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].tweet_count, 0);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(sync_data.daily.len(), 1);
+        assert_eq!(sync_data.daily[0].tweet_count, 0);
     }
 
     #[test]
@@ -512,9 +654,9 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let result = do_sync(&mut client).unwrap().unwrap();
-        assert_eq!(result[0].date, "2026-03");
-        assert_eq!(result[0].tweet_count, 10);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(sync_data.daily[0].date, "2026-03");
+        assert_eq!(sync_data.daily[0].tweet_count, 10);
     }
 
     #[test]
@@ -624,5 +766,107 @@ mod tests {
     fn parse_usage_count_null() {
         let v = serde_json::json!(null);
         assert_eq!(parse_usage_count(&v), 0);
+    }
+
+    // -- Cap and per-app tests --
+
+    #[test]
+    fn sync_extracts_cap_info() {
+        let api_response = serde_json::json!({
+            "data": {
+                "project_cap": "2000000",
+                "project_usage": "399",
+                "cap_reset_day": 19,
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "100"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let cap = sync_data.cap.unwrap();
+        assert_eq!(cap.project_usage, 399);
+        assert_eq!(cap.project_cap, 2_000_000);
+        assert_eq!(cap.cap_reset_day, 19);
+    }
+
+    #[test]
+    fn sync_extracts_per_app_usage() {
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "399"}
+                    ]
+                },
+                "daily_client_app_usage": [
+                    {"client_app_id": "32371675", "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "299"},
+                        {"date": "2026-03-26T00:00:00.000Z", "usage": "100"}
+                    ], "usage_result_count": 2},
+                    {"client_app_id": "99999999", "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "50"}
+                    ], "usage_result_count": 1}
+                ]
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert_eq!(sync_data.per_app.len(), 3);
+        assert_eq!(sync_data.per_app[0].client_app_id, "32371675");
+        assert_eq!(sync_data.per_app[0].date, "2026-03-25");
+        assert_eq!(sync_data.per_app[0].tweet_count, 299);
+        assert_eq!(sync_data.per_app[1].client_app_id, "32371675");
+        assert_eq!(sync_data.per_app[1].date, "2026-03-26");
+        assert_eq!(sync_data.per_app[1].tweet_count, 100);
+        assert_eq!(sync_data.per_app[2].client_app_id, "99999999");
+        assert_eq!(sync_data.per_app[2].tweet_count, 50);
+    }
+
+    #[test]
+    fn sync_missing_cap_fields_returns_none() {
+        // Response has daily_project_usage but no cap fields
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "100"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        assert!(sync_data.cap.is_none());
+        assert!(sync_data.per_app.is_empty());
+    }
+
+    // -- format_number and ordinal_day tests --
+
+    #[test]
+    fn format_number_with_commas() {
+        assert_eq!(format_number(0), "0");
+        assert_eq!(format_number(999), "999");
+        assert_eq!(format_number(1000), "1,000");
+        assert_eq!(format_number(2_000_000), "2,000,000");
+        assert_eq!(format_number(123_456_789), "123,456,789");
+    }
+
+    #[test]
+    fn ordinal_day_suffixes() {
+        assert_eq!(ordinal_day(1), "1st");
+        assert_eq!(ordinal_day(2), "2nd");
+        assert_eq!(ordinal_day(3), "3rd");
+        assert_eq!(ordinal_day(4), "4th");
+        assert_eq!(ordinal_day(11), "11th");
+        assert_eq!(ordinal_day(12), "12th");
+        assert_eq!(ordinal_day(13), "13th");
+        assert_eq!(ordinal_day(19), "19th");
+        assert_eq!(ordinal_day(21), "21st");
+        assert_eq!(ordinal_day(22), "22nd");
+        assert_eq!(ordinal_day(23), "23rd");
+        assert_eq!(ordinal_day(31), "31st");
     }
 }
