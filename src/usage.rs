@@ -844,6 +844,40 @@ mod tests {
         assert!(sync_data.per_app.is_empty());
     }
 
+    // -- run_usage integration tests --
+
+    #[test]
+    fn run_usage_local_skips_api() {
+        // local=true should NOT call the API — empty mock proves it
+        // (if API were called, the mock would error and run_usage would propagate it)
+        let mut client = sync_client(vec![]);
+        run_usage(&mut client, None, true, false, true).unwrap();
+    }
+
+    #[test]
+    fn run_usage_default_calls_api() {
+        // local=false (default) should call the API
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "100"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        run_usage(&mut client, None, false, false, true).unwrap();
+    }
+
+    #[test]
+    fn run_usage_default_with_empty_mock_errors() {
+        // Proves local=false actually hits the API — empty mock causes transport error
+        let mut client = sync_client(vec![]);
+        let result = run_usage(&mut client, None, false, false, true);
+        assert!(result.is_err(), "local=false should attempt API call");
+    }
+
     // -- format_number and ordinal_day tests --
 
     #[test]
