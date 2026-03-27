@@ -218,6 +218,51 @@ fn completions_does_not_create_config() {
     );
 }
 
+// --- Usage flag tests ---
+
+#[test]
+fn usage_help_shows_local_flag() {
+    bird()
+        .args(["usage", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--local"));
+}
+
+#[test]
+fn usage_help_does_not_show_sync_flag() {
+    let output = bird().args(["usage", "--help"]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("--sync"),
+        "usage --help should not contain --sync, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn usage_sync_flag_rejected() {
+    // --sync should be rejected by clap (unknown flag)
+    bird().args(["usage", "--sync"]).assert().failure().code(2);
+}
+
+#[test]
+fn usage_local_flag_accepted_by_clap() {
+    // --local should be accepted by clap (exits later due to missing xurl, but not exit 2)
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["usage", "--local"])
+        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
+        .output()
+        .unwrap();
+    // Should NOT be exit 2 (clap parse error) — any other exit is fine
+    assert_ne!(
+        output.status.code(),
+        Some(2),
+        "--local should be accepted by clap"
+    );
+}
+
 // --- Quiet flag tests ---
 
 #[test]

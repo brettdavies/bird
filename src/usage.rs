@@ -1,5 +1,6 @@
-//! Usage command: API cost visibility from local SQLite + optional X API sync.
-//! Reads the `usage` table for estimated costs; `--sync` fetches actuals from GET /2/usage/tweets.
+//! Usage command: API cost visibility from local SQLite + X API sync (default).
+//! Reads the `usage` table for estimated costs; fetches actuals from GET /2/usage/tweets by default.
+//! Use `--local` to skip the API and show only local estimates.
 
 use crate::db::{
     ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
@@ -41,7 +42,7 @@ fn ymd_to_display(ymd: i64) -> String {
 pub fn run_usage(
     client: &mut BirdClient,
     since: Option<&str>,
-    sync: bool,
+    local: bool,
     pretty: bool,
     quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -61,7 +62,7 @@ pub fn run_usage(
         return Ok(());
     }
 
-    // Query local data (db() is Some, verified above; re-borrow scoped to avoid conflict with sync)
+    // Query local data (db() is Some, verified above; re-borrow scoped to avoid API call below)
     let (summary, daily, top_endpoints) = {
         let db = client.db().unwrap();
         (
@@ -71,17 +72,17 @@ pub fn run_usage(
         )
     };
 
-    if summary.total_calls == 0 && !sync {
+    if summary.total_calls == 0 && local {
         diag!(
             quiet,
             "[usage] No usage data recorded yet. Run some API commands first."
         );
     }
 
-    // Optionally: sync actual usage from X API
-    let mut sync_status = if sync { "failed" } else { "skipped" };
-    let (actuals, cap, per_app) = if sync {
-        // Validate --since with --sync: warn if older than 90 days
+    // Fetch actual usage from X API (default; skipped with --local)
+    let mut sync_status = if local { "skipped" } else { "failed" };
+    let (actuals, cap, per_app) = if !local {
+        // Validate --since with API sync: warn if older than 90 days
         let now = chrono::Utc::now().date_naive();
         let since_date = chrono::NaiveDate::from_ymd_opt(
             (since_ymd / 10000) as i32,
@@ -841,6 +842,40 @@ mod tests {
         let sync_data = do_sync(&mut client).unwrap().unwrap();
         assert!(sync_data.cap.is_none());
         assert!(sync_data.per_app.is_empty());
+    }
+
+    // -- run_usage integration tests --
+
+    #[test]
+    fn run_usage_local_skips_api() {
+        // local=true should NOT call the API — empty mock proves it
+        // (if API were called, the mock would error and run_usage would propagate it)
+        let mut client = sync_client(vec![]);
+        run_usage(&mut client, None, true, false, true).unwrap();
+    }
+
+    #[test]
+    fn run_usage_default_calls_api() {
+        // local=false (default) should call the API
+        let api_response = serde_json::json!({
+            "data": {
+                "daily_project_usage": {
+                    "usage": [
+                        {"date": "2026-03-25T00:00:00.000Z", "usage": "100"}
+                    ]
+                }
+            }
+        });
+        let mut client = sync_client(vec![api_response]);
+        run_usage(&mut client, None, false, false, true).unwrap();
+    }
+
+    #[test]
+    fn run_usage_default_with_empty_mock_errors() {
+        // Proves local=false actually hits the API — empty mock causes transport error
+        let mut client = sync_client(vec![]);
+        let result = run_usage(&mut client, None, false, false, true);
+        assert!(result.is_err(), "local=false should attempt API call");
     }
 
     // -- format_number and ordinal_day tests --
