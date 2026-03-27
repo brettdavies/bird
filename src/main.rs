@@ -368,10 +368,10 @@ fn run(
         },
         Command::Usage {
             since,
-            sync,
+            local,
             pretty,
         } => {
-            usage::run_usage(client, since.as_deref(), sync, pretty, quiet)
+            usage::run_usage(client, since.as_deref(), local, pretty, quiet)
                 .map_err(|e| map_cmd_error("usage", e))?;
         }
         // -- Write commands (xurl passthrough) --

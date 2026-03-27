@@ -89,6 +89,7 @@ pub fn requirements_for_command(name: &str) -> Option<CommandReqs> {
         "usage" => CommandReqs {
             accepted: &[AuthType::None],
         },
+        // API sync path (default unless --local); Bearer auth for GET /2/usage/tweets
         "usage_sync" => CommandReqs {
             accepted: &[AuthType::Bearer],
         },

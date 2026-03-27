@@ -1,5 +1,6 @@
-//! Usage command: API cost visibility from local SQLite + optional X API sync.
-//! Reads the `usage` table for estimated costs; `--sync` fetches actuals from GET /2/usage/tweets.
+//! Usage command: API cost visibility from local SQLite + X API sync (default).
+//! Reads the `usage` table for estimated costs; fetches actuals from GET /2/usage/tweets by default.
+//! Use `--local` to skip the API and show only local estimates.
 
 use crate::db::{
     ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
@@ -41,11 +42,12 @@ fn ymd_to_display(ymd: i64) -> String {
 pub fn run_usage(
     client: &mut BirdClient,
     since: Option<&str>,
-    sync: bool,
+    local: bool,
     pretty: bool,
     quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let since_ymd = parse_since(since)?;
+    let sync = !local;
 
     // Check DB availability (graceful degradation per D5)
     if client.db().is_none() {
@@ -71,17 +73,17 @@ pub fn run_usage(
         )
     };
 
-    if summary.total_calls == 0 && !sync {
+    if summary.total_calls == 0 && local {
         diag!(
             quiet,
             "[usage] No usage data recorded yet. Run some API commands first."
         );
     }
 
-    // Optionally: sync actual usage from X API
+    // Sync actual usage from X API (default; skipped with --local)
     let mut sync_status = if sync { "failed" } else { "skipped" };
     let (actuals, cap, per_app) = if sync {
-        // Validate --since with --sync: warn if older than 90 days
+        // Validate --since with API sync: warn if older than 90 days
         let now = chrono::Utc::now().date_naive();
         let since_date = chrono::NaiveDate::from_ymd_opt(
             (since_ymd / 10000) as i32,
