@@ -47,7 +47,6 @@ pub fn run_usage(
     quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let since_ymd = parse_since(since)?;
-    let sync = !local;
 
     // Check DB availability (graceful degradation per D5)
     if client.db().is_none() {
@@ -63,7 +62,7 @@ pub fn run_usage(
         return Ok(());
     }
 
-    // Query local data (db() is Some, verified above; re-borrow scoped to avoid conflict with sync)
+    // Query local data (db() is Some, verified above; re-borrow scoped to avoid API call below)
     let (summary, daily, top_endpoints) = {
         let db = client.db().unwrap();
         (
@@ -80,9 +79,9 @@ pub fn run_usage(
         );
     }
 
-    // Sync actual usage from X API (default; skipped with --local)
-    let mut sync_status = if sync { "failed" } else { "skipped" };
-    let (actuals, cap, per_app) = if sync {
+    // Fetch actual usage from X API (default; skipped with --local)
+    let mut sync_status = if local { "skipped" } else { "failed" };
+    let (actuals, cap, per_app) = if !local {
         // Validate --since with API sync: warn if older than 90 days
         let now = chrono::Utc::now().date_naive();
         let since_date = chrono::NaiveDate::from_ymd_opt(
