@@ -177,9 +177,9 @@ pub(crate) enum Command {
         /// Show usage since this date (YYYY-MM-DD; default: 30 days ago)
         #[arg(long)]
         since: Option<String>,
-        /// Sync actual usage from X API (requires Bearer token via xurl)
+        /// Show only local estimates (skip API)
         #[arg(long)]
-        sync: bool,
+        local: bool,
         /// Pretty-print output
         #[arg(long)]
         pretty: bool,

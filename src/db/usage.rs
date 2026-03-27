@@ -158,7 +158,7 @@ impl BirdDb {
         rows.collect()
     }
 
-    /// Upsert actual usage from X API (for --sync comparison).
+    /// Upsert actual usage from X API sync.
     pub fn upsert_actual_usage(&self, date: &str, tweet_count: u64) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let mut stmt = self.conn.prepare_cached(
@@ -169,7 +169,7 @@ impl BirdDb {
         Ok(())
     }
 
-    /// Query actual usage data (from previous --sync operations).
+    /// Query actual usage data (from previous API syncs).
     pub fn query_actual_usage(
         &self,
         since_ymd: i64,
