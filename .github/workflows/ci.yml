@@ -1,7 +1,21 @@
+# Source repo CI wrapper — calls the centralized reusable workflow.
+# Copy to .github/workflows/ci.yml in the tool repo.
+#
+# The reusable workflow runs: fmt, clippy, test, cargo-deny audit, package check,
+# Windows dep check, and changelog verification (on PRs to main).
+# No secrets required — only needs contents: read and pull-requests: read.
+#
+# Push trigger is scoped to main/dev only — feature branches get CI via
+# pull_request. This prevents duplicate runs when a branch push and PR
+# creation fire seconds apart. tags-ignore prevents CI on release tag pushes
+# (the release workflow handles those). paths-ignore skips doc-only pushes.
+# paths-ignore is NOT applied to pull_request to avoid blocking required
+# status checks when a PR only touches ignored paths.
 name: CI
 
 on:
   push:
+    branches: [main, dev]
     tags-ignore: ['**']
     paths-ignore:
       - '**.md'
