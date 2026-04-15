@@ -1,8 +1,8 @@
 # bird
 
-**bird** is a Rust CLI for the X (Twitter) API, built on [xurl](https://github.com/xdevplatform/xurl) for
-authentication and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread
-reconstruction, and structured error output for agents.
+**bird** is a Rust CLI for the X (Twitter) API, built on [xurl](https://github.com/xdevplatform/xurl) for authentication
+and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread reconstruction, and structured
+error output for agents.
 
 ## Why bird?
 
@@ -57,8 +57,8 @@ cargo build --release
 
 ### Prerequisite: xurl
 
-bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go
-[xurl](https://github.com/xdevplatform/xurl)) for X API authentication:
+bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go [xurl](https://github.com/xdevplatform/xurl))
+for X API authentication:
 
 ```bash
 # Recommended: xurl-rs (Rust)
@@ -193,8 +193,8 @@ bird reads one environment variable: `X_API_USERNAME` (or `--username`) to selec
 
 ### Structured error output
 
-Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is
-the default.
+Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is the
+default.
 
 ```json
 {"error":"message","kind":"config","code":78}
@@ -235,12 +235,20 @@ Generate and install completions for your shell:
 # Bash
 bird completions bash > ~/.local/share/bash-completion/completions/bird
 
-# Zsh
-bird completions zsh > ~/.zfunc/_bird
+# Zsh (writes to the first directory on your fpath)
+bird completions zsh > "${fpath[1]}/_bird"
 
 # Fish
 bird completions fish > ~/.config/fish/completions/bird.fish
+
+# PowerShell
+bird completions powershell > bird.ps1
+
+# Elvish
+bird completions elvish > bird.elv
 ```
+
+Pre-generated scripts are also available in `completions/`.
 
 Homebrew users get completions installed automatically.
 
