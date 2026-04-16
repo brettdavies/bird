@@ -1,3 +1,7 @@
+# Supply-chain pin: rustc version is immutable; rustup verifies component SHA256s
+# from the distribution manifest (the "lockfile" for a toolchain release).
+# Trailing comment documents the commit SHA for audit.
+# Bump via reviewed PR only after a new stable has aged ≥7 days.
 [toolchain]
-channel = "stable"
+channel = "1.94.1" # rustc e408947bfd200af42db322daf0fadfe7e26d3bd1, released 2026-03-25
 components = ["rustfmt", "clippy"]
