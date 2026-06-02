@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/profile-v1.json",
+  "title": "bird profile payload",
+  "description": "Shape of the data payload returned by `bird profile <username>` under --output json. Wraps a single user object resolved via GET /2/users/by/username/{username}.",
+  "type": "object",
+  "required": ["user"],
+  "properties": {
+    "user": {
+      "type": "object",
+      "required": ["id", "username"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User's numeric ID."
+        },
+        "username": {
+          "type": "string",
+          "description": "Screen name (without leading @)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Bio text."
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "profile_image_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "public_metrics": {
+          "type": "object",
+          "properties": {
+            "followers_count": { "type": "integer" },
+            "following_count": { "type": "integer" },
+            "tweet_count": { "type": "integer" },
+            "listed_count": { "type": "integer" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -14,6 +14,7 @@ mod profile;
 mod raw;
 mod requirements;
 mod schema;
+mod schema_print;
 mod search;
 mod skill_install;
 mod thread;
@@ -381,6 +382,9 @@ fn run(
         Command::Skill { .. } => {
             unreachable!("skill is handled before config init in main()")
         }
+        Command::Schema { .. } => {
+            unreachable!("schema is handled before config init in main()")
+        }
         Command::Cache { action } => match action {
             CacheAction::Clear => match client.db_clear() {
                 Some(Ok(count)) => {
@@ -668,6 +672,16 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::from_source("skill", e);
+                output::print_error(&err, &out);
+                ExitCode::from(err.exit_code())
+            }
+        };
+    }
+
+    if let Command::Schema { name, list } = &cli.command {
+        return match schema_print::run(name.as_deref(), *list, &out) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
                 output::print_error(&err, &out);
                 ExitCode::from(err.exit_code())
             }

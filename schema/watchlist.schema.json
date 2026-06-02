@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/watchlist-v1.json",
+  "title": "bird watchlist payload",
+  "description": "Shape of the data payload returned by `bird watchlist list|check|add|remove` under --output json. The structure varies by subcommand; the same envelope wraps each.",
+  "type": "object",
+  "properties": {
+    "users": {
+      "type": "array",
+      "description": "Watched users (returned by `watchlist list` and `watchlist check`).",
+      "items": {
+        "type": "object",
+        "required": ["username"],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Username without leading @."
+          },
+          "id": {
+            "type": "string",
+            "description": "Numeric user ID (when resolved)."
+          },
+          "last_tweet_id": {
+            "type": "string",
+            "description": "ID of the most recent tweet seen for this user."
+          },
+          "last_checked": {
+            "type": "string",
+            "description": "RFC 3339 timestamp of last activity poll."
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "activity": {
+      "type": "array",
+      "description": "Recent activity rows (returned by `watchlist check`).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "new_tweets": { "type": "integer" },
+          "tweets": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "result": {
+      "type": "string",
+      "description": "Mutation outcome (returned by `watchlist add|remove`).",
+      "enum": ["added", "removed", "noop"]
+    },
+    "username": {
+      "type": "string",
+      "description": "Target username for add/remove operations."
+    }
+  },
+  "additionalProperties": true
+}
