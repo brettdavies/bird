@@ -115,8 +115,15 @@ complete when `anc audit` reports score ≥ 99% with zero MUST-tier `fail` and w
 - `p2-may-more-formats` (CSV/TSV beyond ndjson — only ship if free)
 - Rust error-type refactor to `thiserror` if `BirdError` already serves the audit (only do the refactor if it's required
   to make `p4-should-structured-enum` pass)
-- Subcommand renaming for `p6-may-standard-names` beyond clap aliases (any rename is a breaking change; alias-only is in
-  scope, hard rename is deferred)
+
+### Deliberately Accepted Warns (Out of Scope)
+
+- `p6-may-standard-names` — the social subcommands (`tweet`, `like`, `follow`, `dm`, `post`, `reply`, `repost`, `block`,
+  `mute`, and their `un*` counterparts) are X/Twitter API canonical terminology. Aliasing to
+  `create-tweet`/`delete-like` /etc. would bloat `--help`, fragment documentation, and damage agent discoverability of
+  names they already know — for what is, by design, a MAY-tier audit (Warn never Fail). Bonus: anc's audit reads
+  `--help` output, so hidden aliases wouldn't satisfy it; visible aliases would do the discoverability damage outright.
+  Accept the Warn.
 
 ## Key Technical Decisions
 
@@ -159,11 +166,12 @@ print authorization URL + state, instruct user to open in any browser/device, pa
 Use xurl's existing manual-paste support if it exists; otherwise wrap stdin prompts in bird (and gate them behind
 `--no-interactive=false`).
 
-**KTD-9: Subcommand naming — alias, don't rename.** Social verbs (`tweet`, `like`, `follow`, `dm`, `post`, `reply`,
-`repost`, `unrepost`, `block`, `unblock`, `mute`, `unmute`) stay at top level for backward compatibility. Add clap
-`alias` so each social verb is also reachable under its standard-verb counterpart where it cleanly maps (e.g., `delete`
-already standard; `tweet` could `alias = "create-tweet"`). The 70% threshold is achievable through aliases alone since
-the standard-verb count is what anc audits.
+**KTD-9: Subcommand naming — accept the MAY-tier warn.** The social subcommands (`tweet`, `like`, `follow`, `dm`,
+`post`, `reply`, `repost`, `unrepost`, `block`, `unblock`, `mute`, `unmute`) are canonical X/Twitter API terms. Aliasing
+to `create-tweet`/`delete-like` etc. would bloat `--help`, fragment documentation, and damage agent discoverability of
+names they already know — for what is, by design, a MAY-tier audit (Warn never Fail). Accept the Warn. (Bonus: anc reads
+`--help`, so hidden aliases would not satisfy it; visible aliases would do the discoverability damage outright.)
+`p6-should-consistent-naming` is a separate audit and stays in scope (watchlist children remain uniformly verb-shaped).
 
 **KTD-10: Skill bundle install.** Copy anc's `src/skill_install.rs` pattern: `bird skill install [--host
 claude-code|cursor|...] [--dry-run]`. The bundle source is `AGENTS.md` plus optionally a `skill/` directory at repo
@@ -184,11 +192,12 @@ graph TD
   U7[U7. Subcommand naming<br/>feat/anc-naming]
   U1 -.optional consistency.-> U5
   U1 -.optional consistency.-> U6
-  U1 -.optional consistency.-> U7
+  U7[U7. ~~Subcommand naming~~ DESCOPED<br/>p6-may-standard-names: accept warn]:::descoped
+  classDef descoped fill:#f0f0f0,stroke:#999,stroke-dasharray:5
 ```
 
-U1 is the only hard blocker. U5/U6/U7 are independent and can ship in any order, but landing after U1 yields cleaner
-`--output json` errors throughout.
+U1 is the only hard blocker. U5/U6 are independent and can ship in any order, but landing after U1 yields cleaner
+`--output json` errors throughout. **U7 is descoped** (see Scope Boundaries → Deliberately Accepted Warns).
 
 ### JSON envelope shape (KTD-1, KTD-2)
 
@@ -434,10 +443,10 @@ are aspirational)
   `--examples` flag handling
 - `examples/` (new directory at repo root):
 - `top-level.txt`, `bookmarks-list.txt`, `search.txt`, `thread.txt`, `profile.txt`, `watchlist-add.txt`,
-    `watchlist-remove.txt`, `watchlist-list.txt`, `watchlist-check.txt`, `usage.txt`, `me.txt`, `get.txt`, `post.txt`,
-    `put.txt`, `delete.txt`, `tweet.txt`, `reply.txt`, `like.txt`, `unlike.txt`, `repost.txt`, `unrepost.txt`,
-    `follow.txt`, `unfollow.txt`, `dm.txt`, `block.txt`, `unblock.txt`, `mute.txt`, `unmute.txt`, `login.txt`,
-    `doctor.txt`, `cache.txt`, `completions.txt`, `schema.txt`, `skill.txt`
+  `watchlist-remove.txt`, `watchlist-list.txt`, `watchlist-check.txt`, `usage.txt`, `me.txt`, `get.txt`, `post.txt`,
+  `put.txt`, `delete.txt`, `tweet.txt`, `reply.txt`, `like.txt`, `unlike.txt`, `repost.txt`, `unrepost.txt`,
+  `follow.txt`, `unfollow.txt`, `dm.txt`, `block.txt`, `unblock.txt`, `mute.txt`, `unmute.txt`, `login.txt`,
+  `doctor.txt`, `cache.txt`, `completions.txt`, `schema.txt`, `skill.txt`
 - `src/examples.rs` — new: dispatch `--examples` flag (or `examples` subcommand if simpler) to print curated reference
 
 **Approach:**
@@ -507,7 +516,7 @@ and `--cursor` for bounded, traversable results.
 
 - Confirmation flow (per KTD-5): When write command runs without `--force`/`--yes`:
 - If stdin is TTY and `--no-interactive` is unset: prompt "Proceed? [y/N]" (text mode) or refuse with
-    `{"error":"requires-confirmation","kind":"usage","exit_code":2}` (JSON mode)
+  `{"error":"requires-confirmation","kind":"usage","exit_code":2}` (JSON mode)
 - Otherwise: refuse with the same usage error
 - Dry-run output (per KTD-6):
 - Text: `Would <verb>: <method> <url>\nBody: <safe-redacted-fields>\n(--dry-run; no request sent)`
@@ -571,7 +580,7 @@ and `--cursor` for bounded, traversable results.
 - Build authorization URL (existing xurl code does this)
 - Print: `Open this URL in any browser:\n<url>\n\nAfter authorizing, paste the full callback URL here:`
 - Read stdin line; extract `code` and `state` querystring params; validate state matches; exchange code for token via
-    xurl
+  xurl
 - Under JSON mode (`--no-browser --output json`): emit `{"data": {"auth_url": "...", "state": "..."}, "meta":
   {"awaiting": "callback_url_on_stdin"}}` to stdout; read stdin; emit `{"data": {"status": "authenticated", "username":
   "..."}, "meta": {}}` on success
@@ -759,7 +768,7 @@ split documentation.
 - Reference passing CLI: `anc` itself (35 pass / 8 skip / 0 warn / 0 fail = 100%)
 - Triage table: produced by Explore subagent earlier in this session (mapped each non-passing audit to `src/` files)
 - Architecture map: produced by Explore subagent earlier in this session (clap-derive in `src/cli.rs`; `BirdError` enum
-  - exit codes 78/77/1 in `src/main.rs`; `OutputFormat` + `OutputConfig` in `src/output.rs`; `DoctorReport` JSON pattern
+- exit codes 78/77/1 in `src/main.rs`; `OutputFormat` + `OutputConfig` in `src/output.rs`; `DoctorReport` JSON pattern
   in `src/doctor.rs`; AGENTS.md bundle present)
 - Prior learning (referenced via `qmd query`):
   `docs/solutions/test-failures/stale-release-binary-dogfood-fail-2026-05-07.md` — flags the failure mode
@@ -770,17 +779,28 @@ split documentation.
 
 1. **U1 (foundation)** — must land first; unblocks U2/U3/U4
 2. **U2 + U3 + U4 in parallel** — all depend on U1, no inter-dependencies among themselves
-3. **U5 + U6 + U7 in parallel** — independent of foundation but benefit from landing after for consistency
+3. **U5 + U6 in parallel** — independent of foundation but benefit from landing after for consistency
+4. **U7 descoped** — `p6-may-standard-names` Warn accepted; X/Twitter API canonical terms preserved
 
 ## Acceptance
 
 The plan is complete when:
 
+- Zero `fail` rows
+- Zero `warn` rows on MUST and SHOULD tier
+- One acceptable `warn` on `p6-may-standard-names` (MAY tier; deliberately accepted — see Scope Boundaries →
+  Deliberately Accepted Warns)
+- All other warns either resolved to `pass` or downgraded to `skip` via conditional applicability
+- Effective score: every audit anc grades on substance reaches `pass`; the only remaining `warn` is a documented domain
+  decision
+
+Verification:
+
 ```text
-$ anc audit
-... 69 audits: 69 pass, 0 warn, 0 fail, 0 opt_out, 0 n_a, 0 skip
-$ anc audit --output json | jq -r '.badge.score_pct'
-100
+$ anc audit --output json | jaq '.summary | {pass, warn, fail}'
+{ "pass": 67, "warn": 1, "fail": 0 }
+$ anc audit --output json | jaq '[.results[] | select(.status == "warn") | .id]'
+[ "p6-may-standard-names" ]
 ```
 
 Or, if some `skip` rows are irreducible (e.g., `p6-must-no-pager` skips because bird invokes no pager, which is
