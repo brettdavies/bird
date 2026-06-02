@@ -12,10 +12,10 @@ Bird currently shells out to the xurl CLI binary (`xr`) for all X API calls. The
 errors via string matching on exit codes and response bodies. This architecture was the right call in March 2026 when
 xurl had no library API (see `docs/brainstorms/2026-03-12-wrap-xurl-vs-native-api-client.md`).
 
-xurl-rs v1.1.0 now ships a full library API: 29 typed shortcut functions returning `ApiResponse<T>` with compile-time
-type safety, an `Auth` struct for in-process OAuth flows, and `send_request()` for untyped passthrough. The subprocess
-layer is now unnecessary complexity that adds ~50-100ms latency per cache miss, fragile string-based error handling, and
-runtime coupling to the xurl binary's PATH availability.
+xurl-rs v1.2.0 (compiling locally on dev, targeting parallel release) ships a full library API: 29 typed shortcut
+functions returning `ApiResponse<T>` with compile-time type safety, an `Auth` struct for in-process OAuth flows, and
+`send_request()` for untyped passthrough. The subprocess layer is now unnecessary complexity that adds ~50-100ms latency
+per cache miss, fragile string-based error handling, and runtime coupling to the xurl binary's PATH availability.
 
 This migration replaces the subprocess transport with direct Rust library calls, giving bird typed responses, in-process
 auth, and zero runtime dependency on the xurl CLI binary.
@@ -36,7 +36,8 @@ auth, and zero runtime dependency on the xurl CLI binary.
 
 - R5. Command handlers receive typed `ApiResponse<T>` from xurl shortcut methods (`Tweet`, `User`, `DmEvent`, action
   confirmations like `LikedResult`, `FollowingResult`, etc.) via `client.method(&call_opts)` pattern using xurl's
-  `CallOptions` type (not `RequestOptions`, which is internal to xurl's raw request path)
+  `CallOptions` type. (`RequestOptions` is `pub` and re-exported from `xurl::api`, but only `bird raw` uses it directly
+  via `send_request()` — all other commands use `CallOptions`)
 - R6. Entity store stores typed structs serialized to `raw_json` via `serde_json::to_string()`; no SQLite schema
   migration required. Existing decomposed index columns (`id`, `author_id`, etc.) populated from typed struct fields.
   Further column decomposition deferred to follow-up if a concrete query need arises.
@@ -85,7 +86,11 @@ auth, and zero runtime dependency on the xurl CLI binary.
 
 - R18. CLI output semantically equivalent for all commands (same fields and values; key ordering and null-vs-absent may
   differ due to typed round-trip serialization — JSON consumers use proper parsing, not string comparison)
-- R19. Exit codes identical for all error conditions
+- R19. Exit codes identical for all error conditions, **with one intentional improvement:** xurl v1.2.0's
+  `exit_code_for_error()` uses structured `Api { status, .. }` matching instead of string matching, so some edge cases
+  now return more specific exit codes (e.g., 404 → `EXIT_NOT_FOUND` instead of `EXIT_GENERAL_ERROR` when the response
+  body didn't contain the literal string "404"). See `xurl-rs/KNOWN_DIFFERENCES.md` for the full table. These are
+  strictly more correct, not regressions.
 - R20. Same command set — no new commands, no removed commands
 - R21. Cache behavior functionally equivalent (same hit/miss semantics; no schema migration — typed structs serialized
   to existing `raw_json` column)
@@ -112,31 +117,31 @@ auth, and zero runtime dependency on the xurl CLI binary.
 
 ## Key Decisions
 
-| Decision | Rationale |
-|---|---|
-| Full typed integration — remove Transport trait | The trait was a subprocess abstraction; typed library calls don't fit `fn request(&self, args: &[String]) -> Result<Value>`. Removing it eliminates indirection without losing testability. |
-| `bird raw` uses `send_request()` (Value) | Raw is inherently untyped. Using the library's untyped path eliminates the last subprocess call while matching the command's semantics. |
-| `bird login` calls `Auth::oauth2_flow()` directly | Eliminates subprocess for the interactive OAuth flow. Same UX (browser open + callback) via in-process execution. |
-| Entity store: typed at API boundary, serialized for storage | Command handlers receive typed structs; entity store serializes them to `raw_json`. Avoids a SQLite schema migration on the critical path while still getting type safety at the API call site. Column decomposition deferred to follow-up. |
-| Pure infrastructure swap — no UX changes | Keeps the migration reviewable and testable. UX improvements ship as separate follow-up PRs. |
-| Depend on xurl-rs via crates.io | Standard crate dependency. No path deps, no git deps, no local machine coupling. |
-| Parallel xurl v1.2.0 + bird migration | xurl v1.2.0 ships owned `ApiClient` (no lifetime), `from_env()`, `CallOptions` for shortcut methods, shortcuts as methods on ApiClient, structured `Api { status, body }` errors for HTTP responses, `Validation(String)` for non-HTTP errors, and body-only Display format preservation. Breaking changes acceptable in v1.x since bird coordinates releases. Bird targets v1.2.0 directly. |
-| Bird uses `ApiClient::new()`, not `from_env()` | Bird needs `Auth::with_app_name()` for app_name override. `from_env()` is convenience for simple consumers with no customization. Bird constructs `Config::new()` + `Auth::new(&cfg)` + `auth.with_app_name()` + `ApiClient::new(config, auth)`. |
-| Bird constructs `CallOptions` for shortcut calls | `CallOptions { auth_type, username, no_auth, verbose }` replaces `RequestOptions` for all shortcut methods. `bird raw` is the only path using `send_request(&RequestOptions)` directly. |
-| Typed fixtures + wiremock for testing | Unit tests construct `ApiResponse<T>` directly (fast, no network). Integration tests use wiremock to mock HTTP at server level. Two layers replace MockTransport. |
-| Semantically equivalent JSON output | Key ordering and null-vs-absent may differ from raw API JSON due to typed round-trip serialization. JSON consumers use proper parsing. Not byte-identical. |
-| Remove bird's `ApiResponse`, use xurl's | Bird's `ApiResponse` (status, body, json, cache_hit) was a subprocess artifact. Removed entirely; xurl's `ApiResponse<T>` used directly. Cache-hit tracking moves to a separate mechanism (e.g., `CacheResult<T>` wrapper or return metadata). |
-| User ID resolution is bird's responsibility | xurl v1.2.0 deliberately keeps resolve helpers as consumer-owned Layer 3 composition. Bird implements its own resolution with `OnceCell` caching (my_id) and entity store caching (username lookups). |
-| 5-PR incremental migration | PR1: foundation + `bird me` proof-of-concept. PR2: read commands. PR3: write commands + user_id resolution. PR4: raw + usage + login + doctor. PR5: cleanup (delete transport.rs, old deps, old types). |
+| Decision                                                    | Rationale                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full typed integration — remove Transport trait             | The trait was a subprocess abstraction; typed library calls don't fit `fn request(&self, args: &[String]) -> Result<Value>`. Removing it eliminates indirection without losing testability.                                                                                                                                                                                                                           |
+| `bird raw` uses `send_request()` (Value)                    | Raw is inherently untyped. Using the library's untyped path eliminates the last subprocess call while matching the command's semantics.                                                                                                                                                                                                                                                                               |
+| `bird login` calls `Auth::oauth2_flow()` directly           | Eliminates subprocess for the interactive OAuth flow. Same UX (browser open + callback) via in-process execution.                                                                                                                                                                                                                                                                                                     |
+| Entity store: typed at API boundary, serialized for storage | Command handlers receive typed structs; entity store serializes them to `raw_json`. Avoids a SQLite schema migration on the critical path while still getting type safety at the API call site. Column decomposition deferred to follow-up.                                                                                                                                                                           |
+| Pure infrastructure swap — no UX changes                    | Keeps the migration reviewable and testable. UX improvements ship as separate follow-up PRs.                                                                                                                                                                                                                                                                                                                          |
+| Local path dep during dev, crates.io for release            | During migration dev sprint, `xurl-rs = { path = "~/dev/xurl-rs" }` for tight iteration. Before parallel release, switch to `xurl-rs = "1.2"` (crates.io). No git deps.                                                                                                                                                                                                                                               |
+| Bird targets xurl-rs v1.2.0 (compiling locally)             | xurl v1.2.0 ships owned `ApiClient` (no lifetime), `from_env()`, `CallOptions` for shortcut methods, shortcuts as methods on ApiClient, structured `Api { status, body }` errors for HTTP responses, `Validation(String)` for non-HTTP errors, and body-only Display format preservation. Breaking changes acceptable in v1.x since bird coordinates releases. Parallel release of both tools once confirmed working. |
+| Bird uses `ApiClient::new()`, not `from_env()`              | Bird needs `Auth::with_app_name()` for app_name override. `from_env()` is convenience for simple consumers with no customization. Bird constructs `Config::new()` + `Auth::new(&cfg)` + `auth.with_app_name()` + `ApiClient::new(config, auth)`.                                                                                                                                                                      |
+| Bird constructs `CallOptions` for shortcut calls            | `CallOptions { auth_type, username, no_auth, verbose, trace }` replaces `RequestOptions` for all shortcut methods. `trace` enables X-B3-Flags debug header — bird likely doesn't need it but it's available. `bird raw` is the only path using `send_request(&RequestOptions)` directly.                                                                                                                              |
+| Typed fixtures + wiremock for testing                       | Unit tests construct `ApiResponse<T>` directly (fast, no network). Integration tests use wiremock to mock HTTP at server level. Two layers replace MockTransport.                                                                                                                                                                                                                                                     |
+| Semantically equivalent JSON output                         | Key ordering and null-vs-absent may differ from raw API JSON due to typed round-trip serialization. JSON consumers use proper parsing. Not byte-identical.                                                                                                                                                                                                                                                            |
+| Remove bird's `ApiResponse`, use xurl's                     | Bird's `ApiResponse` (status, body, json, cache_hit) was a subprocess artifact. Removed entirely; xurl's `ApiResponse<T>` used directly. Cache-hit tracking moves to a separate mechanism (e.g., `CacheResult<T>` wrapper or return metadata).                                                                                                                                                                        |
+| User ID resolution is bird's responsibility                 | xurl v1.2.0 deliberately keeps resolve helpers as consumer-owned Layer 3 composition. Bird implements its own resolution with `OnceCell` caching (my_id) and entity store caching (username lookups).                                                                                                                                                                                                                 |
+| 5-PR incremental migration                                  | PR1: foundation + `bird me` proof-of-concept. PR2: read commands. PR3: write commands + user_id resolution. PR4: raw + usage + login + doctor. PR5: cleanup (delete transport.rs, old deps, old types).                                                                                                                                                                                                               |
 
 ## Dependencies / Assumptions
 
-- xurl-rs v1.2.0 ships in parallel with this migration: owned `ApiClient` (no lifetime), `from_env()` returning
-  `Result<ApiClient>`, `CallOptions` type for shortcut methods, 29 shortcuts as methods on ApiClient, structured `Api {
-  status: u16, body: String }` for HTTP errors, `Validation(String)` for non-HTTP errors (errors-only 200s, input
-  validation, media failures), body-only Display format preservation, `exit_code_for_error()` as public library
-  function, and resolve helpers excluded (consumer responsibility). See
-  `~/dev/xurl-rs/docs/brainstorms/2026-04-03-library-ergonomics-requirements.md`.
+- xurl-rs v1.2.0 (compiling locally, not yet published) ships the ergonomics work consumed by this migration: owned
+  `ApiClient` (no lifetime), `from_env()` returning `Result<ApiClient>`, `CallOptions` type for shortcut methods, 29
+  shortcuts as methods on ApiClient, structured `Api { status: u16, body: String }` for HTTP errors,
+  `Validation(String)` for non-HTTP errors (errors-only 200s, input validation, media failures), body-only Display
+  format preservation, `exit_code_for_error()` as public library function, and resolve helpers excluded (consumer
+  responsibility). See `~/dev/xurl-rs/docs/brainstorms/2026-04-03-library-ergonomics-requirements.md`.
 - xurl's `Auth::oauth2_flow()` provides equivalent interactive OAuth UX to the current `xurl_passthrough` flow (browser
   open, callback listen, token storage)
 - xurl's `Config` env vars (`CLIENT_ID`, `CLIENT_SECRET`, etc.) are compatible with bird's deployment context. Bird must
@@ -147,7 +152,8 @@ auth, and zero runtime dependency on the xurl CLI binary.
 - Adding xurl-rs as a dependency transitively pulls in `reqwest`, `tokio`, `hyper`, `rustls`, and related crates. Bird
   previously removed these during the subprocess migration; they return through xurl-rs. This is acceptable — the
   subprocess overhead they replaced is worse than the compile-time cost.
-- Bird will depend on `xurl-rs = "1.2"` (targeting v1.2.0 with the ergonomic improvements).
+- During dev: `xurl-rs = { path = "~/dev/xurl-rs" }` (local path dep for tight iteration). For release: `xurl-rs =
+  "1.2"` (crates.io, after parallel release of both tools).
 
 ## Outstanding Questions
 
