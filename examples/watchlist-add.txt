@@ -1,0 +1,5 @@
+Examples:
+  bird watchlist add jack                           # add @jack
+  bird watchlist add jack --output json             # paired JSON
+  bird watchlist add @elonmusk                      # leading @ tolerated
+  bird watchlist add naval

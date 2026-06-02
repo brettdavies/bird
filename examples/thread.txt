@@ -1,0 +1,5 @@
+Examples:
+  bird thread 1734567890123456789                         # text
+  bird thread 1734567890123456789 --output json           # paired JSON
+  bird thread 1734567890123456789 --pretty --max-pages 5
+  bird thread 1734567890123456789 --max-pages 25          # widest sweep

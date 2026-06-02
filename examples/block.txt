@@ -1,0 +1,3 @@
+Examples:
+  bird block spambot42                                     # block a user
+  bird block spambot42 --output json                       # paired JSON

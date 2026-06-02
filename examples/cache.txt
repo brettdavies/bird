@@ -1,0 +1,5 @@
+Examples:
+  bird cache stats                                         # store health (text)
+  bird cache stats --output json                           # paired JSON
+  bird cache stats --pretty
+  bird cache clear                                         # delete all entries

@@ -1,0 +1,5 @@
+Examples:
+  bird me                                 # human-readable current user
+  bird me --output json                   # machine-readable (paired)
+  bird me --pretty                        # pretty-printed JSON
+  bird me --username jack                 # switch active token

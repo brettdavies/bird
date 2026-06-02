@@ -1,0 +1,5 @@
+Examples:
+  bird usage                                        # last 30 days (text)
+  bird usage --output json                          # paired JSON
+  bird usage --since 2026-05-01 --pretty
+  bird usage --local                                # local cost estimates only

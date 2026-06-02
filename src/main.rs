@@ -532,6 +532,37 @@ fn output_from_argv(argv: &[String]) -> OutputFormat {
     }
 }
 
+/// Curated top-level examples block — embedded so `--examples` works on every host.
+const TOP_LEVEL_EXAMPLES: &str = include_str!("../examples/top-level.txt");
+
+/// Emit the curated top-level examples block and exit zero. JSON mode wraps the
+/// parsed example invocations in `{"data": [...], "meta": {...}}`.
+fn print_examples(out: &OutputConfig) -> ExitCode {
+    if out.format.is_json() {
+        let qualified: Vec<String> = TOP_LEVEL_EXAMPLES
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim_start();
+                trimmed.strip_prefix("bird ").map(|rest| {
+                    // Strip trailing `# comment` so machine consumers see the bare command.
+                    let cmd = rest.split('#').next().unwrap_or(rest).trim_end();
+                    format!("bird {}", cmd)
+                })
+            })
+            .filter(|s| !s.is_empty())
+            .collect();
+        let data = serde_json::json!(qualified);
+        let meta = serde_json::json!({"count": qualified.len()});
+        match output::success_envelope_string(&data, &meta) {
+            Ok(line) => crate::out_println!("{}", line),
+            Err(_) => crate::out_println!("{}", TOP_LEVEL_EXAMPLES),
+        }
+    } else {
+        crate::out_print!("{}", TOP_LEVEL_EXAMPLES);
+    }
+    ExitCode::SUCCESS
+}
+
 fn parse_output_value(v: &str) -> Option<OutputFormat> {
     match v {
         "json" => Some(OutputFormat::Json),
@@ -580,6 +611,21 @@ fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     let argv_output = output_from_argv(&argv);
     let explicit_output = explicit_output_from_argv(&argv);
+
+    // `--examples` is a global help-style flag: print the curated examples block
+    // and exit zero, even when no subcommand is supplied. This must short-circuit
+    // before `Cli::try_parse` so a missing subcommand does not turn it into a
+    // usage error.
+    if argv.iter().any(|a| a == "--examples") {
+        let fmt = argv_output;
+        let cfg = OutputConfig {
+            format: fmt,
+            use_color: output::use_color_auto() && !fmt.is_json(),
+            quiet: false,
+            raw: false,
+        };
+        return print_examples(&cfg);
+    }
 
     // Initialize tracing with default level; verbosity is applied after parse below.
     let default_directive = "bird=info"

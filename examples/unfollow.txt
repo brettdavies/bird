@@ -1,0 +1,3 @@
+Examples:
+  bird unfollow jack                                       # unfollow @jack
+  bird unfollow jack --output json                         # paired JSON

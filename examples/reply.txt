@@ -1,0 +1,3 @@
+Examples:
+  bird reply 1734567890123456789 "great point"             # post reply
+  bird reply 1734567890123456789 "thanks" --output json    # paired JSON

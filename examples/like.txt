@@ -1,0 +1,3 @@
+Examples:
+  bird like 1734567890123456789                            # like a tweet
+  bird like 1734567890123456789 --output json              # paired JSON

@@ -1,0 +1,5 @@
+Examples:
+  bird delete /2/tweets/1734567890123456789                          # text
+  bird delete /2/tweets/1734567890123456789 --output json            # paired JSON
+  bird delete /2/users/2244994945/following/783214
+  bird delete /2/users/2244994945/likes/1734567890123456789
