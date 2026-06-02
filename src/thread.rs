@@ -35,8 +35,8 @@ pub fn run_thread(
 
     // Step 1: Fetch root tweet to get conversation_id
     let root_url = {
-        let mut url =
-            url::Url::parse(&format!("https://api.x.com/2/tweets/{}", opts.tweet_id)).unwrap();
+        let mut url = url::Url::parse(&format!("https://api.x.com/2/tweets/{}", opts.tweet_id))
+            .expect("invariant: tweet endpoint URL is well-formed with validated tweet_id");
         {
             let mut pairs = url.query_pairs_mut();
             for (key, value) in fields::tweet_query_params() {
@@ -190,9 +190,9 @@ pub fn run_thread(
     });
 
     if opts.pretty {
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        crate::out_println!("{}", serde_json::to_string_pretty(&output)?);
     } else {
-        println!("{}", serde_json::to_string(&output)?);
+        crate::out_println!("{}", serde_json::to_string(&output)?);
     }
 
     diag!(
@@ -238,7 +238,8 @@ fn parse_age_days(created_at: &str) -> Option<u32> {
 }
 
 fn build_search_url(conversation_id: &str, next_token: Option<&str>) -> String {
-    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
+    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent")
+        .expect("invariant: constant search endpoint URL is well-formed");
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", &format!("conversation_id:{}", conversation_id));
@@ -505,7 +506,7 @@ mod tests {
         // A tweet from "today-ish" should have age 0-2
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap();
+            .expect("test");
         let secs = now.as_secs();
         let days = secs / 86400;
         // Rough reverse: epoch days to date (imprecise but good enough for test)
@@ -517,9 +518,9 @@ mod tests {
         let age = parse_age_days(&ts);
         assert!(age.is_some());
         assert!(
-            age.unwrap() <= 2,
+            age.expect("test") <= 2,
             "recent tweet should be ~0 days old, got {}",
-            age.unwrap()
+            age.expect("test")
         );
     }
 
@@ -527,7 +528,7 @@ mod tests {
     fn parse_age_days_old_tweet() {
         let age = parse_age_days("2020-01-01T00:00:00Z");
         assert!(age.is_some());
-        assert!(age.unwrap() > 365);
+        assert!(age.expect("test") > 365);
     }
 
     #[test]

@@ -23,14 +23,30 @@ use std::time::Duration;
 /// Maximum stdout capture size (50 MB) to prevent memory exhaustion.
 const MAX_STDOUT_BYTES: usize = 50 * 1024 * 1024;
 
-/// Subprocess timeout before SIGTERM.
-const TIMEOUT_SECS: u64 = 60;
+/// Default subprocess timeout before SIGTERM, used when no per-call value is set.
+const DEFAULT_TIMEOUT_SECS: u64 = 60;
+
+/// Process-wide effective timeout, overridable via [`set_timeout_secs`].
+static TIMEOUT_OVERRIDE: OnceLock<u64> = OnceLock::new();
 
 /// Grace period after SIGTERM before SIGKILL.
 const KILL_GRACE_SECS: u64 = 5;
 
 /// Minimum supported xurl version.
 const MIN_VERSION: &str = "1.0.3";
+
+/// Set the effective subprocess timeout (in seconds). First caller wins.
+pub fn set_timeout_secs(secs: u64) {
+    let _ = TIMEOUT_OVERRIDE.set(secs);
+}
+
+/// Effective subprocess timeout, honoring [`set_timeout_secs`] when set.
+pub fn effective_timeout_secs() -> u64 {
+    TIMEOUT_OVERRIDE
+        .get()
+        .copied()
+        .unwrap_or(DEFAULT_TIMEOUT_SECS)
+}
 
 /// Centralized xurl install guidance (DRY across transport.rs and doctor.rs).
 pub const XURL_INSTALL_HINT: &str = "Install xurl-rs: brew install brettdavies/tap/xurl-rs (or Go xurl: brew install xdevplatform/tap/xurl)";
@@ -170,7 +186,9 @@ impl std::fmt::Display for XurlError {
             XurlError::NotFound(msg) => write!(f, "{}", msg),
             XurlError::Auth(msg) => write!(f, "auth error: {}", msg),
             XurlError::Api { status, message } => write!(f, "API error {}: {}", status, message),
-            XurlError::Timeout => write!(f, "xurl timed out after {}s", TIMEOUT_SECS),
+            XurlError::Timeout => {
+                write!(f, "timeout: xurl exceeded {}s", effective_timeout_secs())
+            }
             XurlError::Process(msg) => write!(f, "xurl process error: {}", msg),
         }
     }
@@ -229,7 +247,7 @@ pub fn xurl_call(
     });
 
     // Wait with timeout (child can now write freely — readers are draining)
-    let status = wait_with_timeout(&mut child, Duration::from_secs(TIMEOUT_SECS))?;
+    let status = wait_with_timeout(&mut child, Duration::from_secs(effective_timeout_secs()))?;
 
     // Join reader threads
     let stdout_buf = stdout_thread
@@ -462,7 +480,7 @@ pub mod tests {
     #[test]
     fn xurl_error_display_timeout() {
         let e = XurlError::Timeout;
-        assert!(e.to_string().contains("timed out"));
+        assert!(e.to_string().contains("timeout"));
     }
 
     #[test]
@@ -509,9 +527,9 @@ pub mod tests {
             Ok(serde_json::json!({"data": "first"})),
             Ok(serde_json::json!({"data": "second"})),
         ]);
-        let r1 = mock.request(&[]).unwrap();
+        let r1 = mock.request(&[]).expect("test: first response present");
         assert_eq!(r1["data"], "first");
-        let r2 = mock.request(&[]).unwrap();
+        let r2 = mock.request(&[]).expect("test: second response present");
         assert_eq!(r2["data"], "second");
     }
 
@@ -525,27 +543,25 @@ pub mod tests {
     #[test]
     fn version_comparison_multi_digit() {
         // The bug: lexicographic "1.0.9" > "1.0.10" because '9' > '1'
-        assert!(
-            semver::Version::parse("1.0.9").unwrap() < semver::Version::parse("1.0.10").unwrap()
-        );
-        assert!(
-            (semver::Version::parse("1.0.10").unwrap() >= semver::Version::parse("1.0.3").unwrap())
-        );
+        let a = semver::Version::parse("1.0.9").expect("test: parse 1.0.9");
+        let b = semver::Version::parse("1.0.10").expect("test: parse 1.0.10");
+        assert!(a < b);
+        let c = semver::Version::parse("1.0.3").expect("test: parse 1.0.3");
+        assert!(b >= c);
     }
 
     #[test]
     fn version_comparison_major() {
-        assert!(
-            (semver::Version::parse("2.0.0").unwrap() >= semver::Version::parse("1.0.3").unwrap())
-        );
+        let a = semver::Version::parse("2.0.0").expect("test: parse 2.0.0");
+        let b = semver::Version::parse("1.0.3").expect("test: parse 1.0.3");
+        assert!(a >= b);
     }
 
     #[test]
     fn version_comparison_prerelease() {
         // semver spec: pre-release < release
-        assert!(
-            semver::Version::parse("1.0.3-beta").unwrap()
-                < semver::Version::parse("1.0.3").unwrap()
-        );
+        let a = semver::Version::parse("1.0.3-beta").expect("test: parse 1.0.3-beta");
+        let b = semver::Version::parse("1.0.3").expect("test: parse 1.0.3");
+        assert!(a < b);
     }
 }

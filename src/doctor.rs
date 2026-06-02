@@ -247,7 +247,9 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     let mut names: Vec<_> = report.commands.keys().collect();
     names.sort();
     for name in names {
-        let status = report.commands.get(name).unwrap();
+        let Some(status) = report.commands.get(name) else {
+            continue;
+        };
         let (emoji, r) = if status.available {
             (
                 output::emoji_available(use_emoji),
@@ -327,9 +329,9 @@ pub fn run_doctor(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let r = report(client, scope, quiet);
     if pretty {
-        println!("{}", format_pretty(&r, use_color, use_emoji));
+        crate::out_println!("{}", format_pretty(&r, use_color, use_emoji));
     } else {
-        println!("{}", serde_json::to_string(&r)?);
+        crate::out_println!("{}", serde_json::to_string(&r)?);
     }
     Ok(())
 }
@@ -378,7 +380,7 @@ mod tests {
     fn doctor_report_json_serializable() {
         let client = no_cache_client();
         let r = report(&client, None, false);
-        let json = serde_json::to_string(&r).unwrap();
+        let json = serde_json::to_string(&r).expect("test");
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));
         assert!(json.contains("commands"));
@@ -388,35 +390,35 @@ mod tests {
     fn build_commands_not_authenticated_auth_commands_unavailable() {
         let cmds = build_commands_section(true, false);
         // login should be available (xurl is present)
-        assert!(cmds.get("login").unwrap().available);
+        assert!(cmds.get("login").expect("test").available);
         // me requires auth, should be unavailable
-        assert!(!cmds.get("me").unwrap().available);
+        assert!(!cmds.get("me").expect("test").available);
         assert!(
             cmds.get("me")
-                .unwrap()
+                .expect("test")
                 .reason
                 .as_ref()
-                .unwrap()
+                .expect("test")
                 .contains("not authenticated")
         );
         // usage is local-only (AuthType::None), always available
-        assert!(cmds.get("usage").unwrap().available);
+        assert!(cmds.get("usage").expect("test").available);
     }
 
     #[test]
     fn build_commands_authenticated_all_available() {
         let cmds = build_commands_section(true, true);
-        assert!(cmds.get("me").unwrap().available);
-        assert!(cmds.get("bookmarks").unwrap().available);
-        assert!(cmds.get("search").unwrap().available);
+        assert!(cmds.get("me").expect("test").available);
+        assert!(cmds.get("bookmarks").expect("test").available);
+        assert!(cmds.get("search").expect("test").available);
     }
 
     #[test]
     fn build_commands_no_xurl_all_auth_commands_unavailable() {
         let cmds = build_commands_section(false, false);
-        assert!(!cmds.get("login").unwrap().available);
-        assert!(!cmds.get("me").unwrap().available);
+        assert!(!cmds.get("login").expect("test").available);
+        assert!(!cmds.get("me").expect("test").available);
         // Local-only commands still available
-        assert!(cmds.get("usage").unwrap().available);
+        assert!(cmds.get("usage").expect("test").available);
     }
 }

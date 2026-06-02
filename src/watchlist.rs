@@ -52,7 +52,10 @@ fn add_to_watchlist(
     if doc.get("watchlist").is_none() {
         doc.insert("watchlist", Item::Value(Array::new().into()));
     }
-    doc["watchlist"].as_array_mut().unwrap().push(username);
+    let arr = doc["watchlist"]
+        .as_array_mut()
+        .ok_or("config 'watchlist' key is not an array")?;
+    arr.push(username);
 
     safe_write_config(config_path, &doc.to_string())?;
     Ok(())
@@ -137,9 +140,9 @@ pub fn run_watchlist_list(
     }
 
     if pretty {
-        println!("{}", serde_json::to_string_pretty(&entries)?);
+        crate::out_println!("{}", serde_json::to_string_pretty(&entries)?);
     } else {
-        println!("{}", serde_json::to_string(&entries)?);
+        crate::out_println!("{}", serde_json::to_string(&entries)?);
     }
     Ok(())
 }
@@ -247,7 +250,8 @@ pub fn run_watchlist_check(
 }
 
 fn build_check_url(query: &str) -> String {
-    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
+    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent")
+        .expect("invariant: constant search endpoint URL is well-formed");
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);
@@ -343,7 +347,7 @@ mod tests {
     use tempfile::TempDir;
 
     fn setup_config_dir() -> TempDir {
-        TempDir::new().unwrap()
+        TempDir::new().expect("test")
     }
 
     // -- load_watchlist tests --
@@ -352,7 +356,7 @@ mod tests {
     fn load_watchlist_missing_file() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let result = load_watchlist(&path).unwrap();
+        let result = load_watchlist(&path).expect("test");
         assert!(result.is_empty());
     }
 
@@ -360,8 +364,8 @@ mod tests {
     fn load_watchlist_no_key() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "username = \"alice\"\n").unwrap();
-        let result = load_watchlist(&path).unwrap();
+        fs::write(&path, "username = \"alice\"\n").expect("test");
+        let result = load_watchlist(&path).expect("test");
         assert!(result.is_empty());
     }
 
@@ -369,8 +373,8 @@ mod tests {
     fn load_watchlist_with_entries() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"alice\", \"bob\"]\n").unwrap();
-        let result = load_watchlist(&path).unwrap();
+        fs::write(&path, "watchlist = [\"alice\", \"bob\"]\n").expect("test");
+        let result = load_watchlist(&path).expect("test");
         assert_eq!(result, vec!["alice", "bob"]);
     }
 
@@ -380,8 +384,8 @@ mod tests {
     fn add_to_new_config() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        add_to_watchlist(&path, "alice", false).unwrap();
-        let entries = load_watchlist(&path).unwrap();
+        add_to_watchlist(&path, "alice", false).expect("test");
+        let entries = load_watchlist(&path).expect("test");
         assert_eq!(entries, vec!["alice"]);
     }
 
@@ -389,9 +393,9 @@ mod tests {
     fn add_to_existing_watchlist() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"alice\"]\n").unwrap();
-        add_to_watchlist(&path, "bob", false).unwrap();
-        let entries = load_watchlist(&path).unwrap();
+        fs::write(&path, "watchlist = [\"alice\"]\n").expect("test");
+        add_to_watchlist(&path, "bob", false).expect("test");
+        let entries = load_watchlist(&path).expect("test");
         assert_eq!(entries, vec!["alice", "bob"]);
     }
 
@@ -399,9 +403,9 @@ mod tests {
     fn add_duplicate_is_idempotent() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"alice\"]\n").unwrap();
-        add_to_watchlist(&path, "alice", false).unwrap();
-        let entries = load_watchlist(&path).unwrap();
+        fs::write(&path, "watchlist = [\"alice\"]\n").expect("test");
+        add_to_watchlist(&path, "alice", false).expect("test");
+        let entries = load_watchlist(&path).expect("test");
         assert_eq!(entries, vec!["alice"]);
     }
 
@@ -409,9 +413,9 @@ mod tests {
     fn add_duplicate_case_insensitive() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"Alice\"]\n").unwrap();
-        add_to_watchlist(&path, "alice", false).unwrap();
-        let entries = load_watchlist(&path).unwrap();
+        fs::write(&path, "watchlist = [\"Alice\"]\n").expect("test");
+        add_to_watchlist(&path, "alice", false).expect("test");
+        let entries = load_watchlist(&path).expect("test");
         assert_eq!(entries, vec!["Alice"]); // keeps original casing
     }
 
@@ -421,10 +425,10 @@ mod tests {
     fn remove_existing_entry() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"alice\", \"bob\"]\n").unwrap();
-        let removed = remove_from_watchlist(&path, "alice").unwrap();
+        fs::write(&path, "watchlist = [\"alice\", \"bob\"]\n").expect("test");
+        let removed = remove_from_watchlist(&path, "alice").expect("test");
         assert!(removed);
-        let entries = load_watchlist(&path).unwrap();
+        let entries = load_watchlist(&path).expect("test");
         assert_eq!(entries, vec!["bob"]);
     }
 
@@ -432,8 +436,8 @@ mod tests {
     fn remove_nonexistent_entry() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"alice\"]\n").unwrap();
-        let removed = remove_from_watchlist(&path, "bob").unwrap();
+        fs::write(&path, "watchlist = [\"alice\"]\n").expect("test");
+        let removed = remove_from_watchlist(&path, "bob").expect("test");
         assert!(!removed);
     }
 
@@ -441,10 +445,10 @@ mod tests {
     fn remove_case_insensitive() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        fs::write(&path, "watchlist = [\"Alice\"]\n").unwrap();
-        let removed = remove_from_watchlist(&path, "alice").unwrap();
+        fs::write(&path, "watchlist = [\"Alice\"]\n").expect("test");
+        let removed = remove_from_watchlist(&path, "alice").expect("test");
         assert!(removed);
-        let entries = load_watchlist(&path).unwrap();
+        let entries = load_watchlist(&path).expect("test");
         assert!(entries.is_empty());
     }
 
@@ -452,7 +456,7 @@ mod tests {
     fn remove_missing_config_file() {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        let removed = remove_from_watchlist(&path, "alice").unwrap();
+        let removed = remove_from_watchlist(&path, "alice").expect("test");
         assert!(!removed);
     }
 
@@ -463,9 +467,9 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         let original = "# My bird config\nusername = \"bob\"\n# monitoring\n";
-        fs::write(&path, original).unwrap();
-        add_to_watchlist(&path, "alice", false).unwrap();
-        let content = fs::read_to_string(&path).unwrap();
+        fs::write(&path, original).expect("test");
+        add_to_watchlist(&path, "alice", false).expect("test");
+        let content = fs::read_to_string(&path).expect("test");
         assert!(content.contains("# My bird config"));
         assert!(content.contains("# monitoring"));
         assert!(content.contains("username = \"bob\""));
@@ -477,9 +481,9 @@ mod tests {
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
         let original = "# My config\nusername = \"bob\"\nwatchlist = [\"alice\", \"bob\"]\n";
-        fs::write(&path, original).unwrap();
-        remove_from_watchlist(&path, "alice").unwrap();
-        let content = fs::read_to_string(&path).unwrap();
+        fs::write(&path, original).expect("test");
+        remove_from_watchlist(&path, "alice").expect("test");
+        let content = fs::read_to_string(&path).expect("test");
         assert!(content.contains("# My config"));
         assert!(content.contains("username = \"bob\""));
         assert!(!content.contains("alice"));
@@ -494,8 +498,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = setup_config_dir();
         let path = dir.path().join("config.toml");
-        add_to_watchlist(&path, "alice", false).unwrap();
-        let metadata = fs::metadata(&path).unwrap();
+        add_to_watchlist(&path, "alice", false).expect("test");
+        let metadata = fs::metadata(&path).expect("test");
         let mode = metadata.permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
     }
@@ -521,7 +525,7 @@ mod tests {
                 }
             }]
         });
-        let tweet = extract_latest_tweet(&body).unwrap();
+        let tweet = extract_latest_tweet(&body).expect("test");
         assert_eq!(tweet.id, "123");
         assert_eq!(tweet.text, "hello world");
         assert_eq!(tweet.likes, 42);
