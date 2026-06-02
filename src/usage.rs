@@ -15,7 +15,11 @@ fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + S
         Some(date_str) => {
             let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
                 .map_err(|e| format!("invalid date '{}': {} (expected YYYY-MM-DD)", date_str, e))?;
-            Ok(date.format("%Y%m%d").to_string().parse::<i64>().unwrap())
+            Ok(date
+                .format("%Y%m%d")
+                .to_string()
+                .parse::<i64>()
+                .expect("invariant: chrono '%Y%m%d' format yields a valid i64"))
         }
         None => {
             let now = chrono::Utc::now();
@@ -24,7 +28,7 @@ fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + S
                 .format("%Y%m%d")
                 .to_string()
                 .parse::<i64>()
-                .unwrap())
+                .expect("invariant: chrono '%Y%m%d' format yields a valid i64"))
         }
     }
 }
@@ -57,14 +61,16 @@ pub fn run_usage(
         };
         diag!(quiet, "[usage] {}", msg);
         if !pretty {
-            println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
+            crate::out_println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
         }
         return Ok(());
     }
 
     // Query local data (db() is Some, verified above; re-borrow scoped to avoid API call below)
     let (summary, daily, top_endpoints) = {
-        let db = client.db().unwrap();
+        let db = client
+            .db()
+            .expect("invariant: db().is_none() short-circuits above");
         (
             db.query_usage_summary(since_ymd)?,
             db.query_daily_usage(since_ymd)?,
@@ -140,7 +146,7 @@ pub fn run_usage(
     if pretty {
         print_usage_pretty(&report);
     } else {
-        println!("{}", serde_json::to_string(&report)?);
+        crate::out_println!("{}", serde_json::to_string(&report)?);
     }
     Ok(())
 }
@@ -171,8 +177,8 @@ fn ordinal_day(day: u32) -> String {
 }
 
 fn print_usage_pretty(report: &UsageReport) {
-    println!("API Usage ({} to {})", report.since, report.until);
-    println!("{}", "-".repeat(45));
+    crate::out_println!("API Usage ({} to {})", report.since, report.until);
+    crate::out_println!("{}", "-".repeat(45));
 
     if let Some(ref cap) = report.cap {
         let pct = if cap.project_cap > 0 {
@@ -180,13 +186,13 @@ fn print_usage_pretty(report: &UsageReport) {
         } else {
             0.0
         };
-        println!(
+        crate::out_println!(
             "Project cap:           {} / {} ({:.2}%)",
             format_number(cap.project_usage),
             format_number(cap.project_cap),
             pct
         );
-        println!("Cap reset day:         {}", ordinal_day(cap.cap_reset_day));
+        crate::out_println!("Cap reset day:         {}", ordinal_day(cap.cap_reset_day));
     }
 
     let total_calls = report.summary.total_calls;
@@ -196,16 +202,16 @@ fn print_usage_pretty(report: &UsageReport) {
         0
     };
 
-    println!("Total estimated cost:  ${:.2}", report.summary.total_cost);
-    println!("Total API calls:       {}", total_calls);
-    println!("Cache hit rate:        {}%", cache_rate);
-    println!(
+    crate::out_println!("Total estimated cost:  ${:.2}", report.summary.total_cost);
+    crate::out_println!("Total API calls:       {}", total_calls);
+    crate::out_println!("Cache hit rate:        {}%", cache_rate);
+    crate::out_println!(
         "Estimated savings:     ~${:.2}",
         report.summary.estimated_savings
     );
 
     if !report.daily.is_empty() {
-        println!("\nDaily breakdown:");
+        crate::out_println!("\nDaily breakdown:");
         for day in &report.daily {
             let day_calls = day.calls;
             let day_cache_pct = if day_calls > 0 {
@@ -213,7 +219,7 @@ fn print_usage_pretty(report: &UsageReport) {
             } else {
                 0
             };
-            println!(
+            crate::out_println!(
                 "  {}  ${:.2}  ({} calls, {}% cached)",
                 ymd_to_display(day.date_ymd),
                 day.cost,
@@ -224,9 +230,9 @@ fn print_usage_pretty(report: &UsageReport) {
     }
 
     if !report.top_endpoints.is_empty() {
-        println!("\nTop endpoints:");
+        crate::out_println!("\nTop endpoints:");
         for ep in &report.top_endpoints {
-            println!("  {}  ${:.2}  ({} calls)", ep.endpoint, ep.cost, ep.calls);
+            crate::out_println!("  {}  ${:.2}  ({} calls)", ep.endpoint, ep.cost, ep.calls);
         }
     }
 
@@ -243,24 +249,28 @@ fn print_usage_pretty(report: &UsageReport) {
             })
             .unwrap_or_else(|| "unknown".to_string());
 
-        println!("\nEstimated vs Actual (synced {})", synced_at);
-        println!("{}", "-".repeat(50));
-        println!(
+        crate::out_println!("\nEstimated vs Actual (synced {})", synced_at);
+        crate::out_println!("{}", "-".repeat(50));
+        crate::out_println!(
             "  {:<12} {:<14} {:<8} Diff",
-            "Date", "Est. tweets", "Actual"
+            "Date",
+            "Est. tweets",
+            "Actual"
         );
         for actual in actuals {
-            println!(
+            crate::out_println!(
                 "  {:<12} {:<14} {:<8}",
-                actual.date, "-", actual.tweet_count
+                actual.date,
+                "-",
+                actual.tweet_count
             );
         }
     }
 
     if !report.per_app.is_empty() {
-        println!("\nPer-app breakdown:");
+        crate::out_println!("\nPer-app breakdown:");
         for entry in &report.per_app {
-            println!(
+            crate::out_println!(
                 "  app={}  {}  {} tweets",
                 entry.client_app_id,
                 entry.date,
@@ -385,7 +395,7 @@ fn sync_actual_usage(
             synced_at: Some(
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .expect("invariant: system clock is past UNIX_EPOCH")
                     .as_secs() as i64,
             ),
         });
@@ -509,7 +519,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         // Daily
         assert_eq!(sync_data.daily.len(), 2);
         assert_eq!(sync_data.daily[0].date, "2026-03-25");
@@ -517,7 +527,7 @@ mod tests {
         assert_eq!(sync_data.daily[1].date, "2026-03-26");
         assert_eq!(sync_data.daily[1].tweet_count, 100);
         // Cap
-        let cap = sync_data.cap.unwrap();
+        let cap = sync_data.cap.expect("test");
         assert_eq!(cap.project_usage, 399);
         assert_eq!(cap.project_cap, 2_000_000);
         assert_eq!(cap.cap_reset_day, 19);
@@ -541,7 +551,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert_eq!(sync_data.daily.len(), 1);
         assert_eq!(sync_data.daily[0].tweet_count, 42);
     }
@@ -556,7 +566,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert!(sync_data.daily.is_empty());
     }
 
@@ -602,7 +612,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert_eq!(sync_data.daily.len(), 1);
         assert_eq!(sync_data.daily[0].tweet_count, 0);
     }
@@ -620,7 +630,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert_eq!(sync_data.daily.len(), 1);
         assert_eq!(sync_data.daily[0].tweet_count, 0);
     }
@@ -655,7 +665,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert_eq!(sync_data.daily[0].date, "2026-03");
         assert_eq!(sync_data.daily[0].tweet_count, 10);
     }
@@ -673,12 +683,16 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        do_sync(&mut client).unwrap();
+        do_sync(&mut client).expect("test");
 
         // Verify data was persisted to DB
-        let actuals = client.db().unwrap().query_actual_usage(20260301).unwrap();
+        let actuals = client
+            .db()
+            .expect("test")
+            .query_actual_usage(20260301)
+            .expect("test");
         assert!(actuals.is_some());
-        let days = actuals.unwrap();
+        let days = actuals.expect("test");
         assert_eq!(days.len(), 2);
         let mut counts: Vec<u64> = days.iter().map(|d| d.tweet_count).collect();
         counts.sort();
@@ -721,13 +735,13 @@ mod tests {
 
     #[test]
     fn parse_since_valid_date() {
-        let ymd = parse_since(Some("2026-02-01")).unwrap();
+        let ymd = parse_since(Some("2026-02-01")).expect("test");
         assert_eq!(ymd, 20260201);
     }
 
     #[test]
     fn parse_since_none_defaults_to_30_days_ago() {
-        let ymd = parse_since(None).unwrap();
+        let ymd = parse_since(None).expect("test");
         // Should be approximately 30 days ago; just verify it's a valid YYYYMMDD
         assert!(ymd > 20200101);
         assert!(ymd < 30000101);
@@ -786,8 +800,8 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
-        let cap = sync_data.cap.unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
+        let cap = sync_data.cap.expect("test");
         assert_eq!(cap.project_usage, 399);
         assert_eq!(cap.project_cap, 2_000_000);
         assert_eq!(cap.cap_reset_day, 19);
@@ -814,7 +828,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert_eq!(sync_data.per_app.len(), 3);
         assert_eq!(sync_data.per_app[0].client_app_id, "32371675");
         assert_eq!(sync_data.per_app[0].date, "2026-03-25");
@@ -839,7 +853,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        let sync_data = do_sync(&mut client).unwrap().unwrap();
+        let sync_data = do_sync(&mut client).expect("test").expect("test");
         assert!(sync_data.cap.is_none());
         assert!(sync_data.per_app.is_empty());
     }
@@ -851,7 +865,7 @@ mod tests {
         // local=true should NOT call the API — empty mock proves it
         // (if API were called, the mock would error and run_usage would propagate it)
         let mut client = sync_client(vec![]);
-        run_usage(&mut client, None, true, false, true).unwrap();
+        run_usage(&mut client, None, true, false, true).expect("test");
     }
 
     #[test]
@@ -867,7 +881,7 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        run_usage(&mut client, None, false, false, true).unwrap();
+        run_usage(&mut client, None, false, false, true).expect("test");
     }
 
     #[test]

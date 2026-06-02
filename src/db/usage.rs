@@ -55,7 +55,8 @@ impl BirdDb {
     pub fn log_usage(&mut self, entry: &UsageLogEntry<'_>) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let date_ymd = {
-            let dt = chrono::DateTime::from_timestamp(now, 0).unwrap();
+            let dt = chrono::DateTime::from_timestamp(now, 0)
+                .expect("invariant: unix_now() returns a timestamp chrono can represent");
             let d = dt.date_naive();
             use chrono::Datelike;
             d.year() as i64 * 10000 + d.month() as i64 * 100 + d.day() as i64
@@ -219,7 +220,7 @@ mod tests {
             cache_hit: false,
             username: Some("alice"),
         })
-        .unwrap();
+        .expect("test");
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
@@ -229,9 +230,9 @@ mod tests {
             cache_hit: true,
             username: Some("alice"),
         })
-        .unwrap();
+        .expect("test");
 
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(summary.total_calls, 2);
         assert_eq!(summary.cache_hits, 1);
         assert!((summary.total_cost - 0.015).abs() < f64::EPSILON);
@@ -245,19 +246,19 @@ mod tests {
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1000, 20260210, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
         db.conn.execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (2000, 20260211, '/2/tweets/search/recent', 'GET', 2, 0.010, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
         db.conn.execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (3000, 20260211, '/2/users/me', 'GET', 1, 0.010, 1)",
             [],
-        ).unwrap();
+        ).expect("test");
 
-        let daily = db.query_daily_usage(20260210).unwrap();
+        let daily = db.query_daily_usage(20260210).expect("test");
         assert_eq!(daily.len(), 2);
         assert_eq!(daily[0].date_ymd, 20260211);
         assert_eq!(daily[0].calls, 2);
@@ -274,15 +275,15 @@ mod tests {
                 "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
                  VALUES (1000, 20260211, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
                 [],
-            ).unwrap();
+            ).expect("test");
         }
         db.conn.execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (2000, 20260211, '/2/users/me', 'GET', 1, 0.010, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
 
-        let top = db.query_top_endpoints(20260210).unwrap();
+        let top = db.query_top_endpoints(20260210).expect("test");
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].endpoint, "/2/tweets/search/recent");
         assert_eq!(top[0].calls, 3);
@@ -293,7 +294,7 @@ mod tests {
     #[test]
     fn empty_usage_returns_zero_summary() {
         let db = in_memory_db();
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(summary.total_calls, 0);
         assert_eq!(summary.total_cost, 0.0);
         assert_eq!(summary.cache_hits, 0);
@@ -307,7 +308,7 @@ mod tests {
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1, 20200101, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
 
         db.write_count = 49;
         db.log_usage(&UsageLogEntry {
@@ -319,9 +320,9 @@ mod tests {
             cache_hit: false,
             username: None,
         })
-        .unwrap();
+        .expect("test");
 
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(
             summary.total_calls, 1,
             "old entry should be pruned, leaving only the fresh one"
@@ -331,8 +332,11 @@ mod tests {
     #[test]
     fn actual_usage_round_trip() {
         let db = in_memory_db();
-        db.upsert_actual_usage("2026-02-18", 42).unwrap();
-        let actuals = db.query_actual_usage(20260201).unwrap().unwrap();
+        db.upsert_actual_usage("2026-02-18", 42).expect("test");
+        let actuals = db
+            .query_actual_usage(20260201)
+            .expect("test")
+            .expect("test");
         assert_eq!(actuals.len(), 1);
         assert_eq!(actuals[0].date, "2026-02-18");
         assert_eq!(actuals[0].tweet_count, 42);

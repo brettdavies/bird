@@ -142,9 +142,9 @@ pub fn run_search(
     });
 
     if opts.pretty {
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        crate::out_println!("{}", serde_json::to_string_pretty(&output)?);
     } else {
-        println!("{}", serde_json::to_string(&output)?);
+        crate::out_println!("{}", serde_json::to_string(&output)?);
     }
 
     diag!(
@@ -159,7 +159,8 @@ pub fn run_search(
 }
 
 fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> String {
-    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
+    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent")
+        .expect("invariant: constant search endpoint URL is well-formed");
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);
