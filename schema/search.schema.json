@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/search-v1.json",
+  "title": "bird search payload",
+  "description": "Shape of the data payload returned by `bird search <query>` under --output json. Wraps recent-search results from GET /2/tweets/search/recent after bird's transformation (sort, min-likes filtering, page aggregation).",
+  "type": "object",
+  "required": ["tweets"],
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Original search query passed to the X API."
+    },
+    "sort": {
+      "type": "string",
+      "description": "Sort order applied (\"recent\" or \"likes\").",
+      "enum": ["recent", "likes"]
+    },
+    "tweets": {
+      "type": "array",
+      "description": "Matched tweets in the requested sort order.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "author_id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "public_metrics": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "users": {
+      "type": "array",
+      "description": "Author user objects expanded from the includes block.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "page_count": {
+      "type": "integer",
+      "description": "Number of pages fetched (1-10)."
+    }
+  },
+  "additionalProperties": true
+}

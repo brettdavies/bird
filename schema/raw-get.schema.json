@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/raw-get-v1.json",
+  "title": "bird raw GET payload",
+  "description": "Shape of the data payload returned by `bird get|post|put|delete <path>` under --output json. The body is the raw X API response (passed through unchanged); bird only wraps it in the success envelope.",
+  "type": "object",
+  "description_long": "The X API returns a heterogeneous response shape (varies by endpoint), so this schema is intentionally permissive. Pin endpoint-specific shapes against the X API's own OpenAPI spec; this schema documents only the wrapper conventions bird applies.",
+  "properties": {
+    "data": {
+      "description": "Primary payload from the X API (single object, array of objects, or scalar depending on endpoint).",
+      "type": ["object", "array", "string", "number", "boolean", "null"]
+    },
+    "includes": {
+      "type": "object",
+      "description": "X API expansions block (users, tweets, media, places referenced by the primary payload).",
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "description": "X API pagination/result metadata (e.g. result_count, next_token).",
+      "additionalProperties": true
+    },
+    "errors": {
+      "type": "array",
+      "description": "X API per-record warnings/partial failures. Note: presence does NOT imply the overall request failed.",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  },
+  "additionalProperties": true
+}

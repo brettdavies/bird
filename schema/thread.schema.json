@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/thread-v1.json",
+  "title": "bird thread payload",
+  "description": "Shape of the data payload returned by `bird thread <tweet_id>` under --output json. Reconstructs a conversation thread by walking conversation_id back-references via the recent-search endpoint.",
+  "type": "object",
+  "required": ["tweets"],
+  "properties": {
+    "root_id": {
+      "type": "string",
+      "description": "Root tweet ID of the reconstructed thread."
+    },
+    "conversation_id": {
+      "type": "string",
+      "description": "X API conversation_id linking every tweet in the thread."
+    },
+    "tweets": {
+      "type": "array",
+      "description": "Tweets in conversation order (root first).",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "author_id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "in_reply_to_user_id": { "type": "string" },
+          "referenced_tweets": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "users": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True when max_pages was hit before exhausting the conversation."
+    }
+  },
+  "additionalProperties": true
+}
