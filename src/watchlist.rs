@@ -124,10 +124,16 @@ fn safe_write_config(
 }
 
 /// `bird watchlist list` — display the current watchlist as JSON.
+///
+/// `limit` clamps the number of returned entries; `cursor` is a 0-based offset
+/// encoded as a numeric string (the local watchlist is small enough that an
+/// integer offset is a more natural cursor than a token).
 pub fn run_watchlist_list(
     config: &ResolvedConfig,
     pretty: bool,
     quiet: bool,
+    limit: Option<u32>,
+    cursor: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
@@ -139,10 +145,31 @@ pub fn run_watchlist_list(
         );
     }
 
-    if pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&entries)?);
+    let offset = cursor.and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+    let total = entries.len();
+    let cap = limit.map(|l| l as usize).unwrap_or(total);
+    let end = offset.saturating_add(cap).min(total);
+    let window: Vec<&String> = entries.iter().skip(offset).take(cap).collect();
+    let next_cursor = if end < total {
+        Some(end.to_string())
     } else {
-        crate::out_println!("{}", serde_json::to_string(&entries)?);
+        None
+    };
+
+    if next_cursor.is_some() {
+        let payload = serde_json::json!({
+            "data": window,
+            "meta": { "next_cursor": next_cursor },
+        });
+        if pretty {
+            crate::out_println!("{}", serde_json::to_string_pretty(&payload)?);
+        } else {
+            crate::out_println!("{}", serde_json::to_string(&payload)?);
+        }
+    } else if pretty {
+        crate::out_println!("{}", serde_json::to_string_pretty(&window)?);
+    } else {
+        crate::out_println!("{}", serde_json::to_string(&window)?);
     }
     Ok(())
 }
@@ -177,16 +204,26 @@ pub fn run_watchlist_remove(
     Ok(())
 }
 
+/// Options for `bird watchlist check`.
+pub struct CheckOpts<'a> {
+    pub pretty: bool,
+    /// Maximum number of accounts to check this run.
+    pub limit: u32,
+    /// 0-based offset cursor into the watchlist for resumable checks.
+    pub cursor: Option<&'a str>,
+}
+
 /// `bird watchlist check` — check recent activity for all watched users.
 /// Streams NDJSON (one JSON object per line) per user as they complete.
 pub fn run_watchlist_check(
     client: &mut BirdClient,
     config: &ResolvedConfig,
-    pretty: bool,
+    opts: CheckOpts<'_>,
     use_color: bool,
     quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let pretty = opts.pretty;
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
 
@@ -207,8 +244,19 @@ pub fn run_watchlist_check(
     let stdout = std::io::stdout();
     let mut writer = std::io::BufWriter::new(stdout.lock());
 
-    let total = entries.len();
-    for (i, username) in entries.iter().enumerate() {
+    let offset = opts
+        .cursor
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0);
+    let cap = opts.limit as usize;
+    let bounded: Vec<(usize, &String)> = entries
+        .iter()
+        .enumerate()
+        .skip(offset)
+        .take(cap.max(1))
+        .collect();
+    let total = bounded.len();
+    for (i, (_, username)) in bounded.iter().enumerate() {
         diag!(
             quiet,
             "[watchlist] checking @{} ({}/{})...",
@@ -222,7 +270,7 @@ pub fn run_watchlist_check(
 
         let activity = match execute_check(client, &ctx, &search_url, use_color, quiet) {
             Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
-                username: username.clone(),
+                username: (*username).clone(),
                 recent_tweets: tweet_count,
                 latest_tweet,
                 cache_hit,
@@ -230,7 +278,7 @@ pub fn run_watchlist_check(
             Err(e) => {
                 diag!(quiet, "[watchlist] error checking @{}: {}", username, e);
                 AccountActivity {
-                    username: username.clone(),
+                    username: (*username).clone(),
                     recent_tweets: 0,
                     latest_tweet: None,
                     cache_hit: false,
