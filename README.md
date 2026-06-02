@@ -35,7 +35,7 @@ brew install bird
 
 ```bash
 # From source (requires Rust toolchain)
-cargo install bird
+cargo install --locked bird
 
 # Pre-built binary (fast, no compiler needed)
 cargo binstall bird
