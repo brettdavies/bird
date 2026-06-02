@@ -367,7 +367,7 @@ fn output_json_config_error_schema() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
     assert_eq!(json["kind"], "config");
-    assert_eq!(json["code"], 78);
+    assert_eq!(json["exit_code"], 78);
     assert!(json["error"].as_str().is_some());
     assert!(json.get("command").is_none());
 }
@@ -386,7 +386,7 @@ fn output_json_command_error_schema() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
     assert_eq!(json["kind"], "config");
-    assert_eq!(json["code"], 78);
+    assert_eq!(json["exit_code"], 78);
 }
 
 #[test]

@@ -27,7 +27,7 @@ pub fn run_profile(
             "https://api.x.com/2/users/by/username/{}",
             username
         ))
-        .unwrap();
+        .expect("invariant: profile endpoint URL is well-formed with validated username");
         {
             let mut pairs = u.query_pairs_mut();
             for (key, value) in fields::user_query_params() {
@@ -69,9 +69,9 @@ pub fn run_profile(
     cost::display_cost(&estimate, use_color, quiet);
 
     if opts.pretty {
-        println!("{}", serde_json::to_string_pretty(&json)?);
+        crate::out_println!("{}", serde_json::to_string_pretty(&json)?);
     } else {
-        println!("{}", serde_json::to_string(&json)?);
+        crate::out_println!("{}", serde_json::to_string(&json)?);
     }
 
     Ok(())

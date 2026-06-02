@@ -128,7 +128,8 @@ fn extract_username_from_url(parsed: &url::Url) -> Option<String> {
 
 /// Rebuild URL replacing the `ids=` parameter with a reduced set.
 fn rebuild_url_with_ids(url: &str, ids: &[String]) -> String {
-    let mut parsed = url::Url::parse(url).unwrap();
+    let mut parsed =
+        url::Url::parse(url).expect("invariant: caller validated URL via earlier parse in get()");
     let pairs: Vec<(String, String)> = parsed
         .query_pairs()
         .filter(|(k, _)| k != "ids")
@@ -312,7 +313,10 @@ impl BirdClient {
             // Single tweet freshness check
             if let Some(tweet_id) = extract_single_tweet_id(&parsed_url) {
                 let hit = {
-                    let db = self.db.as_ref().unwrap();
+                    let db = self
+                        .db
+                        .as_ref()
+                        .expect("invariant: db.is_none() short-circuits at get() entry");
                     check_tweet_freshness(db, &tweet_id)
                 };
                 if let Some(resp) = hit {
@@ -323,7 +327,10 @@ impl BirdClient {
             // Username freshness check
             if let Some(username) = extract_username_from_url(&parsed_url) {
                 let hit = {
-                    let db = self.db.as_ref().unwrap();
+                    let db = self
+                        .db
+                        .as_ref()
+                        .expect("invariant: db.is_none() short-circuits at get() entry");
                     check_user_freshness(db, &username)
                 };
                 if let Some(resp) = hit {
@@ -336,7 +343,10 @@ impl BirdClient {
         // cache_only: last resort — try raw_response
         if self.cache_opts.cache_only {
             let hit = {
-                let db = self.db.as_ref().unwrap();
+                let db = self
+                    .db
+                    .as_ref()
+                    .expect("invariant: db.is_none() short-circuits at get() entry");
                 try_raw_response(db, url)
             };
             if let Some(resp) = hit {
@@ -504,7 +514,10 @@ impl BirdClient {
         ids: &[String],
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let (from_store, ids_to_fetch) = {
-            let db = self.db.as_ref().unwrap();
+            let db = self
+                .db
+                .as_ref()
+                .expect("invariant: db.is_none() short-circuits at get() entry");
             let id_refs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
             db.partition_ids(&id_refs)?
         };
@@ -778,7 +791,7 @@ mod tests {
     }
 
     fn parse(url: &str) -> url::Url {
-        url::Url::parse(url).unwrap()
+        url::Url::parse(url).expect("test")
     }
 
     #[test]
@@ -902,10 +915,10 @@ mod tests {
         });
         client.decompose_and_upsert("https://api.x.com/2/tweets/search/recent", &json);
 
-        let db = client.db.as_ref().unwrap();
-        assert!(db.get_tweet("t1").unwrap().is_some());
-        assert!(db.get_tweet("t2").unwrap().is_some());
-        assert!(db.get_user_by_username("alice").unwrap().is_some());
+        let db = client.db.as_ref().expect("test");
+        assert!(db.get_tweet("t1").expect("test").is_some());
+        assert!(db.get_tweet("t2").expect("test").is_some());
+        assert!(db.get_user_by_username("alice").expect("test").is_some());
     }
 
     #[test]
@@ -917,8 +930,11 @@ mod tests {
         });
         client.decompose_and_upsert("https://api.x.com/2/users/by/username/jack", &json);
 
-        let db = client.db.as_ref().unwrap();
-        let user = db.get_user_by_username("jack").unwrap().unwrap();
+        let db = client.db.as_ref().expect("test");
+        let user = db
+            .get_user_by_username("jack")
+            .expect("test")
+            .expect("test");
         assert_eq!(user.id, "u1");
     }
 
@@ -941,8 +957,8 @@ mod tests {
         let json = serde_json::json!({"data": [{"id": "t1"}]});
         // Usage endpoint is not an entity endpoint
         client.decompose_and_upsert("https://api.x.com/2/usage/tweets", &json);
-        let db = client.db.as_ref().unwrap();
-        assert!(db.get_tweet("t1").unwrap().is_none());
+        let db = client.db.as_ref().expect("test");
+        assert!(db.get_tweet("t1").expect("test").is_none());
     }
 
     #[test]
@@ -955,11 +971,11 @@ mod tests {
             raw_json: r#"{"id":"t1","text":"hello"}"#.into(),
             last_refreshed_at: unix_now(),
         })
-        .unwrap();
+        .expect("test");
 
         let resp = check_tweet_freshness(&db, "t1");
         assert!(resp.is_some());
-        let resp = resp.unwrap();
+        let resp = resp.expect("test");
         assert!(resp.cache_hit);
         assert!(resp.body.contains("t1"));
     }
@@ -974,7 +990,7 @@ mod tests {
             raw_json: r#"{"id":"t1"}"#.into(),
             last_refreshed_at: 1000, // epoch 1970 — stale
         })
-        .unwrap();
+        .expect("test");
         assert!(check_tweet_freshness(&db, "t1").is_none());
     }
 
@@ -987,11 +1003,11 @@ mod tests {
             raw_json: r#"{"id":"u1","username":"alice"}"#.into(),
             last_refreshed_at: unix_now(),
         })
-        .unwrap();
+        .expect("test");
 
         let resp = check_user_freshness(&db, "alice");
         assert!(resp.is_some());
-        assert!(resp.unwrap().cache_hit);
+        assert!(resp.expect("test").cache_hit);
     }
 
     #[test]
@@ -1000,11 +1016,11 @@ mod tests {
         let url = "https://api.x.com/2/usage/tweets";
         let key = compute_raw_cache_key("GET", url);
         db.upsert_raw_response(&key, url, 200, b"test body")
-            .unwrap();
+            .expect("test");
 
         let resp = try_raw_response(&db, url);
         assert!(resp.is_some());
-        let resp = resp.unwrap();
+        let resp = resp.expect("test");
         assert!(resp.cache_hit);
         assert_eq!(resp.body, "test body");
     }
@@ -1054,21 +1070,21 @@ mod tests {
         });
         client.decompose_and_upsert("https://api.x.com/2/tweets/search/recent", &search_response);
 
-        let db = client.db.as_ref().unwrap();
+        let db = client.db.as_ref().expect("test");
         assert!(
-            db.get_tweet("t1").unwrap().is_some(),
+            db.get_tweet("t1").expect("test").is_some(),
             "search should store tweet t1"
         );
         assert!(
-            db.get_tweet("t2").unwrap().is_some(),
+            db.get_tweet("t2").expect("test").is_some(),
             "search should store tweet t2"
         );
         assert!(
-            db.get_user_by_username("alice").unwrap().is_some(),
+            db.get_user_by_username("alice").expect("test").is_some(),
             "search should store included user alice"
         );
         assert!(
-            db.get_user_by_username("bob").unwrap().is_some(),
+            db.get_user_by_username("bob").expect("test").is_some(),
             "search should store included user bob"
         );
 
@@ -1078,7 +1094,7 @@ mod tests {
             alice_resp.is_some(),
             "profile should find fresh user alice from store"
         );
-        let alice_resp = alice_resp.unwrap();
+        let alice_resp = alice_resp.expect("test");
         assert!(alice_resp.cache_hit, "profile user should be a cache hit");
         assert!(
             alice_resp.body.contains("alice"),
@@ -1100,8 +1116,8 @@ mod tests {
                 refreshed_at: unix_now(),
             },
         ];
-        db.replace_bookmarks("alice", &bookmark_rows).unwrap();
-        let stored_bookmarks = db.get_bookmarks("alice").unwrap();
+        db.replace_bookmarks("alice", &bookmark_rows).expect("test");
+        let stored_bookmarks = db.get_bookmarks("alice").expect("test");
         assert_eq!(stored_bookmarks.len(), 2, "should store 2 bookmarks");
         assert_eq!(
             stored_bookmarks[0].tweet_id, "t1",
@@ -1116,19 +1132,19 @@ mod tests {
         let root_resp = check_tweet_freshness(db, "t1");
         assert!(root_resp.is_some(), "thread root tweet should be in store");
         assert!(
-            root_resp.unwrap().cache_hit,
+            root_resp.expect("test").cache_hit,
             "thread root should be cache hit"
         );
 
         // Partition IDs: t1 is fresh, t3 is missing
-        let (from_store, to_fetch) = db.partition_ids(&["t1", "t3"]).unwrap();
+        let (from_store, to_fetch) = db.partition_ids(&["t1", "t3"]).expect("test");
         assert_eq!(from_store.len(), 1, "t1 should be fresh in store");
         assert_eq!(from_store[0].id, "t1");
         assert_eq!(to_fetch.len(), 1, "t3 should need fetching");
         assert_eq!(to_fetch[0], "t3");
 
         // --- Step 5: Usage logging ---
-        let db_mut = client.db.as_mut().unwrap();
+        let db_mut = client.db.as_mut().expect("test");
         db_mut
             .log_usage(&super::super::usage::UsageLogEntry {
                 endpoint: "/2/tweets/search/recent",
@@ -1139,13 +1155,13 @@ mod tests {
                 cache_hit: false,
                 username: Some("alice"),
             })
-            .unwrap();
-        let summary = db_mut.query_usage_summary(0).unwrap();
+            .expect("test");
+        let summary = db_mut.query_usage_summary(0).expect("test");
         assert_eq!(summary.total_calls, 1, "usage should be logged");
         assert_eq!(summary.total_cost, 0.01);
 
         // --- Step 6: Stats reflect all stored entities ---
-        let stats = db_mut.stats().unwrap();
+        let stats = db_mut.stats().expect("test");
         assert_eq!(stats.tweet_count, 2, "should have 2 tweets");
         assert_eq!(stats.user_count, 2, "should have 2 users");
         assert_eq!(stats.bookmark_count, 2, "should have 2 bookmarks");

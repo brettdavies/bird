@@ -6,6 +6,7 @@ mod config;
 mod cost;
 mod db;
 mod doctor;
+mod error;
 mod fields;
 mod login;
 mod output;
@@ -20,112 +21,14 @@ mod transport;
 mod usage;
 mod watchlist;
 
-use clap::CommandFactory;
-use clap::FromArgMatches;
+use clap::Parser;
 use cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
 use config::{ArgOverrides, ResolvedConfig};
+use error::BirdError;
 use output::{OutputConfig, OutputFormat};
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
-
-/// Structured error for the CLI. Each variant maps to a distinct exit code.
-enum BirdError {
-    /// Configuration error (exit code 78 — EX_CONFIG)
-    Config(Box<dyn std::error::Error + Send + Sync>),
-    /// Authentication error (exit code 77)
-    Auth(Box<dyn std::error::Error + Send + Sync>),
-    /// Command execution error — API, network, I/O (exit code 1)
-    Command {
-        name: &'static str,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-}
-
-impl BirdError {
-    fn exit_code(&self) -> u8 {
-        match self {
-            BirdError::Config(_) => 78,
-            BirdError::Auth(_) => 77,
-            BirdError::Command { .. } => 1,
-        }
-    }
-
-    fn print(&self, out: &OutputConfig) {
-        if out.format == OutputFormat::Json {
-            self.print_json();
-        } else {
-            self.print_text(out.use_color);
-        }
-    }
-
-    fn print_text(&self, use_color: bool) {
-        match self {
-            BirdError::Config(e) => {
-                eprintln!("{}{}", output::error("config failed: ", use_color), e);
-            }
-            BirdError::Auth(e) => {
-                eprintln!("{}{}", output::error("auth failed: ", use_color), e);
-            }
-            BirdError::Command { name, source } => {
-                let prefix = format!("{} failed: ", name);
-                eprintln!("{}{}", output::error(&prefix, use_color), source);
-            }
-        }
-    }
-
-    fn print_json(&self) {
-        let mut json = serde_json::json!({
-            "error": output::sanitize_for_stderr(&self.message(), 500),
-            "kind": self.kind(),
-            "code": self.exit_code(),
-        });
-        if let BirdError::Command { name, source } = self {
-            json["command"] = serde_json::Value::String((*name).to_string());
-            if let Some(xurl_err) = source.downcast_ref::<transport::XurlError>()
-                && let transport::XurlError::Api { status, .. } = xurl_err
-                && *status > 0
-            {
-                json["status"] = serde_json::json!(status);
-            }
-        }
-        eprintln!("{}", json);
-    }
-
-    fn kind(&self) -> &'static str {
-        match self {
-            BirdError::Config(_) => "config",
-            BirdError::Auth(_) => "auth",
-            BirdError::Command { .. } => "command",
-        }
-    }
-
-    fn message(&self) -> String {
-        match self {
-            BirdError::Config(e) | BirdError::Auth(e) => e.to_string(),
-            BirdError::Command { source, .. } => source.to_string(),
-        }
-    }
-}
-
-/// Centralized error mapping: detects XurlError::Auth and maps to BirdError::Auth,
-/// otherwise wraps in BirdError::Command. Used by all command dispatch closures.
-fn map_cmd_error(name: &'static str, e: Box<dyn std::error::Error + Send + Sync>) -> BirdError {
-    if let Some(xurl_err) = e.downcast_ref::<transport::XurlError>()
-        && matches!(xurl_err, transport::XurlError::Auth(_))
-    {
-        return BirdError::Auth(e);
-    }
-    BirdError::Command { name, source: e }
-}
-
-fn use_color_from_cli(plain: bool, no_color: bool) -> bool {
-    let stderr_tty = std::io::stderr().is_terminal();
-    let no_color_env = std::env::var("NO_COLOR").is_ok();
-    let term_dumb = std::env::var("TERM").as_deref() == Ok("dumb");
-    let default_on = stderr_tty && !no_color_env && !term_dumb;
-    default_on && !plain && !no_color
-}
 
 fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
     let mut m = HashMap::new();
@@ -156,7 +59,7 @@ fn xurl_write_call(
     }
     full_args.extend_from_slice(args);
     let json = transport::xurl_call(&full_args)?;
-    println!("{}", serde_json::to_string(&json)?);
+    crate::out_println!("{}", serde_json::to_string(&json)?);
     Ok(())
 }
 
@@ -167,12 +70,12 @@ fn xurl_write(
     f: impl FnOnce() -> Result<(), Box<dyn std::error::Error + Send + Sync>>,
 ) -> Result<(), BirdError> {
     if cache_only {
-        return Err(BirdError::Command {
+        return Err(BirdError::general(
             name,
-            source: "write commands require network access; remove --cache-only".into(),
-        });
+            "write commands require network access; remove --cache-only".into(),
+        ));
     }
-    f().map_err(|e| map_cmd_error(name, e))
+    f().map_err(|e| BirdError::from_source(name, e))
 }
 
 fn run(
@@ -188,11 +91,11 @@ fn run(
         Command::Login { headless } => {
             if headless.no_browser {
                 login::run_oauth2_authenticate_headless(out, config.username.as_deref())
-                    .map_err(|e| map_cmd_error("login", e))?;
+                    .map_err(|e| BirdError::from_source("login", e))?;
             } else {
                 // Delegate to xurl for OAuth2 authentication (browser-launching flow)
                 transport::xurl_passthrough(&["auth", "oauth2"])
-                    .map_err(|e| map_cmd_error("login", e))?;
+                    .map_err(|e| BirdError::from_source("login", e))?;
             }
             // Verify login and clear store
             if let Some(Ok(count)) = client.db_clear()
@@ -220,11 +123,11 @@ fn run(
                 quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("me", e))?;
+            .map_err(|e| BirdError::from_source("me", e))?;
         }
         Command::Bookmarks { pretty } => {
             bookmarks::run_bookmarks(client, pretty, use_color, quiet)
-                .map_err(|e| map_cmd_error("bookmarks", e))?;
+                .map_err(|e| BirdError::from_source("bookmarks", e))?;
         }
         Command::Profile { username, pretty } => {
             let auth_type = default_auth_type("profile");
@@ -238,7 +141,7 @@ fn run(
                 quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("profile", e))?;
+            .map_err(|e| BirdError::from_source("profile", e))?;
         }
         Command::Search {
             query,
@@ -258,7 +161,7 @@ fn run(
                 pages: pages.unwrap_or(1).clamp(1, 10),
             };
             search::run_search(client, opts, use_color, quiet, &auth_type)
-                .map_err(|e| map_cmd_error("search", e))?;
+                .map_err(|e| BirdError::from_source("search", e))?;
         }
         Command::Thread {
             tweet_id,
@@ -277,7 +180,7 @@ fn run(
                 quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("thread", e))?;
+            .map_err(|e| BirdError::from_source("thread", e))?;
         }
         Command::Get {
             path,
@@ -290,7 +193,7 @@ fn run(
             raw::run_raw(
                 client, "GET", &path, &params, &query, None, pretty, use_color, quiet, &auth_type,
             )
-            .map_err(|e| map_cmd_error("get", e))?;
+            .map_err(|e| BirdError::from_source("get", e))?;
         }
         Command::Post {
             path,
@@ -313,7 +216,7 @@ fn run(
                 quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("post", e))?;
+            .map_err(|e| BirdError::from_source("post", e))?;
         }
         Command::Put {
             path,
@@ -336,7 +239,7 @@ fn run(
                 quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("put", e))?;
+            .map_err(|e| BirdError::from_source("put", e))?;
         }
         Command::Delete {
             path,
@@ -350,7 +253,7 @@ fn run(
                 client, "DELETE", &path, &params, &query, None, pretty, use_color, quiet,
                 &auth_type,
             )
-            .map_err(|e| map_cmd_error("delete", e))?;
+            .map_err(|e| BirdError::from_source("delete", e))?;
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
@@ -358,19 +261,19 @@ fn run(
                 watchlist::run_watchlist_check(
                     client, &config, pretty, use_color, quiet, &auth_type,
                 )
-                .map_err(|e| map_cmd_error("watchlist", e))?;
+                .map_err(|e| BirdError::from_source("watchlist", e))?;
             }
             WatchlistCommand::Add { username } => {
                 watchlist::run_watchlist_add(&config, &username, quiet)
-                    .map_err(BirdError::Config)?;
+                    .map_err(BirdError::config)?;
             }
             WatchlistCommand::Remove { username } => {
                 watchlist::run_watchlist_remove(&config, &username, quiet)
-                    .map_err(BirdError::Config)?;
+                    .map_err(BirdError::config)?;
             }
             WatchlistCommand::List => {
                 watchlist::run_watchlist_list(&config, pretty, quiet)
-                    .map_err(|e| map_cmd_error("watchlist", e))?;
+                    .map_err(|e| BirdError::from_source("watchlist", e))?;
             }
         },
         Command::Usage {
@@ -379,7 +282,7 @@ fn run(
             pretty,
         } => {
             usage::run_usage(client, since.as_deref(), local, pretty, quiet)
-                .map_err(|e| map_cmd_error("usage", e))?;
+                .map_err(|e| BirdError::from_source("usage", e))?;
         }
         // -- Write commands (xurl passthrough) --
         Command::Tweet { text, media_id } => {
@@ -492,10 +395,10 @@ fn run(
                     );
                 }
                 Some(Err(e)) => {
-                    return Err(BirdError::Command {
-                        name: "cache",
-                        source: format!("failed to clear store: {}", e).into(),
-                    });
+                    return Err(BirdError::general(
+                        "cache",
+                        format!("failed to clear store: {}", e).into(),
+                    ));
                 }
                 None => {
                     diag!(quiet, "Store is not available.");
@@ -507,43 +410,65 @@ fn run(
                         .db_path()
                         .map(|p| p.display().to_string())
                         .unwrap_or_else(|| "unknown".to_string());
+                    let data = serde_json::json!({
+                        "path": path,
+                        "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
+                        "max_size_mb": stats.max_size_mb() as u64,
+                        "tweets": stats.tweet_count,
+                        "users": stats.user_count,
+                        "raw_responses": stats.raw_response_count,
+                        "healthy": stats.healthy(),
+                    });
                     if pretty {
-                        println!("Store: {}", path);
-                        println!(
+                        crate::out_println!("Store: {}", path);
+                        crate::out_println!(
                             "Size:  {:.1} MB / {:.0} MB limit",
                             stats.size_mb(),
                             stats.max_size_mb()
                         );
-                        println!("Tweets: {}", stats.tweet_count);
-                        println!("Users:  {}", stats.user_count);
-                        println!("Raw:    {}", stats.raw_response_count);
+                        crate::out_println!("Tweets: {}", stats.tweet_count);
+                        crate::out_println!("Users:  {}", stats.user_count);
+                        crate::out_println!("Raw:    {}", stats.raw_response_count);
+                    } else if out.is_raw_text() {
+                        // --raw text: one key=value per line, pipe-safe.
+                        crate::out_println!("path={}", path);
+                        crate::out_println!("size_mb={:.1}", stats.size_mb());
+                        crate::out_println!("max_size_mb={:.0}", stats.max_size_mb());
+                        crate::out_println!("tweets={}", stats.tweet_count);
+                        crate::out_println!("users={}", stats.user_count);
+                        crate::out_println!("raw_responses={}", stats.raw_response_count);
+                        crate::out_println!("healthy={}", stats.healthy());
                     } else {
-                        let json = serde_json::json!({
-                            "path": path,
-                            "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
-                            "max_size_mb": stats.max_size_mb() as u64,
-                            "tweets": stats.tweet_count,
-                            "users": stats.user_count,
-                            "raw_responses": stats.raw_response_count,
-                            "healthy": stats.healthy(),
-                        });
-                        println!(
-                            "{}",
-                            serde_json::to_string(&json).map_err(|e| BirdError::Command {
-                                name: "cache",
-                                source: e.into(),
-                            })?
-                        );
+                        let meta = serde_json::json!({});
+                        let line = output::success_envelope_string(&data, &meta).map_err(|e| {
+                            BirdError::general(
+                                "cache",
+                                Box::<dyn std::error::Error + Send + Sync>::from(e),
+                            )
+                        })?;
+                        crate::out_println!("{}", line);
                     }
                 }
                 Some(Err(e)) => {
-                    return Err(BirdError::Command {
-                        name: "cache",
-                        source: format!("failed to read store stats: {}", e).into(),
-                    });
+                    return Err(BirdError::general(
+                        "cache",
+                        format!("failed to read store stats: {}", e).into(),
+                    ));
                 }
                 None => {
-                    diag!(quiet, "Store is not available.");
+                    let data = serde_json::json!({"healthy": false});
+                    let meta = serde_json::json!({"status": "store-unavailable"});
+                    if !pretty && !out.is_raw_text() {
+                        let line = output::success_envelope_string(&data, &meta).map_err(|e| {
+                            BirdError::general(
+                                "cache",
+                                Box::<dyn std::error::Error + Send + Sync>::from(e),
+                            )
+                        })?;
+                        crate::out_println!("{}", line);
+                    } else {
+                        diag!(quiet, "Store is not available.");
+                    }
                 }
             },
         },
@@ -551,36 +476,169 @@ fn run(
     Ok(())
 }
 
+/// Pre-scan argv for an EXPLICIT output flag (`--output json`, `--output=json`,
+/// `-o json`, `--json`, `--jsonl`). Returns `None` if no explicit flag is set
+/// (caller may then consult env vars or auto-detect from TTY).
+fn explicit_output_from_argv(argv: &[String]) -> Option<OutputFormat> {
+    let mut i = 0;
+    while i < argv.len() {
+        let a = argv[i].as_str();
+        if a == "--json" {
+            return Some(OutputFormat::Json);
+        }
+        if a == "--jsonl" {
+            return Some(OutputFormat::Jsonl);
+        }
+        if (a == "-o" || a == "--output")
+            && let Some(v) = argv.get(i + 1)
+            && let Some(f) = parse_output_value(v)
+        {
+            return Some(f);
+        }
+        if let Some(rest) = a.strip_prefix("--output=")
+            && let Some(f) = parse_output_value(rest)
+        {
+            return Some(f);
+        }
+        if let Some(rest) = a.strip_prefix("-o=")
+            && let Some(f) = parse_output_value(rest)
+        {
+            return Some(f);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Pre-scan argv plus env for the format to use when emitting the envelope on
+/// clap parse failures. Falls back to TTY auto-detection.
+fn output_from_argv(argv: &[String]) -> OutputFormat {
+    if let Some(f) = explicit_output_from_argv(argv) {
+        return f;
+    }
+    if let Ok(env) = std::env::var("BIRD_OUTPUT")
+        && let Some(f) = parse_output_value(&env)
+    {
+        return f;
+    }
+    if std::io::stderr().is_terminal() {
+        OutputFormat::Text
+    } else {
+        OutputFormat::Json
+    }
+}
+
+fn parse_output_value(v: &str) -> Option<OutputFormat> {
+    match v {
+        "json" => Some(OutputFormat::Json),
+        "jsonl" => Some(OutputFormat::Jsonl),
+        "ndjson" => Some(OutputFormat::Ndjson),
+        "text" => Some(OutputFormat::Text),
+        _ => None,
+    }
+}
+
+/// Convert a clap parse error to a `BirdError::Usage` (for non-help cases) or
+/// route help/version to stdout directly. Returns `None` when the error was a
+/// help/version display (program should exit 0).
+fn clap_error_to_bird(err: &clap::Error) -> Option<BirdError> {
+    use clap::error::ErrorKind;
+    match err.kind() {
+        ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => None,
+        _ => {
+            let error_id = match err.kind() {
+                ErrorKind::UnknownArgument => "unknown-argument",
+                ErrorKind::MissingRequiredArgument => "missing-required-argument",
+                ErrorKind::MissingSubcommand => "missing-subcommand",
+                ErrorKind::InvalidSubcommand => "invalid-subcommand",
+                ErrorKind::InvalidValue => "invalid-value",
+                ErrorKind::TooManyValues => "too-many-values",
+                ErrorKind::TooFewValues => "too-few-values",
+                ErrorKind::ArgumentConflict => "argument-conflict",
+                ErrorKind::NoEquals => "missing-equals",
+                ErrorKind::ValueValidation => "invalid-value",
+                _ => "invalid-arguments",
+            };
+            Some(BirdError::usage(error_id, err.to_string()))
+        }
+    }
+}
+
 fn main() -> ExitCode {
     // Restore default SIGPIPE handling so piped commands exit cleanly.
     // Without this, Rust masks SIGPIPE and all writes to closed pipes panic.
-    // The `libc` crate is already a dependency.
     #[cfg(unix)]
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
+    // Pre-scan argv so clap parse failures know what envelope to emit.
+    let argv: Vec<String> = std::env::args().collect();
+    let argv_output = output_from_argv(&argv);
+    let explicit_output = explicit_output_from_argv(&argv);
+
+    // Initialize tracing with default level; verbosity is applied after parse below.
+    let default_directive = "bird=info"
+        .parse::<tracing_subscriber::filter::Directive>()
+        .expect("invariant: 'bird=info' is a valid tracing directive");
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("bird=info".parse().unwrap()),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive(default_directive),
         )
         .with_writer(std::io::stderr)
         .init();
 
-    let cmd = Cli::command().color(output::color_choice_for_clap());
-    let matches = cmd.get_matches();
-    let cli = match Cli::from_arg_matches(&matches) {
+    // try_parse routes clap errors through the JSON-aware envelope formatter.
+    let cli = match Cli::try_parse() {
         Ok(c) => c,
-        Err(e) => {
-            e.exit();
-        }
+        Err(e) => match clap_error_to_bird(&e) {
+            None => {
+                // Help/version display: only when the user EXPLICITLY requested JSON
+                // (via `--json`, `--jsonl`, or `--output {json,jsonl}`) do we wrap the
+                // help/version text in a success envelope. Auto-detected pipe mode
+                // keeps the plain clap output so naive `bird --help | grep` still works.
+                let wrap_in_envelope = explicit_output.is_some_and(|f| f.is_json());
+                if wrap_in_envelope {
+                    let body = e.to_string();
+                    let kind = match e.kind() {
+                        clap::error::ErrorKind::DisplayVersion => "version",
+                        _ => "help",
+                    };
+                    let data = serde_json::json!({
+                        kind: body.trim(),
+                    });
+                    let meta = serde_json::json!({"format": "text"});
+                    match output::success_envelope_string(&data, &meta) {
+                        Ok(line) => crate::out_println!("{}", line),
+                        Err(_) => {
+                            let _ = e.print();
+                        }
+                    }
+                } else {
+                    let _ = e.print();
+                }
+                return ExitCode::SUCCESS;
+            }
+            Some(bird_err) => {
+                let fmt = argv_output;
+                let cfg = OutputConfig {
+                    format: fmt,
+                    use_color: output::use_color_auto() && !fmt.is_json(),
+                    quiet: false,
+                    raw: false,
+                };
+                output::print_error(&bird_err, &cfg);
+                return ExitCode::from(bird_err.exit_code());
+            }
+        },
     };
 
-    let use_color = use_color_from_cli(cli.plain, cli.no_color);
+    let color_mode = cli.effective_color();
+    let use_color = output::resolve_color(color_mode);
+    let raw = cli.raw;
 
-    // Resolve output format: explicit flag > env var > auto-detect from stderr TTY
-    let output_format = cli.output.unwrap_or_else(|| {
+    // Resolve output format: explicit flag > env var > auto-detect from stderr TTY.
+    let output_format = cli.effective_output().unwrap_or_else(|| {
         if std::io::stderr().is_terminal() {
             OutputFormat::Text
         } else {
@@ -591,24 +649,26 @@ fn main() -> ExitCode {
         format: output_format,
         use_color,
         quiet: cli.quiet,
+        raw,
     };
+
+    // Apply --timeout to the xurl transport layer.
+    transport::set_timeout_secs(cli.timeout);
 
     // --- Meta-commands: need nothing beyond parsed args ---
     if let Command::Completions { shell } = &cli.command {
+        use clap::CommandFactory;
         clap_complete::generate(*shell, &mut Cli::command(), "bird", &mut std::io::stdout());
         return ExitCode::SUCCESS;
     }
 
     if let Command::Skill { action } = &cli.command {
-        let SkillAction::Install { host, all, dry_run } = action;
-        return match skill_install::run(*host, *dry_run, *all) {
+        let SkillAction::Install { host, all, dry_run } = *action;
+        return match skill_install::run(host, dry_run, all) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                let err = BirdError::Command {
-                    name: "skill",
-                    source: e,
-                };
-                err.print(&out);
+                let err = BirdError::from_source("skill", e);
+                output::print_error(&err, &out);
                 ExitCode::from(err.exit_code())
             }
         };
@@ -616,19 +676,17 @@ fn main() -> ExitCode {
 
     // --- Username validation + config + DB init (no xurl needed) ---
 
-    // Validate --username if provided (strips @, checks charset)
     let cli_username = match cli.username {
         Some(ref raw) => match schema::validate_username(raw) {
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
-                let err = BirdError::Config(format!("--username: {}", e).into());
-                err.print(&out);
+                let err = BirdError::config(format!("--username: {}", e));
+                output::print_error(&err, &out);
                 return ExitCode::from(err.exit_code());
             }
         },
         None => None,
     };
-    // X_API_USERNAME is lowest priority (below config file)
     let env_username =
         std::env::var("X_API_USERNAME")
             .ok()
@@ -651,8 +709,8 @@ fn main() -> ExitCode {
     let config = match ResolvedConfig::load(overrides) {
         Ok(c) => c,
         Err(e) => {
-            let err = BirdError::Config(e);
-            err.print(&out);
+            let err = BirdError::config(e);
+            output::print_error(&err, &out);
             return ExitCode::from(err.exit_code());
         }
     };
@@ -686,11 +744,8 @@ fn main() -> ExitCode {
         ) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
-                let err = BirdError::Command {
-                    name: "doctor",
-                    source: e,
-                };
-                err.print(&out);
+                let err = BirdError::general("doctor", e);
+                output::print_error(&err, &out);
                 return ExitCode::from(err.exit_code());
             }
         }
@@ -703,19 +758,19 @@ fn main() -> ExitCode {
         let quiet = out.suppress_diag();
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::Config)
+                watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::config)
             }
             WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, username, quiet).map_err(BirdError::Config)
+                watchlist::run_watchlist_remove(&config, username, quiet).map_err(BirdError::config)
             }
             WatchlistCommand::List => watchlist::run_watchlist_list(&config, pretty, quiet)
-                .map_err(|e| map_cmd_error("watchlist", e)),
+                .map_err(|e| BirdError::from_source("watchlist", e)),
             WatchlistCommand::Check => unreachable!(),
         };
         return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                e.print(&out);
+                output::print_error(&e, &out);
                 ExitCode::from(e.exit_code())
             }
         };
@@ -723,15 +778,15 @@ fn main() -> ExitCode {
 
     // --- xurl gate: only for API commands ---
     if let Err(e) = transport::resolve_xurl_path() {
-        let err = BirdError::Config(e);
-        err.print(&out);
+        let err = BirdError::config(e);
+        output::print_error(&err, &out);
         return ExitCode::from(err.exit_code());
     }
 
     match run(cli.command, config, &mut client, &out, cli.cache_only) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            e.print(&out);
+            output::print_error(&e, &out);
             ExitCode::from(e.exit_code())
         }
     }
@@ -744,23 +799,21 @@ mod tests {
     #[test]
     fn bird_error_exit_codes() {
         assert_eq!(
-            BirdError::Config("test".into()).exit_code(),
+            BirdError::config("test").exit_code(),
             78,
             "Config errors should exit 78"
         );
+        let auth = BirdError::from_source("test", Box::new(transport::XurlError::Auth("x".into())));
+        assert_eq!(auth.exit_code(), 77, "Auth errors should exit 77");
         assert_eq!(
-            BirdError::Auth("test".into()).exit_code(),
-            77,
-            "Auth errors should exit 77"
-        );
-        assert_eq!(
-            BirdError::Command {
-                name: "test",
-                source: "test".into(),
-            }
-            .exit_code(),
+            BirdError::general("test", "test".into()).exit_code(),
             1,
             "Command errors should exit 1"
+        );
+        assert_eq!(
+            BirdError::usage("bad", "test").exit_code(),
+            2,
+            "Usage errors should exit 2"
         );
     }
 
@@ -768,7 +821,7 @@ mod tests {
     fn map_cmd_error_detects_auth() {
         let auth_err: Box<dyn std::error::Error + Send + Sync> =
             Box::new(transport::XurlError::Auth("unauthorized".to_string()));
-        let mapped = map_cmd_error("test", auth_err);
+        let mapped = BirdError::from_source("test", auth_err);
         assert_eq!(
             mapped.exit_code(),
             77,
@@ -781,11 +834,59 @@ mod tests {
         let api_err: Box<dyn std::error::Error + Send + Sync> = Box::new(
             transport::XurlError::Process("connection failed".to_string()),
         );
-        let mapped = map_cmd_error("profile", api_err);
+        let mapped = BirdError::from_source("profile", api_err);
         assert_eq!(
             mapped.exit_code(),
             1,
             "Non-auth XurlError should map to exit 1"
         );
+    }
+
+    #[test]
+    fn output_from_argv_detects_json_flag() {
+        let argv = vec!["bird".to_string(), "--json".to_string(), "me".to_string()];
+        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
+    }
+
+    #[test]
+    fn output_from_argv_detects_jsonl_flag() {
+        let argv = vec![
+            "bird".to_string(),
+            "bookmarks".to_string(),
+            "--jsonl".to_string(),
+        ];
+        assert_eq!(output_from_argv(&argv), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn output_from_argv_detects_output_separate_value() {
+        let argv = vec![
+            "bird".to_string(),
+            "--output".to_string(),
+            "json".to_string(),
+            "me".to_string(),
+        ];
+        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
+    }
+
+    #[test]
+    fn output_from_argv_detects_output_equals_value() {
+        let argv = vec![
+            "bird".to_string(),
+            "--output=jsonl".to_string(),
+            "bookmarks".to_string(),
+        ];
+        assert_eq!(output_from_argv(&argv), OutputFormat::Jsonl);
+    }
+
+    #[test]
+    fn output_from_argv_detects_short_o_value() {
+        let argv = vec![
+            "bird".to_string(),
+            "-o".to_string(),
+            "json".to_string(),
+            "me".to_string(),
+        ];
+        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
     }
 }

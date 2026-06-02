@@ -811,14 +811,14 @@ impl Drop for BirdDb {
 /// Create an in-memory BirdDb for testing.
 #[cfg(test)]
 pub(crate) fn in_memory_db() -> BirdDb {
-    let mut conn = Connection::open_in_memory().unwrap();
+    let mut conn = Connection::open_in_memory().expect("test");
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          PRAGMA synchronous = NORMAL;
          PRAGMA busy_timeout = 5000;",
     )
-    .unwrap();
-    migrations().to_latest(&mut conn).unwrap();
+    .expect("test");
+    migrations().to_latest(&mut conn).expect("test");
     BirdDb {
         conn,
         write_count: 0,
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn migrations_are_valid() {
-        migrations().validate().unwrap();
+        migrations().validate().expect("test");
     }
 
     #[test]
@@ -845,8 +845,11 @@ mod tests {
             raw_json: r#"{"id":"123","text":"hello"}"#.into(),
             last_refreshed_at: unix_now(),
         };
-        db.upsert_tweet(&tweet).unwrap();
-        let got = db.get_tweet("123").unwrap().expect("should find tweet");
+        db.upsert_tweet(&tweet).expect("test");
+        let got = db
+            .get_tweet("123")
+            .expect("test")
+            .expect("should find tweet");
         assert_eq!(got.id, "123");
         assert_eq!(got.author_id.as_deref(), Some("456"));
         assert_eq!(got.raw_json, tweet.raw_json);
@@ -862,7 +865,7 @@ mod tests {
             raw_json: r#"{"id":"123","text":"v1"}"#.into(),
             last_refreshed_at: 1000,
         };
-        db.upsert_tweet(&tweet1).unwrap();
+        db.upsert_tweet(&tweet1).expect("test");
 
         let tweet2 = TweetRow {
             id: "123".into(),
@@ -871,9 +874,9 @@ mod tests {
             raw_json: r#"{"id":"123","text":"v2"}"#.into(),
             last_refreshed_at: 2000,
         };
-        db.upsert_tweet(&tweet2).unwrap();
+        db.upsert_tweet(&tweet2).expect("test");
 
-        let got = db.get_tweet("123").unwrap().unwrap();
+        let got = db.get_tweet("123").expect("test").expect("test");
         assert!(got.raw_json.contains("v2"), "should have updated raw_json");
         assert_eq!(got.last_refreshed_at, 2000);
     }
@@ -881,7 +884,7 @@ mod tests {
     #[test]
     fn get_tweet_missing() {
         let db = in_memory_db();
-        assert!(db.get_tweet("nonexistent").unwrap().is_none());
+        assert!(db.get_tweet("nonexistent").expect("test").is_none());
     }
 
     #[test]
@@ -893,10 +896,10 @@ mod tests {
             raw_json: r#"{"id":"456","username":"alice"}"#.into(),
             last_refreshed_at: unix_now(),
         };
-        db.upsert_user(&user).unwrap();
+        db.upsert_user(&user).expect("test");
         let got = db
             .get_user_by_username("alice")
-            .unwrap()
+            .expect("test")
             .expect("should find user");
         assert_eq!(got.id, "456");
         assert_eq!(got.username.as_deref(), Some("alice"));
@@ -927,10 +930,10 @@ mod tests {
                 last_refreshed_at: unix_now(),
             },
         ];
-        db.upsert_entities(&tweets, &users).unwrap();
-        assert!(db.get_tweet("t1").unwrap().is_some());
-        assert!(db.get_tweet("t2").unwrap().is_some());
-        assert!(db.get_user_by_username("bob").unwrap().is_some());
+        db.upsert_entities(&tweets, &users).expect("test");
+        assert!(db.get_tweet("t1").expect("test").is_some());
+        assert!(db.get_tweet("t2").expect("test").is_some());
+        assert!(db.get_user_by_username("bob").expect("test").is_some());
     }
 
     #[test]
@@ -946,8 +949,8 @@ mod tests {
             last_refreshed_at: unix_now(),
         }];
         // No users -- author_id references a user not in the DB
-        db.upsert_entities(&tweets, &[]).unwrap();
-        assert!(db.get_tweet("t1").unwrap().is_some());
+        db.upsert_entities(&tweets, &[]).expect("test");
+        assert!(db.get_tweet("t1").expect("test").is_some());
     }
 
     #[test]
@@ -956,18 +959,26 @@ mod tests {
         // Refreshed yesterday at 23:59 UTC
         let yesterday_2359 = chrono::Utc
             .with_ymd_and_hms(2026, 2, 17, 23, 59, 59)
-            .unwrap();
-        let now_today_0001 = chrono::Utc.with_ymd_and_hms(2026, 2, 18, 0, 0, 1).unwrap();
+            .single()
+            .expect("test");
+        let now_today_0001 = chrono::Utc
+            .with_ymd_and_hms(2026, 2, 18, 0, 0, 1)
+            .single()
+            .expect("test");
         assert!(BirdDb::is_stale(yesterday_2359.timestamp(), now_today_0001));
     }
 
     #[test]
     fn is_stale_same_day() {
         use chrono::TimeZone;
-        let morning = chrono::Utc.with_ymd_and_hms(2026, 2, 18, 6, 0, 0).unwrap();
+        let morning = chrono::Utc
+            .with_ymd_and_hms(2026, 2, 18, 6, 0, 0)
+            .single()
+            .expect("test");
         let evening = chrono::Utc
             .with_ymd_and_hms(2026, 2, 18, 23, 59, 59)
-            .unwrap();
+            .single()
+            .expect("test");
         assert!(!BirdDb::is_stale(morning.timestamp(), evening));
     }
 
@@ -975,8 +986,14 @@ mod tests {
     fn is_stale_midnight_boundary() {
         use chrono::TimeZone;
         // Refreshed at exactly midnight = start of new day = same day as anything later that day
-        let midnight = chrono::Utc.with_ymd_and_hms(2026, 2, 18, 0, 0, 0).unwrap();
-        let later = chrono::Utc.with_ymd_and_hms(2026, 2, 18, 12, 0, 0).unwrap();
+        let midnight = chrono::Utc
+            .with_ymd_and_hms(2026, 2, 18, 0, 0, 0)
+            .single()
+            .expect("test");
+        let later = chrono::Utc
+            .with_ymd_and_hms(2026, 2, 18, 12, 0, 0)
+            .single()
+            .expect("test");
         assert!(!BirdDb::is_stale(midnight.timestamp(), later));
     }
 
@@ -999,7 +1016,7 @@ mod tests {
             raw_json: r#"{"id":"fresh1"}"#.into(),
             last_refreshed_at: unix_now(),
         };
-        db.upsert_tweet(&fresh).unwrap();
+        db.upsert_tweet(&fresh).expect("test");
 
         // Insert a stale tweet (refreshed long ago)
         let stale = TweetRow {
@@ -1009,10 +1026,10 @@ mod tests {
             raw_json: r#"{"id":"stale1"}"#.into(),
             last_refreshed_at: 1000, // epoch 1970 -- definitely stale
         };
-        db.upsert_tweet(&stale).unwrap();
+        db.upsert_tweet(&stale).expect("test");
 
         let ids = vec!["fresh1", "stale1", "missing1"];
-        let (from_store, to_fetch) = db.partition_ids(&ids).unwrap();
+        let (from_store, to_fetch) = db.partition_ids(&ids).expect("test");
 
         assert_eq!(from_store.len(), 1);
         assert_eq!(from_store[0].id, "fresh1");
@@ -1024,7 +1041,7 @@ mod tests {
     #[test]
     fn partition_ids_empty() {
         let db = in_memory_db();
-        let (from_store, to_fetch) = db.partition_ids(&[]).unwrap();
+        let (from_store, to_fetch) = db.partition_ids(&[]).expect("test");
         assert!(from_store.is_empty());
         assert!(to_fetch.is_empty());
     }
@@ -1033,10 +1050,10 @@ mod tests {
     fn raw_response_round_trip() {
         let db = in_memory_db();
         db.upsert_raw_response("key1", "https://api.x.com/test", 200, b"hello")
-            .unwrap();
+            .expect("test");
         let got = db
             .get_raw_response("key1")
-            .unwrap()
+            .expect("test")
             .expect("should find response");
         assert_eq!(got.status_code, 200);
         assert_eq!(got.body, b"hello");
@@ -1062,8 +1079,8 @@ mod tests {
                 refreshed_at: now,
             },
         ];
-        db.replace_bookmarks("alice", &initial).unwrap();
-        assert_eq!(db.get_bookmarks("alice").unwrap().len(), 2);
+        db.replace_bookmarks("alice", &initial).expect("test");
+        assert_eq!(db.get_bookmarks("alice").expect("test").len(), 2);
 
         // Replace with different set
         let replacement = vec![BookmarkRow {
@@ -1072,9 +1089,9 @@ mod tests {
             position: 0,
             refreshed_at: now,
         }];
-        db.replace_bookmarks("alice", &replacement).unwrap();
+        db.replace_bookmarks("alice", &replacement).expect("test");
 
-        let got = db.get_bookmarks("alice").unwrap();
+        let got = db.get_bookmarks("alice").expect("test");
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].tweet_id, "t3");
     }
@@ -1103,8 +1120,8 @@ mod tests {
                 refreshed_at: now,
             },
         ];
-        db.replace_bookmarks("alice", &bookmarks).unwrap();
-        let got = db.get_bookmarks("alice").unwrap();
+        db.replace_bookmarks("alice", &bookmarks).expect("test");
+        let got = db.get_bookmarks("alice").expect("test");
         assert_eq!(got[0].tweet_id, "t1");
         assert_eq!(got[1].tweet_id, "t2");
         assert_eq!(got[2].tweet_id, "t3");
@@ -1120,15 +1137,15 @@ mod tests {
             raw_json: "{}".into(),
             last_refreshed_at: unix_now(),
         })
-        .unwrap();
+        .expect("test");
         db.upsert_user(&UserRow {
             id: "u1".into(),
             username: Some("alice".into()),
             raw_json: "{}".into(),
             last_refreshed_at: unix_now(),
         })
-        .unwrap();
-        let stats = db.stats().unwrap();
+        .expect("test");
+        let stats = db.stats().expect("test");
         assert_eq!(stats.tweet_count, 1);
         assert_eq!(stats.user_count, 1);
         assert!(stats.healthy());
@@ -1144,7 +1161,7 @@ mod tests {
             raw_json: "{}".into(),
             last_refreshed_at: unix_now(),
         })
-        .unwrap();
+        .expect("test");
         // Insert a usage row directly
         db.conn
             .execute(
@@ -1152,16 +1169,16 @@ mod tests {
                  VALUES (1000, 20260218, '/2/tweets', 'GET', 1, 0.005, 0)",
                 [],
             )
-            .unwrap();
+            .expect("test");
 
-        let count = db.clear().unwrap();
+        let count = db.clear().expect("test");
         assert_eq!(count, 1); // 1 tweet cleared
 
         // Usage should still be there
         let usage_count: i64 = db
             .conn
             .query_row("SELECT count(*) FROM usage", [], |r| r.get(0))
-            .unwrap();
+            .expect("test");
         assert_eq!(usage_count, 1);
     }
 
@@ -1174,7 +1191,7 @@ mod tests {
             "conversation_id": "789",
             "created_at": "2026-02-18T12:00:00Z"
         });
-        let tweet = TweetRow::from_api_json(&json).unwrap();
+        let tweet = TweetRow::from_api_json(&json).expect("test");
         assert_eq!(tweet.id, "123");
         assert_eq!(tweet.author_id.as_deref(), Some("456"));
         assert_eq!(tweet.conversation_id.as_deref(), Some("789"));
@@ -1191,7 +1208,7 @@ mod tests {
             "name": "Alice",
             "created_at": "2020-01-01T00:00:00Z"
         });
-        let user = UserRow::from_api_json(&json).unwrap();
+        let user = UserRow::from_api_json(&json).expect("test");
         assert_eq!(user.id, "456");
         assert_eq!(user.username.as_deref(), Some("alice"));
         assert!(user.raw_json.contains("Alice"));
@@ -1205,26 +1222,27 @@ mod tests {
 
     #[test]
     fn anti_tamper_rejects_views() {
-        let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("PRAGMA journal_mode = WAL;").unwrap();
-        migrations().to_latest(&mut conn).unwrap();
+        let mut conn = Connection::open_in_memory().expect("test");
+        conn.execute_batch("PRAGMA journal_mode = WAL;")
+            .expect("test");
+        migrations().to_latest(&mut conn).expect("test");
         // Create a view (tamper)
         conn.execute_batch("CREATE VIEW evil AS SELECT * FROM tweets")
-            .unwrap();
+            .expect("test");
 
         // Open should fail with expanded anti-tamper check
-        let tmpdir = tempfile::tempdir().unwrap();
+        let tmpdir = tempfile::tempdir().expect("test");
         let db_path = tmpdir.path().join("test.db");
         // Write the tampered DB to disk
         {
-            let mut disk_conn = Connection::open(&db_path).unwrap();
+            let mut disk_conn = Connection::open(&db_path).expect("test");
             disk_conn
                 .execute_batch("PRAGMA journal_mode = WAL;")
-                .unwrap();
-            migrations().to_latest(&mut disk_conn).unwrap();
+                .expect("test");
+            migrations().to_latest(&mut disk_conn).expect("test");
             disk_conn
                 .execute_batch("CREATE VIEW evil AS SELECT * FROM tweets")
-                .unwrap();
+                .expect("test");
         }
         let result = BirdDb::open(&db_path, 100);
         assert!(result.is_err(), "should reject database with views");
@@ -1239,7 +1257,7 @@ mod tests {
                 "INSERT INTO migrations_meta (key, value) VALUES ('cache_usage_migrated', 'test')",
                 [],
             )
-            .unwrap();
+            .expect("test");
         // Should be a no-op (doesn't crash)
         db.migrate_usage_from_cache(Path::new("/nonexistent/path"), false);
     }
@@ -1248,12 +1266,12 @@ mod tests {
     #[test]
     fn file_permissions_enforced() {
         use std::os::unix::fs::PermissionsExt;
-        let tmpdir = tempfile::tempdir().unwrap();
+        let tmpdir = tempfile::tempdir().expect("test");
         let db_path = tmpdir.path().join("test.db");
 
-        let _db = BirdDb::open(&db_path, 100).unwrap();
+        let _db = BirdDb::open(&db_path, 100).expect("test");
 
-        let perms = std::fs::metadata(&db_path).unwrap().permissions();
+        let perms = std::fs::metadata(&db_path).expect("test").permissions();
         assert_eq!(
             perms.mode() & 0o777,
             0o600,
@@ -1271,18 +1289,18 @@ mod tests {
                  VALUES ('old', 'http://test', 200, X'00', 1, ?1)",
                 params![old],
             )
-            .unwrap();
+            .expect("test");
         db.upsert_raw_response("fresh", "http://test", 200, b"data")
-            .unwrap();
+            .expect("test");
 
-        db.prune_if_needed().unwrap();
+        db.prune_if_needed().expect("test");
 
         assert!(
-            db.get_raw_response("old").unwrap().is_none(),
+            db.get_raw_response("old").expect("test").is_none(),
             "old response should be pruned"
         );
         assert!(
-            db.get_raw_response("fresh").unwrap().is_some(),
+            db.get_raw_response("fresh").expect("test").is_some(),
             "fresh response should remain"
         );
     }

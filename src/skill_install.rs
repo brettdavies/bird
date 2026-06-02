@@ -125,13 +125,13 @@ pub(crate) fn run(
     for h in targets {
         let dest = install_into(h, &home, dry_run)?;
         if dry_run {
-            println!(
+            crate::out_println!(
                 "[dry-run] would install bird skill ({}): {}",
                 h.name(),
                 dest.display()
             );
         } else {
-            println!("installed bird skill ({}): {}", h.name(), dest.display());
+            crate::out_println!("installed bird skill ({}): {}", h.name(), dest.display());
         }
     }
     Ok(())

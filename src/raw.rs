@@ -64,9 +64,9 @@ pub fn run_raw(
         None => serde_json::Value::String(response.body),
     };
     if pretty {
-        println!("{}", serde_json::to_string_pretty(&json)?);
+        crate::out_println!("{}", serde_json::to_string_pretty(&json)?);
     } else {
-        println!("{}", serde_json::to_string(&json)?);
+        crate::out_println!("{}", serde_json::to_string(&json)?);
     }
     Ok(())
 }

@@ -59,16 +59,16 @@ pub fn run_bookmarks(
 
     // Open the JSON array wrapper
     if pretty {
-        println!("{{\n  \"data\": [");
+        crate::out_println!("{{\n  \"data\": [");
     } else {
-        print!("{{\"data\":[");
+        crate::out_print!("{{\"data\":[");
     }
 
     loop {
         let url = {
             let mut u =
                 url::Url::parse(&format!("https://api.x.com/2/users/{}/bookmarks", user_id))
-                    .unwrap();
+                    .expect("invariant: bookmarks endpoint URL is well-formed");
             {
                 let mut pairs = u.query_pairs_mut();
                 pairs.append_pair("max_results", "100");
@@ -99,19 +99,19 @@ pub fn run_bookmarks(
             for item in data {
                 if !first_item {
                     if pretty {
-                        println!(",");
+                        crate::out_println!(",");
                     } else {
-                        print!(",");
+                        crate::out_print!(",");
                     }
                 }
                 first_item = false;
                 if pretty {
                     let s = serde_json::to_string_pretty(item)?;
                     for line in s.lines() {
-                        println!("    {}", line);
+                        crate::out_println!("    {}", line);
                     }
                 } else {
-                    print!("{}", serde_json::to_string(item)?);
+                    crate::out_print!("{}", serde_json::to_string(item)?);
                 }
                 // Accumulate bookmark relationships for storage
                 if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
@@ -146,9 +146,9 @@ pub fn run_bookmarks(
 
     // Close the JSON array wrapper
     if pretty {
-        println!("\n  ]\n}}");
+        crate::out_println!("\n  ]\n}}");
     } else {
-        println!("]}}");
+        crate::out_println!("]}}");
     }
     Ok(())
 }

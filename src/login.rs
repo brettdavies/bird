@@ -135,7 +135,7 @@ pub fn run_oauth2_authenticate_headless(
     let state = parse_oauth2_authorize_url_state(auth_url).unwrap_or_default();
 
     match out.format {
-        OutputFormat::Json => {
+        OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Ndjson => {
             let envelope = serde_json::json!({
                 "data": {
                     "auth_url": auth_url,
@@ -145,12 +145,12 @@ pub fn run_oauth2_authenticate_headless(
                     "awaiting": "callback_url_on_stdin",
                 },
             });
-            println!("{}", envelope);
+            crate::out_println!("{}", envelope);
         }
         OutputFormat::Text => {
-            println!("Open this URL in any browser:\n");
-            println!("  {}\n", auth_url);
-            println!(
+            crate::out_println!("Open this URL in any browser:\n");
+            crate::out_println!("  {}\n", auth_url);
+            crate::out_println!(
                 "After authorizing, paste the full redirect URL from your browser here and press Enter:"
             );
         }
@@ -202,23 +202,23 @@ pub fn run_oauth2_authenticate_headless(
     }
 
     match out.format {
-        OutputFormat::Json => {
+        OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Ndjson => {
             let envelope = serde_json::json!({
                 "data": {
                     "status": "authenticated",
                 },
                 "meta": {},
             });
-            println!("{}", envelope);
+            crate::out_println!("{}", envelope);
         }
         OutputFormat::Text => {
             let stdout = String::from_utf8_lossy(&step2_out.stdout);
             let trimmed = crate::output::strip_ansi_lines(&stdout);
             let trimmed = trimmed.trim();
             if trimmed.is_empty() {
-                println!("OAuth2 authentication successful.");
+                crate::out_println!("OAuth2 authentication successful.");
             } else {
-                println!("{}", trimmed);
+                crate::out_println!("{}", trimmed);
             }
         }
     }
