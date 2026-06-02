@@ -66,7 +66,7 @@ fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: bool) -
             CacheAction::Clear { guard } => guard_proceeds(guard),
             CacheAction::Stats { .. } => false,
         },
-        Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Check),
+        Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Fetch),
         // Pre-dispatched in main(); never reach run().
         Command::Login { .. }
         | Command::Completions { .. }
@@ -522,7 +522,7 @@ fn run(
             .map_err(|e| BirdError::from_source("delete", e))?;
         }
         Command::Watchlist { action, pretty } => match action {
-            WatchlistCommand::Check => {
+            WatchlistCommand::Fetch => {
                 let (limit, _) = clamp_limit(list_flags.limit, 100, 1000);
                 let auth_type = default_auth_type("watchlist_check");
                 watchlist::run_watchlist_check(
@@ -1247,7 +1247,10 @@ fn main() -> ExitCode {
     }
 
     if let Command::Skill { action } = &cli.command {
-        let SkillAction::Install { host, all, dry_run } = *action;
+        let (host, all, dry_run) = match *action {
+            SkillAction::Install { host, all, dry_run }
+            | SkillAction::Update { host, all, dry_run } => (host, all, dry_run),
+        };
         return match skill_install::run(host, dry_run, all) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
@@ -1347,7 +1350,7 @@ fn main() -> ExitCode {
 
     // --- Local watchlist commands: need config/DB but not xurl ---
     if let Command::Watchlist { ref action, pretty } = cli.command
-        && !matches!(action, WatchlistCommand::Check)
+        && !matches!(action, WatchlistCommand::Fetch)
     {
         let quiet = out.suppress_diag();
         let result = match action {
@@ -1384,7 +1387,7 @@ fn main() -> ExitCode {
                 )
                 .map_err(|e| BirdError::from_source("watchlist", e))
             }
-            WatchlistCommand::Check => unreachable!(),
+            WatchlistCommand::Fetch => unreachable!(),
         };
         return match result {
             Ok(()) => ExitCode::SUCCESS,

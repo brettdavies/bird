@@ -29,11 +29,23 @@ pub(crate) struct Cli {
     pub output: Option<OutputFormat>,
 
     /// Shorthand for `--output json`.
-    #[arg(long, global = true, conflicts_with_all = ["output", "jsonl"])]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with_all = ["output", "jsonl"],
+        env = "BIRD_JSON",
+        value_parser = clap::builder::FalseyValueParser::new(),
+    )]
     pub json: bool,
 
     /// Shorthand for `--output jsonl`.
-    #[arg(long, global = true, conflicts_with = "output")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "output",
+        env = "BIRD_JSONL",
+        value_parser = clap::builder::FalseyValueParser::new(),
+    )]
     pub jsonl: bool,
 
     /// Color mode: auto (default), always, never.
@@ -472,6 +484,21 @@ pub(crate) enum SkillAction {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Update the installed bird skill bundle to the embedded version
+    #[command(alias = "upgrade")]
+    Update {
+        /// Target host (default: claude-code). Mutually exclusive with --all
+        #[arg(long, value_enum, conflicts_with = "all")]
+        host: Option<Host>,
+
+        /// Update every supported host in one invocation
+        #[arg(long)]
+        all: bool,
+
+        /// Print the planned destination without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -492,9 +519,12 @@ pub(crate) enum CacheAction {
 
 #[derive(clap::Subcommand, Debug)]
 pub(crate) enum WatchlistCommand {
-    /// Check recent activity for all watched users.
-    #[command(after_help = include_str!("../examples/watchlist-check.txt"))]
-    Check,
+    /// Fetch recent activity for all watched users.
+    #[command(
+        alias = "check",
+        after_help = include_str!("../examples/watchlist-check.txt"),
+    )]
+    Fetch,
     /// Add a user to the watchlist.
     #[command(after_help = include_str!("../examples/watchlist-add.txt"))]
     Add {
