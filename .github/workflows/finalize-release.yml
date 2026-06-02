@@ -9,4 +9,4 @@ permissions:
 
 jobs:
   finalize:
-    uses: brettdavies/.github/.github/workflows/rust-finalize-release.yml@main
+    uses: brettdavies/.github/.github/workflows/rust-finalize-release.yml@469eb204a6d9e88af0f1e2d27c40b45136810344 # main as of 2026-05-30
