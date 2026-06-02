@@ -1,0 +1,5 @@
+Examples:
+  bird completions zsh > ~/.zsh/completions/_bird          # zsh completion script
+  bird completions bash > /etc/bash_completion.d/bird      # system-wide bash
+  bird completions fish > ~/.config/fish/completions/bird.fish
+  bird completions powershell > $PROFILE.bird.ps1

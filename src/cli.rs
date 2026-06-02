@@ -10,7 +10,12 @@ use clap::Parser;
 pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Parser, Debug)]
-#[command(name = "bird", about = "X API CLI", version)]
+#[command(
+    name = "bird",
+    about = "X API CLI",
+    version,
+    after_help = include_str!("../examples/top-level.txt")
+)]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -101,12 +106,14 @@ pub(crate) struct Cli {
 #[derive(clap::Subcommand, Debug)]
 pub(crate) enum Command {
     /// Authenticate via xurl (OAuth2 PKCE browser flow).
+    #[command(after_help = include_str!("../examples/login.txt"))]
     Login {
         #[command(flatten)]
         headless: crate::login::HeadlessAuthArgs,
     },
 
     /// Show current user (GET /2/users/me).
+    #[command(after_help = include_str!("../examples/me.txt"))]
     Me {
         /// Human-readable output.
         #[arg(long)]
@@ -114,6 +121,7 @@ pub(crate) enum Command {
     },
 
     /// GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123).
+    #[command(after_help = include_str!("../examples/get.txt"))]
     Get {
         path: String,
         #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
@@ -125,6 +133,7 @@ pub(crate) enum Command {
     },
 
     /// POST request to path.
+    #[command(after_help = include_str!("../examples/post.txt"))]
     Post {
         path: String,
         #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
@@ -138,6 +147,7 @@ pub(crate) enum Command {
     },
 
     /// PUT request to path.
+    #[command(after_help = include_str!("../examples/put.txt"))]
     Put {
         path: String,
         #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
@@ -151,12 +161,14 @@ pub(crate) enum Command {
     },
 
     /// List bookmarks for the current user (paginated, max_results=100).
+    #[command(after_help = include_str!("../examples/bookmarks.txt"))]
     Bookmarks {
         #[arg(long)]
         pretty: bool,
     },
 
     /// Look up a user profile by username.
+    #[command(after_help = include_str!("../examples/profile.txt"))]
     Profile {
         /// X/Twitter username (with or without @).
         username: String,
@@ -166,6 +178,7 @@ pub(crate) enum Command {
     },
 
     /// Search recent tweets (GET /2/tweets/search/recent).
+    #[command(after_help = include_str!("../examples/search.txt"))]
     Search {
         /// Search query (X API search syntax).
         query: String,
@@ -192,6 +205,7 @@ pub(crate) enum Command {
     },
 
     /// Reconstruct a conversation thread from a tweet.
+    #[command(after_help = include_str!("../examples/thread.txt"))]
     Thread {
         /// Tweet ID (root tweet or any reply in the thread).
         tweet_id: String,
@@ -204,6 +218,7 @@ pub(crate) enum Command {
     },
 
     /// DELETE request to path.
+    #[command(after_help = include_str!("../examples/delete.txt"))]
     Delete {
         path: String,
         #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
@@ -215,6 +230,7 @@ pub(crate) enum Command {
     },
 
     /// Monitor users: check recent activity, manage watchlist.
+    #[command(after_help = include_str!("../examples/watchlist.txt"))]
     Watchlist {
         #[command(subcommand)]
         action: WatchlistCommand,
@@ -224,6 +240,7 @@ pub(crate) enum Command {
     },
 
     /// View API usage and costs.
+    #[command(after_help = include_str!("../examples/usage.txt"))]
     Usage {
         /// Show usage since this date (YYYY-MM-DD; default: 30 days ago).
         #[arg(long)]
@@ -237,6 +254,7 @@ pub(crate) enum Command {
     },
 
     /// Post a tweet (via xurl).
+    #[command(after_help = include_str!("../examples/tweet.txt"))]
     Tweet {
         /// Tweet text.
         text: String,
@@ -246,6 +264,7 @@ pub(crate) enum Command {
     },
 
     /// Reply to a tweet (via xurl).
+    #[command(after_help = include_str!("../examples/reply.txt"))]
     Reply {
         /// Tweet ID to reply to.
         tweet_id: String,
@@ -254,42 +273,49 @@ pub(crate) enum Command {
     },
 
     /// Like a tweet (via xurl).
+    #[command(after_help = include_str!("../examples/like.txt"))]
     Like {
         /// Tweet ID to like.
         tweet_id: String,
     },
 
     /// Unlike a tweet (via xurl).
+    #[command(after_help = include_str!("../examples/unlike.txt"))]
     Unlike {
         /// Tweet ID to unlike.
         tweet_id: String,
     },
 
     /// Repost (retweet) a tweet (via xurl).
+    #[command(after_help = include_str!("../examples/repost.txt"))]
     Repost {
         /// Tweet ID to repost.
         tweet_id: String,
     },
 
     /// Undo a repost (via xurl).
+    #[command(after_help = include_str!("../examples/unrepost.txt"))]
     Unrepost {
         /// Tweet ID to unrepost.
         tweet_id: String,
     },
 
     /// Follow a user (via xurl).
+    #[command(after_help = include_str!("../examples/follow.txt"))]
     Follow {
         /// Username to follow.
         username: String,
     },
 
     /// Unfollow a user (via xurl).
+    #[command(after_help = include_str!("../examples/unfollow.txt"))]
     Unfollow {
         /// Username to unfollow.
         username: String,
     },
 
     /// Send a direct message (via xurl).
+    #[command(after_help = include_str!("../examples/dm.txt"))]
     Dm {
         /// Username to message.
         username: String,
@@ -298,30 +324,35 @@ pub(crate) enum Command {
     },
 
     /// Block a user (via xurl).
+    #[command(after_help = include_str!("../examples/block.txt"))]
     Block {
         /// Username to block.
         username: String,
     },
 
     /// Unblock a user (via xurl).
+    #[command(after_help = include_str!("../examples/unblock.txt"))]
     Unblock {
         /// Username to unblock.
         username: String,
     },
 
     /// Mute a user (via xurl).
+    #[command(after_help = include_str!("../examples/mute.txt"))]
     Mute {
         /// Username to mute.
         username: String,
     },
 
     /// Unmute a user (via xurl).
+    #[command(after_help = include_str!("../examples/unmute.txt"))]
     Unmute {
         /// Username to unmute.
         username: String,
     },
 
     /// Show what is available: xurl status, commands, and entity store health.
+    #[command(after_help = include_str!("../examples/doctor.txt"))]
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get).
         command: Option<String>,
@@ -330,12 +361,14 @@ pub(crate) enum Command {
     },
 
     /// Manage the HTTP response cache.
+    #[command(after_help = include_str!("../examples/cache.txt"))]
     Cache {
         #[command(subcommand)]
         action: CacheAction,
     },
 
     /// Generate shell completions.
+    #[command(after_help = include_str!("../examples/completions.txt"))]
     Completions {
         /// Shell to generate completions for.
         #[arg(value_enum)]
@@ -374,8 +407,10 @@ pub(crate) enum SkillAction {
 #[derive(clap::Subcommand, Debug)]
 pub(crate) enum CacheAction {
     /// Delete all cache entries.
+    #[command(after_help = include_str!("../examples/cache-clear.txt"))]
     Clear,
     /// Show cache status (JSON default, --pretty for human-readable).
+    #[command(after_help = include_str!("../examples/cache-stats.txt"))]
     Stats {
         #[arg(long)]
         pretty: bool,
@@ -385,18 +420,22 @@ pub(crate) enum CacheAction {
 #[derive(clap::Subcommand, Debug)]
 pub(crate) enum WatchlistCommand {
     /// Check recent activity for all watched users.
+    #[command(after_help = include_str!("../examples/watchlist-check.txt"))]
     Check,
     /// Add a user to the watchlist.
+    #[command(after_help = include_str!("../examples/watchlist-add.txt"))]
     Add {
         /// X/Twitter username (with or without @).
         username: String,
     },
     /// Remove a user from the watchlist.
+    #[command(after_help = include_str!("../examples/watchlist-remove.txt"))]
     Remove {
         /// X/Twitter username to remove.
         username: String,
     },
     /// Show the current watchlist.
+    #[command(after_help = include_str!("../examples/watchlist-list.txt"))]
     List,
 }
 

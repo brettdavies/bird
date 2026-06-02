@@ -1,0 +1,3 @@
+Examples:
+  bird unlike 1734567890123456789                          # unlike a tweet
+  bird unlike 1734567890123456789 --output json            # paired JSON

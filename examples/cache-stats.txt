@@ -1,0 +1,4 @@
+Examples:
+  bird cache stats                                         # human-readable status
+  bird cache stats --output json                           # paired JSON
+  bird cache stats --pretty

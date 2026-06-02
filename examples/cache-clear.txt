@@ -1,0 +1,3 @@
+Examples:
+  bird cache clear                                         # delete every cached entry
+  bird cache clear --output json                           # paired JSON

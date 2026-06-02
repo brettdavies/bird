@@ -486,3 +486,142 @@ fn login_headless_alias_parses() {
     let code = output.status.code().unwrap_or(0);
     assert_ne!(code, 2, "clap usage error: --headless alias not recognized");
 }
+
+/// `bird --help` carries a top-level `Examples:` block with at least one
+/// text + `--output json` paired invocation.
+#[test]
+fn top_level_help_has_paired_examples() {
+    let output = bird().arg("--help").output().unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Examples:"),
+        "top-level --help missing 'Examples:' section"
+    );
+    assert!(
+        stdout.contains("--output json"),
+        "top-level --help missing a `--output json` example"
+    );
+}
+
+/// Every subcommand's `--help` must include an example invocation line
+/// (matches anc's p3-must-subcommand-examples detection rules).
+#[test]
+fn every_subcommand_help_has_example() {
+    let subcommands = [
+        "login",
+        "me",
+        "get",
+        "post",
+        "put",
+        "bookmarks",
+        "profile",
+        "search",
+        "thread",
+        "delete",
+        "watchlist",
+        "usage",
+        "tweet",
+        "reply",
+        "like",
+        "unlike",
+        "repost",
+        "unrepost",
+        "follow",
+        "unfollow",
+        "dm",
+        "block",
+        "unblock",
+        "mute",
+        "unmute",
+        "doctor",
+        "cache",
+        "completions",
+        "skill",
+    ];
+    for sub in subcommands {
+        let output = bird().args([sub, "--help"]).output().unwrap();
+        assert!(
+            output.status.success(),
+            "`bird {sub} --help` failed to exit zero"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let has_marker = stdout.contains("Examples:")
+            || stdout.contains("EXAMPLES")
+            || stdout
+                .lines()
+                .any(|l| l.trim_start().starts_with("bird ") || l.trim_start().starts_with("$ "));
+        assert!(
+            has_marker,
+            "`bird {sub} --help` missing example marker; got:\n{stdout}"
+        );
+    }
+}
+
+/// Nested subcommands also need their own example blocks (anc walks each).
+#[test]
+fn nested_subcommand_help_has_example() {
+    let nested = [
+        ("watchlist", "check"),
+        ("watchlist", "add"),
+        ("watchlist", "remove"),
+        ("watchlist", "list"),
+        ("cache", "clear"),
+        ("cache", "stats"),
+    ];
+    for (outer, inner) in nested {
+        let output = bird().args([outer, inner, "--help"]).output().unwrap();
+        assert!(
+            output.status.success(),
+            "`bird {outer} {inner} --help` failed"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let has_marker = stdout.contains("Examples:")
+            || stdout.contains("EXAMPLES")
+            || stdout
+                .lines()
+                .any(|l| l.trim_start().starts_with("bird ") || l.trim_start().starts_with("$ "));
+        assert!(
+            has_marker,
+            "`bird {outer} {inner} --help` missing example marker"
+        );
+    }
+}
+
+/// `bird --examples -o text` prints the curated block and exits zero.
+#[test]
+fn examples_flag_prints_block() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["--examples", "--output", "text"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "--examples must exit zero");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Examples:"));
+    assert!(stdout.contains("bird me"));
+    assert!(stdout.contains("--output json"));
+}
+
+/// `bird --examples --output json` emits a JSON envelope listing commands.
+#[test]
+fn examples_flag_json_envelope() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["--examples", "--output", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let val: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("--examples --output json must emit JSON");
+    let data = val.get("data").expect("envelope must have data");
+    let arr = data.as_array().expect("data must be an array");
+    assert!(!arr.is_empty(), "examples data array must be non-empty");
+    assert!(
+        arr.iter()
+            .any(|v| v.as_str().is_some_and(|s| s.starts_with("bird "))),
+        "every example should start with `bird `"
+    );
+    assert!(val.get("meta").is_some(), "envelope must have meta");
+}

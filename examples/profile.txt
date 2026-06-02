@@ -1,0 +1,5 @@
+Examples:
+  bird profile jack                       # look up @jack (text)
+  bird profile jack --output json         # paired JSON
+  bird profile elonmusk --pretty
+  bird profile @naval                     # leading @ tolerated

@@ -1,0 +1,3 @@
+Examples:
+  bird unmute noisyuser                                    # unmute a user
+  bird unmute noisyuser --output json                      # paired JSON

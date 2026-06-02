@@ -1,0 +1,6 @@
+Examples:
+  bird watchlist check                    # poll watched users (text)
+  bird watchlist check --output json      # paired JSON
+  bird watchlist add jack                 # add @jack to watchlist
+  bird watchlist remove elonmusk          # remove a user
+  bird watchlist list --pretty            # show current watchlist

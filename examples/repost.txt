@@ -1,0 +1,3 @@
+Examples:
+  bird repost 1734567890123456789                          # repost (retweet)
+  bird repost 1734567890123456789 --output json            # paired JSON

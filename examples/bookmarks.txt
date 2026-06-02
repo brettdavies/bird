@@ -1,0 +1,6 @@
+Examples:
+  bird bookmarks                          # human-readable bookmarks list
+  bird bookmarks --output json            # machine-readable (paired)
+  bird bookmarks --pretty                 # pretty-printed JSON
+  bird bookmarks --output jsonl           # one record per line
+  BIRD_OUTPUT=json bird bookmarks         # env-driven JSON
