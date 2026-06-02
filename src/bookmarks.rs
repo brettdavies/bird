@@ -7,13 +7,24 @@ use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
 
+/// Options bundle for `bird bookmarks` (keeps the public signature stable as
+/// flags are added).
+pub struct BookmarkOpts<'a> {
+    pub pretty: bool,
+    /// Maximum results per upstream page (X API caps `max_results` at 100).
+    pub limit: u32,
+    /// Optional pagination cursor that maps to X API `pagination_token`.
+    pub cursor: Option<&'a str>,
+}
+
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
 pub fn run_bookmarks(
     client: &mut BirdClient,
-    pretty: bool,
+    opts: BookmarkOpts<'_>,
     use_color: bool,
     quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let pretty = opts.pretty;
     // Bookmarks require OAuth2 user context
     let auth_type = AuthType::OAuth2User;
     let ctx = RequestContext {
@@ -52,10 +63,17 @@ pub fn run_bookmarks(
         .unwrap_or("")
         .to_string();
 
-    let mut pagination_token: Option<String> = None;
+    let mut pagination_token: Option<String> = opts.cursor.map(|s| s.to_string());
     let mut first_item = true;
     let mut bookmark_rows: Vec<BookmarkRow> = Vec::new();
     let mut position: i64 = 0;
+    // X API caps `max_results` at 100; clamp here so callers can pass any value.
+    let max_results = opts.limit.clamp(1, 100);
+    // Stop after this many items so `--limit` bounds the response, not just
+    // the per-page page size.
+    let limit_cap: usize = opts.limit as usize;
+    let mut emitted = 0usize;
+    let mut next_cursor: Option<String> = None;
 
     // Open the JSON array wrapper
     if pretty {
@@ -71,7 +89,7 @@ pub fn run_bookmarks(
                     .expect("invariant: bookmarks endpoint URL is well-formed");
             {
                 let mut pairs = u.query_pairs_mut();
-                pairs.append_pair("max_results", "100");
+                pairs.append_pair("max_results", &max_results.to_string());
                 for (key, value) in fields::tweet_query_params() {
                     pairs.append_pair(key, value);
                 }
@@ -97,6 +115,9 @@ pub fn run_bookmarks(
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {
+                if limit_cap > 0 && emitted >= limit_cap {
+                    break;
+                }
                 if !first_item {
                     if pretty {
                         crate::out_println!(",");
@@ -113,7 +134,7 @@ pub fn run_bookmarks(
                 } else {
                     crate::out_print!("{}", serde_json::to_string(item)?);
                 }
-                // Accumulate bookmark relationships for storage
+                emitted += 1;
                 if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
                     bookmark_rows.push(BookmarkRow {
                         username: me_username.clone(),
@@ -130,6 +151,10 @@ pub fn run_bookmarks(
             .and_then(|m| m.get("next_token"))
             .and_then(|t| t.as_str())
             .map(String::from);
+        if limit_cap > 0 && emitted >= limit_cap {
+            next_cursor.clone_from(&pagination_token);
+            break;
+        }
         if pagination_token.is_none() {
             break;
         }
@@ -144,8 +169,19 @@ pub fn run_bookmarks(
         diag!(quiet, "[store] warning: bookmark storage failed: {e}");
     }
 
-    // Close the JSON array wrapper
-    if pretty {
+    // Close the JSON array wrapper, appending a meta block when there is a
+    // next cursor so agents can paginate without re-scanning.
+    if let Some(ref tok) = next_cursor {
+        if pretty {
+            crate::out_println!("\n  ],");
+            crate::out_println!("  \"meta\": {{ \"next_cursor\": {:?} }}", tok);
+            crate::out_println!("}}");
+        } else {
+            crate::out_print!("],\"meta\":{{\"next_cursor\":");
+            crate::out_print!("{}", serde_json::to_string(tok)?);
+            crate::out_println!("}}}}");
+        }
+    } else if pretty {
         crate::out_println!("\n  ]\n}}");
     } else {
         crate::out_println!("]}}");

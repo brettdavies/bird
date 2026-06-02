@@ -41,12 +41,197 @@ fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
     m
 }
 
+/// Returns true if this command will spawn xurl during normal execution.
+/// Skips the eager xurl presence check for:
+///   - Local-only commands (Cache, Watchlist Add/Remove/List)
+///   - `--dry-run` invocations (we print the would-be call and exit)
+///   - Destructive commands without `--force`/`--yes` in non-TTY context —
+///     `require_confirmation` will refuse first with a usage error, no xurl needed
+fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: bool) -> bool {
+    use cli::{CacheAction, WatchlistCommand, WriteGuard};
+    // For write-guarded commands: if guard would refuse (no force/yes, no dry-run,
+    // and the caller can't confirm interactively), xurl is never invoked.
+    let guard_proceeds = |g: &WriteGuard| -> bool {
+        if g.dry_run {
+            return false;
+        }
+        if g.force {
+            return true;
+        }
+        stdin_is_tty && !no_interactive
+    };
+    match cmd {
+        // Local-only: never call xurl.
+        Command::Cache { action } => match action {
+            CacheAction::Clear { guard } => guard_proceeds(guard),
+            CacheAction::Stats { .. } => false,
+        },
+        Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Check),
+        // Pre-dispatched in main(); never reach run().
+        Command::Login { .. }
+        | Command::Completions { .. }
+        | Command::Schema { .. }
+        | Command::Skill { .. } => false,
+        // Diagnostic: doctor probes xurl itself but should not gate on absence.
+        Command::Doctor { .. } => false,
+        // Write commands — gate fires only when the command will actually run.
+        Command::Delete { guard, .. }
+        | Command::Post { guard, .. }
+        | Command::Put { guard, .. }
+        | Command::Tweet { guard, .. }
+        | Command::Reply { guard, .. }
+        | Command::Like { guard, .. }
+        | Command::Unlike { guard, .. }
+        | Command::Repost { guard, .. }
+        | Command::Unrepost { guard, .. }
+        | Command::Follow { guard, .. }
+        | Command::Unfollow { guard, .. }
+        | Command::Dm { guard, .. }
+        | Command::Block { guard, .. }
+        | Command::Unblock { guard, .. }
+        | Command::Mute { guard, .. }
+        | Command::Unmute { guard, .. } => guard_proceeds(guard),
+        // Read-only network commands with no guard.
+        Command::Me { .. }
+        | Command::Get { .. }
+        | Command::Bookmarks { .. }
+        | Command::Profile { .. }
+        | Command::Search { .. }
+        | Command::Thread { .. }
+        | Command::Usage { .. } => true,
+    }
+}
+
 /// Resolve the default auth type for a command name using requirements.rs.
 /// Returns the first accepted auth type for the command.
 fn default_auth_type(command_name: &str) -> requirements::AuthType {
     requirements::requirements_for_command(command_name)
         .and_then(|r| r.accepted.first().copied())
         .unwrap_or(requirements::AuthType::OAuth2User)
+}
+
+/// Outcome of a write-guard check (--dry-run / --force / TTY confirmation).
+enum GuardOutcome {
+    /// The user supplied `--dry-run`; the would-be request was emitted and the
+    /// command should exit without invoking the API.
+    DryRun,
+    /// Confirmation satisfied (via `--force`/`--yes` or interactive `y`);
+    /// the command should proceed.
+    Proceed,
+}
+
+/// Apply the `--force` / `--yes` / `--dry-run` policy for a mutating command.
+///
+/// Order of evaluation: `--dry-run` short-circuits (prints the would-be effect
+/// and returns `GuardOutcome::DryRun`). Otherwise, when neither `--force` nor
+/// `--yes` is set, we either prompt on a TTY or return a `requires-confirmation`
+/// usage error.
+fn require_confirmation(
+    verb: &str,
+    method: &str,
+    target: &str,
+    body: Option<&serde_json::Value>,
+    guard: crate::cli::WriteGuard,
+    out: &OutputConfig,
+    no_interactive: bool,
+) -> Result<GuardOutcome, BirdError> {
+    if guard.dry_run {
+        emit_dry_run(verb, method, target, body, out);
+        return Ok(GuardOutcome::DryRun);
+    }
+    if guard.force {
+        return Ok(GuardOutcome::Proceed);
+    }
+    let stdin_tty = std::io::stdin().is_terminal();
+    if !stdin_tty || no_interactive {
+        return Err(BirdError::usage(
+            "requires-confirmation",
+            format!(
+                "destructive operation '{}' requires --force, --yes, or interactive confirmation",
+                verb
+            ),
+        ));
+    }
+    eprint!("About to {} {} {}. Proceed? [y/N] ", verb, method, target);
+    use std::io::Write;
+    let _ = std::io::stderr().flush();
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line).is_err() {
+        return Err(BirdError::usage(
+            "requires-confirmation",
+            "failed to read confirmation from stdin".to_string(),
+        ));
+    }
+    let trimmed = line.trim();
+    if trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes") {
+        Ok(GuardOutcome::Proceed)
+    } else {
+        Err(BirdError::usage(
+            "user-aborted",
+            "aborted by user (confirmation declined)".to_string(),
+        ))
+    }
+}
+
+/// Emit the dry-run envelope (JSON) or human line (text) on stdout.
+fn emit_dry_run(
+    verb: &str,
+    method: &str,
+    target: &str,
+    body: Option<&serde_json::Value>,
+    out: &OutputConfig,
+) {
+    if out.format.is_json() {
+        let mut would = serde_json::json!({
+            "method": method,
+            "url": target,
+        });
+        if let Some(b) = body {
+            would["body"] = b.clone();
+        }
+        let data = serde_json::json!({"dry_run": true, "would": would, "verb": verb});
+        let meta = serde_json::json!({});
+        if let Ok(line) = output::success_envelope_string(&data, &meta) {
+            crate::out_println!("{}", line);
+            return;
+        }
+    }
+    crate::out_println!("Would {}: {} {}", verb, method, target);
+    if let Some(b) = body {
+        crate::out_println!("Body: {}", b);
+    }
+    crate::out_println!("(--dry-run; no request sent)");
+}
+
+/// Build the effective absolute URL for dry-run preview output.
+/// Mirrors the path/query handling in `raw::run_raw` without performing any
+/// transport-layer work. Returns `None` when the URL cannot be assembled, in
+/// which case callers should fall back to the raw input path.
+fn build_dry_run_url(
+    path: &str,
+    params: &HashMap<String, String>,
+    query: &[String],
+) -> Option<String> {
+    let resolved = schema::resolve_path(path, params).ok()?;
+    let mut url = url::Url::parse(&format!("https://api.x.com{}", resolved)).ok()?;
+    for q in query {
+        if let Some((k, v)) = q.split_once('=') {
+            url.query_pairs_mut().append_pair(k, v);
+        }
+    }
+    Some(url.to_string())
+}
+
+/// Clamp a list `--limit` value to a per-command ceiling, mirroring U4 plan
+/// semantics (default 100, max 1000). Returns the clamped value plus a flag
+/// indicating whether the requested limit was reduced.
+fn clamp_limit(requested: Option<u32>, default: u32, ceiling: u32) -> (u32, bool) {
+    match requested {
+        Some(n) if n > ceiling => (ceiling, true),
+        Some(0) => (default, false),
+        Some(n) => (n, false),
+        None => (default, false),
+    }
 }
 
 /// Call xurl for a write command and print the JSON result.
@@ -79,12 +264,23 @@ fn xurl_write(
     f().map_err(|e| BirdError::from_source(name, e))
 }
 
+/// List-pagination options resolved from the global `--limit` / `--cursor`
+/// flags. Threaded through `run()` so per-subcommand handlers don't need
+/// to re-parse the global CLI struct.
+#[derive(Clone, Debug, Default)]
+struct ListFlags {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
 fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     out: &OutputConfig,
     cache_only: bool,
+    no_interactive: bool,
+    list_flags: ListFlags,
 ) -> Result<(), BirdError> {
     let use_color = out.use_color;
     let quiet = out.suppress_diag();
@@ -127,8 +323,18 @@ fn run(
             .map_err(|e| BirdError::from_source("me", e))?;
         }
         Command::Bookmarks { pretty } => {
-            bookmarks::run_bookmarks(client, pretty, use_color, quiet)
-                .map_err(|e| BirdError::from_source("bookmarks", e))?;
+            let (limit, _) = clamp_limit(list_flags.limit, 100, 1000);
+            bookmarks::run_bookmarks(
+                client,
+                bookmarks::BookmarkOpts {
+                    pretty,
+                    limit,
+                    cursor: list_flags.cursor.as_deref(),
+                },
+                use_color,
+                quiet,
+            )
+            .map_err(|e| BirdError::from_source("bookmarks", e))?;
         }
         Command::Profile { username, pretty } => {
             let auth_type = default_auth_type("profile");
@@ -153,13 +359,17 @@ fn run(
             pages,
         } => {
             let auth_type = default_auth_type("search");
+            // `--limit` is the canonical agent-facing flag; `--max-results` is kept
+            // as the per-page Twitter-API knob. When both are set, `--limit` wins.
+            let resolved_max = list_flags.limit.or(max_results);
             let opts = search::SearchOpts {
                 query: &query,
                 pretty,
                 sort: &sort,
                 min_likes,
-                max_results: max_results.unwrap_or(100).clamp(10, 100),
+                max_results: resolved_max.unwrap_or(100).clamp(10, 100),
                 pages: pages.unwrap_or(1).clamp(1, 10),
+                cursor: list_flags.cursor.as_deref(),
             };
             search::run_search(client, opts, use_color, quiet, &auth_type)
                 .map_err(|e| BirdError::from_source("search", e))?;
@@ -190,6 +400,14 @@ fn run(
             pretty,
         } => {
             let params = parse_param_vec(&param);
+            let mut query = query;
+            if let Some(ref tok) = list_flags.cursor {
+                query.push(format!("pagination_token={}", tok));
+            }
+            if let Some(n) = list_flags.limit {
+                let (clamped, _) = clamp_limit(Some(n), 100, 1000);
+                query.push(format!("max_results={}", clamped));
+            }
             let auth_type = default_auth_type("get");
             raw::run_raw(
                 client, "GET", &path, &params, &query, None, pretty, use_color, quiet, &auth_type,
@@ -202,8 +420,24 @@ fn run(
             query,
             body,
             pretty,
+            guard,
         } => {
             let params = parse_param_vec(&param);
+            let target = build_dry_run_url(&path, &params, &query)
+                .unwrap_or_else(|| format!("https://api.x.com{}", path));
+            let body_json = body.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            match require_confirmation(
+                "POST",
+                "POST",
+                &target,
+                body_json.as_ref(),
+                guard,
+                out,
+                no_interactive,
+            )? {
+                GuardOutcome::DryRun => return Ok(()),
+                GuardOutcome::Proceed => {}
+            }
             let auth_type = default_auth_type("post");
             raw::run_raw(
                 client,
@@ -225,8 +459,24 @@ fn run(
             query,
             body,
             pretty,
+            guard,
         } => {
             let params = parse_param_vec(&param);
+            let target = build_dry_run_url(&path, &params, &query)
+                .unwrap_or_else(|| format!("https://api.x.com{}", path));
+            let body_json = body.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            match require_confirmation(
+                "PUT",
+                "PUT",
+                &target,
+                body_json.as_ref(),
+                guard,
+                out,
+                no_interactive,
+            )? {
+                GuardOutcome::DryRun => return Ok(()),
+                GuardOutcome::Proceed => {}
+            }
             let auth_type = default_auth_type("put");
             raw::run_raw(
                 client,
@@ -247,8 +497,23 @@ fn run(
             param,
             query,
             pretty,
+            guard,
         } => {
             let params = parse_param_vec(&param);
+            let target = build_dry_run_url(&path, &params, &query)
+                .unwrap_or_else(|| format!("https://api.x.com{}", path));
+            match require_confirmation(
+                "delete",
+                "DELETE",
+                &target,
+                None,
+                guard,
+                out,
+                no_interactive,
+            )? {
+                GuardOutcome::DryRun => return Ok(()),
+                GuardOutcome::Proceed => {}
+            }
             let auth_type = default_auth_type("delete");
             raw::run_raw(
                 client, "DELETE", &path, &params, &query, None, pretty, use_color, quiet,
@@ -258,9 +523,19 @@ fn run(
         }
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Check => {
+                let (limit, _) = clamp_limit(list_flags.limit, 100, 1000);
                 let auth_type = default_auth_type("watchlist_check");
                 watchlist::run_watchlist_check(
-                    client, &config, pretty, use_color, quiet, &auth_type,
+                    client,
+                    &config,
+                    watchlist::CheckOpts {
+                        pretty,
+                        limit,
+                        cursor: list_flags.cursor.as_deref(),
+                    },
+                    use_color,
+                    quiet,
+                    &auth_type,
                 )
                 .map_err(|e| BirdError::from_source("watchlist", e))?;
             }
@@ -268,13 +543,33 @@ fn run(
                 watchlist::run_watchlist_add(&config, &username, quiet)
                     .map_err(BirdError::config)?;
             }
-            WatchlistCommand::Remove { username } => {
+            WatchlistCommand::Remove { username, guard } => {
+                let target = format!("watchlist:@{}", username);
+                match require_confirmation(
+                    "remove",
+                    "LOCAL",
+                    &target,
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )? {
+                    GuardOutcome::DryRun => return Ok(()),
+                    GuardOutcome::Proceed => {}
+                }
                 watchlist::run_watchlist_remove(&config, &username, quiet)
                     .map_err(BirdError::config)?;
             }
             WatchlistCommand::List => {
-                watchlist::run_watchlist_list(&config, pretty, quiet)
-                    .map_err(|e| BirdError::from_source("watchlist", e))?;
+                let (limit, _) = clamp_limit(list_flags.limit, 1000, 10_000);
+                watchlist::run_watchlist_list(
+                    &config,
+                    pretty,
+                    quiet,
+                    Some(limit),
+                    list_flags.cursor.as_deref(),
+                )
+                .map_err(|e| BirdError::from_source("watchlist", e))?;
             }
         },
         Command::Usage {
@@ -286,7 +581,26 @@ fn run(
                 .map_err(|e| BirdError::from_source("usage", e))?;
         }
         // -- Write commands (xurl passthrough) --
-        Command::Tweet { text, media_id } => {
+        Command::Tweet {
+            text,
+            media_id,
+            guard,
+        } => {
+            let body = serde_json::json!({"text": text, "media_id": media_id});
+            if matches!(
+                require_confirmation(
+                    "tweet",
+                    "POST",
+                    "https://api.x.com/2/tweets",
+                    Some(&body),
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "tweet", || {
                 let mut args = vec!["post", &text];
@@ -298,43 +612,158 @@ fn run(
                 xurl_write_call(&args, username)
             })?;
         }
-        Command::Reply { tweet_id, text } => {
+        Command::Reply {
+            tweet_id,
+            text,
+            guard,
+        } => {
+            let body = serde_json::json!({"text": text, "reply_to": tweet_id});
+            if matches!(
+                require_confirmation(
+                    "reply",
+                    "POST",
+                    &format!("https://api.x.com/2/tweets (reply to {})", tweet_id),
+                    Some(&body),
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "reply", || {
                 xurl_write_call(&["reply", &tweet_id, &text], username)
             })?;
         }
-        Command::Like { tweet_id } => {
+        Command::Like { tweet_id, guard } => {
+            if matches!(
+                require_confirmation(
+                    "like",
+                    "POST",
+                    &format!("https://api.x.com/2/users/me/likes/{}", tweet_id),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "like", || {
                 xurl_write_call(&["like", &tweet_id], username)
             })?;
         }
-        Command::Unlike { tweet_id } => {
+        Command::Unlike { tweet_id, guard } => {
+            if matches!(
+                require_confirmation(
+                    "unlike",
+                    "DELETE",
+                    &format!("https://api.x.com/2/users/me/likes/{}", tweet_id),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "unlike", || {
                 xurl_write_call(&["unlike", &tweet_id], username)
             })?;
         }
-        Command::Repost { tweet_id } => {
+        Command::Repost { tweet_id, guard } => {
+            if matches!(
+                require_confirmation(
+                    "repost",
+                    "POST",
+                    &format!("https://api.x.com/2/users/me/retweets/{}", tweet_id),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "repost", || {
                 xurl_write_call(&["repost", &tweet_id], username)
             })?;
         }
-        Command::Unrepost { tweet_id } => {
+        Command::Unrepost { tweet_id, guard } => {
+            if matches!(
+                require_confirmation(
+                    "unrepost",
+                    "DELETE",
+                    &format!("https://api.x.com/2/users/me/retweets/{}", tweet_id),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "unrepost", || {
                 xurl_write_call(&["unrepost", &tweet_id], username)
             })?;
         }
-        Command::Follow { username: target } => {
+        Command::Follow {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "follow",
+                    "POST",
+                    &format!(
+                        "https://api.x.com/2/users/me/following (target=@{})",
+                        target
+                    ),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "follow", || {
                 xurl_write_call(&["follow", &target], username)
             })?;
         }
-        Command::Unfollow { username: target } => {
+        Command::Unfollow {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "unfollow",
+                    "DELETE",
+                    &format!(
+                        "https://api.x.com/2/users/me/following (target=@{})",
+                        target
+                    ),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "unfollow", || {
                 xurl_write_call(&["unfollow", &target], username)
@@ -343,31 +772,118 @@ fn run(
         Command::Dm {
             username: target,
             text,
+            guard,
         } => {
+            let body = serde_json::json!({"to": target, "text": text});
+            if matches!(
+                require_confirmation(
+                    "dm",
+                    "POST",
+                    &format!(
+                        "https://api.x.com/2/dm_conversations/with/@{}/messages",
+                        target
+                    ),
+                    Some(&body),
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "dm", || {
                 xurl_write_call(&["dm", &target, &text], username)
             })?;
         }
-        Command::Block { username: target } => {
+        Command::Block {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "block",
+                    "POST",
+                    &format!("https://api.x.com/2/users/me/blocking (target=@{})", target),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "block", || {
                 xurl_write_call(&["block", &target], username)
             })?;
         }
-        Command::Unblock { username: target } => {
+        Command::Unblock {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "unblock",
+                    "DELETE",
+                    &format!("https://api.x.com/2/users/me/blocking (target=@{})", target),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "unblock", || {
                 xurl_write_call(&["unblock", &target], username)
             })?;
         }
-        Command::Mute { username: target } => {
+        Command::Mute {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "mute",
+                    "POST",
+                    &format!("https://api.x.com/2/users/me/muting (target=@{})", target),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "mute", || {
                 xurl_write_call(&["mute", &target], username)
             })?;
         }
-        Command::Unmute { username: target } => {
+        Command::Unmute {
+            username: target,
+            guard,
+        } => {
+            if matches!(
+                require_confirmation(
+                    "unmute",
+                    "DELETE",
+                    &format!("https://api.x.com/2/users/me/muting (target=@{})", target),
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )?,
+                GuardOutcome::DryRun
+            ) {
+                return Ok(());
+            }
             let username = config.username.as_deref();
             xurl_write(cache_only, "unmute", || {
                 xurl_write_call(&["unmute", &target], username)
@@ -386,28 +902,46 @@ fn run(
             unreachable!("schema is handled before config init in main()")
         }
         Command::Cache { action } => match action {
-            CacheAction::Clear => match client.db_clear() {
-                Some(Ok(count)) => {
-                    let stats = client.db_stats().and_then(|r| r.ok());
-                    let size_str =
-                        stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    diag!(
-                        quiet,
-                        "Cleared {} stored entities ({} MB).",
-                        count,
-                        size_str
-                    );
+            CacheAction::Clear { guard } => {
+                let target = client
+                    .db_path()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "<store>".to_string());
+                match require_confirmation(
+                    "clear",
+                    "LOCAL",
+                    &target,
+                    None,
+                    guard,
+                    out,
+                    no_interactive,
+                )? {
+                    GuardOutcome::DryRun => return Ok(()),
+                    GuardOutcome::Proceed => {}
                 }
-                Some(Err(e)) => {
-                    return Err(BirdError::general(
-                        "cache",
-                        format!("failed to clear store: {}", e).into(),
-                    ));
+                match client.db_clear() {
+                    Some(Ok(count)) => {
+                        let stats = client.db_stats().and_then(|r| r.ok());
+                        let size_str =
+                            stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
+                        diag!(
+                            quiet,
+                            "Cleared {} stored entities ({} MB).",
+                            count,
+                            size_str
+                        );
+                    }
+                    Some(Err(e)) => {
+                        return Err(BirdError::general(
+                            "cache",
+                            format!("failed to clear store: {}", e).into(),
+                        ));
+                    }
+                    None => {
+                        diag!(quiet, "Store is not available.");
+                    }
                 }
-                None => {
-                    diag!(quiet, "Store is not available.");
-                }
-            },
+            }
             CacheAction::Stats { pretty } => match client.db_stats() {
                 Some(Ok(stats)) => {
                     let path = client
@@ -820,11 +1354,36 @@ fn main() -> ExitCode {
             WatchlistCommand::Add { username } => {
                 watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::config)
             }
-            WatchlistCommand::Remove { username } => {
-                watchlist::run_watchlist_remove(&config, username, quiet).map_err(BirdError::config)
+            WatchlistCommand::Remove { username, guard } => {
+                let target = format!("watchlist:@{}", username);
+                match require_confirmation(
+                    "remove",
+                    "LOCAL",
+                    &target,
+                    None,
+                    *guard,
+                    &out,
+                    cli.no_interactive,
+                ) {
+                    Ok(GuardOutcome::DryRun) => Ok(()),
+                    Ok(GuardOutcome::Proceed) => {
+                        watchlist::run_watchlist_remove(&config, username, quiet)
+                            .map_err(BirdError::config)
+                    }
+                    Err(e) => Err(e),
+                }
             }
-            WatchlistCommand::List => watchlist::run_watchlist_list(&config, pretty, quiet)
-                .map_err(|e| BirdError::from_source("watchlist", e)),
+            WatchlistCommand::List => {
+                let (limit, _) = clamp_limit(cli.limit, 1000, 10_000);
+                watchlist::run_watchlist_list(
+                    &config,
+                    pretty,
+                    quiet,
+                    Some(limit),
+                    cli.cursor.as_deref(),
+                )
+                .map_err(|e| BirdError::from_source("watchlist", e))
+            }
             WatchlistCommand::Check => unreachable!(),
         };
         return match result {
@@ -836,14 +1395,34 @@ fn main() -> ExitCode {
         };
     }
 
-    // --- xurl gate: only for API commands ---
-    if let Err(e) = transport::resolve_xurl_path() {
+    // --- xurl gate: only for commands that actually spawn xurl ---
+    // Skip when:
+    //   * The command is local-only (Cache, Watchlist Add/Remove/List)
+    //   * --cache-only is set (no network)
+    //   * The command's guard is --dry-run (we print the would-be call and exit)
+    let stdin_is_tty = std::io::stdin().is_terminal();
+    if command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive)
+        && !cli.cache_only
+        && let Err(e) = transport::resolve_xurl_path()
+    {
         let err = BirdError::config(e);
         output::print_error(&err, &out);
         return ExitCode::from(err.exit_code());
     }
 
-    match run(cli.command, config, &mut client, &out, cli.cache_only) {
+    let list_flags = ListFlags {
+        limit: cli.limit,
+        cursor: cli.cursor.clone(),
+    };
+    match run(
+        cli.command,
+        config,
+        &mut client,
+        &out,
+        cli.cache_only,
+        cli.no_interactive,
+        list_flags,
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             output::print_error(&e, &out);
