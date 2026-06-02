@@ -1,7 +1,7 @@
 //! Entity store: SQLite-backed entity storage with usage tracking.
 //! BirdDb is the application database -- entities (tweets, users), bookmarks,
 //! raw responses, and usage data.
-//! Store failures are never fatal: the Option<BirdDb> pattern degrades to API-only mode.
+//! Store failures are never fatal: the `Option<BirdDb>` pattern degrades to API-only mode.
 
 pub mod client;
 #[allow(clippy::module_inception)]
