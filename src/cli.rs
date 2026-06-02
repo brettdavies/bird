@@ -54,7 +54,10 @@ pub(crate) struct Cli {
 #[derive(clap::Subcommand)]
 pub(crate) enum Command {
     /// Authenticate via xurl (OAuth2 PKCE browser flow)
-    Login,
+    Login {
+        #[command(flatten)]
+        headless: crate::login::HeadlessAuthArgs,
+    },
 
     /// Show current user (GET /2/users/me)
     Me {

@@ -446,3 +446,43 @@ fn non_tty_defaults_to_json_errors() {
     let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
     assert_eq!(json["kind"], "config");
 }
+
+// --- Headless login tests ---
+
+#[test]
+fn login_help_advertises_no_browser_flag() {
+    let assert = bird().args(["login", "--help"]).assert().success();
+    let out = assert.get_output();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("--no-browser"),
+        "expected `--no-browser` in `bird login --help`, got: {stdout}",
+    );
+}
+
+#[test]
+fn login_no_browser_parses() {
+    // With closed stdin and an isolated HOME, the command must reach the headless
+    // path and exit non-zero (xurl absent or rejects empty redirect URL) — not a
+    // clap usage error.
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["login", "--no-browser"])
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+    let code = output.status.code().unwrap_or(0);
+    assert_ne!(code, 2, "clap usage error: --no-browser not recognized");
+}
+
+#[test]
+fn login_headless_alias_parses() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["login", "--headless"])
+        .env("NO_COLOR", "1")
+        .output()
+        .unwrap();
+    let code = output.status.code().unwrap_or(0);
+    assert_ne!(code, 2, "clap usage error: --headless alias not recognized");
+}
