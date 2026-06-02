@@ -1,0 +1,5 @@
+Examples:
+  bird post /2/tweets --body '{"text":"hello world"}'
+  bird post /2/tweets --body '{"text":"hi"}' --output json    # paired JSON
+  bird post /2/users/2244994945/following --body '{"target_user_id":"783214"}'
+  bird post /2/tweets --body '{"text":"with media","media":{"media_ids":["123"]}}'

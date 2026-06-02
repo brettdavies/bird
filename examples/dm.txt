@@ -1,0 +1,3 @@
+Examples:
+  bird dm jack "hello from bird"                           # send direct message
+  bird dm jack "thanks" --output json                      # paired JSON

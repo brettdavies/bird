@@ -1,0 +1,4 @@
+Examples:
+  bird watchlist remove jack                        # remove @jack
+  bird watchlist remove jack --output json          # paired JSON
+  bird watchlist remove @elonmusk
