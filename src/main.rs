@@ -13,6 +13,7 @@ mod raw;
 mod requirements;
 mod schema;
 mod search;
+mod skill_install;
 mod thread;
 mod transport;
 mod usage;
@@ -20,7 +21,7 @@ mod watchlist;
 
 use clap::CommandFactory;
 use clap::FromArgMatches;
-use cli::{CacheAction, Cli, Command, WatchlistCommand};
+use cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
 use config::{ArgOverrides, ResolvedConfig};
 use output::{OutputConfig, OutputFormat};
 use std::collections::HashMap;
@@ -468,6 +469,9 @@ fn run(
         Command::Completions { .. } => {
             unreachable!("completions is handled before config init in main()")
         }
+        Command::Skill { .. } => {
+            unreachable!("skill is handled before config init in main()")
+        }
         Command::Cache { action } => match action {
             CacheAction::Clear => match client.db_clear() {
                 Some(Ok(count)) => {
@@ -587,6 +591,21 @@ fn main() -> ExitCode {
     if let Command::Completions { shell } = &cli.command {
         clap_complete::generate(*shell, &mut Cli::command(), "bird", &mut std::io::stdout());
         return ExitCode::SUCCESS;
+    }
+
+    if let Command::Skill { action } = &cli.command {
+        let SkillAction::Install { host, all, dry_run } = action;
+        return match skill_install::run(*host, *dry_run, *all) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                let err = BirdError::Command {
+                    name: "skill",
+                    source: e,
+                };
+                err.print(&out);
+                ExitCode::from(err.exit_code())
+            }
+        };
     }
 
     // --- Username validation + config + DB init (no xurl needed) ---

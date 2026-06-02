@@ -3,6 +3,7 @@
 //! Pure data structures with no runtime behavior. Command dispatch lives in main.rs.
 
 use crate::output::OutputFormat;
+use crate::skill_install::Host;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -289,6 +290,34 @@ pub(crate) enum Command {
         /// Shell to generate completions for
         #[arg(value_enum)]
         shell: clap_complete::Shell,
+    },
+
+    /// Manage the bird agent-skill bundle (install for Claude Code, etc.)
+    #[command(after_help = "Examples:
+  bird skill install
+  bird skill install --host claude-code --dry-run
+  bird skill install --all")]
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+#[derive(clap::Subcommand)]
+pub(crate) enum SkillAction {
+    /// Install the bird skill bundle into a host's canonical skills directory
+    Install {
+        /// Target host (default: claude-code). Mutually exclusive with --all
+        #[arg(long, value_enum, conflicts_with = "all")]
+        host: Option<Host>,
+
+        /// Install into every supported host in one invocation
+        #[arg(long)]
+        all: bool,
+
+        /// Print the planned destination without writing
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
