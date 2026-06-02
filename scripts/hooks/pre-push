@@ -15,6 +15,12 @@ fail() { echo -e "  ${RED}✗${RESET} $1"; exit 1; }
 
 echo -e "${BOLD}Running local CI checks...${RESET}"
 
+# The toolchain is pinned in rust-toolchain.toml — both local and CI read the same file
+# and install the same version. Rustup verifies component SHA256s from the distribution
+# manifest, so the pin is effectively a SHA pin. No `rustup update` step here: bumping
+# the toolchain is a reviewed PR that updates rust-toolchain.toml.
+pass "toolchain ($(rustc --version 2>/dev/null | awk '{print $2}' || echo unknown))"
+
 # 1. Format check
 cargo fmt -- --check 2>/dev/null || fail "cargo fmt -- --check"
 pass "fmt"
@@ -27,7 +33,27 @@ pass "clippy"
 cargo test --quiet 2>&1 || fail "cargo test"
 pass "test"
 
-# 4. Security audit (licenses + advisories) — skip if cargo-deny not installed
+# 4. MSRV check — verify the codebase still compiles against the rust-version
+# declared in Cargo.toml. Validates the declared MSRV promise so consumers on
+# the MSRV still see a working crate. Requires the MSRV toolchain installed
+# (`rustup toolchain install <msrv>`); skips with a hint otherwise.
+msrv=$(awk -F\" '/^rust-version *= *"/ {print $2; exit}' Cargo.toml 2>/dev/null || echo "")
+if [ -n "$msrv" ] && rustup toolchain list 2>/dev/null | grep -q "^${msrv}"; then
+    cargo "+${msrv}" check --quiet 2>&1 || fail "cargo +${msrv} check"
+    pass "msrv (${msrv})"
+elif [ -n "$msrv" ]; then
+    echo "  - msrv (skipped: install via \`rustup toolchain install ${msrv}\` to enable)"
+else
+    echo "  - msrv (skipped: no rust-version in Cargo.toml)"
+fi
+
+# 5. Doc build — catch doc-comment breakage (broken intra-doc links, missing
+# code-fence markers) that would render badly on docs.rs. RUSTDOCFLAGS=-D
+# warnings treats every doc warning as an error.
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --quiet 2>&1 || fail "cargo doc --no-deps (RUSTDOCFLAGS=-D warnings)"
+pass "doc"
+
+# 6. Security audit (licenses + advisories) — skip if cargo-deny not installed
 if cargo deny --version &>/dev/null; then
     cargo deny check 2>&1 || fail "cargo deny check"
     pass "deny"
@@ -35,26 +61,66 @@ else
     echo "  - deny (skipped, cargo-deny not installed)"
 fi
 
-# 5. Windows cross-check: verify no unconditional use of unix-only APIs
-# This catches the libc::SIGPIPE issue without needing a Windows toolchain.
+# 7. Shellcheck — lint shell scripts (and the pre-push hook itself). Severity
+# threshold "warning" catches real bugs (unused vars, quoting issues, missing
+# exits) while ignoring info/style noise. Skip silently if shellcheck isn't
+# installed — install via `brew install shellcheck` or `apt install shellcheck`.
+if command -v shellcheck &>/dev/null; then
+    mapfile -t shell_files < <({
+        git ls-files '*.sh' 2>/dev/null
+        git ls-files 'scripts/hooks/*' 2>/dev/null
+    } | sort -u)
+    if [ ${#shell_files[@]} -gt 0 ]; then
+        shellcheck --severity=warning "${shell_files[@]}" || fail "shellcheck --severity=warning"
+    fi
+    pass "shellcheck"
+else
+    echo "  - shellcheck (skipped: install via \`brew install shellcheck\` or \`apt install shellcheck\`)"
+fi
+
+# 8. Windows cross-check (fast): verify no unconditional use of unix-only APIs.
+# Catches the libc::SIGPIPE class of issue without invoking a Windows toolchain
+# — runs in milliseconds. The Unix-only `libc::signal(SIGPIPE, SIG_DFL)` in
+# src/main.rs is `#[cfg(unix)]`-gated; this grep is the always-on backstop.
+# Step 9 is the comprehensive backstop.
 if rg -n 'libc::(SIGPIPE|SIG_DFL|signal)' --type rust src/ | rg -v '#\[cfg(unix)\]' | rg -v '// *#\[cfg' | rg -qv '^$'; then
-    # Found libc unix calls — check they're inside #[cfg(unix)] blocks
     violations=$(rg -n 'libc::(SIGPIPE|SIG_DFL|signal)' --type rust src/ 2>/dev/null || true)
     if [ -n "$violations" ]; then
-        # Check each file for proper cfg gating
         while IFS= read -r line; do
             file=$(echo "$line" | cut -d: -f1)
             lineno=$(echo "$line" | cut -d: -f2)
-            # Look for #[cfg(unix)] in the 3 lines before the libc call
             before=$(sed -n "$((lineno > 3 ? lineno - 3 : 1)),${lineno}p" "$file")
             if ! echo "$before" | rg -q 'cfg\(unix\)'; then
                 fail "libc unix-only API used without #[cfg(unix)] at $file:$lineno"
             fi
         done <<< "$violations"
     fi
-    pass "windows compat"
+    pass "windows compat (libc grep)"
 else
-    pass "windows compat"
+    pass "windows compat (libc grep)"
+fi
+
+# 9. Windows cross-clippy: full type-check of the codebase as if compiling for
+# x86_64-pc-windows-gnu. Catches cfg-gated unused imports, conditional dead
+# code, and any other warning class that only surfaces on Windows. Linux
+# clippy alone misses these because `#[cfg(unix)]` filters out their usage
+# sites locally — the warning only fires on the platform where the gate
+# excludes them.
+#
+# Requirements (one-time setup):
+#   sudo apt install mingw-w64                          # the C linker needs
+#   rustup target add x86_64-pc-windows-gnu             # the Windows std library
+#
+# If either is missing the step is skipped with a one-line note rather than
+# failing — but local Windows coverage is then absent, and CI's Windows job
+# becomes the only backstop. Install both to close that gap.
+if command -v x86_64-w64-mingw32-gcc &>/dev/null \
+    && rustup target list --installed 2>/dev/null | grep -q '^x86_64-pc-windows-gnu$'; then
+    RUSTFLAGS="-Dwarnings" cargo clippy --target x86_64-pc-windows-gnu --all-targets --quiet 2>&1 \
+        || fail "cargo clippy --target x86_64-pc-windows-gnu -Dwarnings"
+    pass "windows clippy (cross-target)"
+else
+    echo "  - windows clippy (skipped: install \`mingw-w64\` + \`rustup target add x86_64-pc-windows-gnu\` to enable)"
 fi
 
 echo -e "${BOLD}${GREEN}All checks passed.${RESET}"
