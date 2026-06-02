@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   guard-provenance:
-    uses: brettdavies/.github/.github/workflows/guard-main-provenance.yml@main
+    uses: brettdavies/.github/.github/workflows/guard-main-provenance.yml@469eb204a6d9e88af0f1e2d27c40b45136810344 # main as of 2026-05-30
