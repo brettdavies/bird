@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: xurl-rs (transport / auth issues)
+    url: https://github.com/brettdavies/xurl-rs/issues
+    about: bird delegates HTTP and OAuth entirely to xurl-rs. If the issue is about auth flow, token storage, or HTTP behavior, please file there.
+  - name: X (Twitter) Developer Platform
+    url: https://devcommunity.x.com/
+    about: For X API platform questions (rate limits, app access, account-level issues), please use the official developer community.
