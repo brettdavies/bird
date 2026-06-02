@@ -2,7 +2,7 @@ Examples:
   bird me                                       # show current user (text)
   bird me --output json                         # show current user (paired JSON)
   bird login                                    # OAuth2 browser sign-in
-  bird login --no-browser                       # headless OAuth2 (paste-back)
+  bird login --no-browser                       # OAuth2 paste-back for agents
   bird bookmarks                                # list bookmarks (text)
   bird bookmarks --output json                  # list bookmarks (paired JSON)
   bird profile jack                             # look up @jack
