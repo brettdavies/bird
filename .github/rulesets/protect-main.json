@@ -60,6 +60,9 @@
           },
           {
             "context": "guard-provenance / check-provenance"
+          },
+          {
+            "context": "guard-release / check-release-branch-name"
           }
         ]
       }
