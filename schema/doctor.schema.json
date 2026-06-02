@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/doctor-v1.json",
+  "title": "bird doctor payload",
+  "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: xurl status, auth state, per-command availability, and entity-store health.",
+  "type": "object",
+  "required": ["xurl", "auth", "commands"],
+  "properties": {
+    "xurl": {
+      "type": "object",
+      "description": "xurl binary availability and version detection.",
+      "required": ["available"],
+      "properties": {
+        "path": {
+          "type": ["string", "null"],
+          "description": "Resolved filesystem path to the xurl binary, when available."
+        },
+        "version": {
+          "type": ["string", "null"],
+          "description": "Output of `xurl --version`, when callable."
+        },
+        "available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Authentication state derived from `xurl whoami`.",
+      "required": ["authenticated"],
+      "properties": {
+        "authenticated": { "type": "boolean" },
+        "username": {
+          "type": "string",
+          "description": "Authenticated username (omitted when not authenticated)."
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "description": "Per-command availability keyed by subcommand name.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["available"],
+        "properties": {
+          "available": { "type": "boolean" },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable reason a command is unavailable (e.g. \"requires OAuth1\")."
+          }
+        }
+      }
+    },
+    "cache": {
+      "type": ["object", "null"],
+      "description": "Entity-store health; null when no cache is configured.",
+      "properties": {
+        "path": { "type": "string" },
+        "exists": { "type": "boolean" },
+        "size_mb": { "type": "number" },
+        "max_size_mb": { "type": "integer" },
+        "tweets": { "type": "integer" },
+        "users": { "type": "integer" },
+        "raw_responses": { "type": "integer" },
+        "healthy": { "type": "boolean" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

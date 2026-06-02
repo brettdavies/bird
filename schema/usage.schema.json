@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/usage-v1.json",
+  "title": "bird usage payload",
+  "description": "Shape of the data payload returned by `bird usage` under --output json. Reports API usage counts and cost estimates over a time window.",
+  "type": "object",
+  "properties": {
+    "since": {
+      "type": "string",
+      "description": "Start date of the reporting window (YYYY-MM-DD)."
+    },
+    "until": {
+      "type": "string",
+      "description": "End date of the reporting window (YYYY-MM-DD)."
+    },
+    "requests": {
+      "type": "integer",
+      "description": "Total API requests issued in the window."
+    },
+    "tweets_read": {
+      "type": "integer",
+      "description": "Tweet objects consumed (counts toward read quota)."
+    },
+    "estimated_cost_usd": {
+      "type": "number",
+      "description": "Rough cost estimate using bird's local pricing table."
+    },
+    "by_command": {
+      "type": "object",
+      "description": "Per-subcommand breakdown keyed by command name.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "requests": { "type": "integer" },
+          "tweets": { "type": "integer" },
+          "cost_usd": { "type": "number" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the numbers came from (\"local\" for offline cache estimate, \"api\" for upstream metering).",
+      "enum": ["local", "api", "mixed"]
+    }
+  },
+  "additionalProperties": true
+}

@@ -351,6 +351,20 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: SkillAction,
     },
+
+    /// Print a JSON Schema document for one of bird's output shapes.
+    #[command(after_help = "Examples:
+  bird schema
+  bird schema --list
+  bird schema bookmarks
+  bird schema bookmarks --output json")]
+    Schema {
+        /// Schema name to print. Omit to print the universal success envelope.
+        name: Option<String>,
+        /// List all available schema names instead of printing a schema.
+        #[arg(long)]
+        list: bool,
+    },
 }
 
 #[derive(clap::Subcommand, Debug, Clone, Copy)]
