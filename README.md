@@ -142,14 +142,14 @@ No config or app creation needed.
 
 ### System
 
-| Command                    | Description                                                      |
-| -------------------------- | ---------------------------------------------------------------- |
-| `bird login`               | Sign in via browser (delegates to xurl)                          |
-| `bird doctor`              | Diagnostics: xurl status, auth, commands, store health           |
-| `bird doctor <cmd>`        | Scoped diagnostics for a single command                          |
-| `bird cache stats`         | Entity store status                                              |
-| `bird cache clear`         | Delete all cached entities                                       |
-| `bird completions <shell>` | Generate shell completions (bash, zsh, fish, powershell, elvish) |
+| Command                    | Description                                                        |
+| -------------------------- | ------------------------------------------------------------------ |
+| `bird login`               | Sign in via browser (delegates to xurl); `--no-browser` for agents |
+| `bird doctor`              | Diagnostics: xurl status, auth, commands, store health             |
+| `bird doctor <cmd>`        | Scoped diagnostics for a single command                            |
+| `bird cache stats`         | Entity store status                                                |
+| `bird cache clear`         | Delete all cached entities                                         |
+| `bird completions <shell>` | Generate shell completions (bash, zsh, fish, powershell, elvish)   |
 
 ---
 
@@ -186,8 +186,11 @@ Colors and hyperlinks are disabled automatically when stdout is not a TTY or `TE
 
 ## Agent and non-interactive usage
 
-Authentication is handled entirely by xurl. For headless/CI environments where a browser is not available, configure
-auth tokens through xurl's environment variables — see [xurl documentation](https://github.com/xdevplatform/xurl).
+Authentication is handled entirely by xurl. For headless/CI environments where a browser is not available, use `bird
+login --no-browser` (alias `--headless`): bird prints the authorization URL on stdout, then reads the redirect URL back
+from stdin. Under `--output json` the prompt and result are wrapped in the standard envelope so agents can parse them
+programmatically. Tokens are otherwise configurable through xurl's environment variables — see
+[xurl documentation](https://github.com/xdevplatform/xurl).
 
 bird reads one environment variable: `X_API_USERNAME` (or `--username`) to select which stored account xurl should use.
 
