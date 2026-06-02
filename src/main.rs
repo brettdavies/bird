@@ -7,6 +7,7 @@ mod cost;
 mod db;
 mod doctor;
 mod fields;
+mod login;
 mod output;
 mod profile;
 mod raw;
@@ -183,10 +184,15 @@ fn run(
     let use_color = out.use_color;
     let quiet = out.suppress_diag();
     match command {
-        Command::Login => {
-            // Delegate to xurl for OAuth2 authentication
-            transport::xurl_passthrough(&["auth", "oauth2"])
-                .map_err(|e| map_cmd_error("login", e))?;
+        Command::Login { headless } => {
+            if headless.no_browser {
+                login::run_oauth2_authenticate_headless(out, config.username.as_deref())
+                    .map_err(|e| map_cmd_error("login", e))?;
+            } else {
+                // Delegate to xurl for OAuth2 authentication (browser-launching flow)
+                transport::xurl_passthrough(&["auth", "oauth2"])
+                    .map_err(|e| map_cmd_error("login", e))?;
+            }
             // Verify login and clear store
             if let Some(Ok(count)) = client.db_clear()
                 && count > 0
