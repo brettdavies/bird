@@ -1,5 +1,5 @@
 Examples:
   bird login                              # OAuth2 PKCE in default browser
   bird login --output json                # paired JSON envelope
-  bird login --no-browser                 # headless paste-back flow
+  bird login --no-browser                 # paste-back flow for agents
   bird login --username jack              # bind login to a specific account
