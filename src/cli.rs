@@ -4,7 +4,7 @@
 
 use crate::output::{ColorMode, OutputFormat};
 use crate::skill_install::Host;
-use clap::Parser;
+use clap::{Args, Parser};
 
 /// Default reqwest/xurl timeout in seconds when `--timeout` is not provided.
 pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
@@ -101,6 +101,30 @@ pub(crate) struct Cli {
     /// Only serve from local store; never make API requests.
     #[arg(long, global = true)]
     pub cache_only: bool,
+
+    /// Maximum number of results to return on list-style commands (default 100, ceiling 1000).
+    #[arg(long, global = true, value_name = "N")]
+    pub limit: Option<u32>,
+
+    /// Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`).
+    #[arg(long, global = true, value_name = "TOKEN", alias = "page")]
+    pub cursor: Option<String>,
+}
+
+/// Confirmation + dry-run guard shared by every mutating subcommand.
+///
+/// `--force` / `--yes` are aliases (both accepted; `-f` short form binds to
+/// `force`). `--dry-run` short-circuits before any HTTP call, prints the
+/// would-be request, and exits 0.
+#[derive(Args, Debug, Clone, Copy, Default)]
+pub(crate) struct WriteGuard {
+    /// Skip the interactive confirmation prompt (alias: --yes).
+    #[arg(long, short = 'f', alias = "yes", global = false)]
+    pub force: bool,
+
+    /// Validate inputs and print the would-be request, then exit without calling the API.
+    #[arg(long, global = false)]
+    pub dry_run: bool,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -144,6 +168,8 @@ pub(crate) enum Command {
         body: Option<String>,
         #[arg(long)]
         pretty: bool,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// PUT request to path.
@@ -158,6 +184,8 @@ pub(crate) enum Command {
         body: Option<String>,
         #[arg(long)]
         pretty: bool,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// List bookmarks for the current user (paginated, max_results=100).
@@ -227,6 +255,8 @@ pub(crate) enum Command {
         query: Vec<String>,
         #[arg(long)]
         pretty: bool,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Monitor users: check recent activity, manage watchlist.
@@ -261,6 +291,8 @@ pub(crate) enum Command {
         /// Media ID to attach.
         #[arg(long)]
         media_id: Option<String>,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Reply to a tweet (via xurl).
@@ -270,6 +302,8 @@ pub(crate) enum Command {
         tweet_id: String,
         /// Reply text.
         text: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Like a tweet (via xurl).
@@ -277,6 +311,8 @@ pub(crate) enum Command {
     Like {
         /// Tweet ID to like.
         tweet_id: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Unlike a tweet (via xurl).
@@ -284,6 +320,8 @@ pub(crate) enum Command {
     Unlike {
         /// Tweet ID to unlike.
         tweet_id: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Repost (retweet) a tweet (via xurl).
@@ -291,6 +329,8 @@ pub(crate) enum Command {
     Repost {
         /// Tweet ID to repost.
         tweet_id: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Undo a repost (via xurl).
@@ -298,6 +338,8 @@ pub(crate) enum Command {
     Unrepost {
         /// Tweet ID to unrepost.
         tweet_id: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Follow a user (via xurl).
@@ -305,6 +347,8 @@ pub(crate) enum Command {
     Follow {
         /// Username to follow.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Unfollow a user (via xurl).
@@ -312,6 +356,8 @@ pub(crate) enum Command {
     Unfollow {
         /// Username to unfollow.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Send a direct message (via xurl).
@@ -321,6 +367,8 @@ pub(crate) enum Command {
         username: String,
         /// Message text.
         text: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Block a user (via xurl).
@@ -328,6 +376,8 @@ pub(crate) enum Command {
     Block {
         /// Username to block.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Unblock a user (via xurl).
@@ -335,6 +385,8 @@ pub(crate) enum Command {
     Unblock {
         /// Username to unblock.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Mute a user (via xurl).
@@ -342,6 +394,8 @@ pub(crate) enum Command {
     Mute {
         /// Username to mute.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Unmute a user (via xurl).
@@ -349,6 +403,8 @@ pub(crate) enum Command {
     Unmute {
         /// Username to unmute.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
 
     /// Show what is available: xurl status, commands, and entity store health.
@@ -422,7 +478,10 @@ pub(crate) enum SkillAction {
 pub(crate) enum CacheAction {
     /// Delete all cache entries.
     #[command(after_help = include_str!("../examples/cache-clear.txt"))]
-    Clear,
+    Clear {
+        #[command(flatten)]
+        guard: WriteGuard,
+    },
     /// Show cache status (JSON default, --pretty for human-readable).
     #[command(after_help = include_str!("../examples/cache-stats.txt"))]
     Stats {
@@ -447,6 +506,8 @@ pub(crate) enum WatchlistCommand {
     Remove {
         /// X/Twitter username to remove.
         username: String,
+        #[command(flatten)]
+        guard: WriteGuard,
     },
     /// Show the current watchlist.
     #[command(after_help = include_str!("../examples/watchlist-list.txt"))]

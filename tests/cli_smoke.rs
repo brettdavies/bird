@@ -70,7 +70,7 @@ fn watchlist_add_remove_list() {
         .assert()
         .success();
     with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "remove", "alice"])
+        .args(["watchlist", "remove", "alice", "--force"])
         .assert()
         .success();
     // List should be empty (no "alice")
@@ -342,7 +342,7 @@ fn quiet_flag_suppresses_watchlist_add_confirmation() {
 fn quiet_flag_suppresses_watchlist_remove_message() {
     let tmp = tempfile::TempDir::new().unwrap();
     with_temp_home(&mut bird(), tmp.path())
-        .args(["--quiet", "watchlist", "remove", "alice"])
+        .args(["--quiet", "watchlist", "remove", "alice", "--force"])
         .assert()
         .success()
         .stderr(predicate::str::is_empty());
@@ -351,6 +351,94 @@ fn quiet_flag_suppresses_watchlist_remove_message() {
 #[test]
 fn invalid_flag_exits_two() {
     bird().arg("--invalid-flag").assert().failure().code(2);
+}
+
+// --- U4: write-op guards (--force/--yes/--dry-run) -----------------------
+
+#[test]
+fn delete_without_force_or_tty_is_usage_error() {
+    // Non-TTY invocation of a destructive command without --force MUST refuse.
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["delete", "/2/tweets/123", "--output", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["error"], "requires-confirmation");
+    assert_eq!(json["kind"], "usage");
+}
+
+#[test]
+fn delete_dry_run_emits_envelope_and_skips_request() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["delete", "/2/tweets/123", "--dry-run", "--output", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["data"]["would"]["method"], "DELETE");
+}
+
+#[test]
+fn tweet_dry_run_includes_body() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["tweet", "hi there", "--dry-run", "--output", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["data"]["would"]["body"]["text"], "hi there");
+}
+
+#[test]
+fn watchlist_remove_yes_alias_proceeds() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    with_temp_home(&mut bird(), tmp.path())
+        .args(["watchlist", "add", "alice"])
+        .assert()
+        .success();
+    with_temp_home(&mut bird(), tmp.path())
+        .args(["watchlist", "remove", "alice", "--yes"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn cache_clear_dry_run_does_not_clear() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let output = with_temp_home(&mut bird(), tmp.path())
+        .args(["cache", "clear", "--dry-run", "--output", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+}
+
+#[test]
+fn global_limit_and_cursor_flags_present() {
+    // Top-level help advertises --limit and --cursor; anc's behavioral audit
+    // requires these in the global flag surface.
+    let output = bird().arg("--help").output().unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--limit"),
+        "global --limit missing from help"
+    );
+    assert!(
+        stdout.contains("--cursor"),
+        "global --cursor missing from help"
+    );
 }
 
 // --- JSON error output tests ---

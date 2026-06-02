@@ -16,6 +16,8 @@ pub struct SearchOpts<'a> {
     pub min_likes: Option<u64>,
     pub max_results: u32,
     pub pages: u32,
+    /// Initial pagination cursor (X API `next_token`).
+    pub cursor: Option<&'a str>,
 }
 
 pub fn run_search(
@@ -45,7 +47,7 @@ pub fn run_search(
     let mut seen_ids: HashSet<String> = HashSet::new();
     let mut all_users: Vec<serde_json::Value> = Vec::new();
     let mut seen_user_ids: HashSet<String> = HashSet::new();
-    let mut next_token: Option<String> = None;
+    let mut next_token: Option<String> = opts.cursor.map(|s| s.to_string());
     let mut pages_fetched: u32 = 0;
 
     for page_num in 1..=opts.pages {
@@ -135,10 +137,19 @@ pub fn run_search(
     // Post-fetch sorting
     sort_tweets(&mut all_tweets, opts.sort);
 
-    // Build output JSON preserving API response shape
+    // Build output JSON preserving API response shape, and surface the
+    // next cursor (if any) via `meta.next_cursor` so agents can paginate.
+    let mut meta = serde_json::Map::new();
+    if let Some(tok) = next_token.as_ref() {
+        meta.insert(
+            "next_cursor".to_string(),
+            serde_json::Value::String(tok.clone()),
+        );
+    }
     let output = serde_json::json!({
         "data": all_tweets,
         "includes": { "users": all_users },
+        "meta": serde_json::Value::Object(meta),
     });
 
     if opts.pretty {
