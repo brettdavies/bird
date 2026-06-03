@@ -207,8 +207,9 @@ where
         raw,
     };
 
-    // Apply --timeout to the xurl transport layer. U8 replaces this OnceLock
-    // setter with the injected env.timeout_secs path (R21).
+    // Apply --timeout to the xurl transport layer. U8 wraps TIMEOUT_OVERRIDE
+    // in OnceLock<Mutex<Option<u64>>> per KTD-5; the deferred R22 follow-up
+    // threads the value through Transport::request and drops the static.
     transport::set_timeout_secs(cli.timeout);
 
     // --- Meta-commands: need nothing beyond parsed args ---

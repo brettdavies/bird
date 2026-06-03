@@ -147,6 +147,17 @@ impl ResolvedConfig {
     }
 }
 
+// Plan 1 R19: compile-time guard that the four public config types stay
+// `Send + Sync`. They cross the writer-injection boundary in Plan 2 (passed
+// into `run_with_paths` and stored on `BirdClient`'s descendants).
+const _: fn() = || {
+    fn _assert_send_sync<T: Send + Sync>() {}
+    _assert_send_sync::<ResolvedConfig>();
+    _assert_send_sync::<ResolvedPaths>();
+    _assert_send_sync::<ArgOverrides>();
+    _assert_send_sync::<EnvOverrides>();
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

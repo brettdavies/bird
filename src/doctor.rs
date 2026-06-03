@@ -50,7 +50,7 @@ pub struct DoctorReport {
 fn build_xurl_status(quiet: bool) -> XurlStatus {
     match crate::transport::resolve_xurl_path() {
         Ok(path) => {
-            let version = crate::transport::check_xurl_version(path, quiet).ok();
+            let version = crate::transport::check_xurl_version(&path, quiet).ok();
             XurlStatus {
                 path: Some(path.display().to_string()),
                 version,

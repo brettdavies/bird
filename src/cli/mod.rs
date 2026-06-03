@@ -552,6 +552,16 @@ pub enum WatchlistCommand {
     List,
 }
 
+// Plan 1 R19: compile-time guard that the parsed CLI shape stays
+// `Send + Sync`. The runner passes `Cli` and `Command` into the dispatch
+// pipeline; any non-`Send` field added later (e.g. a `Box<dyn Trait>` without
+// the bound) would break Plan 2's writer-injection contract.
+const _: fn() = || {
+    fn _assert_send_sync<T: Send + Sync>() {}
+    _assert_send_sync::<Cli>();
+    _assert_send_sync::<Command>();
+};
+
 impl Cli {
     /// Resolve the effective color mode honoring deprecated `--plain` and `--no-color` aliases.
     pub fn effective_color(&self) -> ColorMode {

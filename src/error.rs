@@ -145,6 +145,15 @@ impl BirdError {
     }
 }
 
+// Plan 1 R19: compile-time guard that BirdError stays `Send + Sync`. Plan 2's
+// writer-injection requires every public type that may cross thread/async
+// boundaries to be `Send + Sync`; this assertion catches a future field that
+// would break it (e.g. a non-`Send` source error reference).
+const _: fn() = || {
+    fn _assert_send_sync<T: Send + Sync>() {}
+    _assert_send_sync::<BirdError>();
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
