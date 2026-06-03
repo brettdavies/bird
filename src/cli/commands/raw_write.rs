@@ -34,6 +34,7 @@ pub fn run_post(
         guard,
         out,
         no_interactive,
+        stdout,
         &mut std::io::stderr().lock(),
         None,
     )? {
@@ -82,6 +83,7 @@ pub fn run_put(
         guard,
         out,
         no_interactive,
+        stdout,
         &mut std::io::stderr().lock(),
         None,
     )? {
@@ -128,6 +130,7 @@ pub fn run_delete(
         guard,
         out,
         no_interactive,
+        stdout,
         &mut std::io::stderr().lock(),
         None,
     )? {

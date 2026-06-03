@@ -5,12 +5,13 @@ use crate::cli::dispatch::{GuardOutcome, require_confirmation};
 use crate::db;
 use crate::diag;
 use crate::error::BirdError;
-use crate::out_println;
-use crate::output::{self, OutputConfig};
+use crate::output::OutputConfig;
+use std::io::Write;
 
 pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     action: CacheAction,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
@@ -29,6 +30,7 @@ pub fn run(
                 guard,
                 out,
                 no_interactive,
+                stdout,
                 &mut std::io::stderr().lock(),
                 None,
             )? {
@@ -74,33 +76,32 @@ pub fn run(
                     "healthy": stats.healthy(),
                 });
                 if pretty {
-                    out_println!("Store: {}", path);
-                    out_println!(
+                    writeln!(stdout, "Store: {}", path).map_err(cache_io_err)?;
+                    writeln!(
+                        stdout,
                         "Size:  {:.1} MB / {:.0} MB limit",
                         stats.size_mb(),
                         stats.max_size_mb()
-                    );
-                    out_println!("Tweets: {}", stats.tweet_count);
-                    out_println!("Users:  {}", stats.user_count);
-                    out_println!("Raw:    {}", stats.raw_response_count);
+                    )
+                    .map_err(cache_io_err)?;
+                    writeln!(stdout, "Tweets: {}", stats.tweet_count).map_err(cache_io_err)?;
+                    writeln!(stdout, "Users:  {}", stats.user_count).map_err(cache_io_err)?;
+                    writeln!(stdout, "Raw:    {}", stats.raw_response_count)
+                        .map_err(cache_io_err)?;
                 } else if out.is_raw_text() {
                     // --raw text: one key=value per line, pipe-safe.
-                    out_println!("path={}", path);
-                    out_println!("size_mb={:.1}", stats.size_mb());
-                    out_println!("max_size_mb={:.0}", stats.max_size_mb());
-                    out_println!("tweets={}", stats.tweet_count);
-                    out_println!("users={}", stats.user_count);
-                    out_println!("raw_responses={}", stats.raw_response_count);
-                    out_println!("healthy={}", stats.healthy());
+                    writeln!(stdout, "path={}", path).map_err(cache_io_err)?;
+                    writeln!(stdout, "size_mb={:.1}", stats.size_mb()).map_err(cache_io_err)?;
+                    writeln!(stdout, "max_size_mb={:.0}", stats.max_size_mb())
+                        .map_err(cache_io_err)?;
+                    writeln!(stdout, "tweets={}", stats.tweet_count).map_err(cache_io_err)?;
+                    writeln!(stdout, "users={}", stats.user_count).map_err(cache_io_err)?;
+                    writeln!(stdout, "raw_responses={}", stats.raw_response_count)
+                        .map_err(cache_io_err)?;
+                    writeln!(stdout, "healthy={}", stats.healthy()).map_err(cache_io_err)?;
                 } else {
-                    let meta = serde_json::json!({});
-                    let line = output::success_envelope_string(&data, &meta).map_err(|e| {
-                        BirdError::general(
-                            "cache",
-                            Box::<dyn std::error::Error + Send + Sync>::from(e),
-                        )
-                    })?;
-                    out_println!("{}", line);
+                    let env = serde_json::json!({"data": data, "meta": {}});
+                    out.print_envelope(stdout, &env).map_err(cache_io_err)?;
                 }
             }
             Some(Err(e)) => {
@@ -110,16 +111,12 @@ pub fn run(
                 ));
             }
             None => {
-                let data = serde_json::json!({"healthy": false});
-                let meta = serde_json::json!({"status": "store-unavailable"});
                 if !pretty && !out.is_raw_text() {
-                    let line = output::success_envelope_string(&data, &meta).map_err(|e| {
-                        BirdError::general(
-                            "cache",
-                            Box::<dyn std::error::Error + Send + Sync>::from(e),
-                        )
-                    })?;
-                    out_println!("{}", line);
+                    let env = serde_json::json!({
+                        "data": {"healthy": false},
+                        "meta": {"status": "store-unavailable"},
+                    });
+                    out.print_envelope(stdout, &env).map_err(cache_io_err)?;
                 } else {
                     diag!(quiet, "Store is not available.");
                 }
@@ -127,4 +124,8 @@ pub fn run(
         },
     }
     Ok(())
+}
+
+fn cache_io_err(e: std::io::Error) -> BirdError {
+    BirdError::general("cache", Box::<dyn std::error::Error + Send + Sync>::from(e))
 }

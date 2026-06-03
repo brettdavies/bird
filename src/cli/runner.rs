@@ -8,11 +8,11 @@
 //!
 //! The library never calls `process::exit`; it returns [`ExitCode`] to the caller.
 //!
-//! Per R7, the only Plan-1 macro change made here is that the Tier-1
-//! `Completions` short-circuit routes `clap_complete::generate` through the
-//! runner's `stdout` writer rather than `std::io::stdout()`. The remaining
-//! `out_println!` / `out_print!` / `diag!` sites continue to write to global
-//! handles; Plan 2 addresses them.
+//! All stdout writes in this module route through the runner-injected
+//! `stdout` writer: the `Completions` short-circuit, the `--examples`
+//! short-circuit (`print_examples`), and the JSON-wrapped clap help/version
+//! envelope branch. The remaining `diag!` sites still write to the global
+//! `stderr` handle; Plan 2 U6 addresses them.
 
 #![doc(hidden)]
 
@@ -25,10 +25,7 @@ use crate::cli::{Cli, Command, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::{
-    db, diag, doctor, out_print, out_println, output, schema, schema_print, skill_install,
-    transport, watchlist,
-};
+use crate::{db, diag, doctor, output, schema, schema_print, skill_install, transport, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
@@ -39,7 +36,7 @@ const TOP_LEVEL_EXAMPLES: &str = include_str!("../../examples/top-level.txt");
 
 /// Emit the curated top-level examples block and exit zero. JSON mode wraps the
 /// parsed example invocations in `{"data": [...], "meta": {...}}`.
-fn print_examples(out: &OutputConfig) -> ExitCode {
+fn print_examples(out: &OutputConfig, stdout: &mut dyn Write) -> ExitCode {
     if out.format.is_json() {
         let qualified: Vec<String> = TOP_LEVEL_EXAMPLES
             .lines()
@@ -56,11 +53,15 @@ fn print_examples(out: &OutputConfig) -> ExitCode {
         let data = serde_json::json!(qualified);
         let meta = serde_json::json!({"count": qualified.len()});
         match output::success_envelope_string(&data, &meta) {
-            Ok(line) => out_println!("{}", line),
-            Err(_) => out_println!("{}", TOP_LEVEL_EXAMPLES),
+            Ok(line) => {
+                let _ = writeln!(stdout, "{}", line);
+            }
+            Err(_) => {
+                let _ = writeln!(stdout, "{}", TOP_LEVEL_EXAMPLES);
+            }
         }
     } else {
-        out_print!("{}", TOP_LEVEL_EXAMPLES);
+        let _ = write!(stdout, "{}", TOP_LEVEL_EXAMPLES);
     }
     ExitCode::SUCCESS
 }
@@ -101,10 +102,10 @@ where
 /// Worker entrypoint. Owns the full dispatch pipeline against caller-supplied
 /// paths and env. Tests call this directly with `TempDir`-backed paths.
 ///
-/// Today most output still routes through the `out_println!` / `out_print!` /
-/// `diag!` macros (global handles); Plan 2 migrates them to the injected
-/// writers. The clap Tier-1 `Completions` branch is the one Plan-1 exception
-/// and writes to the `stdout` parameter directly.
+/// stdout flows through the injected `stdout` writer for every short-circuit
+/// branch (`Completions`, `--examples`, the JSON-wrapped help/version
+/// envelope) and through dispatch into the per-command handlers. Diagnostic
+/// output (the `diag!` macro) still uses the global `stderr` handle.
 pub fn run_with_paths<I, S>(
     args: I,
     stdout: &mut dyn Write,
@@ -138,7 +139,7 @@ where
             quiet: false,
             raw: false,
         };
-        return print_examples(&cfg);
+        return print_examples(&cfg, stdout);
     }
 
     // try_parse_from routes clap errors through the JSON-aware envelope
@@ -164,7 +165,9 @@ where
                     });
                     let meta = serde_json::json!({"format": "text"});
                     match output::success_envelope_string(&data, &meta) {
-                        Ok(line) => out_println!("{}", line),
+                        Ok(line) => {
+                            let _ = writeln!(stdout, "{}", line);
+                        }
                         Err(_) => {
                             let _ = e.print();
                         }
@@ -344,6 +347,7 @@ where
                     *guard,
                     &out,
                     cli.no_interactive,
+                    stdout,
                     &mut std::io::stderr().lock(),
                     None,
                 ) {

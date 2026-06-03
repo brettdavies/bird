@@ -9,13 +9,12 @@ use crate::cli::{CacheAction, Command, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
-use crate::out_println;
 use crate::output::{self, OutputConfig};
 use crate::requirements;
 use crate::schema;
 use crate::transport;
 use std::collections::HashMap;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 
 /// Top-level dispatcher: routes a parsed `Command` to its per-command module.
 ///
@@ -26,19 +25,18 @@ use std::io::IsTerminal;
 /// variant slipping through.
 ///
 /// Plan 2 U2: `stdout` and `stderr` writers are threaded through here so each
-/// per-command module can pass them to its handler. Today the handler bodies
-/// still call the `out_println!` / `out_print!` / `diag!` macros, but U3-U6
-/// will switch the call sites to write directly through these injected
-/// writers. `_stderr` is accepted now to keep the signature stable across
-/// U2/U6.
+/// per-command module can pass them to its handler. U3 routes the
+/// runner/dispatcher/cache/writes call sites through `stdout`; U4-U6 will
+/// migrate the remaining handlers and the `diag!` sites. `_stderr` is
+/// accepted now to keep the signature stable across U2/U6.
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     out: &OutputConfig,
-    stdout: &mut dyn std::io::Write,
-    _stderr: &mut dyn std::io::Write,
+    stdout: &mut dyn Write,
+    _stderr: &mut dyn Write,
     cache_only: bool,
     no_interactive: bool,
     list_flags: ListFlags,
@@ -159,6 +157,7 @@ pub fn run(
             guard,
         } => commands::writes::run_tweet(
             out,
+            stdout,
             text,
             media_id,
             guard,
@@ -172,6 +171,7 @@ pub fn run(
             guard,
         } => commands::writes::run_reply(
             out,
+            stdout,
             tweet_id,
             text,
             guard,
@@ -181,6 +181,7 @@ pub fn run(
         ),
         Command::Like { tweet_id, guard } => commands::writes::run_like(
             out,
+            stdout,
             tweet_id,
             guard,
             cache_only,
@@ -189,6 +190,7 @@ pub fn run(
         ),
         Command::Unlike { tweet_id, guard } => commands::writes::run_unlike(
             out,
+            stdout,
             tweet_id,
             guard,
             cache_only,
@@ -197,6 +199,7 @@ pub fn run(
         ),
         Command::Repost { tweet_id, guard } => commands::writes::run_repost(
             out,
+            stdout,
             tweet_id,
             guard,
             cache_only,
@@ -205,6 +208,7 @@ pub fn run(
         ),
         Command::Unrepost { tweet_id, guard } => commands::writes::run_unrepost(
             out,
+            stdout,
             tweet_id,
             guard,
             cache_only,
@@ -216,6 +220,7 @@ pub fn run(
             guard,
         } => commands::writes::run_follow(
             out,
+            stdout,
             target,
             guard,
             cache_only,
@@ -227,6 +232,7 @@ pub fn run(
             guard,
         } => commands::writes::run_unfollow(
             out,
+            stdout,
             target,
             guard,
             cache_only,
@@ -239,6 +245,7 @@ pub fn run(
             guard,
         } => commands::writes::run_dm(
             out,
+            stdout,
             target,
             text,
             guard,
@@ -251,6 +258,7 @@ pub fn run(
             guard,
         } => commands::writes::run_block(
             out,
+            stdout,
             target,
             guard,
             cache_only,
@@ -262,6 +270,7 @@ pub fn run(
             guard,
         } => commands::writes::run_unblock(
             out,
+            stdout,
             target,
             guard,
             cache_only,
@@ -273,6 +282,7 @@ pub fn run(
             guard,
         } => commands::writes::run_mute(
             out,
+            stdout,
             target,
             guard,
             cache_only,
@@ -284,13 +294,16 @@ pub fn run(
             guard,
         } => commands::writes::run_unmute(
             out,
+            stdout,
             target,
             guard,
             cache_only,
             no_interactive,
             config.username.as_deref(),
         ),
-        Command::Cache { action } => commands::cache::run(client, out, action, no_interactive),
+        Command::Cache { action } => {
+            commands::cache::run(client, out, stdout, action, no_interactive)
+        }
         // Pre-dispatched in main(); unreachable here.
         Command::Doctor { .. }
         | Command::Completions { .. }
@@ -395,9 +408,11 @@ pub enum GuardOutcome {
 /// `--yes` is set, we either prompt on a TTY or return a `requires-confirmation`
 /// usage error.
 ///
-/// `prompt_writer` receives the prompt text (binary passes `stderr.lock()`).
-/// `answer_reader`, when `Some`, supplies the user's answer (tests pass a
-/// canned closure); when `None`, the function falls back to `stdin().read_line`.
+/// `stdout` receives the dry-run envelope or human "Would …" line when
+/// `guard.dry_run` is set. `prompt_writer` receives the confirmation prompt
+/// text (binary passes `stderr.lock()`). `answer_reader`, when `Some`,
+/// supplies the user's answer (tests pass a canned closure); when `None`,
+/// the function falls back to `stdin().read_line`.
 #[allow(clippy::too_many_arguments)]
 pub fn require_confirmation(
     verb: &str,
@@ -407,11 +422,17 @@ pub fn require_confirmation(
     guard: WriteGuard,
     out: &OutputConfig,
     no_interactive: bool,
-    prompt_writer: &mut dyn std::io::Write,
+    stdout: &mut dyn Write,
+    prompt_writer: &mut dyn Write,
     answer_reader: Option<Box<dyn FnOnce() -> std::io::Result<String>>>,
 ) -> Result<GuardOutcome, BirdError> {
     if guard.dry_run {
-        emit_dry_run(verb, method, target, body, out);
+        emit_dry_run(verb, method, target, body, out, stdout).map_err(|e| {
+            BirdError::general(
+                "dry-run",
+                Box::<dyn std::error::Error + Send + Sync>::from(e),
+            )
+        })?;
         return Ok(GuardOutcome::DryRun);
     }
     if guard.force {
@@ -476,14 +497,15 @@ pub fn require_confirmation(
     }
 }
 
-/// Emit the dry-run envelope (JSON) or human line (text) on stdout.
+/// Emit the dry-run envelope (JSON) or human lines (text) onto `stdout`.
 pub fn emit_dry_run(
     verb: &str,
     method: &str,
     target: &str,
     body: Option<&serde_json::Value>,
     out: &OutputConfig,
-) {
+    stdout: &mut dyn Write,
+) -> std::io::Result<()> {
     if out.format.is_json() {
         let mut would = serde_json::json!({
             "method": method,
@@ -495,15 +517,14 @@ pub fn emit_dry_run(
         let data = serde_json::json!({"dry_run": true, "would": would, "verb": verb});
         let meta = serde_json::json!({});
         if let Ok(line) = output::success_envelope_string(&data, &meta) {
-            out_println!("{}", line);
-            return;
+            return writeln!(stdout, "{}", line);
         }
     }
-    out_println!("Would {}: {} {}", verb, method, target);
+    writeln!(stdout, "Would {}: {} {}", verb, method, target)?;
     if let Some(b) = body {
-        out_println!("Body: {}", b);
+        writeln!(stdout, "Body: {}", b)?;
     }
-    out_println!("(--dry-run; no request sent)");
+    writeln!(stdout, "(--dry-run; no request sent)")
 }
 
 /// Build the effective absolute URL for dry-run preview output.
@@ -537,8 +558,9 @@ pub fn clamp_limit(requested: Option<u32>, default: u32, ceiling: u32) -> (u32, 
     }
 }
 
-/// Call xurl for a write command and print the JSON result.
+/// Call xurl for a write command and print the JSON result to `stdout`.
 pub fn xurl_write_call(
+    stdout: &mut dyn Write,
     args: &[&str],
     username: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -548,7 +570,7 @@ pub fn xurl_write_call(
     }
     full_args.extend_from_slice(args);
     let json = transport::xurl_call(&full_args)?;
-    out_println!("{}", serde_json::to_string(&json)?);
+    writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
     Ok(())
 }
 
@@ -631,6 +653,7 @@ mod tests {
             force: false,
             dry_run: false,
         };
+        let mut stdout: Vec<u8> = Vec::new();
         let mut buf: Vec<u8> = Vec::new();
         let res = require_confirmation(
             "like",
@@ -640,6 +663,7 @@ mod tests {
             guard,
             &out,
             false,
+            &mut stdout,
             &mut buf,
             Some(Box::new(|| Ok("yes\n".to_string()))),
         );
@@ -659,6 +683,7 @@ mod tests {
             force: false,
             dry_run: false,
         };
+        let mut stdout: Vec<u8> = Vec::new();
         let mut buf: Vec<u8> = Vec::new();
         let res = require_confirmation(
             "like",
@@ -668,6 +693,7 @@ mod tests {
             guard,
             &out,
             false,
+            &mut stdout,
             &mut buf,
             Some(Box::new(|| Ok("n\n".to_string()))),
         );
@@ -687,6 +713,7 @@ mod tests {
             force: false,
             dry_run: true,
         };
+        let mut stdout: Vec<u8> = Vec::new();
         let mut buf: Vec<u8> = Vec::new();
         let panic_reader: Box<dyn FnOnce() -> std::io::Result<String>> =
             Box::new(|| panic!("reader must not be invoked for --dry-run"));
@@ -698,6 +725,7 @@ mod tests {
             guard,
             &out,
             false,
+            &mut stdout,
             &mut buf,
             Some(panic_reader),
         );
@@ -712,6 +740,7 @@ mod tests {
             force: false,
             dry_run: false,
         };
+        let mut stdout: Vec<u8> = Vec::new();
         let mut buf: Vec<u8> = Vec::new();
         let res = require_confirmation(
             "like",
@@ -721,6 +750,7 @@ mod tests {
             guard,
             &out,
             true,
+            &mut stdout,
             &mut buf,
             None,
         );
