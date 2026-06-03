@@ -62,19 +62,36 @@ selects which xurl-stored account to use.
 bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) --> X API
 ```
 
-- `src/main.rs` — entry point, `BirdError` enum, command dispatch, SIGPIPE wiring (Unix-only).
-- `src/cli.rs` — clap derive definitions (`Cli`, `Command`, `CacheAction`, `WatchlistCommand`).
-- `src/transport.rs` — xurl subprocess transport, `XurlError`, `MockTransport` for unit tests.
-- `src/auth.rs` — XurlError-to-BirdError mapping for the 77/78 exit-code contract.
-- `src/db/` — SQLite entity store: `db.rs` (tweets / users / raw rows + migrations), `client.rs` (entity-aware transport
-  client wrapping `transport.rs`), `usage.rs` (per-call cost ledger).
+- `src/main.rs` — thin binary entrypoint (≤30 LOC): SIGPIPE restore, tracing init, delegates to `bird::cli::run_argv()`.
+- `src/lib.rs` — library root. `#[doc(hidden)]` on `bird::cli`; the library surface is internal test infrastructure only
+  (per KTD-8 of the lib-lift plan), not a public crate API.
+- `src/cli/mod.rs` — clap derive definitions (`Cli`, `Command`, `CacheAction`, `WatchlistCommand`, `SkillAction`).
+- `src/cli/runner.rs` — layered entrypoints: `run_argv()`, `run(args, &mut stdout, &mut stderr)`, `run_with_paths(args,
+  &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with TempDir-backed `ResolvedPaths` and
+  `Vec<u8>` writers.
+- `src/cli/dispatch.rs` — `fn run` top-level match plus the shared dispatcher helpers (`command_needs_xurl`,
+  `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `xurl_write_call`, etc.).
+- `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
+- `src/cli/clap_errors.rs` — clap → `BirdError` mapping for `try_parse_from`.
+- `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me, Get), `bookmarks.rs`, `profile.rs`,
+  `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
+  pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 xurl-write verbs share a single `execute` helper).
+- `src/transport.rs` — xurl subprocess transport, `Transport: Send + Sync` trait, `XurlError`, `MockTransport` for unit
+  tests, `OnceLock<Mutex<Option<_>>>` wrappers around `XURL_PATH` and `TIMEOUT_OVERRIDE` with
+  `reset_xurl_path_for_tests()` shim for in-process test isolation.
+- `src/db/` — SQLite entity store: `db.rs` (tweets / users / raw rows + migrations; `Connection` wrapped in
+  `std::sync::Mutex` for the Send + Sync gate), `client.rs` (entity-aware transport client wrapping `transport.rs`),
+  `usage.rs` (per-call cost ledger).
 - `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist.rs`,
   `src/usage.rs` — per-command handlers; streaming where the endpoint paginates.
 - `src/doctor.rs` — diagnostic report (xurl status, auth, command availability, cache health).
 - `src/requirements.rs` — per-command auth requirements (`AuthType` enum: `OAuth2User`, `OAuth1`, `Bearer`, `None`).
   Single source of truth consumed by both runtime and `bird doctor`.
 - `src/output.rs` — `OutputConfig`, color helpers, `diag!` macro, ANSI sanitization for stderr envelopes.
-- `src/config.rs` — `ResolvedConfig`, file permissions (0644 config, 0600 DB; Unix-only `set_permissions`).
+- `src/error.rs` — `BirdError` enum, exit-code mapping, XurlError-to-BirdError downcast for the 77/78 contract.
+- `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
+  `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader;
+  `ResolvedConfig::load(overrides)` is a one-line shim.
 - `src/schema.rs` — input validation (`validate_username` strips `@`, enforces X charset).
 
 ## Transport dependency
@@ -167,13 +184,15 @@ The release-doc trio lands in PR1 of the 2026-06-01 modernization sprint; the li
 
 ## Known debt
 
-- `src/main.rs` is **766 lines** post-extraction; `run()` alone exceeds 350 lines. Slated for further extraction into
-  per-command modules.
-- `src/db/db.rs` (**1,289 lines**) and `src/db/client.rs` (**1,153 lines**) both exceed the 200-line refactor trigger.
-  Split candidates: per-entity table modules in `db.rs`; per-shape request wrappers in `client.rs`.
-- `--pretty` is duplicated across ~11 subcommand variants in `cli.rs`. Slated for a `CommonFlags` extraction post-GA.
-- `src/db/client.rs:38` carries a TODO to re-serialize bodies from JSON rather than re-parsing a string, to avoid the
+- `src/db/db.rs` and `src/db/client.rs` both exceed the 200-line refactor trigger. Split candidates: per-entity table
+  modules in `db.rs`; per-shape request wrappers in `client.rs`.
+- `--pretty` is duplicated across ~11 subcommand variants in `cli/mod.rs`. Slated for a `CommonFlags` extraction
+  post-GA.
+- `src/db/client.rs` carries a TODO to re-serialize bodies from JSON rather than re-parsing a string, to avoid the
   round-trip cost on cache hits.
+- `out_println!` / `out_print!` / `diag!` macros still write to globally-locked stdout/stderr. The runner's writer
+  parameters reach the dispatcher but bypass the macros — Plan 2 (`writer-injection-remove-macros`) replaces them with
+  explicit `&mut dyn Write` threading and `OutputConfig::print_*` methods.
 
 ## Documented solutions
 
@@ -191,6 +210,8 @@ already captures known pitfalls.
 - [`docs/CLI_DESIGN.md`](docs/CLI_DESIGN.md) — auth requirements, doctor, error design.
 - [`docs/DEVELOPER.md`](docs/DEVELOPER.md) — build, architecture, project layout.
 -
-  [`docs/plans/2026-06-01-repo-modernization-mirror-xurl-rs.md`](docs/plans/2026-06-01-repo-modernization-mirror-xurl-rs.md)
-  — the modernization sprint plan this AGENTS.md targets.
+
+[`docs/plans/2026-06-01-repo-modernization-mirror-xurl-rs.md`](docs/plans/2026-06-01-repo-modernization-mirror-xurl-rs.md)
+— the modernization sprint plan this AGENTS.md targets.
+
 - [xurl-rs](https://github.com/brettdavies/xurl-rs) — upstream transport dependency.
