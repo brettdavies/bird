@@ -4,7 +4,10 @@
 //! and the layered runner entrypoint can call them without forcing every
 //! consumer to depend on the binary crate root.
 
+use crate::cli::commands;
 use crate::cli::{CacheAction, Command, WatchlistCommand, WriteGuard};
+use crate::config::ResolvedConfig;
+use crate::db;
 use crate::error::BirdError;
 use crate::out_println;
 use crate::output::{self, OutputConfig};
@@ -13,6 +16,272 @@ use crate::schema;
 use crate::transport;
 use std::collections::HashMap;
 use std::io::IsTerminal;
+
+/// Top-level dispatcher: routes a parsed `Command` to its per-command module.
+///
+/// Pre-dispatched commands (`Completions`, `Skill`, `Schema`, `Doctor`,
+/// `Watchlist::Add`/`Remove`/`List`) are handled in `fn main` before this is
+/// called; their arms here are unreachable but kept as `Ok(())` returns for
+/// exhaustiveness — the dispatcher never panics on a stray pre-dispatched
+/// variant slipping through.
+pub fn run(
+    command: Command,
+    config: ResolvedConfig,
+    client: &mut db::BirdClient,
+    out: &OutputConfig,
+    cache_only: bool,
+    no_interactive: bool,
+    list_flags: ListFlags,
+) -> Result<(), BirdError> {
+    match command {
+        Command::Login { headless } => {
+            commands::login::run(client, out, headless, config.username.as_deref())
+        }
+        Command::Me { pretty } => commands::reads::run_me(client, out, pretty),
+        Command::Get {
+            path,
+            param,
+            query,
+            pretty,
+        } => commands::reads::run_get(client, out, path, param, query, pretty, &list_flags),
+        Command::Bookmarks { pretty } => commands::bookmarks::run(client, out, pretty, &list_flags),
+        Command::Profile { username, pretty } => {
+            commands::profile::run(client, out, username, pretty)
+        }
+        Command::Search {
+            query,
+            pretty,
+            sort,
+            min_likes,
+            max_results,
+            pages,
+        } => commands::search::run(
+            client,
+            out,
+            query,
+            pretty,
+            sort,
+            min_likes,
+            max_results,
+            pages,
+            &list_flags,
+        ),
+        Command::Thread {
+            tweet_id,
+            pretty,
+            max_pages,
+        } => commands::thread::run(client, out, tweet_id, pretty, max_pages),
+        Command::Post {
+            path,
+            param,
+            query,
+            body,
+            pretty,
+            guard,
+        } => commands::raw_write::run_post(
+            client,
+            out,
+            path,
+            param,
+            query,
+            body,
+            pretty,
+            guard,
+            no_interactive,
+        ),
+        Command::Put {
+            path,
+            param,
+            query,
+            body,
+            pretty,
+            guard,
+        } => commands::raw_write::run_put(
+            client,
+            out,
+            path,
+            param,
+            query,
+            body,
+            pretty,
+            guard,
+            no_interactive,
+        ),
+        Command::Delete {
+            path,
+            param,
+            query,
+            pretty,
+            guard,
+        } => commands::raw_write::run_delete(
+            client,
+            out,
+            path,
+            param,
+            query,
+            pretty,
+            guard,
+            no_interactive,
+        ),
+        Command::Watchlist { action, pretty } => match action {
+            WatchlistCommand::Fetch => {
+                commands::watchlist::run_fetch(client, out, &config, pretty, &list_flags)
+            }
+            // Pre-dispatched in main(); unreachable here.
+            WatchlistCommand::Add { .. }
+            | WatchlistCommand::Remove { .. }
+            | WatchlistCommand::List => Ok(()),
+        },
+        Command::Usage {
+            since,
+            local,
+            pretty,
+        } => commands::usage::run(client, out, since, local, pretty),
+        Command::Tweet {
+            text,
+            media_id,
+            guard,
+        } => commands::writes::run_tweet(
+            out,
+            text,
+            media_id,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Reply {
+            tweet_id,
+            text,
+            guard,
+        } => commands::writes::run_reply(
+            out,
+            tweet_id,
+            text,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Like { tweet_id, guard } => commands::writes::run_like(
+            out,
+            tweet_id,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Unlike { tweet_id, guard } => commands::writes::run_unlike(
+            out,
+            tweet_id,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Repost { tweet_id, guard } => commands::writes::run_repost(
+            out,
+            tweet_id,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Unrepost { tweet_id, guard } => commands::writes::run_unrepost(
+            out,
+            tweet_id,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Follow {
+            username: target,
+            guard,
+        } => commands::writes::run_follow(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Unfollow {
+            username: target,
+            guard,
+        } => commands::writes::run_unfollow(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Dm {
+            username: target,
+            text,
+            guard,
+        } => commands::writes::run_dm(
+            out,
+            target,
+            text,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Block {
+            username: target,
+            guard,
+        } => commands::writes::run_block(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Unblock {
+            username: target,
+            guard,
+        } => commands::writes::run_unblock(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Mute {
+            username: target,
+            guard,
+        } => commands::writes::run_mute(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Unmute {
+            username: target,
+            guard,
+        } => commands::writes::run_unmute(
+            out,
+            target,
+            guard,
+            cache_only,
+            no_interactive,
+            config.username.as_deref(),
+        ),
+        Command::Cache { action } => commands::cache::run(client, out, action, no_interactive),
+        // Pre-dispatched in main(); unreachable here.
+        Command::Doctor { .. }
+        | Command::Completions { .. }
+        | Command::Skill { .. }
+        | Command::Schema { .. } => Ok(()),
+    }
+}
 
 /// Parse a `KEY=VALUE` parameter vector into a map.
 pub fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
