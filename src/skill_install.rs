@@ -74,7 +74,9 @@ impl std::error::Error for InstallError {
     }
 }
 
-fn resolve_home() -> Result<PathBuf, InstallError> {
+/// Binary-side helper to resolve `$HOME` for the production call site. Tests
+/// supply a temp directory directly to `install_into` / `run` and skip this.
+pub fn resolve_home() -> Result<PathBuf, InstallError> {
     let raw = std::env::var("HOME").ok();
     raw.filter(|s| !s.is_empty())
         .map(PathBuf::from)
@@ -105,13 +107,15 @@ pub fn install_into(host: Host, home: &Path, dry_run: bool) -> Result<PathBuf, I
 }
 
 /// Orchestrate the `bird skill install` invocation. Emits one human-readable
-/// line per target host to stdout.
+/// line per target host to stdout. The caller resolves the home root; this
+/// keeps the function pure with respect to its inputs (production callers use
+/// `resolve_home()` below).
 pub fn run(
     host: Option<Host>,
     dry_run: bool,
     all: bool,
+    home: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let home = resolve_home()?;
     let targets: Vec<Host> = if all {
         Host::all().to_vec()
     } else {
@@ -119,7 +123,7 @@ pub fn run(
     };
 
     for h in targets {
-        let dest = install_into(h, &home, dry_run)?;
+        let dest = install_into(h, home, dry_run)?;
         if dry_run {
             crate::out_println!(
                 "[dry-run] would install bird skill ({}): {}",

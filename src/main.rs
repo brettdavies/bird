@@ -1233,7 +1233,15 @@ fn main() -> ExitCode {
             SkillAction::Install { host, all, dry_run }
             | SkillAction::Update { host, all, dry_run } => (host, all, dry_run),
         };
-        return match skill_install::run(host, dry_run, all) {
+        let home = match skill_install::resolve_home() {
+            Ok(h) => h,
+            Err(e) => {
+                let err = BirdError::from_source("skill", Box::new(e));
+                output::print_error(&err, &out);
+                return ExitCode::from(err.exit_code());
+            }
+        };
+        return match skill_install::run(host, dry_run, all, &home) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::from_source("skill", e);
