@@ -11,6 +11,7 @@ pub fn run_me(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     pretty: bool,
 ) -> Result<(), BirdError> {
     let params = HashMap::new();
@@ -19,6 +20,7 @@ pub fn run_me(
         client,
         out,
         stdout,
+        stderr,
         "GET",
         "/2/users/me",
         &params,
@@ -36,6 +38,7 @@ pub fn run_get(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -53,7 +56,7 @@ pub fn run_get(
     }
     let auth_type = default_auth_type("get");
     raw::run_raw(
-        client, out, stdout, "GET", &path, &params, &query, None, pretty, &auth_type,
+        client, out, stdout, stderr, "GET", &path, &params, &query, None, pretty, &auth_type,
     )
     .map_err(|e| BirdError::from_source("get", e))?;
     Ok(())

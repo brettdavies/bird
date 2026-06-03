@@ -47,10 +47,10 @@ pub struct DoctorReport {
     pub cache: Option<CacheStatus>,
 }
 
-fn build_xurl_status(quiet: bool) -> XurlStatus {
+fn build_xurl_status(stderr: &mut dyn std::io::Write, quiet: bool) -> XurlStatus {
     match crate::transport::resolve_xurl_path() {
         Ok(path) => {
-            let version = crate::transport::check_xurl_version(&path, quiet).ok();
+            let version = crate::transport::check_xurl_version(&path, stderr, quiet).ok();
             XurlStatus {
                 path: Some(path.display().to_string()),
                 version,
@@ -137,8 +137,13 @@ fn build_commands_section(
 }
 
 /// Build full or scoped report.
-pub(crate) fn report(client: &BirdClient, scope: Option<&str>, quiet: bool) -> DoctorReport {
-    let xurl = build_xurl_status(quiet);
+pub(crate) fn report(
+    client: &BirdClient,
+    stderr: &mut dyn std::io::Write,
+    scope: Option<&str>,
+    quiet: bool,
+) -> DoctorReport {
+    let xurl = build_xurl_status(stderr, quiet);
     let auth = if xurl.available {
         detect_auth()
     } else {
@@ -328,13 +333,14 @@ pub fn run_doctor(
     client: &BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     pretty: bool,
     scope: Option<&str>,
     use_emoji: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let use_color = cfg.use_color;
     let quiet = cfg.suppress_diag();
-    let r = report(client, scope, quiet);
+    let r = report(client, stderr, scope, quiet);
     if pretty {
         writeln!(stdout, "{}", format_pretty(&r, use_color, use_emoji))?;
     } else {
@@ -370,7 +376,7 @@ mod tests {
     #[test]
     fn doctor_report_has_commands() {
         let client = no_cache_client();
-        let r = report(&client, None, false);
+        let r = report(&client, &mut std::io::sink(), None, false);
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -379,7 +385,7 @@ mod tests {
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
         let client = no_cache_client();
-        let r = report(&client, Some("me"), false);
+        let r = report(&client, &mut std::io::sink(), Some("me"), false);
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
     }
@@ -387,7 +393,7 @@ mod tests {
     #[test]
     fn doctor_report_json_serializable() {
         let client = no_cache_client();
-        let r = report(&client, None, false);
+        let r = report(&client, &mut std::io::sink(), None, false);
         let json = serde_json::to_string(&r).expect("test");
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));

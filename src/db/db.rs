@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use super::unix_now;
-use crate::diag;
 
 // -- Model structs --
 
@@ -198,13 +197,12 @@ pub(crate) fn migrations() -> Migrations<'static> {
 /// uncontended (single-threaded access) and adds sub-microsecond cost.
 ///
 /// `stderr` is a shared writer handle cloned from the enclosing `BirdClient`
-/// (KTD-2). Internal `diag!` sites still write to global stderr in U6a; U6
-/// pivots them to read `self.stderr` + `self.quiet`.
+/// (KTD-2). Internal diagnostic sites lock the shared handle under the
+/// `if !self.quiet` gate; suppressed paths pay zero (no lock, no allocation).
 pub struct BirdDb {
     pub(crate) conn: std::sync::Mutex<Connection>,
     pub(crate) write_count: u32,
     pub(crate) max_bytes: u64,
-    #[allow(dead_code)]
     pub(crate) stderr: Arc<Mutex<dyn Write + Send>>,
     pub(crate) quiet: bool,
 }
@@ -215,7 +213,8 @@ impl BirdDb {
     ///
     /// `stderr` is the shared writer handle (cloned from `BirdClient`) per KTD-2;
     /// `quiet` is stored so internal diagnostic sites suppress without taking a
-    /// per-method parameter. Both fields are receivers U6 pivots `diag!` sites to.
+    /// per-method parameter. Both fields receive the locked writeln pattern from
+    /// KTD-1.
     pub fn open(
         path: &Path,
         max_size_mb: u64,
@@ -327,10 +326,8 @@ impl BirdDb {
 
     /// Attempt to migrate usage data from the old cache.db on first open.
     /// Idempotent: checks a sentinel row in migrations_meta. Uses `self.quiet`
-    /// to gate diagnostic output (U6a moved this off the parameter list to align
-    /// with KTD-2's struct-field receiver pattern).
+    /// and `self.stderr` to gate and route diagnostic output per KTD-1/KTD-2.
     pub fn migrate_usage_from_cache(&self, cache_db_path: &Path) {
-        let quiet = self.quiet;
         if !cache_db_path.exists() {
             return;
         }
@@ -369,18 +366,26 @@ impl BirdDb {
         match has_tables {
             Ok(true) => {}
             Ok(false) => {
-                diag!(
-                    quiet,
-                    "[store] warning: cache.db missing expected tables, skipping usage migration"
-                );
+                if !self.quiet {
+                    let mut w = self.stderr.lock().unwrap();
+                    writeln!(
+                        *w,
+                        "[store] warning: cache.db missing expected tables, skipping usage migration"
+                    )
+                    .ok();
+                }
                 return;
             }
             Err(e) => {
-                diag!(
-                    quiet,
-                    "[store] warning: could not probe cache.db for migration: {}",
-                    e
-                );
+                if !self.quiet {
+                    let mut w = self.stderr.lock().unwrap();
+                    writeln!(
+                        *w,
+                        "[store] warning: could not probe cache.db for migration: {}",
+                        e
+                    )
+                    .ok();
+                }
                 return;
             }
         }
@@ -410,10 +415,16 @@ impl BirdDb {
 
         match result {
             Ok(()) => {
-                diag!(quiet, "[store] migrated usage data from cache.db");
+                if !self.quiet {
+                    let mut w = self.stderr.lock().unwrap();
+                    writeln!(*w, "[store] migrated usage data from cache.db").ok();
+                }
             }
             Err(e) => {
-                diag!(quiet, "[store] warning: usage migration failed: {}", e);
+                if !self.quiet {
+                    let mut w = self.stderr.lock().unwrap();
+                    writeln!(*w, "[store] warning: usage migration failed: {}", e).ok();
+                }
                 let _ = self.conn().execute_batch("DETACH DATABASE old_cache");
             }
         }

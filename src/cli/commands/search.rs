@@ -11,6 +11,7 @@ pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     query: String,
     pretty: bool,
     sort: String,
@@ -32,7 +33,7 @@ pub fn run(
         pages: pages.unwrap_or(1).clamp(1, 10),
         cursor: list_flags.cursor.as_deref(),
     };
-    search::run_search(client, out, stdout, opts, &auth_type)
+    search::run_search(client, out, stdout, stderr, opts, &auth_type)
         .map_err(|e| BirdError::from_source("search", e))?;
     Ok(())
 }

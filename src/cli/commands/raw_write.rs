@@ -14,6 +14,7 @@ pub fn run_post(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -35,7 +36,7 @@ pub fn run_post(
         out,
         no_interactive,
         stdout,
-        &mut std::io::stderr().lock(),
+        stderr,
         None,
     )? {
         GuardOutcome::DryRun => return Ok(()),
@@ -46,6 +47,7 @@ pub fn run_post(
         client,
         out,
         stdout,
+        stderr,
         "POST",
         &path,
         &params,
@@ -63,6 +65,7 @@ pub fn run_put(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -84,7 +87,7 @@ pub fn run_put(
         out,
         no_interactive,
         stdout,
-        &mut std::io::stderr().lock(),
+        stderr,
         None,
     )? {
         GuardOutcome::DryRun => return Ok(()),
@@ -95,6 +98,7 @@ pub fn run_put(
         client,
         out,
         stdout,
+        stderr,
         "PUT",
         &path,
         &params,
@@ -112,6 +116,7 @@ pub fn run_delete(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -131,7 +136,7 @@ pub fn run_delete(
         out,
         no_interactive,
         stdout,
-        &mut std::io::stderr().lock(),
+        stderr,
         None,
     )? {
         GuardOutcome::DryRun => return Ok(()),
@@ -139,7 +144,7 @@ pub fn run_delete(
     }
     let auth_type = default_auth_type("delete");
     raw::run_raw(
-        client, out, stdout, "DELETE", &path, &params, &query, None, pretty, &auth_type,
+        client, out, stdout, stderr, "DELETE", &path, &params, &query, None, pretty, &auth_type,
     )
     .map_err(|e| BirdError::from_source("delete", e))?;
     Ok(())

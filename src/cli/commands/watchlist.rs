@@ -14,6 +14,7 @@ pub fn run_fetch(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     config: &ResolvedConfig,
     pretty: bool,
     list_flags: &ListFlags,
@@ -25,6 +26,7 @@ pub fn run_fetch(
         config,
         out,
         stdout,
+        stderr,
         watchlist::CheckOpts {
             pretty,
             limit,

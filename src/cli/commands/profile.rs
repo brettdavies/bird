@@ -10,6 +10,7 @@ pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     username: String,
     pretty: bool,
 ) -> Result<(), BirdError> {
@@ -18,6 +19,7 @@ pub fn run(
         client,
         out,
         stdout,
+        stderr,
         profile::ProfileOpts {
             username: &username,
             pretty,

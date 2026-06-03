@@ -3,7 +3,6 @@
 use crate::cli::CacheAction;
 use crate::cli::dispatch::{GuardOutcome, require_confirmation};
 use crate::db;
-use crate::diag;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use std::io::Write;
@@ -12,6 +11,7 @@ pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     action: CacheAction,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
@@ -31,7 +31,7 @@ pub fn run(
                 out,
                 no_interactive,
                 stdout,
-                &mut std::io::stderr().lock(),
+                stderr,
                 None,
             )? {
                 GuardOutcome::DryRun => return Ok(()),
@@ -42,12 +42,14 @@ pub fn run(
                     let stats = client.db_stats().and_then(|r| r.ok());
                     let size_str =
                         stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    diag!(
-                        quiet,
-                        "Cleared {} stored entities ({} MB).",
-                        count,
-                        size_str
-                    );
+                    if !quiet {
+                        writeln!(
+                            stderr,
+                            "Cleared {} stored entities ({} MB).",
+                            count, size_str
+                        )
+                        .ok();
+                    }
                 }
                 Some(Err(e)) => {
                     return Err(BirdError::general(
@@ -56,7 +58,9 @@ pub fn run(
                     ));
                 }
                 None => {
-                    diag!(quiet, "Store is not available.");
+                    if !quiet {
+                        writeln!(stderr, "Store is not available.").ok();
+                    }
                 }
             }
         }
@@ -117,8 +121,8 @@ pub fn run(
                         "meta": {"status": "store-unavailable"},
                     });
                     out.print_envelope(stdout, &env).map_err(cache_io_err)?;
-                } else {
-                    diag!(quiet, "Store is not available.");
+                } else if !quiet {
+                    writeln!(stderr, "Store is not available.").ok();
                 }
             }
         },

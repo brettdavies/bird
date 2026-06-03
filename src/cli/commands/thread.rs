@@ -10,6 +10,7 @@ pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     tweet_id: String,
     pretty: bool,
     max_pages: u32,
@@ -19,6 +20,7 @@ pub fn run(
         client,
         out,
         stdout,
+        stderr,
         thread::ThreadOpts {
             tweet_id: &tweet_id,
             pretty,

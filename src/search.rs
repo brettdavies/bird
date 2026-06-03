@@ -2,7 +2,6 @@
 
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -20,13 +19,14 @@ pub struct SearchOpts<'a> {
     pub cursor: Option<&'a str>,
 }
 
-/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
-/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
-/// The `diag!` sites still target the static stderr macro (U6 / R15 converts).
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6); per-line stdout writes through `writeln!(stdout, ...)`
+/// (R13) and diagnostic sites follow the KTD-1 guarded pattern (R15).
 pub fn run_search(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: SearchOpts<'_>,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -71,7 +71,7 @@ pub fn run_search(
         let page = response.json.ok_or("invalid JSON from search")?;
 
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(cfg, &estimate);
+        cost::display_cost(cfg, stderr, &estimate);
 
         // Break on empty data (handles phantom next_token)
         let data = match page.get("data").and_then(|d| d.as_array()) {
@@ -112,14 +112,17 @@ pub fn run_search(
             }
         }
 
-        diag!(
-            quiet,
-            "[search] page {}/{}: {} new tweets ({} total)",
-            page_num,
-            opts.pages,
-            passed,
-            all_tweets.len()
-        );
+        if !quiet {
+            writeln!(
+                stderr,
+                "[search] page {}/{}: {} new tweets ({} total)",
+                page_num,
+                opts.pages,
+                passed,
+                all_tweets.len()
+            )
+            .ok();
+        }
 
         // Extract next_token
         next_token = page
@@ -162,13 +165,16 @@ pub fn run_search(
         writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
     }
 
-    diag!(
-        quiet,
-        "[search] {} results | sorted by {} | {} pages fetched",
-        all_tweets.len(),
-        opts.sort,
-        pages_fetched
-    );
+    if !quiet {
+        writeln!(
+            stderr,
+            "[search] {} results | sorted by {} | {} pages fetched",
+            all_tweets.len(),
+            opts.sort,
+            pages_fetched
+        )
+        .ok();
+    }
 
     Ok(())
 }

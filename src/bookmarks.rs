@@ -2,7 +2,6 @@
 
 use crate::cost;
 use crate::db::{BirdClient, BookmarkRow, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -29,6 +28,7 @@ pub fn run_bookmarks(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: BookmarkOpts<'_>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use std::io::Write;
@@ -63,7 +63,7 @@ pub fn run_bookmarks(
         "https://api.x.com/2/users/me",
         me_response.cache_hit,
     );
-    cost::display_cost(cfg, &me_estimate);
+    cost::display_cost(cfg, stderr, &me_estimate);
 
     // Extract username from /users/me for bookmark relationship storage
     let me_username = me_json
@@ -121,7 +121,7 @@ pub fn run_bookmarks(
 
         let page = response.json.ok_or("invalid JSON from bookmarks")?;
         let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(cfg, &page_estimate);
+        cost::display_cost(cfg, stderr, &page_estimate);
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {
@@ -175,8 +175,9 @@ pub fn run_bookmarks(
         && !bookmark_rows.is_empty()
         && let Some(db) = client.db()
         && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
+        && !quiet
     {
-        diag!(quiet, "[store] warning: bookmark storage failed: {e}");
+        writeln!(stderr, "[store] warning: bookmark storage failed: {e}").ok();
     }
 
     // Close the JSON array wrapper, appending a meta block when there is a

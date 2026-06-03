@@ -13,12 +13,13 @@ pub struct ProfileOpts<'a> {
     pub pretty: bool,
 }
 
-/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
-/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6). `stderr` receives the `cost::display_cost` line.
 pub fn run_profile(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: ProfileOpts<'_>,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -68,7 +69,7 @@ pub fn run_profile(
     }
 
     let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
-    cost::display_cost(cfg, &estimate);
+    cost::display_cost(cfg, stderr, &estimate);
 
     if opts.pretty {
         writeln!(stdout, "{}", serde_json::to_string_pretty(&json)?)?;

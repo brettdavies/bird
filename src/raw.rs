@@ -9,13 +9,15 @@ use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
 ///
-/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
-/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6). `stderr` receives the cost-display line emitted by
+/// `cost::display_cost` for GET requests.
 #[allow(clippy::too_many_arguments)]
 pub fn run_raw(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     method: &str,
     path: &str,
     params: &HashMap<String, String>,
@@ -47,7 +49,7 @@ pub fn run_raw(
             &url,
             response.cache_hit,
         );
-        cost::display_cost(cfg, &estimate);
+        cost::display_cost(cfg, stderr, &estimate);
         response
     } else {
         client.request(&method_upper, &url, &ctx, body)?

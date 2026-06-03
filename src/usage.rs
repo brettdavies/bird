@@ -5,7 +5,6 @@
 use crate::db::{
     ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
 };
-use crate::diag;
 use crate::output;
 use crate::requirements::AuthType;
 
@@ -53,6 +52,7 @@ pub fn run_usage(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     since: Option<&str>,
     local: bool,
     pretty: bool,
@@ -69,7 +69,9 @@ pub fn run_usage(
         } else {
             "Store database is unavailable. Run `bird cache clear` to reset."
         };
-        diag!(quiet, "[usage] {}", msg);
+        if !quiet {
+            writeln!(stderr, "[usage] {}", msg).ok();
+        }
         if !pretty {
             writeln!(out, "{}", serde_json::to_string(&empty_report(since_ymd))?)?;
         }
@@ -89,11 +91,12 @@ pub fn run_usage(
         )
     };
 
-    if summary.total_calls == 0 && local {
-        diag!(
-            quiet,
+    if summary.total_calls == 0 && local && !quiet {
+        writeln!(
+            stderr,
             "[usage] No usage data recorded yet. Run some API commands first."
-        );
+        )
+        .ok();
     }
 
     // Fetch actual usage from X API (default; skipped with --local)
@@ -108,15 +111,16 @@ pub fn run_usage(
         );
         if let Some(since_date) = since_date {
             let days_back = (now - since_date).num_days();
-            if days_back > 90 {
-                diag!(
-                    quiet,
+            if days_back > 90 && !quiet {
+                writeln!(
+                    stderr,
                     "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
-                );
+                )
+                .ok();
             }
         }
 
-        match sync_actual_usage(client, quiet)? {
+        match sync_actual_usage(client, stderr, quiet)? {
             Some(sync_data) => {
                 sync_status = "success";
                 (Some(sync_data.daily), sync_data.cap, sync_data.per_app)
@@ -317,6 +321,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 /// Sync actual usage from X API via xurl with `--auth app` (Bearer token).
 fn sync_actual_usage(
     client: &mut BirdClient,
+    stderr: &mut dyn std::io::Write,
     quiet: bool,
 ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
     let url =
@@ -333,15 +338,18 @@ fn sync_actual_usage(
 
     // Graceful degradation: show local data on sync failure (D5)
     if !response.is_success() {
-        let msg = output::sanitize_for_stderr(&response.body, 200);
-        if response.body.contains("429") || response.body.contains("Too Many") {
-            diag!(quiet, "[usage] Rate limited. Showing local data only.");
-        } else {
-            diag!(
-                quiet,
-                "[usage] Sync failed: {}. Showing local data only.",
-                msg
-            );
+        if !quiet {
+            if response.body.contains("429") || response.body.contains("Too Many") {
+                writeln!(stderr, "[usage] Rate limited. Showing local data only.").ok();
+            } else {
+                let msg = output::sanitize_for_stderr(&response.body, 200);
+                writeln!(
+                    stderr,
+                    "[usage] Sync failed: {}. Showing local data only.",
+                    msg
+                )
+                .ok();
+            }
         }
         return Ok(None);
     }
@@ -396,10 +404,13 @@ fn sync_actual_usage(
     let db = match client.db() {
         Some(db) => db,
         None => {
-            diag!(
-                quiet,
-                "[usage] Cache database unavailable for storing actuals. Showing local data only."
-            );
+            if !quiet {
+                writeln!(
+                    stderr,
+                    "[usage] Cache database unavailable for storing actuals. Showing local data only."
+                )
+                .ok();
+            }
             return Ok(None);
         }
     };
@@ -428,11 +439,14 @@ fn sync_actual_usage(
         });
     }
 
-    diag!(
-        quiet,
-        "[usage] synced {} days of actual usage from X API",
-        results.len()
-    );
+    if !quiet {
+        writeln!(
+            stderr,
+            "[usage] synced {} days of actual usage from X API",
+            results.len()
+        )
+        .ok();
+    }
     Ok(Some(SyncData {
         daily: results,
         cap,
@@ -528,7 +542,8 @@ mod tests {
     fn do_sync(
         client: &mut BirdClient,
     ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
-        sync_actual_usage(client, true)
+        let mut stderr: Vec<u8> = Vec::new();
+        sync_actual_usage(client, &mut stderr, true)
     }
 
     // -- Regression tests for the bug we fixed --
@@ -905,7 +920,17 @@ mod tests {
         let mut client = sync_client(vec![]);
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
-        run_usage(&mut client, &cfg, &mut stdout, None, true, false).expect("test");
+        let mut stderr: Vec<u8> = Vec::new();
+        run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            true,
+            false,
+        )
+        .expect("test");
     }
 
     #[test]
@@ -923,7 +948,17 @@ mod tests {
         let mut client = sync_client(vec![api_response]);
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
-        run_usage(&mut client, &cfg, &mut stdout, None, false, false).expect("test");
+        let mut stderr: Vec<u8> = Vec::new();
+        run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            false,
+            false,
+        )
+        .expect("test");
     }
 
     #[test]
@@ -932,7 +967,16 @@ mod tests {
         let mut client = sync_client(vec![]);
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
-        let result = run_usage(&mut client, &cfg, &mut stdout, None, false, false);
+        let mut stderr: Vec<u8> = Vec::new();
+        let result = run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            false,
+            false,
+        );
         assert!(result.is_err(), "local=false should attempt API call");
     }
 

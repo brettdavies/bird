@@ -11,8 +11,9 @@
 //! All stdout writes in this module route through the runner-injected
 //! `stdout` writer: the `Completions` short-circuit, the `--examples`
 //! short-circuit (`print_examples`), and the JSON-wrapped clap help/version
-//! envelope branch. The remaining `diag!` sites still write to the global
-//! `stderr` handle; Plan 2 U6 addresses them.
+//! envelope branch. Diagnostic writes route through the injected `stderr`
+//! writer or — for `BirdClient`/`BirdDb` internal sites — through the
+//! `Arc<Mutex<dyn Write + Send>>` handle constructed at runner-entry.
 
 #![doc(hidden)]
 
@@ -25,7 +26,7 @@ use crate::cli::{Cli, Command, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::{db, diag, doctor, output, schema, schema_print, skill_install, transport, watchlist};
+use crate::{db, doctor, output, schema, schema_print, skill_install, transport, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
@@ -105,7 +106,10 @@ where
 /// stdout flows through the injected `stdout` writer for every short-circuit
 /// branch (`Completions`, `--examples`, the JSON-wrapped help/version
 /// envelope) and through dispatch into the per-command handlers. Diagnostic
-/// output (the `diag!` macro) still uses the global `stderr` handle.
+/// output flows through the injected `stderr` writer (handler params) or
+/// through the `Arc<Mutex<dyn Write + Send>>` handle on `BirdClient` /
+/// `BirdDb` for internal sites — both bind to the process stderr in the
+/// binary entrypoint, both can be redirected for library callers.
 pub fn run_with_paths<I, S>(
     args: I,
     stdout: &mut dyn Write,
@@ -278,11 +282,14 @@ where
         .and_then(|u| match schema::validate_username(&u) {
             Ok(s) => Some(s.to_string()),
             Err(e) => {
-                diag!(
-                    out.suppress_diag(),
-                    "[config] warning: X_API_USERNAME invalid, ignoring: {}",
-                    e
-                );
+                if !out.suppress_diag() {
+                    writeln!(
+                        stderr,
+                        "[config] warning: X_API_USERNAME invalid, ignoring: {}",
+                        e
+                    )
+                    .ok();
+                }
                 None
             }
         });
@@ -308,10 +315,10 @@ where
     };
     // BirdClient takes an Arc-shared writer (KTD-2). The runner's local
     // `&mut dyn Write` stderr param cannot be cloned/shared into an Arc, so we
-    // construct a separate handle bound to the process stderr. Tests that read
-    // the runner's `stderr` buffer still see nothing from the internal `diag!`
-    // sites; U6 doesn't change that — capturing those requires Plan-2 U11's
-    // run_with_paths signature change.
+    // construct a separate handle bound to the process stderr. Diagnostic
+    // sites that fire inside `BirdClient` / `BirdDb` route through this
+    // handle, not the runner's `stderr` borrow — capturing them in tests
+    // requires the Plan 2 U11 signature change.
     let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
         std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
     let mut client = db::BirdClient::new(
@@ -328,7 +335,7 @@ where
     if let Command::Doctor { command, pretty } = &cli.command {
         let scope = command.as_deref();
         let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(&client, &out, stdout, *pretty, scope, use_emoji) {
+        match doctor::run_doctor(&client, &out, stdout, stderr, *pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
@@ -344,7 +351,8 @@ where
     {
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, &out, username).map_err(BirdError::config)
+                watchlist::run_watchlist_add(&config, &out, stderr, username)
+                    .map_err(BirdError::config)
             }
             WatchlistCommand::Remove { username, guard } => {
                 let target = format!("watchlist:@{}", username);
@@ -357,12 +365,12 @@ where
                     &out,
                     cli.no_interactive,
                     stdout,
-                    &mut std::io::stderr().lock(),
+                    stderr,
                     None,
                 ) {
                     Ok(GuardOutcome::DryRun) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {
-                        watchlist::run_watchlist_remove(&config, &out, username)
+                        watchlist::run_watchlist_remove(&config, &out, stderr, username)
                             .map_err(BirdError::config)
                     }
                     Err(e) => Err(e),
@@ -374,6 +382,7 @@ where
                     &config,
                     &out,
                     stdout,
+                    stderr,
                     pretty,
                     Some(limit),
                     cli.cursor.as_deref(),

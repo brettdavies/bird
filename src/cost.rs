@@ -73,18 +73,20 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
     }
 }
 
-/// Format and print cost to stderr.
-///
-/// U2 (Plan 2) note: signature now takes `&OutputConfig` plus the underlying
-/// `use_color`/`quiet` locals derived from it. The body still calls `eprintln!`
-/// (U6 / R16 replaces with an injected stderr writer); this unit only
-/// normalizes the surface.
-pub fn display_cost(cfg: &crate::output::OutputConfig, estimate: &CostEstimate) {
-    let use_color = cfg.use_color;
+/// Format and print cost to `stderr`. Honors `cfg.suppress_diag()` per KTD-1:
+/// when suppressed the function returns before any formatting work, preserving
+/// the zero-allocation property. Write failures are dropped (fire-and-forget)
+/// to match the prior `eprintln!` semantics.
+pub fn display_cost(
+    cfg: &crate::output::OutputConfig,
+    stderr: &mut dyn std::io::Write,
+    estimate: &CostEstimate,
+) {
     let quiet = cfg.suppress_diag();
     if quiet {
         return;
     }
+    let use_color = cfg.use_color;
     let mut parts = Vec::new();
     if estimate.tweets_read > 0 {
         parts.push(format!(
@@ -122,9 +124,9 @@ pub fn display_cost(cfg: &crate::output::OutputConfig, estimate: &CostEstimate) 
 
     if use_color {
         use owo_colors::OwoColorize;
-        eprintln!("{}", msg.bright_black());
+        writeln!(stderr, "{}", msg.bright_black()).ok();
     } else {
-        eprintln!("{}", msg);
+        writeln!(stderr, "{}", msg).ok();
     }
 }
 

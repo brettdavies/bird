@@ -154,8 +154,7 @@ impl OutputConfig {
     }
 
     /// Write a diagnostic line to `stderr`, honoring the quiet gate. Returns
-    /// `Ok(())` without writing when `self.suppress_diag()` is true. Replaces
-    /// the [`diag!`] macro at non-hot-path sites.
+    /// `Ok(())` without writing when `self.suppress_diag()` is true.
     pub fn print_diag(&self, stderr: &mut dyn std::io::Write, msg: &str) -> std::io::Result<()> {
         if self.suppress_diag() {
             return Ok(());

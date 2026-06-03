@@ -2,7 +2,6 @@
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
 use crate::cost;
-use crate::diag;
 use crate::requirements::{self, AuthType};
 use crate::transport::Transport;
 
@@ -239,8 +238,9 @@ pub struct BirdClient {
     pub quiet: bool,
     /// Shared writer handle for diagnostic output (KTD-2). `Arc::clone` of this
     /// is passed into `BirdDb::open` so both layers emit through the same sink.
-    /// U6a stores the field without reading it; U6 pivots `diag!` sites to it.
-    #[allow(dead_code)]
+    /// Read by the internal diagnostic sites under the `if !self.quiet` gate
+    /// — the lock is acquired only when emission is required, so suppressed
+    /// paths pay zero.
     pub(crate) stderr: Arc<Mutex<dyn Write + Send>>,
 }
 
@@ -248,9 +248,9 @@ impl BirdClient {
     /// Create a new BirdClient. If entity store cannot be opened, degrades to no-store.
     ///
     /// `stderr` is the shared writer handle (KTD-2). `Arc::clone` is forwarded
-    /// to `BirdDb::open` so both layers emit through the same sink. The field
-    /// is stored on the struct but not read in U6a — U6 pivots `diag!` sites
-    /// to it. The macros below still write to global stderr at U6a.
+    /// to `BirdDb::open` so both layers emit through the same sink. Internal
+    /// diagnostic sites lock the shared handle under the `if !self.quiet`
+    /// gate.
     pub fn new(
         transport: Box<dyn Transport>,
         store_path: &Path,
@@ -280,14 +280,20 @@ impl BirdClient {
                     }
                 }
                 // Prune stale raw_responses and oversized entity tables
-                if let Err(e) = db.prune_if_needed() {
-                    diag!(quiet, "[store] warning: pruning failed: {e}");
+                if let Err(e) = db.prune_if_needed()
+                    && !quiet
+                {
+                    let mut w = stderr.lock().unwrap();
+                    writeln!(*w, "[store] warning: pruning failed: {e}").ok();
                 }
                 Some(db)
             }
             Err(e) => {
-                diag!(quiet, "[store] warning: failed to open entity store: {e}");
-                diag!(quiet, "[store] Run `bird cache clear` to reset the store.");
+                if !quiet {
+                    let mut w = stderr.lock().unwrap();
+                    writeln!(*w, "[store] warning: failed to open entity store: {e}").ok();
+                    writeln!(*w, "[store] Run `bird cache clear` to reset the store.").ok();
+                }
                 None
             }
         };
@@ -303,7 +309,7 @@ impl BirdClient {
 
     /// Test-only constructor with explicit transport and in-memory DB.
     /// Uses `io::sink()` as the stderr writer so tests don't capture internal
-    /// diagnostic output (U6a — sites still use `diag!` against global stderr).
+    /// diagnostic output.
     #[cfg(test)]
     pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::db::BirdDb) -> Self {
         Self {
@@ -488,8 +494,10 @@ impl BirdClient {
             estimated_cost: estimate.estimated_usd,
             cache_hit,
             username,
-        }) {
-            diag!(self.quiet, "[usage] warning: failed to log API call: {e}");
+        }) && !self.quiet
+        {
+            let mut w = self.stderr.lock().unwrap();
+            writeln!(*w, "[usage] warning: failed to log API call: {e}").ok();
         }
     }
 
@@ -697,16 +705,22 @@ impl BirdClient {
         // Handle error-in-200 pattern: log but continue processing available data
         if let Some(errors) = json.get("errors").and_then(|e| e.as_array())
             && !errors.is_empty()
+            && !self.quiet
         {
-            diag!(
-                self.quiet,
+            let mut w = self.stderr.lock().unwrap();
+            writeln!(
+                *w,
                 "[store] {} API error(s) in 200 response (processing available data)",
                 errors.len()
-            );
+            )
+            .ok();
         }
 
-        if let Err(e) = db.upsert_entities(&tweets, &users) {
-            diag!(self.quiet, "[store] warning: entity upsert failed: {e}");
+        if let Err(e) = db.upsert_entities(&tweets, &users)
+            && !self.quiet
+        {
+            let mut w = self.stderr.lock().unwrap();
+            writeln!(*w, "[store] warning: entity upsert failed: {e}").ok();
         }
     }
 
@@ -714,11 +728,11 @@ impl BirdClient {
     fn store_raw_response(&self, url: &str, status: u16, body: &str) {
         let Some(ref db) = self.db else { return };
         let key = compute_raw_cache_key("GET", url);
-        if let Err(e) = db.upsert_raw_response(&key, url, status, body.as_bytes()) {
-            diag!(
-                self.quiet,
-                "[store] warning: raw response store failed: {e}"
-            );
+        if let Err(e) = db.upsert_raw_response(&key, url, status, body.as_bytes())
+            && !self.quiet
+        {
+            let mut w = self.stderr.lock().unwrap();
+            writeln!(*w, "[store] warning: raw response store failed: {e}").ok();
         }
     }
 }
