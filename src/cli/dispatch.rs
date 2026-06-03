@@ -43,7 +43,7 @@ pub fn run(
 ) -> Result<(), BirdError> {
     match command {
         Command::Login { headless } => {
-            commands::login::run(client, out, headless, config.username.as_deref())
+            commands::login::run(client, out, stdout, headless, config.username.as_deref())
         }
         Command::Me { pretty } => commands::reads::run_me(client, out, stdout, pretty),
         Command::Get {

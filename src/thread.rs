@@ -18,9 +18,9 @@ pub struct ThreadOpts<'a> {
     pub max_pages: u32,
 }
 
-/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
-/// body still calls `crate::out_println!` / `diag!` (U5 / R13/R15 replaces
-/// those against injected writers).
+/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
+/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
+/// The `diag!` sites still target the static stderr macro (U6 / R15 converts).
 pub fn run_thread(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
@@ -28,7 +28,6 @@ pub fn run_thread(
     opts: ThreadOpts<'_>,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _ = stdout;
     let quiet = cfg.suppress_diag();
     validate_tweet_id(opts.tweet_id)?;
     let max_pages = opts.max_pages.clamp(1, MAX_PAGES_CAP);
@@ -195,9 +194,9 @@ pub fn run_thread(
     });
 
     if opts.pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
     }
 
     diag!(

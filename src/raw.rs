@@ -9,8 +9,8 @@ use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
 ///
-/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
-/// body still calls `crate::out_println!` (U3 / R13 replaces those).
+/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
+/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
 #[allow(clippy::too_many_arguments)]
 pub fn run_raw(
     client: &mut BirdClient,
@@ -24,7 +24,6 @@ pub fn run_raw(
     pretty: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _ = stdout;
     let path = resolve_path(path, params)?;
     let url = format!("https://api.x.com{}", path);
     let mut url_builder = url::Url::parse(&url).map_err(|e| e.to_string())?;
@@ -68,9 +67,9 @@ pub fn run_raw(
         None => serde_json::Value::String(response.body),
     };
     if pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&json)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&json)?)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&json)?);
+        writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
     }
     Ok(())
 }

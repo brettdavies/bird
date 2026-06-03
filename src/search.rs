@@ -20,9 +20,9 @@ pub struct SearchOpts<'a> {
     pub cursor: Option<&'a str>,
 }
 
-/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
-/// body still calls `crate::out_println!` / `diag!` (U5 / R13/R15 replaces
-/// those with `writeln!` / quiet-guard pattern against injected writers).
+/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
+/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
+/// The `diag!` sites still target the static stderr macro (U6 / R15 converts).
 pub fn run_search(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
@@ -30,7 +30,6 @@ pub fn run_search(
     opts: SearchOpts<'_>,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _ = stdout;
     let quiet = cfg.suppress_diag();
     // Validate sort key before any API calls (fail fast)
     if !matches!(opts.sort, "recent" | "likes") {
@@ -158,9 +157,9 @@ pub fn run_search(
     });
 
     if opts.pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
     }
 
     diag!(

@@ -248,7 +248,7 @@ where
     }
 
     if let Command::Schema { name, list } = &cli.command {
-        return match schema_print::run(name.as_deref(), *list, &out) {
+        return match schema_print::run(name.as_deref(), *list, &out, stdout) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
                 output::print_error(&err, &out);
