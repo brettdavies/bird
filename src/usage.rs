@@ -43,9 +43,12 @@ fn ymd_to_display(ymd: i64) -> String {
     )
 }
 
-/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
-/// body still calls `crate::out_println!` / `diag!` (U4 / R13/R15 replaces
-/// those with BufWriter against the injected writer for streaming output).
+/// Compute the usage report (with optional API sync) and stream it to the
+/// injected stdout writer via a local `BufWriter`. The buffer is flushed at
+/// end and on every early-return path. Mid-stream errors propagate `?`; the
+/// BufWriter is dropped on unwind, flushing buffered bytes in debug builds.
+/// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
+/// truncate — accepted property of streaming output.
 pub fn run_usage(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
@@ -54,7 +57,8 @@ pub fn run_usage(
     local: bool,
     pretty: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _ = stdout;
+    use std::io::Write;
+    let mut out = std::io::BufWriter::new(stdout);
     let quiet = cfg.suppress_diag();
     let since_ymd = parse_since(since)?;
 
@@ -67,8 +71,9 @@ pub fn run_usage(
         };
         diag!(quiet, "[usage] {}", msg);
         if !pretty {
-            crate::out_println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
+            writeln!(out, "{}", serde_json::to_string(&empty_report(since_ymd))?)?;
         }
+        out.flush()?;
         return Ok(());
     }
 
@@ -150,10 +155,11 @@ pub fn run_usage(
     };
 
     if pretty {
-        print_usage_pretty(&report);
+        print_usage_pretty(&mut out, &report)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&report)?);
+        writeln!(out, "{}", serde_json::to_string(&report)?)?;
     }
+    out.flush()?;
     Ok(())
 }
 
@@ -182,9 +188,9 @@ fn ordinal_day(day: u32) -> String {
     format!("{}{}", day, suffix)
 }
 
-fn print_usage_pretty(report: &UsageReport) {
-    crate::out_println!("API Usage ({} to {})", report.since, report.until);
-    crate::out_println!("{}", "-".repeat(45));
+fn print_usage_pretty(out: &mut impl std::io::Write, report: &UsageReport) -> std::io::Result<()> {
+    writeln!(out, "API Usage ({} to {})", report.since, report.until)?;
+    writeln!(out, "{}", "-".repeat(45))?;
 
     if let Some(ref cap) = report.cap {
         let pct = if cap.project_cap > 0 {
@@ -192,13 +198,18 @@ fn print_usage_pretty(report: &UsageReport) {
         } else {
             0.0
         };
-        crate::out_println!(
+        writeln!(
+            out,
             "Project cap:           {} / {} ({:.2}%)",
             format_number(cap.project_usage),
             format_number(cap.project_cap),
             pct
-        );
-        crate::out_println!("Cap reset day:         {}", ordinal_day(cap.cap_reset_day));
+        )?;
+        writeln!(
+            out,
+            "Cap reset day:         {}",
+            ordinal_day(cap.cap_reset_day)
+        )?;
     }
 
     let total_calls = report.summary.total_calls;
@@ -208,16 +219,21 @@ fn print_usage_pretty(report: &UsageReport) {
         0
     };
 
-    crate::out_println!("Total estimated cost:  ${:.2}", report.summary.total_cost);
-    crate::out_println!("Total API calls:       {}", total_calls);
-    crate::out_println!("Cache hit rate:        {}%", cache_rate);
-    crate::out_println!(
+    writeln!(
+        out,
+        "Total estimated cost:  ${:.2}",
+        report.summary.total_cost
+    )?;
+    writeln!(out, "Total API calls:       {}", total_calls)?;
+    writeln!(out, "Cache hit rate:        {}%", cache_rate)?;
+    writeln!(
+        out,
         "Estimated savings:     ~${:.2}",
         report.summary.estimated_savings
-    );
+    )?;
 
     if !report.daily.is_empty() {
-        crate::out_println!("\nDaily breakdown:");
+        writeln!(out, "\nDaily breakdown:")?;
         for day in &report.daily {
             let day_calls = day.calls;
             let day_cache_pct = if day_calls > 0 {
@@ -225,20 +241,25 @@ fn print_usage_pretty(report: &UsageReport) {
             } else {
                 0
             };
-            crate::out_println!(
+            writeln!(
+                out,
                 "  {}  ${:.2}  ({} calls, {}% cached)",
                 ymd_to_display(day.date_ymd),
                 day.cost,
                 day_calls,
                 day_cache_pct
-            );
+            )?;
         }
     }
 
     if !report.top_endpoints.is_empty() {
-        crate::out_println!("\nTop endpoints:");
+        writeln!(out, "\nTop endpoints:")?;
         for ep in &report.top_endpoints {
-            crate::out_println!("  {}  ${:.2}  ({} calls)", ep.endpoint, ep.cost, ep.calls);
+            writeln!(
+                out,
+                "  {}  ${:.2}  ({} calls)",
+                ep.endpoint, ep.cost, ep.calls
+            )?;
         }
     }
 
@@ -255,35 +276,35 @@ fn print_usage_pretty(report: &UsageReport) {
             })
             .unwrap_or_else(|| "unknown".to_string());
 
-        crate::out_println!("\nEstimated vs Actual (synced {})", synced_at);
-        crate::out_println!("{}", "-".repeat(50));
-        crate::out_println!(
+        writeln!(out, "\nEstimated vs Actual (synced {})", synced_at)?;
+        writeln!(out, "{}", "-".repeat(50))?;
+        writeln!(
+            out,
             "  {:<12} {:<14} {:<8} Diff",
-            "Date",
-            "Est. tweets",
-            "Actual"
-        );
+            "Date", "Est. tweets", "Actual"
+        )?;
         for actual in actuals {
-            crate::out_println!(
+            writeln!(
+                out,
                 "  {:<12} {:<14} {:<8}",
-                actual.date,
-                "-",
-                actual.tweet_count
-            );
+                actual.date, "-", actual.tweet_count
+            )?;
         }
     }
 
     if !report.per_app.is_empty() {
-        crate::out_println!("\nPer-app breakdown:");
+        writeln!(out, "\nPer-app breakdown:")?;
         for entry in &report.per_app {
-            crate::out_println!(
+            writeln!(
+                out,
                 "  app={}  {}  {} tweets",
                 entry.client_app_id,
                 entry.date,
                 format_number(entry.tweet_count)
-            );
+            )?;
         }
     }
+    Ok(())
 }
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
