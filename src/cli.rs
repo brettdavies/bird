@@ -16,7 +16,7 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
     version,
     after_help = include_str!("../examples/top-level.txt")
 )]
-pub(crate) struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
@@ -129,7 +129,7 @@ pub(crate) struct Cli {
 /// `force`). `--dry-run` short-circuits before any HTTP call, prints the
 /// would-be request, and exits 0.
 #[derive(Args, Debug, Clone, Copy, Default)]
-pub(crate) struct WriteGuard {
+pub struct WriteGuard {
     /// Skip the interactive confirmation prompt (alias: --yes).
     #[arg(long, short = 'f', alias = "yes", global = false)]
     pub force: bool,
@@ -140,7 +140,7 @@ pub(crate) struct WriteGuard {
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub(crate) enum Command {
+pub enum Command {
     /// Authenticate via xurl (OAuth2 PKCE browser flow).
     #[command(after_help = include_str!("../examples/login.txt"))]
     Login {
@@ -469,7 +469,7 @@ pub(crate) enum Command {
 }
 
 #[derive(clap::Subcommand, Debug, Clone, Copy)]
-pub(crate) enum SkillAction {
+pub enum SkillAction {
     /// Install the bird skill bundle into a host's canonical skills directory
     Install {
         /// Target host (default: claude-code). Mutually exclusive with --all
@@ -502,7 +502,7 @@ pub(crate) enum SkillAction {
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub(crate) enum CacheAction {
+pub enum CacheAction {
     /// Delete all cache entries.
     #[command(after_help = include_str!("../examples/cache-clear.txt"))]
     Clear {
@@ -518,7 +518,7 @@ pub(crate) enum CacheAction {
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub(crate) enum WatchlistCommand {
+pub enum WatchlistCommand {
     /// Fetch recent activity for all watched users.
     #[command(
         alias = "check",

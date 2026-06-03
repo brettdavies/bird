@@ -1,32 +1,14 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
-mod bookmarks;
-mod cli;
-mod config;
-mod cost;
-mod db;
-mod doctor;
-mod error;
-mod fields;
-mod login;
-mod output;
-mod profile;
-mod raw;
-mod requirements;
-mod schema;
-mod schema_print;
-mod search;
-mod skill_install;
-mod thread;
-mod transport;
-mod usage;
-mod watchlist;
-
+use bird::cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
+use bird::config::{ArgOverrides, ResolvedConfig};
+use bird::error::BirdError;
+use bird::output::{OutputConfig, OutputFormat};
+use bird::{
+    bookmarks, db, diag, doctor, login, out_print, out_println, output, profile, raw, requirements,
+    schema, schema_print, search, skill_install, thread, transport, usage, watchlist,
+};
 use clap::Parser;
-use cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
-use config::{ArgOverrides, ResolvedConfig};
-use error::BirdError;
-use output::{OutputConfig, OutputFormat};
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
@@ -48,7 +30,7 @@ fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
 ///   - Destructive commands without `--force`/`--yes` in non-TTY context —
 ///     `require_confirmation` will refuse first with a usage error, no xurl needed
 fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: bool) -> bool {
-    use cli::{CacheAction, WatchlistCommand, WriteGuard};
+    use bird::cli::{CacheAction, WatchlistCommand, WriteGuard};
     // For write-guarded commands: if guard would refuse (no force/yes, no dry-run,
     // and the caller can't confirm interactively), xurl is never invoked.
     let guard_proceeds = |g: &WriteGuard| -> bool {
@@ -131,7 +113,7 @@ fn require_confirmation(
     method: &str,
     target: &str,
     body: Option<&serde_json::Value>,
-    guard: crate::cli::WriteGuard,
+    guard: bird::cli::WriteGuard,
     out: &OutputConfig,
     no_interactive: bool,
 ) -> Result<GuardOutcome, BirdError> {
@@ -192,15 +174,15 @@ fn emit_dry_run(
         let data = serde_json::json!({"dry_run": true, "would": would, "verb": verb});
         let meta = serde_json::json!({});
         if let Ok(line) = output::success_envelope_string(&data, &meta) {
-            crate::out_println!("{}", line);
+            out_println!("{}", line);
             return;
         }
     }
-    crate::out_println!("Would {}: {} {}", verb, method, target);
+    out_println!("Would {}: {} {}", verb, method, target);
     if let Some(b) = body {
-        crate::out_println!("Body: {}", b);
+        out_println!("Body: {}", b);
     }
-    crate::out_println!("(--dry-run; no request sent)");
+    out_println!("(--dry-run; no request sent)");
 }
 
 /// Build the effective absolute URL for dry-run preview output.
@@ -245,7 +227,7 @@ fn xurl_write_call(
     }
     full_args.extend_from_slice(args);
     let json = transport::xurl_call(&full_args)?;
-    crate::out_println!("{}", serde_json::to_string(&json)?);
+    out_println!("{}", serde_json::to_string(&json)?);
     Ok(())
 }
 
@@ -958,24 +940,24 @@ fn run(
                         "healthy": stats.healthy(),
                     });
                     if pretty {
-                        crate::out_println!("Store: {}", path);
-                        crate::out_println!(
+                        out_println!("Store: {}", path);
+                        out_println!(
                             "Size:  {:.1} MB / {:.0} MB limit",
                             stats.size_mb(),
                             stats.max_size_mb()
                         );
-                        crate::out_println!("Tweets: {}", stats.tweet_count);
-                        crate::out_println!("Users:  {}", stats.user_count);
-                        crate::out_println!("Raw:    {}", stats.raw_response_count);
+                        out_println!("Tweets: {}", stats.tweet_count);
+                        out_println!("Users:  {}", stats.user_count);
+                        out_println!("Raw:    {}", stats.raw_response_count);
                     } else if out.is_raw_text() {
                         // --raw text: one key=value per line, pipe-safe.
-                        crate::out_println!("path={}", path);
-                        crate::out_println!("size_mb={:.1}", stats.size_mb());
-                        crate::out_println!("max_size_mb={:.0}", stats.max_size_mb());
-                        crate::out_println!("tweets={}", stats.tweet_count);
-                        crate::out_println!("users={}", stats.user_count);
-                        crate::out_println!("raw_responses={}", stats.raw_response_count);
-                        crate::out_println!("healthy={}", stats.healthy());
+                        out_println!("path={}", path);
+                        out_println!("size_mb={:.1}", stats.size_mb());
+                        out_println!("max_size_mb={:.0}", stats.max_size_mb());
+                        out_println!("tweets={}", stats.tweet_count);
+                        out_println!("users={}", stats.user_count);
+                        out_println!("raw_responses={}", stats.raw_response_count);
+                        out_println!("healthy={}", stats.healthy());
                     } else {
                         let meta = serde_json::json!({});
                         let line = output::success_envelope_string(&data, &meta).map_err(|e| {
@@ -984,7 +966,7 @@ fn run(
                                 Box::<dyn std::error::Error + Send + Sync>::from(e),
                             )
                         })?;
-                        crate::out_println!("{}", line);
+                        out_println!("{}", line);
                     }
                 }
                 Some(Err(e)) => {
@@ -1003,7 +985,7 @@ fn run(
                                 Box::<dyn std::error::Error + Send + Sync>::from(e),
                             )
                         })?;
-                        crate::out_println!("{}", line);
+                        out_println!("{}", line);
                     } else {
                         diag!(quiet, "Store is not available.");
                     }
@@ -1088,11 +1070,11 @@ fn print_examples(out: &OutputConfig) -> ExitCode {
         let data = serde_json::json!(qualified);
         let meta = serde_json::json!({"count": qualified.len()});
         match output::success_envelope_string(&data, &meta) {
-            Ok(line) => crate::out_println!("{}", line),
-            Err(_) => crate::out_println!("{}", TOP_LEVEL_EXAMPLES),
+            Ok(line) => out_println!("{}", line),
+            Err(_) => out_println!("{}", TOP_LEVEL_EXAMPLES),
         }
     } else {
-        crate::out_print!("{}", TOP_LEVEL_EXAMPLES);
+        out_print!("{}", TOP_LEVEL_EXAMPLES);
     }
     ExitCode::SUCCESS
 }
@@ -1193,7 +1175,7 @@ fn main() -> ExitCode {
                     });
                     let meta = serde_json::json!({"format": "text"});
                     match output::success_envelope_string(&data, &meta) {
-                        Ok(line) => crate::out_println!("{}", line),
+                        Ok(line) => out_println!("{}", line),
                         Err(_) => {
                             let _ = e.print();
                         }

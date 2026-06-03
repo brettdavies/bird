@@ -126,7 +126,7 @@ fn print_schema(entry: &SchemaEntry, out: &OutputConfig) -> Result<(), BirdError
 /// - `name=None, list=false` -> emit the success-envelope schema (universal shape)
 /// - `list=true` -> emit names (text: one per line; json: envelope array)
 /// - `name=Some(n)` -> emit schema `n`; unknown name -> Usage error (exit 2)
-pub(crate) fn run(name: Option<&str>, list: bool, out: &OutputConfig) -> Result<(), BirdError> {
+pub fn run(name: Option<&str>, list: bool, out: &OutputConfig) -> Result<(), BirdError> {
     if list {
         return print_list(out);
     }
