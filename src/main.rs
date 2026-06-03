@@ -1,5 +1,7 @@
 //! bird — X API CLI. Subcommands: login, me; raw get/post/put/delete.
 
+use bird::cli::argv::{explicit_output_from_argv, output_from_argv};
+use bird::cli::clap_errors::clap_error_to_bird;
 use bird::cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
 use bird::config::{ArgOverrides, ResolvedConfig};
 use bird::error::BirdError;
@@ -996,58 +998,6 @@ fn run(
     Ok(())
 }
 
-/// Pre-scan argv for an EXPLICIT output flag (`--output json`, `--output=json`,
-/// `-o json`, `--json`, `--jsonl`). Returns `None` if no explicit flag is set
-/// (caller may then consult env vars or auto-detect from TTY).
-fn explicit_output_from_argv(argv: &[String]) -> Option<OutputFormat> {
-    let mut i = 0;
-    while i < argv.len() {
-        let a = argv[i].as_str();
-        if a == "--json" {
-            return Some(OutputFormat::Json);
-        }
-        if a == "--jsonl" {
-            return Some(OutputFormat::Jsonl);
-        }
-        if (a == "-o" || a == "--output")
-            && let Some(v) = argv.get(i + 1)
-            && let Some(f) = parse_output_value(v)
-        {
-            return Some(f);
-        }
-        if let Some(rest) = a.strip_prefix("--output=")
-            && let Some(f) = parse_output_value(rest)
-        {
-            return Some(f);
-        }
-        if let Some(rest) = a.strip_prefix("-o=")
-            && let Some(f) = parse_output_value(rest)
-        {
-            return Some(f);
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Pre-scan argv plus env for the format to use when emitting the envelope on
-/// clap parse failures. Falls back to TTY auto-detection.
-fn output_from_argv(argv: &[String]) -> OutputFormat {
-    if let Some(f) = explicit_output_from_argv(argv) {
-        return f;
-    }
-    if let Ok(env) = std::env::var("BIRD_OUTPUT")
-        && let Some(f) = parse_output_value(&env)
-    {
-        return f;
-    }
-    if std::io::stderr().is_terminal() {
-        OutputFormat::Text
-    } else {
-        OutputFormat::Json
-    }
-}
-
 /// Curated top-level examples block — embedded so `--examples` works on every host.
 const TOP_LEVEL_EXAMPLES: &str = include_str!("../examples/top-level.txt");
 
@@ -1077,42 +1027,6 @@ fn print_examples(out: &OutputConfig) -> ExitCode {
         out_print!("{}", TOP_LEVEL_EXAMPLES);
     }
     ExitCode::SUCCESS
-}
-
-fn parse_output_value(v: &str) -> Option<OutputFormat> {
-    match v {
-        "json" => Some(OutputFormat::Json),
-        "jsonl" => Some(OutputFormat::Jsonl),
-        "ndjson" => Some(OutputFormat::Ndjson),
-        "text" => Some(OutputFormat::Text),
-        _ => None,
-    }
-}
-
-/// Convert a clap parse error to a `BirdError::Usage` (for non-help cases) or
-/// route help/version to stdout directly. Returns `None` when the error was a
-/// help/version display (program should exit 0).
-fn clap_error_to_bird(err: &clap::Error) -> Option<BirdError> {
-    use clap::error::ErrorKind;
-    match err.kind() {
-        ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => None,
-        _ => {
-            let error_id = match err.kind() {
-                ErrorKind::UnknownArgument => "unknown-argument",
-                ErrorKind::MissingRequiredArgument => "missing-required-argument",
-                ErrorKind::MissingSubcommand => "missing-subcommand",
-                ErrorKind::InvalidSubcommand => "invalid-subcommand",
-                ErrorKind::InvalidValue => "invalid-value",
-                ErrorKind::TooManyValues => "too-many-values",
-                ErrorKind::TooFewValues => "too-few-values",
-                ErrorKind::ArgumentConflict => "argument-conflict",
-                ErrorKind::NoEquals => "missing-equals",
-                ErrorKind::ValueValidation => "invalid-value",
-                _ => "invalid-arguments",
-            };
-            Some(BirdError::usage(error_id, err.to_string()))
-        }
-    }
 }
 
 fn main() -> ExitCode {
@@ -1472,53 +1386,5 @@ mod tests {
             1,
             "Non-auth XurlError should map to exit 1"
         );
-    }
-
-    #[test]
-    fn output_from_argv_detects_json_flag() {
-        let argv = vec!["bird".to_string(), "--json".to_string(), "me".to_string()];
-        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
-    }
-
-    #[test]
-    fn output_from_argv_detects_jsonl_flag() {
-        let argv = vec![
-            "bird".to_string(),
-            "bookmarks".to_string(),
-            "--jsonl".to_string(),
-        ];
-        assert_eq!(output_from_argv(&argv), OutputFormat::Jsonl);
-    }
-
-    #[test]
-    fn output_from_argv_detects_output_separate_value() {
-        let argv = vec![
-            "bird".to_string(),
-            "--output".to_string(),
-            "json".to_string(),
-            "me".to_string(),
-        ];
-        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
-    }
-
-    #[test]
-    fn output_from_argv_detects_output_equals_value() {
-        let argv = vec![
-            "bird".to_string(),
-            "--output=jsonl".to_string(),
-            "bookmarks".to_string(),
-        ];
-        assert_eq!(output_from_argv(&argv), OutputFormat::Jsonl);
-    }
-
-    #[test]
-    fn output_from_argv_detects_short_o_value() {
-        let argv = vec![
-            "bird".to_string(),
-            "-o".to_string(),
-            "json".to_string(),
-            "me".to_string(),
-        ];
-        assert_eq!(output_from_argv(&argv), OutputFormat::Json);
     }
 }
