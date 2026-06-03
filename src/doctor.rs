@@ -363,6 +363,7 @@ mod tests {
             100,
             None,
             false,
+            std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),
         )
     }
 

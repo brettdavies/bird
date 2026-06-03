@@ -6,7 +6,9 @@
 use rusqlite::Connection;
 use rusqlite::params;
 use rusqlite_migration::{M, Migrations};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use super::unix_now;
 use crate::diag;
@@ -194,16 +196,32 @@ pub(crate) fn migrations() -> Migrations<'static> {
 /// Plan 2's writer-injection design (`Arc<Mutex<dyn Write + Send>>`) needs
 /// `BirdClient: Send + Sync` as a compile-time gate. The per-call lock is
 /// uncontended (single-threaded access) and adds sub-microsecond cost.
+///
+/// `stderr` is a shared writer handle cloned from the enclosing `BirdClient`
+/// (KTD-2). Internal `diag!` sites still write to global stderr in U6a; U6
+/// pivots them to read `self.stderr` + `self.quiet`.
 pub struct BirdDb {
     pub(crate) conn: std::sync::Mutex<Connection>,
     pub(crate) write_count: u32,
     pub(crate) max_bytes: u64,
+    #[allow(dead_code)]
+    pub(crate) stderr: Arc<Mutex<dyn Write + Send>>,
+    pub(crate) quiet: bool,
 }
 
 impl BirdDb {
     /// Open (or create) the entity store at the given path.
     /// Sets process umask before opening to ensure SQLite sidecar files inherit restrictive permissions.
-    pub fn open(path: &Path, max_size_mb: u64) -> Result<Self, rusqlite::Error> {
+    ///
+    /// `stderr` is the shared writer handle (cloned from `BirdClient`) per KTD-2;
+    /// `quiet` is stored so internal diagnostic sites suppress without taking a
+    /// per-method parameter. Both fields are receivers U6 pivots `diag!` sites to.
+    pub fn open(
+        path: &Path,
+        max_size_mb: u64,
+        stderr: Arc<Mutex<dyn Write + Send>>,
+        quiet: bool,
+    ) -> Result<Self, rusqlite::Error> {
         Self::ensure_file_permissions(path);
 
         let mut conn = Connection::open(path)?;
@@ -254,6 +272,8 @@ impl BirdDb {
             conn: std::sync::Mutex::new(conn),
             write_count: 0,
             max_bytes: max_size_mb * 1024 * 1024,
+            stderr,
+            quiet,
         };
 
         Ok(db)
@@ -306,8 +326,11 @@ impl BirdDb {
     }
 
     /// Attempt to migrate usage data from the old cache.db on first open.
-    /// Idempotent: checks a sentinel row in migrations_meta.
-    pub fn migrate_usage_from_cache(&self, cache_db_path: &Path, quiet: bool) {
+    /// Idempotent: checks a sentinel row in migrations_meta. Uses `self.quiet`
+    /// to gate diagnostic output (U6a moved this off the parameter list to align
+    /// with KTD-2's struct-field receiver pattern).
+    pub fn migrate_usage_from_cache(&self, cache_db_path: &Path) {
+        let quiet = self.quiet;
         if !cache_db_path.exists() {
             return;
         }
@@ -837,6 +860,8 @@ pub(crate) fn in_memory_db() -> BirdDb {
         conn: std::sync::Mutex::new(conn),
         write_count: 0,
         max_bytes: 100 * 1024 * 1024, // 100MB
+        stderr: Arc::new(Mutex::new(std::io::sink())),
+        quiet: true,
     }
 }
 
@@ -1258,7 +1283,7 @@ mod tests {
                 .execute_batch("CREATE VIEW evil AS SELECT * FROM tweets")
                 .expect("test");
         }
-        let result = BirdDb::open(&db_path, 100);
+        let result = BirdDb::open(&db_path, 100, Arc::new(Mutex::new(std::io::sink())), true);
         assert!(result.is_err(), "should reject database with views");
     }
 
@@ -1273,7 +1298,7 @@ mod tests {
             )
             .expect("test");
         // Should be a no-op (doesn't crash)
-        db.migrate_usage_from_cache(Path::new("/nonexistent/path"), false);
+        db.migrate_usage_from_cache(Path::new("/nonexistent/path"));
     }
 
     #[cfg(unix)]
@@ -1283,7 +1308,8 @@ mod tests {
         let tmpdir = tempfile::tempdir().expect("test");
         let db_path = tmpdir.path().join("test.db");
 
-        let _db = BirdDb::open(&db_path, 100).expect("test");
+        let _db =
+            BirdDb::open(&db_path, 100, Arc::new(Mutex::new(std::io::sink())), true).expect("test");
 
         let perms = std::fs::metadata(&db_path).expect("test").permissions();
         assert_eq!(

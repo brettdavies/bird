@@ -12,7 +12,9 @@ use super::normalize_endpoint;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 // -- Shared types (re-exported from db::mod) --
 
@@ -235,10 +237,20 @@ pub struct BirdClient {
     /// which is parameter-passed) because 7+ internal methods emit diagnostics and
     /// threading through every method signature would be excessive.
     pub quiet: bool,
+    /// Shared writer handle for diagnostic output (KTD-2). `Arc::clone` of this
+    /// is passed into `BirdDb::open` so both layers emit through the same sink.
+    /// U6a stores the field without reading it; U6 pivots `diag!` sites to it.
+    #[allow(dead_code)]
+    pub(crate) stderr: Arc<Mutex<dyn Write + Send>>,
 }
 
 impl BirdClient {
     /// Create a new BirdClient. If entity store cannot be opened, degrades to no-store.
+    ///
+    /// `stderr` is the shared writer handle (KTD-2). `Arc::clone` is forwarded
+    /// to `BirdDb::open` so both layers emit through the same sink. The field
+    /// is stored on the struct but not read in U6a — U6 pivots `diag!` sites
+    /// to it. The macros below still write to global stderr at U6a.
     pub fn new(
         transport: Box<dyn Transport>,
         store_path: &Path,
@@ -246,6 +258,7 @@ impl BirdClient {
         max_size_mb: u64,
         username: Option<String>,
         quiet: bool,
+        stderr: Arc<Mutex<dyn Write + Send>>,
     ) -> Self {
         if cache_opts.no_store {
             return Self {
@@ -254,15 +267,16 @@ impl BirdClient {
                 cache_opts,
                 username,
                 quiet,
+                stderr,
             };
         }
-        let db = match BirdDb::open(store_path, max_size_mb) {
+        let db = match BirdDb::open(store_path, max_size_mb, Arc::clone(&stderr), quiet) {
             Ok(db) => {
                 // Migrate usage data from old cache.db on first run
                 if let Some(parent) = store_path.parent() {
                     let old_cache = parent.join("cache.db");
                     if old_cache.exists() {
-                        db.migrate_usage_from_cache(&old_cache, quiet);
+                        db.migrate_usage_from_cache(&old_cache);
                     }
                 }
                 // Prune stale raw_responses and oversized entity tables
@@ -283,10 +297,13 @@ impl BirdClient {
             cache_opts,
             username,
             quiet,
+            stderr,
         }
     }
 
     /// Test-only constructor with explicit transport and in-memory DB.
+    /// Uses `io::sink()` as the stderr writer so tests don't capture internal
+    /// diagnostic output (U6a — sites still use `diag!` against global stderr).
     #[cfg(test)]
     pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::db::BirdDb) -> Self {
         Self {
@@ -295,6 +312,7 @@ impl BirdClient {
             cache_opts: CacheOpts::default(),
             username: None,
             quiet: true,
+            stderr: Arc::new(Mutex::new(std::io::sink())),
         }
     }
 
@@ -799,6 +817,7 @@ mod tests {
             cache_opts: CacheOpts::default(),
             username: None,
             quiet: false,
+            stderr: Arc::new(Mutex::new(std::io::sink())),
         }
     }
 

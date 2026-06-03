@@ -306,6 +306,14 @@ where
         refresh: cli.refresh,
         cache_only: cli.cache_only,
     };
+    // BirdClient takes an Arc-shared writer (KTD-2). The runner's local
+    // `&mut dyn Write` stderr param cannot be cloned/shared into an Arc, so we
+    // construct a separate handle bound to the process stderr. Tests that read
+    // the runner's `stderr` buffer still see nothing from the internal `diag!`
+    // sites; U6 doesn't change that — capturing those requires Plan-2 U11's
+    // run_with_paths signature change.
+    let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
+        std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
     let mut client = db::BirdClient::new(
         transport,
         &config.cache_path,
@@ -313,6 +321,7 @@ where
         config.cache_max_size_mb,
         config.username.clone(),
         out.suppress_diag(),
+        client_stderr,
     );
 
     // --- Diagnostic commands: need config/DB but not xurl ---
