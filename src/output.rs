@@ -59,6 +59,109 @@ impl OutputConfig {
     pub fn is_raw_text(&self) -> bool {
         self.raw && self.format == OutputFormat::Text
     }
+
+    /// Write a JSON envelope (`{status, data, errors, meta}` or similar) to `out` as a
+    /// single line terminated by `\n`. Serialization failures are mapped to
+    /// `io::ErrorKind::Other`.
+    pub fn print_envelope(
+        &self,
+        out: &mut dyn std::io::Write,
+        env: &serde_json::Value,
+    ) -> std::io::Result<()> {
+        let line = serde_json::to_string(env).map_err(std::io::Error::other)?;
+        writeln!(out, "{}", line)
+    }
+
+    /// Write a plain text line to `out`.
+    pub fn print_message(&self, out: &mut dyn std::io::Write, msg: &str) -> std::io::Result<()> {
+        writeln!(out, "{}", msg)
+    }
+
+    /// Write a serialized response body to `out`, choosing the encoding from
+    /// `self.format`. JSON-only by contract (per KTD-4): when `self.format` is
+    /// `Text`, callers must dispatch to their handler-local text renderer instead.
+    /// In debug builds this method panics if called in Text mode; in release builds
+    /// it returns `io::ErrorKind::InvalidInput`. The Json / Jsonl / Ndjson variants
+    /// all emit one compact JSON line terminated by `\n`.
+    pub fn print_response_json(
+        &self,
+        out: &mut dyn std::io::Write,
+        value: &serde_json::Value,
+    ) -> std::io::Result<()> {
+        debug_assert!(
+            !matches!(self.format, OutputFormat::Text),
+            "print_response_json must not be called in Text mode"
+        );
+        match self.format {
+            OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Ndjson => {
+                let line = serde_json::to_string(value).map_err(std::io::Error::other)?;
+                writeln!(out, "{}", line)
+            }
+            OutputFormat::Text => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "print_response_json called in Text mode",
+            )),
+        }
+    }
+
+    /// Write a `BirdError` to `stderr` in the encoding selected by `self.format`.
+    /// Ports the logic of the free function [`print_error`] into a method that
+    /// takes an explicit stderr writer; the free function stays in place until
+    /// Plan 2 U7 migrates call sites.
+    pub fn print_error(
+        &self,
+        stderr: &mut dyn std::io::Write,
+        err: &BirdError,
+    ) -> std::io::Result<()> {
+        if self.format.is_json() {
+            let mut json = serde_json::json!({
+                "error": err.error_id(),
+                "kind": err.kind(),
+                "message": sanitize_for_stderr(err.message(), 1000),
+                "exit_code": err.exit_code(),
+                "meta": {},
+            });
+            if let Some(cmd) = err.command() {
+                json["command"] = serde_json::Value::String(cmd.to_string());
+            }
+            if let Some(status) = err.status() {
+                json["status"] = serde_json::json!(status);
+            }
+            let line = serde_json::to_string(&json).unwrap_or_else(|_| {
+                String::from(
+                    r#"{"error":"serialization-failed","kind":"general","message":"failed to serialize error envelope","exit_code":1}"#,
+                )
+            });
+            writeln!(stderr, "{}", line)
+        } else {
+            let prefix = match err {
+                BirdError::Usage { .. } => "usage error: ".to_string(),
+                BirdError::Auth { .. } => "auth failed: ".to_string(),
+                BirdError::Config { .. } => "config failed: ".to_string(),
+                BirdError::General {
+                    command: Some(name),
+                    ..
+                } => format!("{} failed: ", name),
+                BirdError::General { command: None, .. } => "error: ".to_string(),
+            };
+            writeln!(
+                stderr,
+                "{}{}",
+                error(&prefix, self.use_color),
+                err.message()
+            )
+        }
+    }
+
+    /// Write a diagnostic line to `stderr`, honoring the quiet gate. Returns
+    /// `Ok(())` without writing when `self.suppress_diag()` is true. Replaces
+    /// the [`diag!`] macro at non-hot-path sites.
+    pub fn print_diag(&self, stderr: &mut dyn std::io::Write, msg: &str) -> std::io::Result<()> {
+        if self.suppress_diag() {
+            return Ok(());
+        }
+        writeln!(stderr, "{}", msg)
+    }
 }
 
 // Plan 1 R19: compile-time guard that OutputConfig stays `Send + Sync + Clone`.
@@ -360,5 +463,113 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&s).expect("parse");
         assert!(parsed.get("data").is_some(), "envelope must have data");
         assert!(parsed.get("meta").is_some(), "envelope must have meta");
+    }
+}
+
+#[cfg(test)]
+mod method_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn text_cfg() -> OutputConfig {
+        OutputConfig {
+            format: OutputFormat::Text,
+            use_color: false,
+            quiet: false,
+            raw: false,
+        }
+    }
+
+    fn json_cfg() -> OutputConfig {
+        OutputConfig {
+            format: OutputFormat::Json,
+            use_color: false,
+            quiet: false,
+            raw: false,
+        }
+    }
+
+    #[test]
+    fn print_message_writes_line() {
+        let cfg = text_cfg();
+        let mut buf = Vec::new();
+        cfg.print_message(&mut buf, "hello").unwrap();
+        assert_eq!(String::from_utf8(buf).unwrap(), "hello\n");
+    }
+
+    #[test]
+    fn print_envelope_writes_single_json_line() {
+        let cfg = json_cfg();
+        let mut buf = Vec::new();
+        let env = json!({"status": "ok", "data": null, "errors": [], "meta": {}});
+        cfg.print_envelope(&mut buf, &env).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert!(s.ends_with('\n'));
+        let parsed: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert_eq!(parsed["status"], "ok");
+    }
+
+    #[test]
+    fn print_response_json_jsonl_writes_compact_line() {
+        let cfg = OutputConfig {
+            format: OutputFormat::Jsonl,
+            use_color: false,
+            quiet: false,
+            raw: false,
+        };
+        let mut buf = Vec::new();
+        cfg.print_response_json(&mut buf, &json!({"id":"1","name":"a"}))
+            .unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert!(s.ends_with('\n'));
+        // single line — no embedded newlines before the terminator
+        assert!(!s.trim().contains('\n'));
+    }
+
+    #[test]
+    #[should_panic(expected = "print_response_json must not be called in Text mode")]
+    fn print_response_json_text_mode_panics_in_debug() {
+        let cfg = text_cfg();
+        let mut buf = Vec::new();
+        let _ = cfg.print_response_json(&mut buf, &json!({}));
+    }
+
+    #[test]
+    fn print_diag_suppresses_when_quiet() {
+        let cfg = OutputConfig {
+            format: OutputFormat::Text,
+            use_color: false,
+            quiet: true,
+            raw: false,
+        };
+        let mut buf = Vec::new();
+        cfg.print_diag(&mut buf, "diag").unwrap();
+        assert!(buf.is_empty(), "diag should be suppressed when quiet");
+    }
+
+    #[test]
+    fn print_diag_writes_when_not_quiet() {
+        let cfg = text_cfg();
+        let mut buf = Vec::new();
+        cfg.print_diag(&mut buf, "diag").unwrap();
+        assert_eq!(String::from_utf8(buf).unwrap(), "diag\n");
+    }
+
+    #[test]
+    fn print_error_json_writes_envelope() {
+        let cfg = json_cfg();
+        let mut buf = Vec::new();
+        let err = BirdError::config("missing");
+        cfg.print_error(&mut buf, &err).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        let val: serde_json::Value =
+            serde_json::from_str(s.trim()).expect("error envelope is JSON");
+        let obj = val.as_object().expect("envelope is object");
+        assert!(
+            obj.contains_key("error") && obj.contains_key("kind"),
+            "envelope carries error id and kind: {:?}",
+            obj.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(obj["kind"], "config");
     }
 }
