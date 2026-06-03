@@ -2,260 +2,22 @@
 
 use bird::cli::argv::{explicit_output_from_argv, output_from_argv};
 use bird::cli::clap_errors::clap_error_to_bird;
+use bird::cli::dispatch::{
+    GuardOutcome, ListFlags, build_dry_run_url, clamp_limit, command_needs_xurl, default_auth_type,
+    parse_param_vec, require_confirmation, xurl_write, xurl_write_call,
+};
 use bird::cli::{CacheAction, Cli, Command, SkillAction, WatchlistCommand};
 use bird::config::{ArgOverrides, ResolvedConfig};
 use bird::error::BirdError;
 use bird::output::{OutputConfig, OutputFormat};
 use bird::{
-    bookmarks, db, diag, doctor, login, out_print, out_println, output, profile, raw, requirements,
-    schema, schema_print, search, skill_install, thread, transport, usage, watchlist,
+    bookmarks, db, diag, doctor, login, out_print, out_println, output, profile, raw, schema,
+    schema_print, search, skill_install, thread, transport, usage, watchlist,
 };
 use clap::Parser;
 use std::collections::HashMap;
 use std::io::IsTerminal;
 use std::process::ExitCode;
-
-fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
-    let mut m = HashMap::new();
-    for p in param {
-        if let Some((k, v)) = p.split_once('=') {
-            m.insert(k.to_string(), v.to_string());
-        }
-    }
-    m
-}
-
-/// Returns true if this command will spawn xurl during normal execution.
-/// Skips the eager xurl presence check for:
-///   - Local-only commands (Cache, Watchlist Add/Remove/List)
-///   - `--dry-run` invocations (we print the would-be call and exit)
-///   - Destructive commands without `--force`/`--yes` in non-TTY context —
-///     `require_confirmation` will refuse first with a usage error, no xurl needed
-fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: bool) -> bool {
-    use bird::cli::{CacheAction, WatchlistCommand, WriteGuard};
-    // For write-guarded commands: if guard would refuse (no force/yes, no dry-run,
-    // and the caller can't confirm interactively), xurl is never invoked.
-    let guard_proceeds = |g: &WriteGuard| -> bool {
-        if g.dry_run {
-            return false;
-        }
-        if g.force {
-            return true;
-        }
-        stdin_is_tty && !no_interactive
-    };
-    match cmd {
-        // Local-only: never call xurl.
-        Command::Cache { action } => match action {
-            CacheAction::Clear { guard } => guard_proceeds(guard),
-            CacheAction::Stats { .. } => false,
-        },
-        Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Fetch),
-        // Pre-dispatched in main(); never reach run().
-        Command::Login { .. }
-        | Command::Completions { .. }
-        | Command::Schema { .. }
-        | Command::Skill { .. } => false,
-        // Diagnostic: doctor probes xurl itself but should not gate on absence.
-        Command::Doctor { .. } => false,
-        // Write commands — gate fires only when the command will actually run.
-        Command::Delete { guard, .. }
-        | Command::Post { guard, .. }
-        | Command::Put { guard, .. }
-        | Command::Tweet { guard, .. }
-        | Command::Reply { guard, .. }
-        | Command::Like { guard, .. }
-        | Command::Unlike { guard, .. }
-        | Command::Repost { guard, .. }
-        | Command::Unrepost { guard, .. }
-        | Command::Follow { guard, .. }
-        | Command::Unfollow { guard, .. }
-        | Command::Dm { guard, .. }
-        | Command::Block { guard, .. }
-        | Command::Unblock { guard, .. }
-        | Command::Mute { guard, .. }
-        | Command::Unmute { guard, .. } => guard_proceeds(guard),
-        // Read-only network commands with no guard.
-        Command::Me { .. }
-        | Command::Get { .. }
-        | Command::Bookmarks { .. }
-        | Command::Profile { .. }
-        | Command::Search { .. }
-        | Command::Thread { .. }
-        | Command::Usage { .. } => true,
-    }
-}
-
-/// Resolve the default auth type for a command name using requirements.rs.
-/// Returns the first accepted auth type for the command.
-fn default_auth_type(command_name: &str) -> requirements::AuthType {
-    requirements::requirements_for_command(command_name)
-        .and_then(|r| r.accepted.first().copied())
-        .unwrap_or(requirements::AuthType::OAuth2User)
-}
-
-/// Outcome of a write-guard check (--dry-run / --force / TTY confirmation).
-enum GuardOutcome {
-    /// The user supplied `--dry-run`; the would-be request was emitted and the
-    /// command should exit without invoking the API.
-    DryRun,
-    /// Confirmation satisfied (via `--force`/`--yes` or interactive `y`);
-    /// the command should proceed.
-    Proceed,
-}
-
-/// Apply the `--force` / `--yes` / `--dry-run` policy for a mutating command.
-///
-/// Order of evaluation: `--dry-run` short-circuits (prints the would-be effect
-/// and returns `GuardOutcome::DryRun`). Otherwise, when neither `--force` nor
-/// `--yes` is set, we either prompt on a TTY or return a `requires-confirmation`
-/// usage error.
-fn require_confirmation(
-    verb: &str,
-    method: &str,
-    target: &str,
-    body: Option<&serde_json::Value>,
-    guard: bird::cli::WriteGuard,
-    out: &OutputConfig,
-    no_interactive: bool,
-) -> Result<GuardOutcome, BirdError> {
-    if guard.dry_run {
-        emit_dry_run(verb, method, target, body, out);
-        return Ok(GuardOutcome::DryRun);
-    }
-    if guard.force {
-        return Ok(GuardOutcome::Proceed);
-    }
-    let stdin_tty = std::io::stdin().is_terminal();
-    if !stdin_tty || no_interactive {
-        return Err(BirdError::usage(
-            "requires-confirmation",
-            format!(
-                "destructive operation '{}' requires --force, --yes, or interactive confirmation",
-                verb
-            ),
-        ));
-    }
-    eprint!("About to {} {} {}. Proceed? [y/N] ", verb, method, target);
-    use std::io::Write;
-    let _ = std::io::stderr().flush();
-    let mut line = String::new();
-    if std::io::stdin().read_line(&mut line).is_err() {
-        return Err(BirdError::usage(
-            "requires-confirmation",
-            "failed to read confirmation from stdin".to_string(),
-        ));
-    }
-    let trimmed = line.trim();
-    if trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes") {
-        Ok(GuardOutcome::Proceed)
-    } else {
-        Err(BirdError::usage(
-            "user-aborted",
-            "aborted by user (confirmation declined)".to_string(),
-        ))
-    }
-}
-
-/// Emit the dry-run envelope (JSON) or human line (text) on stdout.
-fn emit_dry_run(
-    verb: &str,
-    method: &str,
-    target: &str,
-    body: Option<&serde_json::Value>,
-    out: &OutputConfig,
-) {
-    if out.format.is_json() {
-        let mut would = serde_json::json!({
-            "method": method,
-            "url": target,
-        });
-        if let Some(b) = body {
-            would["body"] = b.clone();
-        }
-        let data = serde_json::json!({"dry_run": true, "would": would, "verb": verb});
-        let meta = serde_json::json!({});
-        if let Ok(line) = output::success_envelope_string(&data, &meta) {
-            out_println!("{}", line);
-            return;
-        }
-    }
-    out_println!("Would {}: {} {}", verb, method, target);
-    if let Some(b) = body {
-        out_println!("Body: {}", b);
-    }
-    out_println!("(--dry-run; no request sent)");
-}
-
-/// Build the effective absolute URL for dry-run preview output.
-/// Mirrors the path/query handling in `raw::run_raw` without performing any
-/// transport-layer work. Returns `None` when the URL cannot be assembled, in
-/// which case callers should fall back to the raw input path.
-fn build_dry_run_url(
-    path: &str,
-    params: &HashMap<String, String>,
-    query: &[String],
-) -> Option<String> {
-    let resolved = schema::resolve_path(path, params).ok()?;
-    let mut url = url::Url::parse(&format!("https://api.x.com{}", resolved)).ok()?;
-    for q in query {
-        if let Some((k, v)) = q.split_once('=') {
-            url.query_pairs_mut().append_pair(k, v);
-        }
-    }
-    Some(url.to_string())
-}
-
-/// Clamp a list `--limit` value to a per-command ceiling, mirroring U4 plan
-/// semantics (default 100, max 1000). Returns the clamped value plus a flag
-/// indicating whether the requested limit was reduced.
-fn clamp_limit(requested: Option<u32>, default: u32, ceiling: u32) -> (u32, bool) {
-    match requested {
-        Some(n) if n > ceiling => (ceiling, true),
-        Some(0) => (default, false),
-        Some(n) => (n, false),
-        None => (default, false),
-    }
-}
-
-/// Call xurl for a write command and print the JSON result.
-fn xurl_write_call(
-    args: &[&str],
-    username: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut full_args: Vec<&str> = Vec::new();
-    if let Some(u) = username {
-        full_args.extend(["-u", u]);
-    }
-    full_args.extend_from_slice(args);
-    let json = transport::xurl_call(&full_args)?;
-    out_println!("{}", serde_json::to_string(&json)?);
-    Ok(())
-}
-
-/// Guard + dispatch for write commands: reject --cache-only, then run the closure.
-fn xurl_write(
-    cache_only: bool,
-    name: &'static str,
-    f: impl FnOnce() -> Result<(), Box<dyn std::error::Error + Send + Sync>>,
-) -> Result<(), BirdError> {
-    if cache_only {
-        return Err(BirdError::general(
-            name,
-            "write commands require network access; remove --cache-only".into(),
-        ));
-    }
-    f().map_err(|e| BirdError::from_source(name, e))
-}
-
-/// List-pagination options resolved from the global `--limit` / `--cursor`
-/// flags. Threaded through `run()` so per-subcommand handlers don't need
-/// to re-parse the global CLI struct.
-#[derive(Clone, Debug, Default)]
-struct ListFlags {
-    pub limit: Option<u32>,
-    pub cursor: Option<String>,
-}
 
 fn run(
     command: Command,
@@ -418,6 +180,8 @@ fn run(
                 guard,
                 out,
                 no_interactive,
+                &mut std::io::stderr().lock(),
+                None,
             )? {
                 GuardOutcome::DryRun => return Ok(()),
                 GuardOutcome::Proceed => {}
@@ -457,6 +221,8 @@ fn run(
                 guard,
                 out,
                 no_interactive,
+                &mut std::io::stderr().lock(),
+                None,
             )? {
                 GuardOutcome::DryRun => return Ok(()),
                 GuardOutcome::Proceed => {}
@@ -494,6 +260,8 @@ fn run(
                 guard,
                 out,
                 no_interactive,
+                &mut std::io::stderr().lock(),
+                None,
             )? {
                 GuardOutcome::DryRun => return Ok(()),
                 GuardOutcome::Proceed => {}
@@ -537,6 +305,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )? {
                     GuardOutcome::DryRun => return Ok(()),
                     GuardOutcome::Proceed => {}
@@ -580,6 +350,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -611,6 +383,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -631,6 +405,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -651,6 +427,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -671,6 +449,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -691,6 +471,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -717,6 +499,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -743,6 +527,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -771,6 +557,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -794,6 +582,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -817,6 +607,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -840,6 +632,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -863,6 +657,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )?,
                 GuardOutcome::DryRun
             ) {
@@ -899,6 +695,8 @@ fn run(
                     guard,
                     out,
                     no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 )? {
                     GuardOutcome::DryRun => return Ok(()),
                     GuardOutcome::Proceed => {}
@@ -1271,6 +1069,8 @@ fn main() -> ExitCode {
                     *guard,
                     &out,
                     cli.no_interactive,
+                    &mut std::io::stderr().lock(),
+                    None,
                 ) {
                     Ok(GuardOutcome::DryRun) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {

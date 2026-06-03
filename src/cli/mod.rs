@@ -4,6 +4,7 @@
 
 pub mod argv;
 pub mod clap_errors;
+pub mod dispatch;
 
 use crate::output::{ColorMode, OutputFormat};
 use crate::skill_install::Host;
