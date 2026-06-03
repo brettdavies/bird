@@ -128,9 +128,11 @@ pub fn resolve_xurl_path() -> Result<PathBuf, Box<dyn std::error::Error + Send +
 }
 
 /// Clear the cached `XURL_PATH` so the next [`resolve_xurl_path`] call
-/// re-runs the resolution from scratch. Used by in-process tests that need
-/// to toggle `BIRD_XURL_PATH` between runs without spawning a fresh process.
-#[cfg(test)]
+/// re-runs the resolution from scratch. Used by in-process tests (both unit
+/// and integration) that need to toggle `BIRD_XURL_PATH` between runs without
+/// spawning a fresh process. Not part of the public API — exposed via the
+/// doc-hidden test-infrastructure surface only.
+#[doc(hidden)]
 pub fn reset_xurl_path_for_tests() {
     if let Some(mutex) = XURL_PATH.get() {
         *mutex.lock().expect("XURL_PATH mutex poisoned") = None;
