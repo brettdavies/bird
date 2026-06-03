@@ -6,6 +6,9 @@ pub mod argv;
 pub mod clap_errors;
 pub mod commands;
 pub mod dispatch;
+pub mod runner;
+
+pub use runner::{run, run_argv, run_with_paths};
 
 use crate::output::{ColorMode, OutputFormat};
 use crate::skill_install::Host;

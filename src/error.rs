@@ -198,4 +198,50 @@ mod tests {
         assert_eq!(mapped.kind(), "general");
         assert_eq!(mapped.command(), Some("profile"));
     }
+
+    #[test]
+    fn bird_error_exit_codes() {
+        assert_eq!(
+            BirdError::config("test").exit_code(),
+            78,
+            "Config errors should exit 78"
+        );
+        let auth = BirdError::from_source("test", Box::new(transport::XurlError::Auth("x".into())));
+        assert_eq!(auth.exit_code(), 77, "Auth errors should exit 77");
+        assert_eq!(
+            BirdError::general("test", "test".into()).exit_code(),
+            1,
+            "Command errors should exit 1"
+        );
+        assert_eq!(
+            BirdError::usage("bad", "test").exit_code(),
+            2,
+            "Usage errors should exit 2"
+        );
+    }
+
+    #[test]
+    fn map_cmd_error_detects_auth() {
+        let auth_err: Box<dyn std::error::Error + Send + Sync> =
+            Box::new(transport::XurlError::Auth("unauthorized".to_string()));
+        let mapped = BirdError::from_source("test", auth_err);
+        assert_eq!(
+            mapped.exit_code(),
+            77,
+            "XurlError::Auth should map to exit 77"
+        );
+    }
+
+    #[test]
+    fn map_cmd_error_preserves_command_for_non_auth() {
+        let api_err: Box<dyn std::error::Error + Send + Sync> = Box::new(
+            transport::XurlError::Process("connection failed".to_string()),
+        );
+        let mapped = BirdError::from_source("profile", api_err);
+        assert_eq!(
+            mapped.exit_code(),
+            1,
+            "Non-auth XurlError should map to exit 1"
+        );
+    }
 }
