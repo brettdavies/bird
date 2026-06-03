@@ -128,13 +128,20 @@ fn safe_write_config(
 /// `limit` clamps the number of returned entries; `cursor` is a 0-based offset
 /// encoded as a numeric string (the local watchlist is small enough that an
 /// integer offset is a more natural cursor than a token).
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` / `diag!` (U4/U5 will replace those
+/// with `writeln!` against the injected writer).
 pub fn run_watchlist_list(
     config: &ResolvedConfig,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     pretty: bool,
-    quiet: bool,
     limit: Option<u32>,
     cursor: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
 
@@ -175,11 +182,15 @@ pub fn run_watchlist_list(
 }
 
 /// `bird watchlist add <username>` — add a user to the watchlist (idempotent).
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` — silent-on-success means
+/// no stdout writer. Body still calls `diag!` (U6 / R15 replaces those).
 pub fn run_watchlist_add(
     config: &ResolvedConfig,
+    cfg: &crate::output::OutputConfig,
     username: &str,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let quiet = cfg.suppress_diag();
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     add_to_watchlist(&config_path, clean, quiet)?;
@@ -188,11 +199,15 @@ pub fn run_watchlist_add(
 }
 
 /// `bird watchlist remove <username>` — remove a user from the watchlist (idempotent).
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` — silent-on-success means
+/// no stdout writer. Body still calls `diag!` (U6 / R15 replaces those).
 pub fn run_watchlist_remove(
     config: &ResolvedConfig,
+    cfg: &crate::output::OutputConfig,
     username: &str,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let quiet = cfg.suppress_diag();
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     let removed = remove_from_watchlist(&config_path, clean)?;
@@ -215,14 +230,22 @@ pub struct CheckOpts<'a> {
 
 /// `bird watchlist check` — check recent activity for all watched users.
 /// Streams NDJSON (one JSON object per line) per user as they complete.
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer.
+/// The internal `BufWriter<StdoutLock>` stream stays per the user-supplied
+/// guardrail — Plan 2 U4 normalizes that to wrap the injected stdout writer.
+/// The `stdout` parameter is accepted here so the signature matches every
+/// other handler in the U2 normalization batch.
 pub fn run_watchlist_check(
     client: &mut BirdClient,
     config: &ResolvedConfig,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     opts: CheckOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     let pretty = opts.pretty;
     let config_path = config.config_dir.join("config.toml");
     let entries = load_watchlist(&config_path)?;
@@ -268,7 +291,7 @@ pub fn run_watchlist_check(
         let query = format!("from:{} -is:retweet", username);
         let search_url = build_check_url(&query);
 
-        let activity = match execute_check(client, &ctx, &search_url, use_color, quiet) {
+        let activity = match execute_check(client, &ctx, &search_url, cfg) {
             Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
                 username: (*username).clone(),
                 recent_tweets: tweet_count,
@@ -315,8 +338,7 @@ fn execute_check(
     client: &mut BirdClient,
     ctx: &RequestContext<'_>,
     url: &str,
-    use_color: bool,
-    quiet: bool,
+    cfg: &crate::output::OutputConfig,
 ) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
     let response = client.get(url, ctx)?;
 
@@ -333,7 +355,7 @@ fn execute_check(
 
     // Cost display per account
     let estimate = crate::cost::estimate_cost(&json, url, response.cache_hit);
-    crate::cost::display_cost(&estimate, use_color, quiet);
+    crate::cost::display_cost(cfg, &estimate);
 
     let tweet_count = json
         .get("meta")

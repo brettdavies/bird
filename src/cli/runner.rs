@@ -234,7 +234,7 @@ where
                 return ExitCode::from(err.exit_code());
             }
         };
-        return match skill_install::run(host, dry_run, all, &home) {
+        return match skill_install::run(&out, stdout, host, dry_run, all, &home) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::from_source("skill", e);
@@ -316,14 +316,7 @@ where
     if let Command::Doctor { command, pretty } = &cli.command {
         let scope = command.as_deref();
         let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(
-            &client,
-            *pretty,
-            scope,
-            use_color,
-            use_emoji,
-            out.suppress_diag(),
-        ) {
+        match doctor::run_doctor(&client, &out, stdout, *pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
@@ -337,10 +330,9 @@ where
     if let Command::Watchlist { ref action, pretty } = cli.command
         && !matches!(action, WatchlistCommand::Fetch)
     {
-        let quiet = out.suppress_diag();
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::config)
+                watchlist::run_watchlist_add(&config, &out, username).map_err(BirdError::config)
             }
             WatchlistCommand::Remove { username, guard } => {
                 let target = format!("watchlist:@{}", username);
@@ -357,7 +349,7 @@ where
                 ) {
                     Ok(GuardOutcome::DryRun) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {
-                        watchlist::run_watchlist_remove(&config, username, quiet)
+                        watchlist::run_watchlist_remove(&config, &out, username)
                             .map_err(BirdError::config)
                     }
                     Err(e) => Err(e),
@@ -367,8 +359,9 @@ where
                 let (limit, _) = clamp_limit(cli.limit, 1000, 10_000);
                 watchlist::run_watchlist_list(
                     &config,
+                    &out,
+                    stdout,
                     pretty,
-                    quiet,
                     Some(limit),
                     cli.cursor.as_deref(),
                 )
@@ -404,14 +397,13 @@ where
         limit: cli.limit,
         cursor: cli.cursor.clone(),
     };
-    // Plan-2 will route writers through dispatch; for now stderr is unused
-    // here because dispatch and downstream handlers still call macros.
-    let _ = stderr;
     match crate::cli::dispatch::run(
         cli.command,
         config,
         &mut client,
         &out,
+        stdout,
+        stderr,
         cli.cache_only,
         cli.no_interactive,
         list_flags,

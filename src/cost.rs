@@ -74,7 +74,14 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
 }
 
 /// Format and print cost to stderr.
-pub fn display_cost(estimate: &CostEstimate, use_color: bool, quiet: bool) {
+///
+/// U2 (Plan 2) note: signature now takes `&OutputConfig` plus the underlying
+/// `use_color`/`quiet` locals derived from it. The body still calls `eprintln!`
+/// (U6 / R16 replaces with an injected stderr writer); this unit only
+/// normalizes the surface.
+pub fn display_cost(cfg: &crate::output::OutputConfig, estimate: &CostEstimate) {
+    let use_color = cfg.use_color;
+    let quiet = cfg.suppress_diag();
     if quiet {
         return;
     }

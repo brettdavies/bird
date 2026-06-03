@@ -8,19 +8,23 @@ use crate::schema::resolve_path;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` (U3 / R13 replaces those).
 #[allow(clippy::too_many_arguments)]
 pub fn run_raw(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     method: &str,
     path: &str,
     params: &HashMap<String, String>,
     query: &[String],
     body: Option<&str>,
     pretty: bool,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
     let path = resolve_path(path, params)?;
     let url = format!("https://api.x.com{}", path);
     let mut url_builder = url::Url::parse(&url).map_err(|e| e.to_string())?;
@@ -44,7 +48,7 @@ pub fn run_raw(
             &url,
             response.cache_hit,
         );
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, &estimate);
         response
     } else {
         client.request(&method_upper, &url, &ctx, body)?

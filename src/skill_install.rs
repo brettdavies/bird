@@ -110,12 +110,19 @@ pub fn install_into(host: Host, home: &Path, dry_run: bool) -> Result<PathBuf, I
 /// line per target host to stdout. The caller resolves the home root; this
 /// keeps the function pure with respect to its inputs (production callers use
 /// `resolve_home()` below).
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` (U5 / R13 replaces those).
 pub fn run(
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     host: Option<Host>,
     dry_run: bool,
     all: bool,
     home: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = cfg;
+    let _ = stdout;
     let targets: Vec<Host> = if all {
         Host::all().to_vec()
     } else {

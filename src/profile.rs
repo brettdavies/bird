@@ -13,13 +13,16 @@ pub struct ProfileOpts<'a> {
     pub pretty: bool,
 }
 
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` (U5 / R13 replaces those).
 pub fn run_profile(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     opts: ProfileOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
     let username = schema::validate_username(opts.username)?;
 
     let url = {
@@ -66,7 +69,7 @@ pub fn run_profile(
     }
 
     let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
-    cost::display_cost(&estimate, use_color, quiet);
+    cost::display_cost(cfg, &estimate);
 
     if opts.pretty {
         crate::out_println!("{}", serde_json::to_string_pretty(&json)?);

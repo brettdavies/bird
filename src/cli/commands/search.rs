@@ -10,6 +10,7 @@ use crate::search;
 pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
     query: String,
     pretty: bool,
     sort: String,
@@ -18,8 +19,6 @@ pub fn run(
     pages: Option<u32>,
     list_flags: &ListFlags,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let auth_type = default_auth_type("search");
     // `--limit` is the canonical agent-facing flag; `--max-results` is kept
     // as the per-page Twitter-API knob. When both are set, `--limit` wins.
@@ -33,7 +32,7 @@ pub fn run(
         pages: pages.unwrap_or(1).clamp(1, 10),
         cursor: list_flags.cursor.as_deref(),
     };
-    search::run_search(client, opts, use_color, quiet, &auth_type)
+    search::run_search(client, out, stdout, opts, &auth_type)
         .map_err(|e| BirdError::from_source("search", e))?;
     Ok(())
 }

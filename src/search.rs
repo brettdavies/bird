@@ -20,13 +20,18 @@ pub struct SearchOpts<'a> {
     pub cursor: Option<&'a str>,
 }
 
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` / `diag!` (U5 / R13/R15 replaces
+/// those with `writeln!` / quiet-guard pattern against injected writers).
 pub fn run_search(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     opts: SearchOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     // Validate sort key before any API calls (fail fast)
     if !matches!(opts.sort, "recent" | "likes") {
         return Err(format!(
@@ -67,7 +72,7 @@ pub fn run_search(
         let page = response.json.ok_or("invalid JSON from search")?;
 
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, &estimate);
 
         // Break on empty data (handles phantom next_token)
         let data = match page.get("data").and_then(|d| d.as_array()) {

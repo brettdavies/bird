@@ -18,13 +18,18 @@ pub struct ThreadOpts<'a> {
     pub max_pages: u32,
 }
 
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` / `diag!` (U5 / R13/R15 replaces
+/// those against injected writers).
 pub fn run_thread(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     opts: ThreadOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     validate_tweet_id(opts.tweet_id)?;
     let max_pages = opts.max_pages.clamp(1, MAX_PAGES_CAP);
 
@@ -58,7 +63,7 @@ pub fn run_thread(
 
     let root_response = response.json.ok_or("invalid JSON from tweet lookup")?;
     let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
-    cost::display_cost(&estimate, use_color, quiet);
+    cost::display_cost(cfg, &estimate);
 
     // Check for errors array (X API returns 200 + errors for not-found)
     if let Some(errors) = root_response.get("errors").and_then(|e| e.as_array())
@@ -130,7 +135,7 @@ pub fn run_thread(
 
         let page = response.json.ok_or("invalid JSON from search")?;
         let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, &estimate);
 
         let data = match page.get("data").and_then(|d| d.as_array()) {
             Some(arr) if !arr.is_empty() => arr,

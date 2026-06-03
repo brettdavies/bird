@@ -13,6 +13,7 @@ use crate::raw;
 pub fn run_post(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -21,8 +22,6 @@ pub fn run_post(
     guard: WriteGuard,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let params = parse_param_vec(&param);
     let target = build_dry_run_url(&path, &params, &query)
         .unwrap_or_else(|| format!("https://api.x.com{}", path));
@@ -44,14 +43,14 @@ pub fn run_post(
     let auth_type = default_auth_type("post");
     raw::run_raw(
         client,
+        out,
+        stdout,
         "POST",
         &path,
         &params,
         &query,
         body.as_deref(),
         pretty,
-        use_color,
-        quiet,
         &auth_type,
     )
     .map_err(|e| BirdError::from_source("post", e))?;
@@ -62,6 +61,7 @@ pub fn run_post(
 pub fn run_put(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -70,8 +70,6 @@ pub fn run_put(
     guard: WriteGuard,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let params = parse_param_vec(&param);
     let target = build_dry_run_url(&path, &params, &query)
         .unwrap_or_else(|| format!("https://api.x.com{}", path));
@@ -93,14 +91,14 @@ pub fn run_put(
     let auth_type = default_auth_type("put");
     raw::run_raw(
         client,
+        out,
+        stdout,
         "PUT",
         &path,
         &params,
         &query,
         body.as_deref(),
         pretty,
-        use_color,
-        quiet,
         &auth_type,
     )
     .map_err(|e| BirdError::from_source("put", e))?;
@@ -111,6 +109,7 @@ pub fn run_put(
 pub fn run_delete(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
@@ -118,8 +117,6 @@ pub fn run_delete(
     guard: WriteGuard,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let params = parse_param_vec(&param);
     let target = build_dry_run_url(&path, &params, &query)
         .unwrap_or_else(|| format!("https://api.x.com{}", path));
@@ -139,7 +136,7 @@ pub fn run_delete(
     }
     let auth_type = default_auth_type("delete");
     raw::run_raw(
-        client, "DELETE", &path, &params, &query, None, pretty, use_color, quiet, &auth_type,
+        client, out, stdout, "DELETE", &path, &params, &query, None, pretty, &auth_type,
     )
     .map_err(|e| BirdError::from_source("delete", e))?;
     Ok(())

@@ -18,12 +18,19 @@ pub struct BookmarkOpts<'a> {
 }
 
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` / `crate::out_print!` / `diag!`
+/// (U4 / R13/R14 will replace those with `writeln!`/`write!` against the
+/// injected writer, wrapped in a BufWriter for the stream).
 pub fn run_bookmarks(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     opts: BookmarkOpts<'_>,
-    use_color: bool,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     let pretty = opts.pretty;
     // Bookmarks require OAuth2 user context
     let auth_type = AuthType::OAuth2User;
@@ -53,7 +60,7 @@ pub fn run_bookmarks(
         "https://api.x.com/2/users/me",
         me_response.cache_hit,
     );
-    cost::display_cost(&me_estimate, use_color, quiet);
+    cost::display_cost(cfg, &me_estimate);
 
     // Extract username from /users/me for bookmark relationship storage
     let me_username = me_json
@@ -111,7 +118,7 @@ pub fn run_bookmarks(
 
         let page = response.json.ok_or("invalid JSON from bookmarks")?;
         let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&page_estimate, use_color, quiet);
+        cost::display_cost(cfg, &page_estimate);
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {

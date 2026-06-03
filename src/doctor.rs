@@ -319,14 +319,22 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
 }
 
 /// Run doctor: build report and print JSON (compact) or human summary.
+///
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` (U5 / R13 replaces those).
+/// `use_emoji` stays a caller-resolved arg because the dispatcher derives it
+/// from `use_color && pretty`.
 pub fn run_doctor(
     client: &BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     pretty: bool,
     scope: Option<&str>,
-    use_color: bool,
     use_emoji: bool,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let use_color = cfg.use_color;
+    let quiet = cfg.suppress_diag();
     let r = report(client, scope, quiet);
     if pretty {
         crate::out_println!("{}", format_pretty(&r, use_color, use_emoji));

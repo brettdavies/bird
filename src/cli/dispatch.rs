@@ -24,11 +24,21 @@ use std::io::IsTerminal;
 /// called; their arms here are unreachable but kept as `Ok(())` returns for
 /// exhaustiveness — the dispatcher never panics on a stray pre-dispatched
 /// variant slipping through.
+///
+/// Plan 2 U2: `stdout` and `stderr` writers are threaded through here so each
+/// per-command module can pass them to its handler. Today the handler bodies
+/// still call the `out_println!` / `out_print!` / `diag!` macros, but U3-U6
+/// will switch the call sites to write directly through these injected
+/// writers. `_stderr` is accepted now to keep the signature stable across
+/// U2/U6.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     command: Command,
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    _stderr: &mut dyn std::io::Write,
     cache_only: bool,
     no_interactive: bool,
     list_flags: ListFlags,
@@ -37,16 +47,18 @@ pub fn run(
         Command::Login { headless } => {
             commands::login::run(client, out, headless, config.username.as_deref())
         }
-        Command::Me { pretty } => commands::reads::run_me(client, out, pretty),
+        Command::Me { pretty } => commands::reads::run_me(client, out, stdout, pretty),
         Command::Get {
             path,
             param,
             query,
             pretty,
-        } => commands::reads::run_get(client, out, path, param, query, pretty, &list_flags),
-        Command::Bookmarks { pretty } => commands::bookmarks::run(client, out, pretty, &list_flags),
+        } => commands::reads::run_get(client, out, stdout, path, param, query, pretty, &list_flags),
+        Command::Bookmarks { pretty } => {
+            commands::bookmarks::run(client, out, stdout, pretty, &list_flags)
+        }
         Command::Profile { username, pretty } => {
-            commands::profile::run(client, out, username, pretty)
+            commands::profile::run(client, out, stdout, username, pretty)
         }
         Command::Search {
             query,
@@ -58,6 +70,7 @@ pub fn run(
         } => commands::search::run(
             client,
             out,
+            stdout,
             query,
             pretty,
             sort,
@@ -70,7 +83,7 @@ pub fn run(
             tweet_id,
             pretty,
             max_pages,
-        } => commands::thread::run(client, out, tweet_id, pretty, max_pages),
+        } => commands::thread::run(client, out, stdout, tweet_id, pretty, max_pages),
         Command::Post {
             path,
             param,
@@ -81,6 +94,7 @@ pub fn run(
         } => commands::raw_write::run_post(
             client,
             out,
+            stdout,
             path,
             param,
             query,
@@ -99,6 +113,7 @@ pub fn run(
         } => commands::raw_write::run_put(
             client,
             out,
+            stdout,
             path,
             param,
             query,
@@ -116,6 +131,7 @@ pub fn run(
         } => commands::raw_write::run_delete(
             client,
             out,
+            stdout,
             path,
             param,
             query,
@@ -125,7 +141,7 @@ pub fn run(
         ),
         Command::Watchlist { action, pretty } => match action {
             WatchlistCommand::Fetch => {
-                commands::watchlist::run_fetch(client, out, &config, pretty, &list_flags)
+                commands::watchlist::run_fetch(client, out, stdout, &config, pretty, &list_flags)
             }
             // Pre-dispatched in main(); unreachable here.
             WatchlistCommand::Add { .. }
@@ -136,7 +152,7 @@ pub fn run(
             since,
             local,
             pretty,
-        } => commands::usage::run(client, out, since, local, pretty),
+        } => commands::usage::run(client, out, stdout, since, local, pretty),
         Command::Tweet {
             text,
             media_id,

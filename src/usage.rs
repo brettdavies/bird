@@ -43,13 +43,19 @@ fn ymd_to_display(ymd: i64) -> String {
     )
 }
 
+/// U2 (Plan 2) note: signature takes `&OutputConfig` and a stdout writer; the
+/// body still calls `crate::out_println!` / `diag!` (U4 / R13/R15 replaces
+/// those with BufWriter against the injected writer for streaming output).
 pub fn run_usage(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     since: Option<&str>,
     local: bool,
     pretty: bool,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = stdout;
+    let quiet = cfg.suppress_diag();
     let since_ymd = parse_since(since)?;
 
     // Check DB availability (graceful degradation per D5)
@@ -478,12 +484,23 @@ mod tests {
     use super::*;
     use crate::db::BirdClient;
     use crate::db::db::in_memory_db;
+    use crate::output::{OutputConfig, OutputFormat};
     use crate::transport::tests::MockTransport;
 
     /// Build a BirdClient backed by MockTransport + in-memory DB.
     fn sync_client(responses: Vec<serde_json::Value>) -> BirdClient {
         let mock = MockTransport::new(responses.into_iter().map(Ok).collect());
         BirdClient::new_test(Box::new(mock), in_memory_db())
+    }
+
+    /// Quiet text-mode config used by run_usage integration tests.
+    fn quiet_cfg() -> OutputConfig {
+        OutputConfig {
+            format: OutputFormat::Text,
+            use_color: false,
+            quiet: true,
+            raw: false,
+        }
     }
 
     /// Helper: call sync_actual_usage with a mock client.
@@ -865,7 +882,9 @@ mod tests {
         // local=true should NOT call the API — empty mock proves it
         // (if API were called, the mock would error and run_usage would propagate it)
         let mut client = sync_client(vec![]);
-        run_usage(&mut client, None, true, false, true).expect("test");
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        run_usage(&mut client, &cfg, &mut stdout, None, true, false).expect("test");
     }
 
     #[test]
@@ -881,14 +900,18 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        run_usage(&mut client, None, false, false, true).expect("test");
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        run_usage(&mut client, &cfg, &mut stdout, None, false, false).expect("test");
     }
 
     #[test]
     fn run_usage_default_with_empty_mock_errors() {
         // Proves local=false actually hits the API — empty mock causes transport error
         let mut client = sync_client(vec![]);
-        let result = run_usage(&mut client, None, false, false, true);
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        let result = run_usage(&mut client, &cfg, &mut stdout, None, false, false);
         assert!(result.is_err(), "local=false should attempt API call");
     }
 
