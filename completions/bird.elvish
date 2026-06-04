@@ -72,7 +72,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand doctor 'Show what is available: xurl status, commands, and entity store health'
             cand cache 'Manage the HTTP response cache'
             cand completions 'Generate shell completions'
-            cand skill 'Manage the bird agent-skill bundle (install for Claude Code, etc.)'
+            cand skill 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)'
             cand schema 'Print a JSON Schema document for one of bird''s output shapes'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
@@ -1091,12 +1091,11 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --cache-only 'Only serve from local store; never make API requests'
             cand -h 'Print help (see more with ''--help'')'
             cand --help 'Print help (see more with ''--help'')'
-            cand install 'Install the bird skill bundle into a host''s canonical skills directory'
-            cand update 'Update the installed bird skill bundle to the embedded version'
+            cand install 'Clone the bird skill bundle into a host''s canonical skills directory'
+            cand update 'Remove the existing destination and re-clone the bird skill bundle'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
         &'bird;skill;install'= {
-            cand --host 'Target host (default: claude-code). Mutually exclusive with --all'
             cand -u 'Username for multi-user token selection (maps to xurl -u)'
             cand --username 'Username for multi-user token selection (maps to xurl -u)'
             cand -o 'Output format (text, json, jsonl, ndjson). Defaults to json when piped'
@@ -1106,7 +1105,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --limit 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)'
             cand --cursor 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)'
             cand --all 'Install into every supported host in one invocation'
-            cand --dry-run 'Print the planned destination without writing'
+            cand --dry-run 'Print the planned clone command without spawning git'
             cand --json 'Shorthand for `--output json`'
             cand --jsonl 'Shorthand for `--output jsonl`'
             cand --plain 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1125,7 +1124,6 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --help 'Print help (see more with ''--help'')'
         }
         &'bird;skill;update'= {
-            cand --host 'Target host (default: claude-code). Mutually exclusive with --all'
             cand -u 'Username for multi-user token selection (maps to xurl -u)'
             cand --username 'Username for multi-user token selection (maps to xurl -u)'
             cand -o 'Output format (text, json, jsonl, ndjson). Defaults to json when piped'
@@ -1135,7 +1133,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --limit 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)'
             cand --cursor 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)'
             cand --all 'Update every supported host in one invocation'
-            cand --dry-run 'Print the planned destination without writing'
+            cand --dry-run 'Print the planned operation without touching the filesystem'
             cand --json 'Shorthand for `--output json`'
             cand --jsonl 'Shorthand for `--output jsonl`'
             cand --plain 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1154,8 +1152,8 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --help 'Print help (see more with ''--help'')'
         }
         &'bird;skill;help'= {
-            cand install 'Install the bird skill bundle into a host''s canonical skills directory'
-            cand update 'Update the installed bird skill bundle to the embedded version'
+            cand install 'Clone the bird skill bundle into a host''s canonical skills directory'
+            cand update 'Remove the existing destination and re-clone the bird skill bundle'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
         &'bird;skill;help;install'= {
@@ -1220,7 +1218,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand doctor 'Show what is available: xurl status, commands, and entity store health'
             cand cache 'Manage the HTTP response cache'
             cand completions 'Generate shell completions'
-            cand skill 'Manage the bird agent-skill bundle (install for Claude Code, etc.)'
+            cand skill 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)'
             cand schema 'Print a JSON Schema document for one of bird''s output shapes'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
@@ -1299,8 +1297,8 @@ set edit:completion:arg-completer[bird] = {|@words|
         &'bird;help;completions'= {
         }
         &'bird;help;skill'= {
-            cand install 'Install the bird skill bundle into a host''s canonical skills directory'
-            cand update 'Update the installed bird skill bundle to the embedded version'
+            cand install 'Clone the bird skill bundle into a host''s canonical skills directory'
+            cand update 'Remove the existing destination and re-clone the bird skill bundle'
         }
         &'bird;help;skill;install'= {
         }

@@ -2107,16 +2107,12 @@ _bird() {
             return 0
             ;;
         bird__skill__install)
-            opts="-u -o -q -v -h --host --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help claude_code codex cursor factory kiro opencode"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
-                --host)
-                    COMPREPLY=($(compgen -W "claude-code" -- "${cur}"))
-                    return 0
-                    ;;
                 --username)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -2157,16 +2153,12 @@ _bird() {
             return 0
             ;;
         bird__skill__update)
-            opts="-u -o -q -v -h --host --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help claude_code codex cursor factory kiro opencode"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
-                --host)
-                    COMPREPLY=($(compgen -W "claude-code" -- "${cur}"))
-                    return 0
-                    ;;
                 --username)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
