@@ -45,6 +45,7 @@ All notable changes to this project will be documented in this file.
 - `--pretty` help text now reads `"Pretty-print human-readable output"` uniformly across every subcommand that supports it (previously inconsistent across variants). by @brettdavies in [#52](https://github.com/brettdavies/bird/pull/52)
 - `bird` cache-hit and fresh-API GET paths no longer re-serialize the response body when the caller only reads the parsed JSON. Internal optimization; no observable behavior change. by @brettdavies in [#53](https://github.com/brettdavies/bird/pull/53)
 - `bird watchlist check` completion renamed to `bird watchlist fetch` (matches the binary's subcommand rename) by @brettdavies in [#56](https://github.com/brettdavies/bird/pull/56)
+- Collapse `scripts/generate-changelog.{sh,py}` into a single `scripts/generate-changelog.py` (`uv run --script`). Same CLI surface and pipeline, fewer moving parts. Doc references in `RELEASES.md`, `RELEASES-RATIONALE.md`, and `.github/pull_request_template.md` updated. by @brettdavies in [#60](https://github.com/brettdavies/bird/pull/60)
 
 ### Fixed
 
@@ -61,6 +62,7 @@ All notable changes to this project will be documented in this file.
 - Split the prior monolithic `RELEASES.md` into a runbook (`RELEASES.md`), a rationale companion (`RELEASES-RATIONALE.md`), and a bird-specific pre-cut checklist (`RELEASES-PREFLIGHT.md`). by @brettdavies in [#34](https://github.com/brettdavies/bird/pull/34)
 - Add `.github/pull_request_template.md` with the canonical Summary / Changelog / Type of Change / Related Issues / Files Modified / Testing structure.
 - Fix the README "Documentation" table entry that pointed at `RELEASING.md` to point at `RELEASES.md`.
+- Refresh `AGENTS.md` for the v0.2.0 surface: global flags table, `BIRD_*` env-var bindings, JSON envelope shape (with the canonical `exit_code` key), `bird schema`, `bird skill install`/`update`, `bird login --no-browser`, write-op guards, pagination, `watchlist fetch` rename, and `usage --local` flag. Drop the stale Known Debt section and the stale modernization-sprint references. Sharpen the skill frontmatter `description` so the embedded bundle auto-discovers on X / Twitter API prompts. by @brettdavies in [#61](https://github.com/brettdavies/bird/pull/61)
 
 ### Removed
 
