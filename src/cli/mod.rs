@@ -147,6 +147,15 @@ pub struct WriteGuard {
     pub dry_run: bool,
 }
 
+/// Shared `--pretty` flag flattened into subcommand variants that support
+/// human-readable output.
+#[derive(Args, Debug, Clone, Copy, Default)]
+pub struct OutputFlags {
+    /// Pretty-print human-readable output.
+    #[arg(long)]
+    pub pretty: bool,
+}
+
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
     /// Authenticate via xurl (OAuth2 PKCE browser flow).
@@ -159,9 +168,8 @@ pub enum Command {
     /// Show current user (GET /2/users/me).
     #[command(after_help = include_str!("../../examples/me.txt"))]
     Me {
-        /// Human-readable output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123).
@@ -172,8 +180,8 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// POST request to path.
@@ -186,8 +194,8 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
         #[command(flatten)]
         guard: WriteGuard,
     },
@@ -202,8 +210,8 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
         #[command(flatten)]
         guard: WriteGuard,
     },
@@ -211,8 +219,8 @@ pub enum Command {
     /// List bookmarks for the current user (paginated, max_results=100).
     #[command(after_help = include_str!("../../examples/bookmarks.txt"))]
     Bookmarks {
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// Look up a user profile by username.
@@ -220,9 +228,8 @@ pub enum Command {
     Profile {
         /// X/Twitter username (with or without @).
         username: String,
-        /// Pretty-print JSON output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// Search recent tweets (GET /2/tweets/search/recent).
@@ -231,9 +238,8 @@ pub enum Command {
         /// Search query (X API search syntax).
         query: String,
 
-        /// Pretty-print JSON output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
 
         /// Sort results: recent (default), likes.
         #[arg(long, default_value = "recent")]
@@ -257,9 +263,8 @@ pub enum Command {
     Thread {
         /// Tweet ID (root tweet or any reply in the thread).
         tweet_id: String,
-        /// Pretty-print JSON output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
         /// Maximum number of search result pages (default: 10, max: 25).
         #[arg(long, default_value = "10")]
         max_pages: u32,
@@ -273,8 +278,8 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
         #[command(flatten)]
         guard: WriteGuard,
     },
@@ -284,9 +289,8 @@ pub enum Command {
     Watchlist {
         #[command(subcommand)]
         action: WatchlistCommand,
-        /// Pretty-print JSON output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// View API usage and costs.
@@ -298,9 +302,8 @@ pub enum Command {
         /// Show only local estimates (skip API).
         #[arg(long)]
         local: bool,
-        /// Pretty-print output.
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// Post a tweet (via xurl).
@@ -432,8 +435,8 @@ pub enum Command {
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get).
         command: Option<String>,
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 
     /// Manage the HTTP response cache.
@@ -520,8 +523,8 @@ pub enum CacheAction {
     /// Show cache status (JSON default, --pretty for human-readable).
     #[command(after_help = include_str!("../../examples/cache-stats.txt"))]
     Stats {
-        #[arg(long)]
-        pretty: bool,
+        #[command(flatten)]
+        common: OutputFlags,
     },
 }
 
@@ -581,5 +584,48 @@ impl Cli {
         } else {
             self.output
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn me_with_pretty_sets_common_pretty_true() {
+        let cli = Cli::try_parse_from(["bird", "me", "--pretty"]).expect("bird me --pretty parses");
+        match cli.command {
+            Command::Me { common } => assert!(common.pretty),
+            other => panic!("expected Me variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn cache_stats_pretty_flattens_into_common() {
+        let cli = Cli::try_parse_from(["bird", "cache", "stats", "--pretty"])
+            .expect("bird cache stats --pretty parses");
+        match cli.command {
+            Command::Cache {
+                action: CacheAction::Stats { common },
+            } => assert!(common.pretty),
+            other => panic!("expected Cache::Stats variant, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn write_only_subcommands_reject_pretty_flag() {
+        assert!(
+            Cli::try_parse_from(["bird", "like", "123", "--pretty"]).is_err(),
+            "like is write-only; --pretty must not parse"
+        );
+        assert!(
+            Cli::try_parse_from(["bird", "follow", "alice", "--pretty"]).is_err(),
+            "follow is write-only; --pretty must not parse"
+        );
+        assert!(
+            Cli::try_parse_from(["bird", "tweet", "hello", "--pretty"]).is_err(),
+            "tweet is write-only; --pretty must not parse"
+        );
     }
 }
