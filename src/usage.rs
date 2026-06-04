@@ -339,10 +339,11 @@ fn sync_actual_usage(
     // Graceful degradation: show local data on sync failure (D5)
     if !response.is_success() {
         if !quiet {
-            if response.body.contains("429") || response.body.contains("Too Many") {
+            let body = response.body();
+            if body.contains("429") || body.contains("Too Many") {
                 writeln!(stderr, "[usage] Rate limited. Showing local data only.").ok();
             } else {
-                let msg = output::sanitize_for_stderr(&response.body, 200);
+                let msg = output::sanitize_for_stderr(&body, 200);
                 writeln!(
                     stderr,
                     "[usage] Sync failed: {}. Showing local data only.",

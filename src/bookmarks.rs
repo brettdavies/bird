@@ -47,7 +47,7 @@ pub fn run_bookmarks(
     if !me_response.is_success() {
         return Err(format!(
             "GET /2/users/me failed: {}",
-            output::sanitize_for_stderr(&me_response.body, 200)
+            output::sanitize_for_stderr(&me_response.body(), 200)
         )
         .into());
     }
@@ -114,7 +114,7 @@ pub fn run_bookmarks(
         if !response.is_success() {
             return Err(format!(
                 "GET bookmarks failed: {}",
-                output::sanitize_for_stderr(&response.body, 200)
+                output::sanitize_for_stderr(&response.body(), 200)
             )
             .into());
         }

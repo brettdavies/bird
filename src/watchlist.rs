@@ -358,7 +358,7 @@ fn execute_check(
         return Err(format!(
             "GET search {}: {}",
             response.status,
-            crate::output::sanitize_for_stderr(&response.body, 200)
+            crate::output::sanitize_for_stderr(&response.body(), 200)
         )
         .into());
     }
