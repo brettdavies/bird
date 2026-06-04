@@ -37,9 +37,84 @@ pub fn run_thread(
         username: None,
     };
 
-    // Step 1: Fetch root tweet to get conversation_id
+    let (root_tweet, conversation_id, root_age_days) =
+        fetch_root(client, cfg, stderr, &ctx, opts.tweet_id)?;
+
+    let root_id = root_tweet
+        .get("id")
+        .and_then(|i| i.as_str())
+        .map(String::from);
+
+    let (all_tweets, pages_fetched, complete) = paginate_conversation(
+        client,
+        cfg,
+        stderr,
+        &ctx,
+        &conversation_id,
+        root_id.as_deref(),
+        max_pages,
+    )?;
+
+    let nodes = build_thread_tree(&root_tweet, &all_tweets);
+    let order = flatten_thread(&nodes);
+
+    let thread_array: Vec<serde_json::Value> = order
+        .iter()
+        .map(|&idx| {
+            let node = &nodes[idx];
+            let mut tweet = node.tweet.clone();
+            if let Some(obj) = tweet.as_object_mut() {
+                obj.insert("depth".to_string(), serde_json::json!(node.depth));
+            }
+            tweet
+        })
+        .collect();
+
+    let output = serde_json::json!({
+        "thread": thread_array,
+        "meta": {
+            "conversation_id": conversation_id,
+            "tweet_count": thread_array.len(),
+            "pages_fetched": pages_fetched,
+            "complete": complete,
+            "root_tweet_age_days": root_age_days,
+        }
+    });
+
+    if opts.pretty {
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
+    } else {
+        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
+    }
+
+    if !quiet {
+        writeln!(
+            stderr,
+            "[thread] {} tweets | {} pages fetched | {}",
+            thread_array.len(),
+            pages_fetched,
+            if complete { "complete" } else { "truncated" }
+        )
+        .ok();
+    }
+
+    Ok(())
+}
+
+/// Fetch the root tweet for `tweet_id`, returning `(root_tweet, conversation_id, root_age_days)`.
+/// Emits diag lines when the input is a reply (followed to its root) and when the root is older
+/// than `search/recent`'s 7-day window.
+fn fetch_root(
+    client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stderr: &mut dyn std::io::Write,
+    ctx: &RequestContext<'_>,
+    tweet_id: &str,
+) -> Result<(serde_json::Value, String, u32), Box<dyn std::error::Error + Send + Sync>> {
+    let quiet = cfg.suppress_diag();
+
     let root_url = {
-        let mut url = url::Url::parse(&format!("https://api.x.com/2/tweets/{}", opts.tweet_id))
+        let mut url = url::Url::parse(&format!("https://api.x.com/2/tweets/{}", tweet_id))
             .expect("invariant: tweet endpoint URL is well-formed with validated tweet_id");
         {
             let mut pairs = url.query_pairs_mut();
@@ -50,7 +125,7 @@ pub fn run_thread(
         url.to_string()
     };
 
-    let response = client.get(&root_url, &ctx)?;
+    let response = client.get(&root_url, ctx)?;
     if !response.is_success() {
         return Err(format!(
             "GET tweet {}: {}",
@@ -86,7 +161,7 @@ pub fn run_thread(
 
     validate_tweet_id(conversation_id)?;
 
-    if conversation_id != opts.tweet_id && !quiet {
+    if conversation_id != tweet_id && !quiet {
         writeln!(
             stderr,
             "[thread] input tweet is a reply; following to root conversation {}",
@@ -110,20 +185,39 @@ pub fn run_thread(
         .ok();
     }
 
-    // Step 2: Search for conversation tweets (paginated)
+    Ok((
+        root_tweet.clone(),
+        conversation_id.to_string(),
+        root_age_days,
+    ))
+}
+
+/// Paginate `search/recent` for `conversation_id`, returning the deduped tweets,
+/// pages actually fetched, and whether the search exhausted (`complete=true`) or
+/// stopped at `max_pages` (`complete=false`). `root_id`, when present, is seeded
+/// into the seen-set so the root isn't re-added by the search response.
+fn paginate_conversation(
+    client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stderr: &mut dyn std::io::Write,
+    ctx: &RequestContext<'_>,
+    conversation_id: &str,
+    root_id: Option<&str>,
+    max_pages: u32,
+) -> Result<(Vec<serde_json::Value>, u32, bool), Box<dyn std::error::Error + Send + Sync>> {
     let mut all_tweets: Vec<serde_json::Value> = Vec::with_capacity(100);
     let mut seen_ids: HashSet<String> = HashSet::new();
     let mut next_token: Option<String> = None;
     let mut pages_fetched: u32 = 0;
 
-    if let Some(root_id) = root_tweet.get("id").and_then(|i| i.as_str()) {
-        seen_ids.insert(root_id.to_string());
+    if let Some(rid) = root_id {
+        seen_ids.insert(rid.to_string());
     }
 
     for page_num in 1..=max_pages {
         let search_url = build_search_url(conversation_id, next_token.as_deref());
 
-        let response = client.get(&search_url, &ctx)?;
+        let response = client.get(&search_url, ctx)?;
         if !response.is_success() {
             return Err(format!(
                 "GET search page {} {}: {}",
@@ -168,51 +262,7 @@ pub fn run_thread(
     }
 
     let complete = next_token.is_none();
-
-    let nodes = build_thread_tree(root_tweet, &all_tweets);
-    let order = flatten_thread(&nodes);
-
-    let thread_array: Vec<serde_json::Value> = order
-        .iter()
-        .map(|&idx| {
-            let node = &nodes[idx];
-            let mut tweet = node.tweet.clone();
-            if let Some(obj) = tweet.as_object_mut() {
-                obj.insert("depth".to_string(), serde_json::json!(node.depth));
-            }
-            tweet
-        })
-        .collect();
-
-    let output = serde_json::json!({
-        "thread": thread_array,
-        "meta": {
-            "conversation_id": conversation_id,
-            "tweet_count": thread_array.len(),
-            "pages_fetched": pages_fetched,
-            "complete": complete,
-            "root_tweet_age_days": root_age_days,
-        }
-    });
-
-    if opts.pretty {
-        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
-    } else {
-        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
-    }
-
-    if !quiet {
-        writeln!(
-            stderr,
-            "[thread] {} tweets | {} pages fetched | {}",
-            thread_array.len(),
-            pages_fetched,
-            if complete { "complete" } else { "truncated" }
-        )
-        .ok();
-    }
-
-    Ok(())
+    Ok((all_tweets, pages_fetched, complete))
 }
 
 /// Validate tweet ID: 1-20 digits, all ASCII numeric.
