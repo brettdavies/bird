@@ -1,0 +1,36 @@
+# Plan 2 R20 guard: writer-injection compliance. Every call site that emits
+# user-visible output must use an injected &mut dyn Write writer (or an
+# OutputConfig::print_* method) — never the bare println!/eprintln! family
+# or the deleted out_println!/out_print!/diag! macros. The only permitted
+# survivors are:
+#   - src/main.rs (binary shim — no output today, future-proofed)
+#   - src/error/fatal.rs (the fatal-error chokepoint, intentionally bare)
+# Anywhere else in src/ — including elsewhere in src/error/ — the guard fires.
+name: Guard R20 (writer-injection)
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-r20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: No bare output macros outside src/error/fatal.rs and src/main.rs
+        run: |
+          forbidden=$(rg -n '\b(println|eprintln|print|eprint|out_println|out_print|diag)!' \
+              --glob 'src/**/*.rs' \
+              --glob '!src/main.rs' \
+              --glob '!src/error/fatal.rs' || true)
+          if [ -n "$forbidden" ]; then
+            echo "::error::Forbidden output macro in src/. Use an injected &mut dyn Write writer or OutputConfig::print_* method (Plan 2 R20)."
+            echo "$forbidden"
+            exit 1
+          fi

@@ -6,6 +6,8 @@
 //! - `Config` -> kind "config", exit 78 (missing config, invalid setup)
 //! - `General` -> kind "general", exit 1 (command execution, network, API)
 
+pub mod fatal;
+
 use crate::transport;
 
 /// Structured error for the CLI. Each variant maps to a distinct exit code and
@@ -142,6 +144,32 @@ impl BirdError {
             BirdError::General { status, .. } => *status,
             _ => None,
         }
+    }
+
+    /// Render this error to the process's real stderr in a plain-text format.
+    ///
+    /// Fatal-only chokepoint: called from the runner's bare-error path that
+    /// fires before an `OutputConfig` and injected writer are available
+    /// (e.g. when `ResolvedPaths::from_env` fails at startup). Every other
+    /// error rendering goes through `OutputConfig::print_error` against an
+    /// injected writer so tests can capture the output.
+    pub fn print(&self) {
+        let line = match self {
+            BirdError::Usage { message, .. } => format!("usage error: {}", message),
+            BirdError::Auth { message, .. } => format!("auth failed: {}", message),
+            BirdError::Config { message, .. } => format!("config failed: {}", message),
+            BirdError::General {
+                command: Some(name),
+                message,
+                ..
+            } => format!("{} failed: {}", name, message),
+            BirdError::General {
+                command: None,
+                message,
+                ..
+            } => format!("error: {}", message),
+        };
+        crate::error::fatal::fatal_eprintln(&line);
     }
 }
 

@@ -3,7 +3,6 @@
 
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -18,13 +17,18 @@ pub struct ThreadOpts<'a> {
     pub max_pages: u32,
 }
 
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6); per-line stdout writes through `writeln!(stdout, ...)`
+/// (R13) and diagnostic sites follow the KTD-1 guarded pattern (R15).
 pub fn run_thread(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: ThreadOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let quiet = cfg.suppress_diag();
     validate_tweet_id(opts.tweet_id)?;
     let max_pages = opts.max_pages.clamp(1, MAX_PAGES_CAP);
 
@@ -58,7 +62,7 @@ pub fn run_thread(
 
     let root_response = response.json.ok_or("invalid JSON from tweet lookup")?;
     let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
-    cost::display_cost(&estimate, use_color, quiet);
+    cost::display_cost(cfg, stderr, &estimate);
 
     // Check for errors array (X API returns 200 + errors for not-found)
     if let Some(errors) = root_response.get("errors").and_then(|e| e.as_array())
@@ -82,12 +86,13 @@ pub fn run_thread(
 
     validate_tweet_id(conversation_id)?;
 
-    if conversation_id != opts.tweet_id {
-        diag!(
-            quiet,
+    if conversation_id != opts.tweet_id && !quiet {
+        writeln!(
+            stderr,
             "[thread] input tweet is a reply; following to root conversation {}",
             conversation_id
-        );
+        )
+        .ok();
     }
 
     let root_age_days = root_tweet
@@ -96,12 +101,13 @@ pub fn run_thread(
         .and_then(parse_age_days)
         .unwrap_or(0);
 
-    if root_age_days > 7 {
-        diag!(
-            quiet,
+    if root_age_days > 7 && !quiet {
+        writeln!(
+            stderr,
             "[thread] warning: root tweet is {} days old; search/recent only covers 7 days",
             root_age_days
-        );
+        )
+        .ok();
     }
 
     // Step 2: Search for conversation tweets (paginated)
@@ -130,7 +136,7 @@ pub fn run_thread(
 
         let page = response.json.ok_or("invalid JSON from search")?;
         let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, stderr, &estimate);
 
         let data = match page.get("data").and_then(|d| d.as_array()) {
             Some(arr) if !arr.is_empty() => arr,
@@ -190,18 +196,21 @@ pub fn run_thread(
     });
 
     if opts.pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
     }
 
-    diag!(
-        quiet,
-        "[thread] {} tweets | {} pages fetched | {}",
-        thread_array.len(),
-        pages_fetched,
-        if complete { "complete" } else { "truncated" }
-    );
+    if !quiet {
+        writeln!(
+            stderr,
+            "[thread] {} tweets | {} pages fetched | {}",
+            thread_array.len(),
+            pages_fetched,
+            if complete { "complete" } else { "truncated" }
+        )
+        .ok();
+    }
 
     Ok(())
 }

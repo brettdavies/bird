@@ -3,12 +3,10 @@
 //! Tests use [`TestEnv`] to construct a `TempDir`-backed [`ResolvedPaths`] and
 //! call [`bird::cli::run_with_paths`] in-process instead of forking the binary.
 //!
-//! Plan 1 U9 scope: assertions are limited to exit code + filesystem side
-//! effects. The `out_println!` / `out_print!` / `diag!` macros still write to
-//! global stdout/stderr handles, so the [`Vec<u8>`] writers passed into
-//! `run_with_paths` receive empty bytes for most code paths. Plan 2 U11
-//! migrates the macro sites to the injected writers, at which point captured
-//! stdout/stderr content assertions become viable.
+//! Default assertion scope: exit code + filesystem side effects. The
+//! [`Vec<u8>`] writers passed into `run_with_paths` capture every stdout and
+//! stderr byte the runner emits — Plan 2 U11 will fold the
+//! content-asserting subprocess holdouts back into this in-process suite.
 
 #![allow(dead_code)]
 

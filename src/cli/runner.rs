@@ -8,11 +8,12 @@
 //!
 //! The library never calls `process::exit`; it returns [`ExitCode`] to the caller.
 //!
-//! Per R7, the only Plan-1 macro change made here is that the Tier-1
-//! `Completions` short-circuit routes `clap_complete::generate` through the
-//! runner's `stdout` writer rather than `std::io::stdout()`. The remaining
-//! `out_println!` / `out_print!` / `diag!` sites continue to write to global
-//! handles; Plan 2 addresses them.
+//! All stdout writes in this module route through the runner-injected
+//! `stdout` writer: the `Completions` short-circuit, the `--examples`
+//! short-circuit (`print_examples`), and the JSON-wrapped clap help/version
+//! envelope branch. Diagnostic writes route through the injected `stderr`
+//! writer or — for `BirdClient`/`BirdDb` internal sites — through the
+//! `Arc<Mutex<dyn Write + Send>>` handle constructed at runner-entry.
 
 #![doc(hidden)]
 
@@ -25,10 +26,7 @@ use crate::cli::{Cli, Command, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::{
-    db, diag, doctor, out_print, out_println, output, schema, schema_print, skill_install,
-    transport, watchlist,
-};
+use crate::{db, doctor, output, schema, schema_print, skill_install, transport, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
@@ -39,7 +37,7 @@ const TOP_LEVEL_EXAMPLES: &str = include_str!("../../examples/top-level.txt");
 
 /// Emit the curated top-level examples block and exit zero. JSON mode wraps the
 /// parsed example invocations in `{"data": [...], "meta": {...}}`.
-fn print_examples(out: &OutputConfig) -> ExitCode {
+fn print_examples(out: &OutputConfig, stdout: &mut dyn Write) -> ExitCode {
     if out.format.is_json() {
         let qualified: Vec<String> = TOP_LEVEL_EXAMPLES
             .lines()
@@ -56,11 +54,15 @@ fn print_examples(out: &OutputConfig) -> ExitCode {
         let data = serde_json::json!(qualified);
         let meta = serde_json::json!({"count": qualified.len()});
         match output::success_envelope_string(&data, &meta) {
-            Ok(line) => out_println!("{}", line),
-            Err(_) => out_println!("{}", TOP_LEVEL_EXAMPLES),
+            Ok(line) => {
+                let _ = writeln!(stdout, "{}", line);
+            }
+            Err(_) => {
+                let _ = writeln!(stdout, "{}", TOP_LEVEL_EXAMPLES);
+            }
         }
     } else {
-        out_print!("{}", TOP_LEVEL_EXAMPLES);
+        let _ = write!(stdout, "{}", TOP_LEVEL_EXAMPLES);
     }
     ExitCode::SUCCESS
 }
@@ -89,8 +91,11 @@ where
     let paths = match ResolvedPaths::from_env() {
         Ok(p) => p,
         Err(e) => {
+            // Fatal pre-config path: no OutputConfig has been constructed
+            // yet, so route through the BirdError::print chokepoint per
+            // Plan 2 R18 instead of bypassing the format selection.
             let err = BirdError::config(e);
-            let _ = writeln!(stderr, "{}", err.message());
+            err.print();
             return ExitCode::from(err.exit_code());
         }
     };
@@ -101,10 +106,13 @@ where
 /// Worker entrypoint. Owns the full dispatch pipeline against caller-supplied
 /// paths and env. Tests call this directly with `TempDir`-backed paths.
 ///
-/// Today most output still routes through the `out_println!` / `out_print!` /
-/// `diag!` macros (global handles); Plan 2 migrates them to the injected
-/// writers. The clap Tier-1 `Completions` branch is the one Plan-1 exception
-/// and writes to the `stdout` parameter directly.
+/// stdout flows through the injected `stdout` writer for every short-circuit
+/// branch (`Completions`, `--examples`, the JSON-wrapped help/version
+/// envelope) and through dispatch into the per-command handlers. Diagnostic
+/// output flows through the injected `stderr` writer (handler params) or
+/// through the `Arc<Mutex<dyn Write + Send>>` handle on `BirdClient` /
+/// `BirdDb` for internal sites — both bind to the process stderr in the
+/// binary entrypoint, both can be redirected for library callers.
 pub fn run_with_paths<I, S>(
     args: I,
     stdout: &mut dyn Write,
@@ -138,7 +146,7 @@ where
             quiet: false,
             raw: false,
         };
-        return print_examples(&cfg);
+        return print_examples(&cfg, stdout);
     }
 
     // try_parse_from routes clap errors through the JSON-aware envelope
@@ -164,7 +172,9 @@ where
                     });
                     let meta = serde_json::json!({"format": "text"});
                     match output::success_envelope_string(&data, &meta) {
-                        Ok(line) => out_println!("{}", line),
+                        Ok(line) => {
+                            let _ = writeln!(stdout, "{}", line);
+                        }
                         Err(_) => {
                             let _ = e.print();
                         }
@@ -182,7 +192,7 @@ where
                     quiet: false,
                     raw: false,
                 };
-                output::print_error(&bird_err, &cfg);
+                let _ = cfg.print_error(stderr, &bird_err);
                 return ExitCode::from(bird_err.exit_code());
             }
         },
@@ -230,25 +240,25 @@ where
             Ok(h) => h,
             Err(e) => {
                 let err = BirdError::from_source("skill", Box::new(e));
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         };
-        return match skill_install::run(host, dry_run, all, &home) {
+        return match skill_install::run(&out, stdout, host, dry_run, all, &home) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::from_source("skill", e);
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 ExitCode::from(err.exit_code())
             }
         };
     }
 
     if let Command::Schema { name, list } = &cli.command {
-        return match schema_print::run(name.as_deref(), *list, &out) {
+        return match schema_print::run(name.as_deref(), *list, &out, stdout) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 ExitCode::from(err.exit_code())
             }
         };
@@ -261,7 +271,7 @@ where
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
                 let err = BirdError::config(format!("--username: {}", e));
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         },
@@ -275,11 +285,14 @@ where
         .and_then(|u| match schema::validate_username(&u) {
             Ok(s) => Some(s.to_string()),
             Err(e) => {
-                diag!(
-                    out.suppress_diag(),
-                    "[config] warning: X_API_USERNAME invalid, ignoring: {}",
-                    e
-                );
+                if !out.suppress_diag() {
+                    writeln!(
+                        stderr,
+                        "[config] warning: X_API_USERNAME invalid, ignoring: {}",
+                        e
+                    )
+                    .ok();
+                }
                 None
             }
         });
@@ -292,7 +305,7 @@ where
         Ok(c) => c,
         Err(e) => {
             let err = BirdError::config(e);
-            output::print_error(&err, &out);
+            let _ = out.print_error(stderr, &err);
             return ExitCode::from(err.exit_code());
         }
     };
@@ -303,6 +316,14 @@ where
         refresh: cli.refresh,
         cache_only: cli.cache_only,
     };
+    // BirdClient takes an Arc-shared writer (KTD-2). The runner's local
+    // `&mut dyn Write` stderr param cannot be cloned/shared into an Arc, so we
+    // construct a separate handle bound to the process stderr. Diagnostic
+    // sites that fire inside `BirdClient` / `BirdDb` route through this
+    // handle, not the runner's `stderr` borrow — capturing them in tests
+    // requires the Plan 2 U11 signature change.
+    let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
+        std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
     let mut client = db::BirdClient::new(
         transport,
         &config.cache_path,
@@ -310,24 +331,18 @@ where
         config.cache_max_size_mb,
         config.username.clone(),
         out.suppress_diag(),
+        client_stderr,
     );
 
     // --- Diagnostic commands: need config/DB but not xurl ---
     if let Command::Doctor { command, pretty } = &cli.command {
         let scope = command.as_deref();
         let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(
-            &client,
-            *pretty,
-            scope,
-            use_color,
-            use_emoji,
-            out.suppress_diag(),
-        ) {
+        match doctor::run_doctor(&client, &out, stdout, stderr, *pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         }
@@ -337,10 +352,10 @@ where
     if let Command::Watchlist { ref action, pretty } = cli.command
         && !matches!(action, WatchlistCommand::Fetch)
     {
-        let quiet = out.suppress_diag();
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, username, quiet).map_err(BirdError::config)
+                watchlist::run_watchlist_add(&config, &out, stderr, username)
+                    .map_err(BirdError::config)
             }
             WatchlistCommand::Remove { username, guard } => {
                 let target = format!("watchlist:@{}", username);
@@ -352,12 +367,13 @@ where
                     *guard,
                     &out,
                     cli.no_interactive,
-                    &mut std::io::stderr().lock(),
+                    stdout,
+                    stderr,
                     None,
                 ) {
                     Ok(GuardOutcome::DryRun) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {
-                        watchlist::run_watchlist_remove(&config, username, quiet)
+                        watchlist::run_watchlist_remove(&config, &out, stderr, username)
                             .map_err(BirdError::config)
                     }
                     Err(e) => Err(e),
@@ -367,8 +383,10 @@ where
                 let (limit, _) = clamp_limit(cli.limit, 1000, 10_000);
                 watchlist::run_watchlist_list(
                     &config,
+                    &out,
+                    stdout,
+                    stderr,
                     pretty,
-                    quiet,
                     Some(limit),
                     cli.cursor.as_deref(),
                 )
@@ -379,7 +397,7 @@ where
         return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                output::print_error(&e, &out);
+                let _ = out.print_error(stderr, &e);
                 ExitCode::from(e.exit_code())
             }
         };
@@ -396,7 +414,7 @@ where
         && let Err(e) = transport::resolve_xurl_path()
     {
         let err = BirdError::config(e);
-        output::print_error(&err, &out);
+        let _ = out.print_error(stderr, &err);
         return ExitCode::from(err.exit_code());
     }
 
@@ -404,21 +422,20 @@ where
         limit: cli.limit,
         cursor: cli.cursor.clone(),
     };
-    // Plan-2 will route writers through dispatch; for now stderr is unused
-    // here because dispatch and downstream handlers still call macros.
-    let _ = stderr;
     match crate::cli::dispatch::run(
         cli.command,
         config,
         &mut client,
         &out,
+        stdout,
+        stderr,
         cli.cache_only,
         cli.no_interactive,
         list_flags,
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            output::print_error(&e, &out);
+            let _ = out.print_error(stderr, &e);
             ExitCode::from(e.exit_code())
         }
     }

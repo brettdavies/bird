@@ -79,7 +79,13 @@ fn names() -> Vec<&'static str> {
 
 /// Emit the list of available schema names. Text mode: one per line. JSON
 /// mode: success-envelope wrapper with the names array as `data`.
-fn print_list(out: &OutputConfig) -> Result<(), BirdError> {
+fn print_list(out: &OutputConfig, stdout: &mut dyn std::io::Write) -> Result<(), BirdError> {
+    let io_to_bird = |e: std::io::Error| {
+        BirdError::general(
+            "schema",
+            Box::<dyn std::error::Error + Send + Sync>::from(e),
+        )
+    };
     if out.format.is_json() {
         let data = serde_json::Value::Array(
             names()
@@ -94,19 +100,29 @@ fn print_list(out: &OutputConfig) -> Result<(), BirdError> {
                 Box::<dyn std::error::Error + Send + Sync>::from(e),
             )
         })?;
-        crate::out_println!("{}", line);
+        writeln!(stdout, "{}", line).map_err(io_to_bird)?;
     } else {
         for n in names() {
-            crate::out_println!("{}", n);
+            writeln!(stdout, "{}", n).map_err(io_to_bird)?;
         }
     }
     Ok(())
 }
 
-fn print_schema(entry: &SchemaEntry, out: &OutputConfig) -> Result<(), BirdError> {
+fn print_schema(
+    entry: &SchemaEntry,
+    out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+) -> Result<(), BirdError> {
+    let io_to_bird = |e: std::io::Error| {
+        BirdError::general(
+            "schema",
+            Box::<dyn std::error::Error + Send + Sync>::from(e),
+        )
+    };
     // Schema bodies are themselves JSON documents; emit verbatim so byte
     // equality with disk files holds. Trim trailing newline first so the
-    // out_println! macro adds exactly one.
+    // writeln! adds exactly one.
     let body = entry.body.trim_end_matches('\n');
 
     if out.format.is_json() {
@@ -114,9 +130,9 @@ fn print_schema(entry: &SchemaEntry, out: &OutputConfig) -> Result<(), BirdError
         // payload — wrapping it in the success envelope would obscure $schema/
         // $id. Emit the schema directly; agents that parse it will see a
         // self-describing JSON Schema 2020-12 document.
-        crate::out_println!("{}", body);
+        writeln!(stdout, "{}", body).map_err(io_to_bird)?;
     } else {
-        crate::out_println!("{}", body);
+        writeln!(stdout, "{}", body).map_err(io_to_bird)?;
     }
     Ok(())
 }
@@ -126,13 +142,18 @@ fn print_schema(entry: &SchemaEntry, out: &OutputConfig) -> Result<(), BirdError
 /// - `name=None, list=false` -> emit the success-envelope schema (universal shape)
 /// - `list=true` -> emit names (text: one per line; json: envelope array)
 /// - `name=Some(n)` -> emit schema `n`; unknown name -> Usage error (exit 2)
-pub fn run(name: Option<&str>, list: bool, out: &OutputConfig) -> Result<(), BirdError> {
+pub fn run(
+    name: Option<&str>,
+    list: bool,
+    out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+) -> Result<(), BirdError> {
     if list {
-        return print_list(out);
+        return print_list(out, stdout);
     }
     let target = name.unwrap_or(DEFAULT_SCHEMA);
     match find(target) {
-        Some(entry) => print_schema(entry, out),
+        Some(entry) => print_schema(entry, out, stdout),
         None => {
             let available = names().join(", ");
             Err(BirdError::usage(
@@ -242,8 +263,9 @@ mod tests {
 
     #[test]
     fn run_unknown_returns_usage_error() {
-        let err =
-            run(Some("does-not-exist"), false, &out_text()).expect_err("unknown schema must error");
+        let mut stdout: Vec<u8> = Vec::new();
+        let err = run(Some("does-not-exist"), false, &out_text(), &mut stdout)
+            .expect_err("unknown schema must error");
         assert_eq!(err.error_id(), "unknown-schema");
         assert_eq!(err.kind(), "usage");
         assert_eq!(err.exit_code(), 2);
@@ -251,18 +273,27 @@ mod tests {
 
     #[test]
     fn run_list_text_succeeds() {
-        assert!(run(None, true, &out_text()).is_ok(), "--list (text) failed");
+        let mut stdout: Vec<u8> = Vec::new();
+        assert!(
+            run(None, true, &out_text(), &mut stdout).is_ok(),
+            "--list (text) failed"
+        );
     }
 
     #[test]
     fn run_list_json_succeeds() {
-        assert!(run(None, true, &out_json()).is_ok(), "--list (json) failed");
+        let mut stdout: Vec<u8> = Vec::new();
+        assert!(
+            run(None, true, &out_json(), &mut stdout).is_ok(),
+            "--list (json) failed"
+        );
     }
 
     #[test]
     fn run_default_emits_success_envelope_schema() {
+        let mut stdout: Vec<u8> = Vec::new();
         assert!(
-            run(None, false, &out_text()).is_ok(),
+            run(None, false, &out_text(), &mut stdout).is_ok(),
             "default schema emit failed"
         );
     }
@@ -270,7 +301,8 @@ mod tests {
     #[test]
     fn run_each_named_schema_succeeds() {
         for entry in SCHEMAS {
-            run(Some(entry.name), false, &out_text()).unwrap_or_else(|e| {
+            let mut stdout: Vec<u8> = Vec::new();
+            run(Some(entry.name), false, &out_text(), &mut stdout).unwrap_or_else(|e| {
                 panic!(
                     "schema {} should print, got error: {}",
                     entry.name,

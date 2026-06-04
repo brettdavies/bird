@@ -12,7 +12,6 @@
 //!   xurl reads auth from its own token store (~/.xurl).
 //! - All user input (search queries, tweet text) passes as separate argv elements.
 
-use crate::diag;
 use crate::output;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -167,8 +166,11 @@ fn parse_version_string(s: &str) -> Option<semver::Version> {
 
 /// Run `xurl version` (or `xr version`) and return the version string.
 /// Warns if below minimum. Handles both "xurl X.Y.Z" and "xr X.Y.Z" prefixes.
+///
+/// `stderr` receives the below-minimum warning under the KTD-1 guard.
 pub fn check_xurl_version(
     path: &Path,
+    stderr: &mut dyn std::io::Write,
     quiet: bool,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new(path)
@@ -184,13 +186,14 @@ pub fn check_xurl_version(
     if let Some(current) = parse_version_string(trimmed) {
         if let Ok(minimum) = semver::Version::parse(MIN_VERSION)
             && current < minimum
+            && !quiet
         {
-            diag!(
-                quiet,
+            writeln!(
+                stderr,
                 "[transport] warning: xurl {} is below minimum {}; consider upgrading",
-                current,
-                MIN_VERSION
-            );
+                current, MIN_VERSION
+            )
+            .ok();
         }
         Ok(current.to_string())
     } else {
