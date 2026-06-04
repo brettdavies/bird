@@ -75,8 +75,8 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
 
 /// Format and print cost to `stderr`. Honors `cfg.suppress_diag()` per KTD-1:
 /// when suppressed the function returns before any formatting work, preserving
-/// the zero-allocation property. Write failures are dropped (fire-and-forget)
-/// to match the prior `eprintln!` semantics.
+/// the zero-allocation property. Write failures are dropped (fire-and-forget):
+/// stderr write errors must not promote into the API error path.
 pub fn display_cost(
     cfg: &crate::output::OutputConfig,
     stderr: &mut dyn std::io::Write,
