@@ -35,6 +35,25 @@ Every `!:` commit drives the major-version decision and gets a row in the releas
 
 ## Checklist
 
+### Dependabot preflight
+
+Run before any other checklist work, before `Cargo.toml` is bumped, before any release branch is cut. Surfaces pending
+dependency updates so they can be merged on dev (or rejected) instead of arriving as Dependabot PRs the moment the
+release commit lands on the target branch — Cargo.lock churn triggers Dependabot's out-of-cycle re-evaluation, and at
+that point the release is already tagged and they miss the cut.
+
+- [ ] Trigger the workflow: GitHub → Actions → "Dependabot Preflight" → "Run workflow" (head = `dev`). Pinned at
+  `brettdavies/.github/.github/workflows/dependabot-preflight.yml`.
+- [ ] Review the `cargo` job's `cargo outdated --workspace --depth 1` report in the run summary. For each direct dep
+  with a newer compatible version, decide: merge an update PR on dev now, accept the stale version this release, or rule
+  out the update with a `Cargo.toml` constraint.
+- [ ] Review the `github-actions` job's pin-drift table. For every drifted action, bump the pinned SHA on dev and update
+  the trailing `# <version>` comment.
+- [ ] (Optional) Trigger Dependabot to open PRs for whatever the preflight surfaced: GitHub → Insights → Dependency
+  graph → Dependabot → "Check for updates". Wait for the PRs to land; merge anything that passes CI on dev.
+
+Only after this list is empty do you cut the release branch.
+
 ### Command-surface contract
 
 bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, `search`, `thread`, `profile`,
