@@ -1,7 +1,7 @@
 ---
 title: "refactor: Lift CLI to library, split run dispatcher, inject paths"
 type: refactor
-status: active
+status: completed
 date: 2026-06-02
 ---
 

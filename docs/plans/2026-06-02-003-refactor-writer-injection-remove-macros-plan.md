@@ -1,7 +1,7 @@
 ---
 title: "refactor: Replace out_println!/out_print!/diag! with writer injection"
 type: refactor
-status: active
+status: completed
 date: 2026-06-02
 ---
 
