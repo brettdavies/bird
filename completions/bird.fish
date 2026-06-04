@@ -77,7 +77,7 @@ complete -c bird -n "__fish_bird_needs_command" -f -a "unmute" -d 'Unmute a user
 complete -c bird -n "__fish_bird_needs_command" -f -a "doctor" -d 'Show what is available: xurl status, commands, and entity store health'
 complete -c bird -n "__fish_bird_needs_command" -f -a "cache" -d 'Manage the HTTP response cache'
 complete -c bird -n "__fish_bird_needs_command" -f -a "completions" -d 'Generate shell completions'
-complete -c bird -n "__fish_bird_needs_command" -f -a "skill" -d 'Manage the bird agent-skill bundle (install for Claude Code, etc.)'
+complete -c bird -n "__fish_bird_needs_command" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
 complete -c bird -n "__fish_bird_needs_command" -f -a "schema" -d 'Print a JSON Schema document for one of bird\'s output shapes'
 complete -c bird -n "__fish_bird_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand login" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
@@ -116,7 +116,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand me" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Human-readable output'
+complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand me" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -143,7 +143,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand get" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand get" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand get" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand get" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand get" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -171,7 +171,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand post" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand post" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand post" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand post" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand post" -l json -d 'Shorthand for `--output json`'
@@ -201,7 +201,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand put" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand put" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand put" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand put" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand put" -l json -d 'Shorthand for `--output json`'
@@ -228,7 +228,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -252,7 +252,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand profile" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -281,7 +281,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand search" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand search" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -307,7 +307,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand thread" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -334,7 +334,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand delete" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand delete" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l json -d 'Shorthand for `--output json`'
@@ -361,7 +361,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -494,7 +494,7 @@ complete -c bird -n "__fish_bird_using_subcommand usage" -l timeout -d 'Network 
 complete -c bird -n "__fish_bird_using_subcommand usage" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l local -d 'Show only local estimates (skip API)'
-complete -c bird -n "__fish_bird_using_subcommand usage" -l pretty -d 'Pretty-print output'
+complete -c bird -n "__fish_bird_using_subcommand usage" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -851,7 +851,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -929,7 +929,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -994,10 +994,9 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "install" -d 'Install the bird skill bundle into a host\'s canonical skills directory'
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "update" -d 'Update the installed bird skill bundle to the embedded version'
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l host -d 'Target host (default: claude-code). Mutually exclusive with --all' -r -f -a "claude-code\t'Claude Code (`~/.claude/skills/bird/`)'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -1010,7 +1009,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l all -d 'Install into every supported host in one invocation'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l dry-run -d 'Print the planned destination without writing'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l dry-run -d 'Print the planned clone command without spawning git'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1024,7 +1023,6 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l host -d 'Target host (default: claude-code). Mutually exclusive with --all' -r -f -a "claude-code\t'Claude Code (`~/.claude/skills/bird/`)'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -1037,7 +1035,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l all -d 'Update every supported host in one invocation'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l dry-run -d 'Print the planned destination without writing'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l dry-run -d 'Print the planned operation without touching the filesystem'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1051,8 +1049,8 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "install" -d 'Install the bird skill bundle into a host\'s canonical skills directory'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "update" -d 'Update the installed bird skill bundle to the embedded version'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand schema" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
@@ -1107,7 +1105,7 @@ complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subc
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "doctor" -d 'Show what is available: xurl status, commands, and entity store health'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "cache" -d 'Manage the HTTP response cache'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "completions" -d 'Generate shell completions'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "skill" -d 'Manage the bird agent-skill bundle (install for Claude Code, etc.)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "schema" -d 'Print a JSON Schema document for one of bird\'s output shapes'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "fetch" -d 'Fetch recent activity for all watched users'
@@ -1116,5 +1114,5 @@ complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcomma
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "list" -d 'Show the current watchlist'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from cache" -f -a "clear" -d 'Delete all cache entries'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from cache" -f -a "stats" -d 'Show cache status (JSON default, --pretty for human-readable)'
-complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "install" -d 'Install the bird skill bundle into a host\'s canonical skills directory'
-complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "update" -d 'Update the installed bird skill bundle to the embedded version'
+complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
+complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'

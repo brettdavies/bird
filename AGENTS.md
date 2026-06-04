@@ -145,8 +145,9 @@ bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) -
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
 - `src/schema.rs` — input validation (`validate_username` strips `@`, enforces X charset).
 - `src/schema_print.rs` — `bird schema` subcommand: prints embedded JSON Schema 2020-12 documents from `schema/`.
-- `src/skill_install.rs` — `bird skill install` / `update`: embeds this `AGENTS.md` as `SKILL.md` and writes it to
-  `~/.claude/skills/bird/SKILL.md` (default host: `claude-code`).
+- `src/skill_install/` — `bird skill install <host>` / `update <host>` orchestrate a hardened `git clone --depth 1` of
+  the [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill) bundle repo. `skill.json` is the build-time
+  manifest; `build.rs` codegens `SkillHost`, `KNOWN_HOSTS`, and `resolve_host` from it.
 
 ## Transport dependency
 
@@ -226,14 +227,39 @@ Permission enforcement lives in `src/config.rs` behind `#[cfg(unix)]` (`std::os:
 
 ## Agent-skill bundle
 
-`bird skill install` writes this `AGENTS.md` to the active host's skills directory as `SKILL.md`. Default host is
-`claude-code` (target: `~/.claude/skills/bird/SKILL.md`). Idempotent: re-running overwrites the destination. Flags:
+The skill bundle lives in a dedicated repo: [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill). `bird
+skill install <host>` runs a hardened `git clone --depth 1` of that repo into the host's canonical skills directory;
+`bird skill update <host>` removes the destination and re-clones. The supported hosts and their target paths are the
+single source of truth in `src/skill_install/skill.json`; `build.rs` codegens the `SkillHost` enum, `KNOWN_HOSTS`, and
+the `resolve_host` / `host_envelope_str` lookup at build time.
 
-- `--host <name>` — target host (default `claude-code`).
-- `--dry-run` — show what would be written without touching the filesystem.
-- `--all` — install to every supported host.
+| Host          | Destination                      |
+| ------------- | -------------------------------- |
+| `claude_code` | `~/.claude/skills/bird`          |
+| `codex`       | `~/.codex/skills/bird`           |
+| `cursor`      | `~/.cursor/skills/bird`          |
+| `factory`     | `~/.factory/skills/bird`         |
+| `kiro`        | `~/.kiro/skills/bird`            |
+| `opencode`    | `~/.config/opencode/skills/bird` |
 
-`bird skill update` (alias `upgrade`) refreshes the installed bundle from the version embedded in the running binary.
+Usage:
+
+```bash
+bird skill install claude_code              # clone into ~/.claude/skills/bird
+bird skill install claude_code --dry-run    # print the planned `git clone` without spawning git
+bird skill install --all                    # install into every supported host
+bird skill update claude_code               # remove destination + re-clone
+```
+
+Without `<host>` or `--all`, `bird skill install` returns exit 2 (`requires-confirmation`-style `missing-host` envelope)
+and lists the supported hosts. Output under `--output json` is the install/update envelope (`action`, `host`,
+`install_dir`, `command_preview`, `destination_status`, `status`, `exit_code`, optional `reason`).
+
+The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=never`, `protocol.https.allow=always`,
+`http.followRedirects=false` are applied via `-c key=value`; `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_PROXY_COMMAND`,
+`GIT_ASKPASS`, and `GIT_EXEC_PATH` are stripped from the spawn environment; and `GIT_CONFIG_GLOBAL=/dev/null`,
+`GIT_CONFIG_SYSTEM=/dev/null`, `GIT_TERMINAL_PROMPT=0` block user-config rewriting and credential prompts. Mirrors the
+`xurl-rs` / `agentnative-cli` pattern.
 
 ## Quality bar
 

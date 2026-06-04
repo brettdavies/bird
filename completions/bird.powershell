@@ -75,7 +75,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Show what is available: xurl status, commands, and entity store health')
             [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
             [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
-            [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (install for Claude Code, etc.)')
+            [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)')
             [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print a JSON Schema document for one of bird''s output shapes')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -117,7 +117,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Human-readable output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -148,7 +148,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -180,7 +180,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('-f', '-f', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--force', '--force', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Validate inputs and print the would-be request, then exit without calling the API')
@@ -215,7 +215,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('-f', '-f', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--force', '--force', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Validate inputs and print the would-be request, then exit without calling the API')
@@ -246,7 +246,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -272,7 +272,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -304,7 +304,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -333,7 +333,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -364,7 +364,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('-f', '-f', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--force', '--force', [CompletionResultType]::ParameterName, 'Skip the interactive confirmation prompt (alias: --yes)')
             [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Validate inputs and print the would-be request, then exit without calling the API')
@@ -395,7 +395,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print JSON output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -560,7 +560,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--local', '--local', [CompletionResultType]::ParameterName, 'Show only local estimates (skip API)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print output')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -965,7 +965,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -1053,7 +1053,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--timeout', '--timeout', [CompletionResultType]::ParameterName, 'Network timeout in seconds (default 30). Applies to xurl subprocesses')
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
-            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'pretty')
+            [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -1139,13 +1139,12 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--cache-only', '--cache-only', [CompletionResultType]::ParameterName, 'Only serve from local store; never make API requests')
             [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
-            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Install the bird skill bundle into a host''s canonical skills directory')
-            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update the installed bird skill bundle to the embedded version')
+            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Clone the bird skill bundle into a host''s canonical skills directory')
+            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Remove the existing destination and re-clone the bird skill bundle')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
         'bird;skill;install' {
-            [CompletionResult]::new('--host', '--host', [CompletionResultType]::ParameterName, 'Target host (default: claude-code). Mutually exclusive with --all')
             [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('-o', '-o', [CompletionResultType]::ParameterName, 'Output format (text, json, jsonl, ndjson). Defaults to json when piped')
@@ -1155,7 +1154,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--all', '--all', [CompletionResultType]::ParameterName, 'Install into every supported host in one invocation')
-            [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Print the planned destination without writing')
+            [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Print the planned clone command without spawning git')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -1175,7 +1174,6 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             break
         }
         'bird;skill;update' {
-            [CompletionResult]::new('--host', '--host', [CompletionResultType]::ParameterName, 'Target host (default: claude-code). Mutually exclusive with --all')
             [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('-o', '-o', [CompletionResultType]::ParameterName, 'Output format (text, json, jsonl, ndjson). Defaults to json when piped')
@@ -1185,7 +1183,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--limit', '--limit', [CompletionResultType]::ParameterName, 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)')
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--all', '--all', [CompletionResultType]::ParameterName, 'Update every supported host in one invocation')
-            [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Print the planned destination without writing')
+            [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Print the planned operation without touching the filesystem')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -1205,8 +1203,8 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             break
         }
         'bird;skill;help' {
-            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Install the bird skill bundle into a host''s canonical skills directory')
-            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update the installed bird skill bundle to the embedded version')
+            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Clone the bird skill bundle into a host''s canonical skills directory')
+            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Remove the existing destination and re-clone the bird skill bundle')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -1276,7 +1274,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('doctor', 'doctor', [CompletionResultType]::ParameterValue, 'Show what is available: xurl status, commands, and entity store health')
             [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
             [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
-            [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (install for Claude Code, etc.)')
+            [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)')
             [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print a JSON Schema document for one of bird''s output shapes')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -1390,8 +1388,8 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             break
         }
         'bird;help;skill' {
-            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Install the bird skill bundle into a host''s canonical skills directory')
-            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update the installed bird skill bundle to the embedded version')
+            [CompletionResult]::new('install', 'install', [CompletionResultType]::ParameterValue, 'Clone the bird skill bundle into a host''s canonical skills directory')
+            [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Remove the existing destination and re-clone the bird skill bundle')
             break
         }
         'bird;help;skill;install' {

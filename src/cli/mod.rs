@@ -11,7 +11,7 @@ pub mod runner;
 pub use runner::{run, run_argv, run_with_paths};
 
 use crate::output::{ColorMode, OutputFormat};
-use crate::skill_install::Host;
+use crate::skill_install::SkillHost;
 use clap::{Args, Parser};
 
 /// Default reqwest/xurl timeout in seconds when `--timeout` is not provided.
@@ -454,11 +454,12 @@ pub enum Command {
         shell: clap_complete::Shell,
     },
 
-    /// Manage the bird agent-skill bundle (install for Claude Code, etc.)
+    /// Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host's skills dir)
     #[command(after_help = "Examples:
-  bird skill install
-  bird skill install --host claude-code --dry-run
-  bird skill install --all")]
+  bird skill install claude_code
+  bird skill install claude_code --dry-run
+  bird skill install --all
+  bird skill update claude_code")]
     Skill {
         #[command(subcommand)]
         action: SkillAction,
@@ -481,32 +482,32 @@ pub enum Command {
 
 #[derive(clap::Subcommand, Debug, Clone, Copy)]
 pub enum SkillAction {
-    /// Install the bird skill bundle into a host's canonical skills directory
+    /// Clone the bird skill bundle into a host's canonical skills directory
     Install {
-        /// Target host (default: claude-code). Mutually exclusive with --all
-        #[arg(long, value_enum, conflicts_with = "all")]
-        host: Option<Host>,
+        /// Target host (omit and pass --all to install everywhere)
+        #[arg(value_enum, conflicts_with = "all")]
+        host: Option<SkillHost>,
 
         /// Install into every supported host in one invocation
         #[arg(long)]
         all: bool,
 
-        /// Print the planned destination without writing
+        /// Print the planned clone command without spawning git
         #[arg(long)]
         dry_run: bool,
     },
-    /// Update the installed bird skill bundle to the embedded version
+    /// Remove the existing destination and re-clone the bird skill bundle
     #[command(alias = "upgrade")]
     Update {
-        /// Target host (default: claude-code). Mutually exclusive with --all
-        #[arg(long, value_enum, conflicts_with = "all")]
-        host: Option<Host>,
+        /// Target host (omit and pass --all to update everywhere)
+        #[arg(value_enum, conflicts_with = "all")]
+        host: Option<SkillHost>,
 
         /// Update every supported host in one invocation
         #[arg(long)]
         all: bool,
 
-        /// Print the planned destination without writing
+        /// Print the planned operation without touching the filesystem
         #[arg(long)]
         dry_run: bool,
     },

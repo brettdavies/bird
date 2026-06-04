@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "type": "agent-skill",
+  "name": "bird",
+  "version": "0.2.0",
+  "description": "Rust CLI for the X (Twitter) v2 API with entity caching, watchlist, search, thread reconstruction, OAuth2 login (interactive and headless), and a structured JSON output envelope.",
+  "license": "MIT OR Apache-2.0",
+  "source": {
+    "type": "git",
+    "url": "https://github.com/brettdavies/bird-skill.git"
+  },
+  "install": {
+    "claude_code": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.claude/skills/bird",
+    "codex": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.codex/skills/bird",
+    "cursor": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.cursor/skills/bird",
+    "factory": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.factory/skills/bird",
+    "kiro": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.kiro/skills/bird",
+    "opencode": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.config/opencode/skills/bird"
+  },
+  "update": "cd <install-dir> && git pull --ff-only",
+  "uninstall": "rm -rf <install-dir>"
+}

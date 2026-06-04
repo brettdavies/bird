@@ -113,7 +113,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Human-readable output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -153,7 +153,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -195,7 +195,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -240,7 +240,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -281,7 +281,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -316,7 +316,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -358,7 +358,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -397,7 +397,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -438,7 +438,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -479,7 +479,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -711,7 +711,7 @@ never\:"Never emit colors"))' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--local[Show only local estimates (skip API)]' \
-'--pretty[Pretty-print output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1257,7 +1257,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1378,7 +1378,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1512,7 +1512,6 @@ never\:"Never emit colors"))' \
         case $line[1] in
             (install)
 _arguments "${_arguments_options[@]}" : \
-'(--all)--host=[Target host (default\: claude-code). Mutually exclusive with --all]:HOST:((claude-code\:"Claude Code (\`~/.claude/skills/bird/\`)"))' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -1530,7 +1529,7 @@ never\:"Never emit colors"))' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--all[Install into every supported host in one invocation]' \
-'--dry-run[Print the planned destination without writing]' \
+'--dry-run[Print the planned clone command without spawning git]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1547,11 +1546,11 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+'::host -- Target host (omit and pass --all to install everywhere):(claude_code codex cursor factory kiro opencode)' \
 && ret=0
 ;;
 (update)
 _arguments "${_arguments_options[@]}" : \
-'(--all)--host=[Target host (default\: claude-code). Mutually exclusive with --all]:HOST:((claude-code\:"Claude Code (\`~/.claude/skills/bird/\`)"))' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -1569,7 +1568,7 @@ never\:"Never emit colors"))' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--all[Update every supported host in one invocation]' \
-'--dry-run[Print the planned destination without writing]' \
+'--dry-run[Print the planned operation without touching the filesystem]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1586,6 +1585,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+'::host -- Target host (omit and pass --all to update everywhere):(claude_code codex cursor factory kiro opencode)' \
 && ret=0
 ;;
 (help)
@@ -1902,7 +1902,7 @@ _bird_commands() {
 'doctor:Show what is available\: xurl status, commands, and entity store health' \
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
-'skill:Manage the bird agent-skill bundle (install for Claude Code, etc.)' \
+'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
 'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -2022,7 +2022,7 @@ _bird__help_commands() {
 'doctor:Show what is available\: xurl status, commands, and entity store health' \
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
-'skill:Manage the bird agent-skill bundle (install for Claude Code, etc.)' \
+'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
 'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -2149,8 +2149,8 @@ _bird__help__search_commands() {
 (( $+functions[_bird__help__skill_commands] )) ||
 _bird__help__skill_commands() {
     local commands; commands=(
-'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
-'update:Update the installed bird skill bundle to the embedded version' \
+'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Remove the existing destination and re-clone the bird skill bundle' \
     )
     _describe -t commands 'bird help skill commands' commands "$@"
 }
@@ -2292,8 +2292,8 @@ _bird__search_commands() {
 (( $+functions[_bird__skill_commands] )) ||
 _bird__skill_commands() {
     local commands; commands=(
-'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
-'update:Update the installed bird skill bundle to the embedded version' \
+'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Remove the existing destination and re-clone the bird skill bundle' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird skill commands' commands "$@"
@@ -2301,8 +2301,8 @@ _bird__skill_commands() {
 (( $+functions[_bird__skill__help_commands] )) ||
 _bird__skill__help_commands() {
     local commands; commands=(
-'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
-'update:Update the installed bird skill bundle to the embedded version' \
+'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Remove the existing destination and re-clone the bird skill bundle' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird skill help commands' commands "$@"
