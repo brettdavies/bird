@@ -392,7 +392,8 @@ fn wait_with_timeout(
 }
 
 /// Transport trait for testability. Production uses [`XurlTransport`]; tests
-/// use [`MockTransport`].
+/// use `MockTransport` (defined under `#[cfg(test)]` in this module, so it's
+/// invisible to rustdoc and intentionally not linked here).
 ///
 /// The `Send + Sync` bound is a hard prerequisite for the
 /// `Arc<Mutex<dyn Write + Send>>` writer storage on `BirdClient`, which needs
