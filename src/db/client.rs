@@ -382,6 +382,24 @@ impl BirdClient {
         }
     }
 
+    /// Resolved xurl binary path, when the live transport spawns one. Mock
+    /// transports return `None`. Surfaced for direct call sites (`bird login`,
+    /// `bird doctor`'s `whoami`, write commands) that need the path without
+    /// going through [`Transport::request`].
+    pub fn xurl_path(&self) -> Option<&Path> {
+        self.transport.xurl_path()
+    }
+
+    /// Direct-trait request, used by handlers (`bird doctor whoami`, write
+    /// verbs) that need to pass argv through to xurl without the entity-store
+    /// pipeline.
+    pub fn transport_request(
+        &self,
+        args: &[String],
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        self.transport.request(args)
+    }
+
     /// Entity-aware GET. For entity endpoints: checks store freshness, splits batch IDs,
     /// decomposes responses into entities, and merges results.
     /// For non-entity endpoints: stores raw responses.

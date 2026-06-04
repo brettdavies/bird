@@ -38,7 +38,10 @@ impl Write for PanicOnWrite {
 /// Uses no_store=true so no DB file is opened (avoids the BirdDb::open path
 /// that has its own diag sites we may not be exercising).
 fn make_client(quiet: bool) -> bird::db::BirdClient {
-    let transport = Box::new(bird::transport::XurlTransport);
+    let transport = Box::new(bird::transport::XurlTransport::from_error(
+        "test: no xurl resolved".to_string(),
+        std::time::Duration::from_secs(60),
+    ));
     let cache_opts = bird::db::CacheOpts {
         no_store: true,
         refresh: false,
@@ -81,7 +84,10 @@ fn diag_quiet_gate_does_panic_when_not_quiet_and_a_diag_fires() {
     // The no_store=false branch of BirdClient::new opens a real DB, and if
     // the path is invalid the diag site at "[store] warning: failed to open"
     // fires.
-    let transport = Box::new(bird::transport::XurlTransport);
+    let transport = Box::new(bird::transport::XurlTransport::from_error(
+        "test: no xurl resolved".to_string(),
+        std::time::Duration::from_secs(60),
+    ));
     let cache_opts = bird::db::CacheOpts {
         no_store: false,
         refresh: false,

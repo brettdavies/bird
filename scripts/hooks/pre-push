@@ -21,15 +21,6 @@ echo -e "${BOLD}Running local CI checks...${RESET}"
 # the toolchain is a reviewed PR that updates rust-toolchain.toml.
 pass "toolchain ($(rustc --version 2>/dev/null | awk '{print $2}' || echo unknown))"
 
-# 0. Plan 1 R25 guard: BIRD_XURL_PATH may only appear in cli_smoke_subprocess.rs.
-# The OnceLock cache in transport.rs makes in-process test ordering load-bearing
-# when BIRD_XURL_PATH is mutated, so the carve-out lives in the subprocess file
-# and the library-style cli_smoke.rs stays clean.
-if rg -q 'BIRD_XURL_PATH' tests/cli_smoke.rs 2>/dev/null; then
-    fail "BIRD_XURL_PATH must not appear in tests/cli_smoke.rs — move the test to tests/cli_smoke_subprocess.rs (Plan 1 R25)"
-fi
-pass "r25 (BIRD_XURL_PATH not in cli_smoke.rs)"
-
 # 0.5. Plan 2 R20 guard: writer-injection compliance. Every call site that
 # emits user-visible output must use an injected &mut dyn Write writer (or an
 # OutputConfig::print_* method) — never the bare println! / eprintln! family
