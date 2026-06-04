@@ -96,7 +96,7 @@ pub fn run_oauth2_authenticate_headless(
         step1_args.push(u.into());
     }
 
-    let step1 = Command::new(xurl_path)
+    let step1 = Command::new(&xurl_path)
         .args(step1_args.iter().map(String::as_str))
         .env("NO_COLOR", "1")
         .stdin(Stdio::null())
@@ -178,7 +178,7 @@ pub fn run_oauth2_authenticate_headless(
         step2_args.push(u.into());
     }
 
-    let mut step2 = Command::new(xurl_path)
+    let mut step2 = Command::new(&xurl_path)
         .args(step2_args.iter().map(String::as_str))
         .env("NO_COLOR", "1")
         .stdin(Stdio::piped())

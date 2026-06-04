@@ -188,8 +188,14 @@ pub(crate) fn migrations() -> Migrations<'static> {
 
 /// Entity store: tweets, users, bookmarks, raw responses, and usage tracking.
 /// Single connection per CLI invocation -- no pool needed (short-lived process).
+///
+/// `conn` is wrapped in `std::sync::Mutex` so `BirdDb` (and the enclosing
+/// `BirdClient`) satisfy `Sync`. The bird CLI is single-threaded today, but
+/// Plan 2's writer-injection design (`Arc<Mutex<dyn Write + Send>>`) needs
+/// `BirdClient: Send + Sync` as a compile-time gate. The per-call lock is
+/// uncontended (single-threaded access) and adds sub-microsecond cost.
 pub struct BirdDb {
-    pub(crate) conn: Connection,
+    pub(crate) conn: std::sync::Mutex<Connection>,
     pub(crate) write_count: u32,
     pub(crate) max_bytes: u64,
 }
@@ -245,12 +251,19 @@ impl BirdDb {
         })?;
 
         let db = Self {
-            conn,
+            conn: std::sync::Mutex::new(conn),
             write_count: 0,
             max_bytes: max_size_mb * 1024 * 1024,
         };
 
         Ok(db)
+    }
+
+    /// Acquire the connection lock. Panics if the mutex was poisoned by a
+    /// prior panic — bird is single-threaded today, so poisoning indicates a
+    /// programming bug worth a hard fail.
+    pub(crate) fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().expect("BirdDb conn mutex poisoned")
     }
 
     /// Pre-create file with 0o600 permissions so WAL/SHM sidecars inherit restrictive permissions.
@@ -301,7 +314,7 @@ impl BirdDb {
 
         // Check idempotency sentinel
         let already_migrated: bool = self
-            .conn
+            .conn()
             .query_row(
                 "SELECT count(*) FROM migrations_meta WHERE key = 'cache_usage_migrated'",
                 [],
@@ -351,12 +364,13 @@ impl BirdDb {
 
         // ATTACH + copy in transaction
         let result = (|| -> Result<(), rusqlite::Error> {
-            self.conn.execute_batch(&format!(
+            let conn = self.conn();
+            conn.execute_batch(&format!(
                 "ATTACH DATABASE '{}' AS old_cache",
                 cache_path_str.replace('\'', "''")
             ))?;
 
-            let tx = self.conn.unchecked_transaction()?;
+            let tx = conn.unchecked_transaction()?;
             tx.execute_batch(
                 "INSERT OR IGNORE INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
                    SELECT timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username FROM old_cache.usage;
@@ -367,7 +381,7 @@ impl BirdDb {
                 [],
             )?;
             tx.commit()?;
-            self.conn.execute_batch("DETACH DATABASE old_cache")?;
+            conn.execute_batch("DETACH DATABASE old_cache")?;
             Ok(())
         })();
 
@@ -377,7 +391,7 @@ impl BirdDb {
             }
             Err(e) => {
                 diag!(quiet, "[store] warning: usage migration failed: {}", e);
-                let _ = self.conn.execute_batch("DETACH DATABASE old_cache");
+                let _ = self.conn().execute_batch("DETACH DATABASE old_cache");
             }
         }
     }
@@ -386,7 +400,8 @@ impl BirdDb {
 
     #[cfg(test)]
     pub fn upsert_tweet(&self, tweet: &TweetRow) -> Result<(), rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(id) DO UPDATE SET
@@ -407,7 +422,8 @@ impl BirdDb {
 
     #[cfg(test)]
     pub fn upsert_user(&self, user: &UserRow) -> Result<(), rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "INSERT INTO users (id, username, raw_json, last_refreshed_at)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(id) DO UPDATE SET
@@ -434,11 +450,12 @@ impl BirdDb {
         if tweets.is_empty() && users.is_empty() {
             return Ok(());
         }
+        let conn = self.conn();
         debug_assert!(
-            self.conn.is_autocommit(),
+            conn.is_autocommit(),
             "upsert_entities called inside an existing transaction"
         );
-        let tx = self.conn.unchecked_transaction()?;
+        let tx = conn.unchecked_transaction()?;
         {
             let mut user_stmt = tx.prepare_cached(
                 "INSERT INTO users (id, username, raw_json, last_refreshed_at)
@@ -480,7 +497,8 @@ impl BirdDb {
     }
 
     pub fn get_tweet(&self, id: &str) -> Result<Option<TweetRow>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT id, author_id, conversation_id, raw_json, last_refreshed_at
              FROM tweets WHERE id = ?1",
         )?;
@@ -501,7 +519,8 @@ impl BirdDb {
     }
 
     pub fn get_user_by_username(&self, username: &str) -> Result<Option<UserRow>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT id, username, raw_json, last_refreshed_at
              FROM users WHERE username = ?1",
         )?;
@@ -547,7 +566,8 @@ impl BirdDb {
              FROM tweets WHERE id IN ({})",
             placeholders
         );
-        let mut stmt = self.conn.prepare(&sql)?;
+        let conn = self.conn();
+        let mut stmt = conn.prepare(&sql)?;
         let params = rusqlite::params_from_iter(ids.iter());
         let rows: Vec<TweetRow> = stmt
             .query_map(params, |row| {
@@ -590,7 +610,8 @@ impl BirdDb {
     ) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let body_size = body.len() as i64;
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "INSERT INTO raw_responses (key, url, status_code, body, body_size, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(key) DO UPDATE SET
@@ -605,9 +626,9 @@ impl BirdDb {
     }
 
     pub fn get_raw_response(&self, key: &str) -> Result<Option<RawResponseRow>, rusqlite::Error> {
-        let mut stmt = self
-            .conn
-            .prepare_cached("SELECT status_code, body FROM raw_responses WHERE key = ?1")?;
+        let conn = self.conn();
+        let mut stmt =
+            conn.prepare_cached("SELECT status_code, body FROM raw_responses WHERE key = ?1")?;
         let result = stmt.query_row(params![key], |row| {
             Ok(RawResponseRow {
                 status_code: row.get(0)?,
@@ -629,11 +650,12 @@ impl BirdDb {
         username: &str,
         bookmarks: &[BookmarkRow],
     ) -> Result<(), rusqlite::Error> {
+        let conn = self.conn();
         debug_assert!(
-            self.conn.is_autocommit(),
+            conn.is_autocommit(),
             "replace_bookmarks called inside an existing transaction"
         );
-        let tx = self.conn.unchecked_transaction()?;
+        let tx = conn.unchecked_transaction()?;
         tx.execute(
             "DELETE FROM bookmarks WHERE username = ?1",
             params![username],
@@ -657,7 +679,8 @@ impl BirdDb {
 
     #[cfg(test)]
     pub fn get_bookmarks(&self, username: &str) -> Result<Vec<BookmarkRow>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT username, tweet_id, position, refreshed_at
              FROM bookmarks WHERE username = ?1
              ORDER BY position ASC",
@@ -678,18 +701,14 @@ impl BirdDb {
     /// Entity store statistics: counts by type, total live size.
     /// Uses (page_count - freelist_count) * page_size for accurate live data size.
     pub fn stats(&self) -> Result<StoreStats, rusqlite::Error> {
-        let tweet_count: i64 = self
-            .conn
-            .query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
-        let user_count: i64 = self
-            .conn
-            .query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
+        let conn = self.conn();
+        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
+        let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let bookmark_count: i64 =
-            self.conn
-                .query_row("SELECT count(*) FROM bookmarks", [], |r| r.get(0))?;
+            conn.query_row("SELECT count(*) FROM bookmarks", [], |r| r.get(0))?;
         let raw_response_count: i64 =
-            self.conn
-                .query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
+            conn.query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
+        drop(conn);
 
         let total_size = self.live_size_bytes()?;
 
@@ -706,26 +725,21 @@ impl BirdDb {
     /// O(1) live data size: (page_count - freelist_count) * page_size.
     /// Excludes free pages from deleted rows to avoid re-triggering pruning after deletions.
     fn live_size_bytes(&self) -> Result<u64, rusqlite::Error> {
-        let page_count: i64 = self.conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
-        let freelist_count: i64 = self
-            .conn
-            .query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
-        let page_size: i64 = self.conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
+        let conn = self.conn();
+        let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
+        let freelist_count: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+        let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
         Ok(((page_count - freelist_count) * page_size).max(0) as u64)
     }
 
     /// Clear all entity data + raw_responses (preserves usage tables).
     pub fn clear(&self) -> Result<u64, rusqlite::Error> {
-        let tweet_count: i64 = self
-            .conn
-            .query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
-        let user_count: i64 = self
-            .conn
-            .query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
+        let conn = self.conn();
+        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
+        let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let raw_count: i64 =
-            self.conn
-                .query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
-        self.conn.execute_batch(
+            conn.query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
+        conn.execute_batch(
             "DELETE FROM tweets;
              DELETE FROM users;
              DELETE FROM bookmarks;
@@ -742,7 +756,7 @@ impl BirdDb {
 
         // Always prune raw_responses older than 7 days
         let seven_days_ago = now - 7 * 86400;
-        self.conn.execute(
+        self.conn().execute(
             "DELETE FROM raw_responses WHERE created_at < ?1",
             params![seven_days_ago],
         )?;
@@ -762,7 +776,7 @@ impl BirdDb {
             if current <= target_bytes {
                 break;
             }
-            let deleted = self.conn.execute(
+            let deleted = self.conn().execute(
                 "DELETE FROM tweets WHERE id IN (
                     SELECT id FROM tweets ORDER BY last_refreshed_at ASC LIMIT 100
                 )",
@@ -779,7 +793,7 @@ impl BirdDb {
             if current <= target_bytes {
                 break;
             }
-            let deleted = self.conn.execute(
+            let deleted = self.conn().execute(
                 "DELETE FROM users WHERE id IN (
                     SELECT id FROM users ORDER BY last_refreshed_at ASC LIMIT 100
                 )",
@@ -795,16 +809,16 @@ impl BirdDb {
 
     /// Expose the DB file path for stats display.
     pub fn path(&self) -> Option<PathBuf> {
-        self.conn.path().map(PathBuf::from)
+        self.conn().path().map(PathBuf::from)
     }
 }
 
 impl Drop for BirdDb {
     fn drop(&mut self) {
         // 0x10002: analyze all tables, even if not recently queried (optimal for short-lived CLI)
-        let _ = self
-            .conn
-            .execute_batch("PRAGMA optimize(0x10002); PRAGMA wal_checkpoint(PASSIVE);");
+        if let Ok(conn) = self.conn.lock() {
+            let _ = conn.execute_batch("PRAGMA optimize(0x10002); PRAGMA wal_checkpoint(PASSIVE);");
+        }
     }
 }
 
@@ -820,7 +834,7 @@ pub(crate) fn in_memory_db() -> BirdDb {
     .expect("test");
     migrations().to_latest(&mut conn).expect("test");
     BirdDb {
-        conn,
+        conn: std::sync::Mutex::new(conn),
         write_count: 0,
         max_bytes: 100 * 1024 * 1024, // 100MB
     }
@@ -1163,7 +1177,7 @@ mod tests {
         })
         .expect("test");
         // Insert a usage row directly
-        db.conn
+        db.conn()
             .execute(
                 "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
                  VALUES (1000, 20260218, '/2/tweets', 'GET', 1, 0.005, 0)",
@@ -1176,7 +1190,7 @@ mod tests {
 
         // Usage should still be there
         let usage_count: i64 = db
-            .conn
+            .conn()
             .query_row("SELECT count(*) FROM usage", [], |r| r.get(0))
             .expect("test");
         assert_eq!(usage_count, 1);
@@ -1252,7 +1266,7 @@ mod tests {
     fn usage_migration_idempotent() {
         let db = in_memory_db();
         // Write a sentinel to simulate already-migrated state
-        db.conn
+        db.conn()
             .execute(
                 "INSERT INTO migrations_meta (key, value) VALUES ('cache_usage_migrated', 'test')",
                 [],
@@ -1283,7 +1297,7 @@ mod tests {
     fn pruning_raw_responses_by_age() {
         let db = in_memory_db();
         let old = unix_now() - 8 * 86400; // 8 days ago
-        db.conn
+        db.conn()
             .execute(
                 "INSERT INTO raw_responses (key, url, status_code, body, body_size, created_at)
                  VALUES ('old', 'http://test', 200, X'00', 1, ?1)",

@@ -211,6 +211,18 @@ mod hex {
 
 // -- BirdClient --
 
+// Plan 1 R19: compile-time guard that BirdClient stays `Send + Sync`. This is
+// the gate-critical assertion: Plan 2's `Arc<Mutex<dyn Write + Send>>` writer
+// storage on `BirdClient` is only sound if `BirdClient: Send + Sync` is
+// provable, which transitively requires `Box<dyn Transport>: Send + Sync`
+// (R20 supplies the trait bound). A future field with a non-`Sync` type (e.g.
+// `RefCell`, `Rc`, or a `rusqlite::Connection` not wrapped in a `Mutex`) will
+// fail this assertion at build time.
+const _: fn() = || {
+    fn _assert_send_sync<T: Send + Sync>() {}
+    _assert_send_sync::<BirdClient>();
+};
+
 /// Entity-aware transport layer. Wraps xurl transport + optional BirdDb.
 /// If BirdDb is unavailable (corrupted, disk error), degrades to direct transport.
 pub struct BirdClient {

@@ -17,7 +17,7 @@ use crate::output;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 /// Maximum stdout capture size (50 MB) to prevent memory exhaustion.
@@ -26,8 +26,10 @@ const MAX_STDOUT_BYTES: usize = 50 * 1024 * 1024;
 /// Default subprocess timeout before SIGTERM, used when no per-call value is set.
 const DEFAULT_TIMEOUT_SECS: u64 = 60;
 
-/// Process-wide effective timeout, overridable via [`set_timeout_secs`].
-static TIMEOUT_OVERRIDE: OnceLock<u64> = OnceLock::new();
+/// Effective timeout, wrapped per KTD-5 so the static stays test-resettable
+/// without `unsafe`. The runner seeds it via [`set_timeout_secs`] during
+/// startup; R22 deferral leaves the per-call thread-through for a follow-up.
+static TIMEOUT_OVERRIDE: OnceLock<Mutex<Option<u64>>> = OnceLock::new();
 
 /// Grace period after SIGTERM before SIGKILL.
 const KILL_GRACE_SECS: u64 = 5;
@@ -35,16 +37,19 @@ const KILL_GRACE_SECS: u64 = 5;
 /// Minimum supported xurl version.
 const MIN_VERSION: &str = "1.0.3";
 
-/// Set the effective subprocess timeout (in seconds). First caller wins.
+/// Set the effective subprocess timeout (in seconds). Idempotent; last writer
+/// wins (unlike the previous first-caller-wins `OnceLock<u64>` which created
+/// a process-global hazard for in-process tests).
 pub fn set_timeout_secs(secs: u64) {
-    let _ = TIMEOUT_OVERRIDE.set(secs);
+    let mutex = TIMEOUT_OVERRIDE.get_or_init(|| Mutex::new(None));
+    *mutex.lock().expect("TIMEOUT_OVERRIDE mutex poisoned") = Some(secs);
 }
 
 /// Effective subprocess timeout, honoring [`set_timeout_secs`] when set.
 pub fn effective_timeout_secs() -> u64 {
     TIMEOUT_OVERRIDE
         .get()
-        .copied()
+        .and_then(|m| m.lock().ok().and_then(|g| *g))
         .unwrap_or(DEFAULT_TIMEOUT_SECS)
 }
 
@@ -52,14 +57,30 @@ pub fn effective_timeout_secs() -> u64 {
 pub const XURL_INSTALL_HINT: &str = "Install xurl-rs: brew install brettdavies/tap/xurl-rs (or Go xurl: brew install xdevplatform/tap/xurl)";
 
 /// Cached absolute path to the xurl binary, resolved once at startup.
-static XURL_PATH: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+///
+/// Wrapped per KTD-5: `OnceLock<Mutex<Option<Result<...>>>>` lets the static
+/// stay test-resettable via [`reset_xurl_path_for_tests`] without `unsafe`.
+/// The previous `OnceLock<Result<PathBuf, String>>` design required `&mut`
+/// on the immutable static for `OnceLock::take`, which rustc rejects (E0596).
+static XURL_PATH: OnceLock<Mutex<Option<Result<PathBuf, String>>>> = OnceLock::new();
 
 /// Resolve and cache the absolute path to the xurl binary.
 /// Checks `BIRD_XURL_PATH` env var first, falls back to `which::which("xr")`
 /// then `which::which("xurl")`. Resolved paths are canonicalized and version-checked
 /// as an integrity gate (rejects binaries that don't report a valid version).
-pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + Send + Sync>> {
-    let result = XURL_PATH.get_or_init(|| {
+///
+/// Returns an owned `PathBuf` (not `&'static Path`) because the cached value
+/// lives inside a `Mutex` and cannot escape the lock as a borrow.
+pub fn resolve_xurl_path() -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    let mutex = XURL_PATH.get_or_init(|| Mutex::new(None));
+    let mut guard = mutex.lock().expect("XURL_PATH mutex poisoned");
+    if let Some(cached) = guard.as_ref() {
+        return match cached {
+            Ok(p) => Ok(p.clone()),
+            Err(e) => Err(e.clone().into()),
+        };
+    }
+    let resolved: Result<PathBuf, String> = (|| {
         if let Ok(path) = std::env::var("BIRD_XURL_PATH") {
             let p = PathBuf::from(&path);
             if !p.exists() {
@@ -98,10 +119,23 @@ pub fn resolve_xurl_path() -> Result<&'static Path, Box<dyn std::error::Error + 
             }
         }
         Err(format!("xurl not found. {}", XURL_INSTALL_HINT))
-    });
-    match result {
-        Ok(p) => Ok(p.as_path()),
-        Err(e) => Err(e.clone().into()),
+    })();
+    *guard = Some(resolved.clone());
+    match resolved {
+        Ok(p) => Ok(p),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Clear the cached `XURL_PATH` so the next [`resolve_xurl_path`] call
+/// re-runs the resolution from scratch. Used by in-process tests (both unit
+/// and integration) that need to toggle `BIRD_XURL_PATH` between runs without
+/// spawning a fresh process. Not part of the public API — exposed via the
+/// doc-hidden test-infrastructure surface only.
+#[doc(hidden)]
+pub fn reset_xurl_path_for_tests() {
+    if let Some(mutex) = XURL_PATH.get() {
+        *mutex.lock().expect("XURL_PATH mutex poisoned") = None;
     }
 }
 
@@ -402,7 +436,11 @@ fn wait_with_timeout(
 }
 
 /// Transport trait for testability. Production uses XurlTransport; tests use MockTransport.
-pub trait Transport {
+///
+/// The `Send + Sync` bound (R20) is a hard prerequisite for sibling Plan 2's
+/// `Arc<Mutex<dyn Write + Send>>` writer storage on `BirdClient`, which needs
+/// `Box<dyn Transport>` (a field on `BirdClient`) to qualify as `Send + Sync`.
+pub trait Transport: Send + Sync {
     fn request(
         &self,
         args: &[String],
@@ -425,13 +463,16 @@ impl Transport for XurlTransport {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::VecDeque;
+    use std::sync::Mutex;
 
     /// Mock transport for unit tests. Returns pre-configured responses in order.
+    ///
+    /// Uses `std::sync::Mutex` (not `RefCell`) so the type satisfies the
+    /// `Transport: Send + Sync` bound enforced by R20.
     pub struct MockTransport {
         pub responses:
-            RefCell<VecDeque<Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>>>,
+            Mutex<VecDeque<Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>>>,
     }
 
     impl MockTransport {
@@ -439,7 +480,7 @@ pub mod tests {
             responses: Vec<Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>>,
         ) -> Self {
             Self {
-                responses: RefCell::new(VecDeque::from(responses)),
+                responses: Mutex::new(VecDeque::from(responses)),
             }
         }
     }
@@ -450,7 +491,8 @@ pub mod tests {
             _args: &[String],
         ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
             self.responses
-                .borrow_mut()
+                .lock()
+                .expect("MockTransport mutex poisoned")
                 .pop_front()
                 .unwrap_or_else(|| Err("MockTransport: no more responses".into()))
         }
@@ -564,4 +606,22 @@ pub mod tests {
         let b = semver::Version::parse("1.0.3").expect("test: parse 1.0.3");
         assert!(a < b);
     }
+
+    #[test]
+    fn reset_xurl_path_for_tests_is_callable() {
+        // Smoke test for R21a's test-reset shim: must not panic regardless of
+        // prior XURL_PATH state (uninitialized, Ok, or Err).
+        super::reset_xurl_path_for_tests();
+    }
+
+    // Negative example (intentionally commented out — uncomment locally to
+    // verify the regression catches it). The `Transport: Send + Sync` bound
+    // and the `BirdClient: Send + Sync` compile-time assertion should both
+    // reject a non-Send field. Example:
+    //
+    // const _: () = {
+    //     struct NotSend(std::rc::Rc<u32>);
+    //     fn _assert<T: Send + Sync>() {}
+    //     _assert::<NotSend>(); // compile error: Rc is neither Send nor Sync
+    // };
 }
