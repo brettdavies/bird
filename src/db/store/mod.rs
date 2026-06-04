@@ -23,7 +23,7 @@ pub use users::UserRow;
 
 // -- Schema migrations --
 
-pub(crate) fn migrations() -> Migrations<'static> {
+fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         // Migration 1: core entity tables
         M::up(
