@@ -5,8 +5,8 @@ use crate::cost;
 use crate::requirements::{self, AuthType};
 use crate::transport::Transport;
 
-use super::db::{BirdDb, TweetRow, UserRow};
 use super::normalize_endpoint;
+use super::store::{BirdDb, TweetRow, UserRow};
 
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
@@ -371,7 +371,7 @@ impl BirdClient {
     /// Uses `io::sink()` as the stderr writer so tests don't capture internal
     /// diagnostic output.
     #[cfg(test)]
-    pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::db::BirdDb) -> Self {
+    pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::store::BirdDb) -> Self {
         Self {
             transport,
             db: Some(db),
@@ -518,7 +518,7 @@ impl BirdClient {
     }
 
     /// Get entity store stats (None if store unavailable).
-    pub fn db_stats(&self) -> Option<Result<super::db::StoreStats, rusqlite::Error>> {
+    pub fn db_stats(&self) -> Option<Result<super::store::StoreStats, rusqlite::Error>> {
         self.db.as_ref().map(|db| db.stats())
     }
 
@@ -703,7 +703,7 @@ impl BirdClient {
             }
         }
 
-        let store_map: HashMap<&str, &super::db::TweetRow> =
+        let store_map: HashMap<&str, &super::store::TweetRow> =
             from_store.iter().map(|t| (t.id.as_str(), t)).collect();
 
         let mut merged: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
@@ -892,7 +892,7 @@ fn try_raw_response(db: &BirdDb, url: &str) -> Option<ApiResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::db::in_memory_db;
+    use super::super::store::in_memory_db;
     use super::super::unix_now;
     use super::*;
     use crate::transport::tests::MockTransport;
@@ -1222,7 +1222,7 @@ mod tests {
     /// Simulates the entity store lifecycle across multiple command paths.
     #[test]
     fn full_workflow_entity_lifecycle() {
-        use super::super::db::BookmarkRow;
+        use super::super::store::BookmarkRow;
 
         let db = in_memory_db();
         let mut client = test_client_with_db(db);

@@ -519,7 +519,7 @@ struct UsageReport {
 mod tests {
     use super::*;
     use crate::db::BirdClient;
-    use crate::db::db::in_memory_db;
+    use crate::db::store::in_memory_db;
     use crate::output::{OutputConfig, OutputFormat};
     use crate::transport::tests::MockTransport;
 

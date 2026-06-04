@@ -4,14 +4,13 @@
 //! Store failures are never fatal: the `Option<BirdDb>` pattern degrades to API-only mode.
 
 pub mod client;
-#[allow(clippy::module_inception)]
-pub mod db;
+pub mod store;
 pub mod usage;
 
 // Re-export all public types so `use crate::db::{...}` works.
 pub use client::{BirdClient, CacheOpts, RequestContext};
 #[allow(unused_imports)]
-pub(crate) use db::{BirdDb, BookmarkRow, RawResponseRow, StoreStats, TweetRow, UserRow};
+pub(crate) use store::{BirdDb, BookmarkRow, RawResponseRow, StoreStats, TweetRow, UserRow};
 pub use usage::{ActualUsageDay, DailyUsage, EndpointUsage, UsageLogEntry, UsageSummary};
 
 use std::time::{SystemTime, UNIX_EPOCH};
