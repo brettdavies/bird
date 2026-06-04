@@ -16,4 +16,4 @@ permissions:
 
 jobs:
   preflight:
-    uses: brettdavies/.github/.github/workflows/dependabot-preflight.yml@4a9485ec7fd84c6f48ee3897ad4ada9c9ba153dd # dev as of 2026-06-04
+    uses: brettdavies/.github/.github/workflows/dependabot-preflight.yml@2645883ceb910dc5dec05a5c2207604eefbbae0a # main as of 2026-06-04
