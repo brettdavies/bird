@@ -32,7 +32,7 @@ on both sides with different content. Always branch from `origin/main` and cherr
 
 Branch naming `release/v<version>` or `release/v<version>-<slug>` (e.g. `release/v0.2.0`,
 `release/v0.2.0-watchlist-api`) makes release branches sortable and unambiguous when multiple cuts are in flight. The
-`v<version>` prefix is required: `generate-changelog.sh` extracts the version from the branch name. Slug is kebab-case,
+`v<version>` prefix is required: `generate-changelog.py` extracts the version from the branch name. Slug is kebab-case,
 short, descriptive.
 
 ## PR body conventions
@@ -125,7 +125,7 @@ prior squash, it's a false positive (no action). Otherwise cherry-pick the commi
 
 ### Generated, never hand-written
 
-`scripts/generate-changelog.sh` (vendored from the `rust-tool-release` skill, with the repo-local `cliff.toml`) is the
+`scripts/generate-changelog.py` (vendored from the `rust-tool-release` skill, with the repo-local `cliff.toml`) is the
 only sanctioned way to update `CHANGELOG.md`. The script runs `git-cliff` to prepend a versioned entry for commits since
 the last tag, then walks each squash-merged PR's body to extract the `## Changelog → ### Added / Changed / Fixed /
 Documentation` subsections, replacing the auto-generated bullets with the curated PR-body content (with author and
@@ -217,7 +217,7 @@ Scrub-before-submit (author in `/tmp/`, scrub there, submit via `--body-file`) a
 edit, scrub again". Every fix lands locally and the public PR sees only clean text. The auto-format hook skips `/tmp/`
 paths so the body keeps its authored shape and no soft-wrapping is injected.
 
-For a `CHANGELOG.md` finding, fix the upstream PR body (which `generate-changelog.sh` re-fetches every run) and
+For a `CHANGELOG.md` finding, fix the upstream PR body (which `generate-changelog.py` re-fetches every run) and
 regenerate. Hand-editing `CHANGELOG.md` directly produces drift the next regeneration overwrites.
 
 ## Branch protection

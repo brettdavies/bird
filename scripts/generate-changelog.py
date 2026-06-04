@@ -1,173 +1,363 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Lifted from generate-changelog.sh — categorize merged PRs into CHANGELOG.md sections.
+"""Generate or update CHANGELOG.md using git-cliff with PR body expansion.
 
-Invoked by generate-changelog.sh with positional args:
-    OWNER REPO PR_LIST CHANGELOG_PATH VERSION TAG
+Usage:
+    generate-changelog.py [--tag vX.Y.Z] [repo-path]
+    generate-changelog.py --check [repo-path]
 
-PR_LIST is a comma-separated list of PR numbers.
+Options:
+    --tag vX.Y.Z   Override version tag (default: extracted from branch name).
+    --check        Verify CHANGELOG.md has a versioned section
+                   (exit 1 if only [Unreleased]).
+
+Version detection: the branch name must match release/vN.N.N (with optional
+suffix like release/v1.0.5-ci-migration). Pass --tag when not on a release
+branch.
+
+Pipeline:
+    1. git-cliff emits a versioned section from commits since the last tag
+       (prepended onto CHANGELOG.md, or created if missing).
+    2. PR numbers in that section are fetched from GitHub; each PR body's
+       ## Changelog section is parsed for ### Added / ### Changed / ### Fixed /
+       ### Documentation bullets.
+    3. The version section in CHANGELOG.md is rewritten with the aggregated,
+       attributed bullets and a Full Changelog compare link.
+
+Falls back to a flat ## Changes list when a PR uses the older template shape.
+
+Run on a release/vX.Y.Z branch before opening the PR to main.
 """
 
-import json, re, subprocess, sys
+from __future__ import annotations
 
-owner = sys.argv[1]
-repo = sys.argv[2]
-pr_numbers = [int(n) for n in sys.argv[3].split(',')]
-changelog_path = sys.argv[4]
-version = sys.argv[5]
-tag = sys.argv[6] if len(sys.argv) > 6 else f'v{version}'
-tag_prefix = 'v' if tag.startswith('v') else ''
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
 
-CATEGORIES = ['Added', 'Changed', 'Fixed', 'Documentation']
+CATEGORIES = ["Added", "Changed", "Fixed", "Documentation"]
 
-def fetch_pr(num):
-    """Fetch PR body and author from GitHub API."""
-    try:
-        result = subprocess.run(
-            ['gh', 'api', f'repos/{owner}/{repo}/pulls/{num}',
-             '--jq', '{body: .body, author: .user.login}'],
-            capture_output=True, text=True, timeout=10
+
+def fail(msg: str) -> None:
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def run(cmd: list[str], **kw) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, text=True, capture_output=True, **kw)
+
+
+def have(cmd: str) -> bool:
+    return run(["bash", "-c", f"command -v {cmd}"]).returncode == 0
+
+
+def detect_tag_from_branch() -> str:
+    proc = run(["git", "branch", "--show-current"])
+    branch = proc.stdout.strip() if proc.returncode == 0 else ""
+    m = re.match(r"^release/v(\d+\.\d+\.\d+)", branch)
+    if not m:
+        fail(
+            f"could not detect version from branch '{branch}'\n"
+            "Either use a release/vX.Y.Z branch or pass --tag vX.Y.Z"
         )
-        if result.returncode == 0:
-            return json.loads(result.stdout)
-    except Exception:
-        pass
-    return None
+    tag = f"v{m.group(1)}"
+    print(f"Detected version {tag} from branch {branch}")
+    return tag
 
-def extract_changelog_sections(body):
-    """Extract categorized bullets from ## Changelog section with ### subsections."""
-    sections = {}
-    if not body:
+
+def check_mode(changelog: Path) -> int:
+    if not changelog.exists():
+        print("FAIL: CHANGELOG.md does not exist", file=sys.stderr)
+        return 1
+    for line in changelog.read_text().splitlines():
+        if line.startswith("## ["):
+            if "[Unreleased]" in line:
+                print(
+                    "FAIL: CHANGELOG.md has [Unreleased] instead of a versioned section",
+                    file=sys.stderr,
+                )
+                print(
+                    "Run: generate-changelog.py (on a release/vX.Y.Z branch)",
+                    file=sys.stderr,
+                )
+                return 1
+            print("OK: CHANGELOG.md has versioned section")
+            return 0
+    print("FAIL: CHANGELOG.md has no versioned section", file=sys.stderr)
+    return 1
+
+
+def ensure_github_token() -> None:
+    if os.environ.get("GITHUB_TOKEN"):
+        return
+    if not have("gh"):
+        return
+    if run(["gh", "auth", "status"]).returncode != 0:
+        return
+    token = run(["gh", "auth", "token"]).stdout.strip()
+    if token:
+        os.environ["GITHUB_TOKEN"] = token
+
+
+def run_git_cliff(tag: str, changelog: Path) -> None:
+    args = ["git", "cliff", "--unreleased", "--tag", tag]
+    if changelog.exists():
+        args += ["--prepend", str(changelog)]
+    else:
+        args += ["-o", str(changelog)]
+    if subprocess.run(args).returncode != 0:
+        sys.exit(1)
+
+
+def read_remote_github(cliff_toml: Path) -> tuple[str | None, str | None]:
+    data = tomllib.loads(cliff_toml.read_text())
+    remote = data.get("remote", {}).get("github", {})
+    return remote.get("owner"), remote.get("repo")
+
+
+def extract_version_section(content: str, version: str) -> str:
+    out: list[str] = []
+    in_section = False
+    needle = f"[{version}]"
+    for line in content.splitlines():
+        if line.startswith("## ["):
+            if in_section:
+                break
+            if needle in line:
+                in_section = True
+        if in_section:
+            out.append(line)
+    return "\n".join(out)
+
+
+def pr_numbers_from_section(section: str) -> list[int]:
+    seen: dict[int, None] = {}
+    for m in re.finditer(r"\(#(\d+)\)", section):
+        seen[int(m.group(1))] = None
+    return sorted(seen)
+
+
+def fetch_pr(owner: str, repo: str, num: int) -> dict | None:
+    proc = run(
+        [
+            "gh",
+            "api",
+            f"repos/{owner}/{repo}/pulls/{num}",
+            "--jq",
+            "{body: .body, author: .user.login}",
+        ],
+        timeout=10,
+    )
+    if proc.returncode != 0:
+        return None
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def slice_below(body: str, header_pattern: str) -> str | None:
+    match = re.search(header_pattern, body, re.MULTILINE)
+    if not match:
+        return None
+    rest = body[match.end() :]
+    next_h2 = re.search(r"^## ", rest, re.MULTILINE)
+    return rest[: next_h2.start()] if next_h2 else rest
+
+
+def extract_changelog_sections(body: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {}
+    content = slice_below(body, r"^## Changelog\s*$")
+    if content is None:
         return sections
-
-    changelog_match = re.search(r'^## Changelog\s*$', body, re.MULTILINE)
-    if not changelog_match:
-        return sections
-
-    rest = body[changelog_match.end():]
-    next_h2 = re.search(r'^## ', rest, re.MULTILINE)
-    changelog_content = rest[:next_h2.start()] if next_h2 else rest
-
-    current_section = None
-    for line in changelog_content.split('\n'):
-        h3_match = re.match(r'^### (.+)', line)
-        if h3_match:
-            current_section = h3_match.group(1).strip()
-            if current_section not in sections:
-                sections[current_section] = []
-        elif current_section and re.match(r'^- ', line):
-            sections[current_section].append(line)
-        elif current_section and sections.get(current_section) and re.match(r'^  \S', line):
-            # Continuation line (indented, part of previous bullet) — join to last bullet
-            sections[current_section][-1] = sections[current_section][-1].rstrip() + ' ' + line.strip()
-
+    current: str | None = None
+    for line in content.split("\n"):
+        h3 = re.match(r"^### (.+)", line)
+        if h3:
+            current = h3.group(1).strip()
+            sections.setdefault(current, [])
+        elif current and re.match(r"^- ", line):
+            sections[current].append(line)
+        elif current and sections.get(current) and re.match(r"^  \S", line):
+            sections[current][-1] = sections[current][-1].rstrip() + " " + line.strip()
     return sections
 
-def extract_flat_changes(body):
-    """Fallback: extract flat bullet list from ## Changes section."""
-    bullets = []
-    if not body:
+
+def extract_flat_changes(body: str) -> list[str]:
+    bullets: list[str] = []
+    content = slice_below(body, r"^## Changes\s*$")
+    if content is None:
         return bullets
-
-    changes_match = re.search(r'^## Changes\s*$', body, re.MULTILINE)
-    if not changes_match:
-        return bullets
-
-    rest = body[changes_match.end():]
-    next_h2 = re.search(r'^## ', rest, re.MULTILINE)
-    changes_content = rest[:next_h2.start()] if next_h2 else rest
-
-    for line in changes_content.split('\n'):
-        if re.match(r'^- ', line):
+    for line in content.split("\n"):
+        if re.match(r"^- ", line):
             bullets.append(line)
-        elif bullets and re.match(r'^  \S', line):
-            # Continuation line (indented, part of previous bullet) — join to last bullet
-            bullets[-1] = bullets[-1].rstrip() + ' ' + line.strip()
-
+        elif bullets and re.match(r"^  \S", line):
+            bullets[-1] = bullets[-1].rstrip() + " " + line.strip()
     return bullets
 
-# Collect all categorized entries from PR bodies
-all_entries = {}  # category -> list of bullets
-for num in pr_numbers:
-    pr_data = fetch_pr(num)
-    if not pr_data:
-        continue
 
-    body = pr_data.get('body', '') or ''
-    author = pr_data.get('author', '')
-    attrib = f' by @{author} in [#{num}](https://github.com/{owner}/{repo}/pull/{num})' if author else ''
+def collect_entries(
+    owner: str, repo: str, pr_numbers: list[int]
+) -> dict[str, list[str]]:
+    aggregated: dict[str, list[str]] = {}
+    for num in pr_numbers:
+        pr = fetch_pr(owner, repo, num)
+        if not pr:
+            continue
+        body = pr.get("body") or ""
+        author = pr.get("author") or ""
+        attrib = (
+            f" by @{author} in [#{num}](https://github.com/{owner}/{repo}/pull/{num})"
+            if author
+            else ""
+        )
 
-    # Try new template format first (## Changelog with ### subsections)
-    sections = extract_changelog_sections(body)
+        sections = extract_changelog_sections(body)
+        if sections:
+            for category, bullets in sections.items():
+                if not bullets:
+                    continue
+                aggregated.setdefault(category, [])
+                first = True
+                for bullet in bullets:
+                    if first and " by @" not in bullet:
+                        aggregated[category].append(bullet + attrib)
+                    else:
+                        aggregated[category].append(bullet)
+                    first = False
+            continue
 
-    if sections:
-        for category, bullets in sections.items():
-            if not bullets:
-                continue
-            if category not in all_entries:
-                all_entries[category] = []
-            first = True
-            for bullet in bullets:
-                if first and ' by @' not in bullet:
-                    all_entries[category].append(bullet + attrib)
-                else:
-                    all_entries[category].append(bullet)
-                first = False
-    else:
-        # Fallback: flat ## Changes section
         flat = extract_flat_changes(body)
         if flat:
-            category = 'Changed'
-            if category not in all_entries:
-                all_entries[category] = []
+            aggregated.setdefault("Changed", [])
             first = True
             for bullet in flat:
-                if first and ' by @' not in bullet:
-                    all_entries[category].append(bullet + attrib)
+                if first and " by @" not in bullet:
+                    aggregated["Changed"].append(bullet + attrib)
                 else:
-                    all_entries[category].append(bullet)
+                    aggregated["Changed"].append(bullet)
                 first = False
+    return aggregated
 
-if not all_entries:
-    sys.exit(0)
 
-with open(changelog_path, 'r') as f:
-    content = f.read()
+def rewrite_version_section(
+    changelog: Path,
+    version: str,
+    tag: str,
+    owner: str,
+    repo: str,
+    entries: dict[str, list[str]],
+) -> None:
+    content = changelog.read_text()
+    header_re = re.compile(rf"^## \[{re.escape(version)}\].*$", re.MULTILINE)
+    header_match = header_re.search(content)
+    if not header_match:
+        return
 
-# Find the version section header line (preserve it with the date)
-header_pattern = rf'^## \[{re.escape(version)}\].*$'
-header_match = re.search(header_pattern, content, re.MULTILINE)
-if not header_match:
-    sys.exit(0)
+    pieces: list[str] = [header_match.group(0)]
+    seen: set[str] = set()
+    for cat in CATEGORIES:
+        bullets = entries.get(cat)
+        if bullets:
+            pieces.append(f"\n### {cat}\n")
+            pieces.extend(bullets)
+            seen.add(cat)
+    for cat, bullets in entries.items():
+        if cat in seen or not bullets:
+            continue
+        pieces.append(f"\n### {cat}\n")
+        pieces.extend(bullets)
 
-header_line = header_match.group(0)
+    new_section = "\n".join(pieces) + "\n"
 
-new_section = header_line + '\n'
-for cat in CATEGORIES:
-    if cat in all_entries and all_entries[cat]:
-        new_section += f'\n### {cat}\n\n'
-        for bullet in all_entries[cat]:
-            new_section += bullet + '\n'
+    tag_prefix = "v" if tag.startswith("v") else ""
+    prev_match = re.search(
+        rf"## \[{re.escape(version)}\].*?\n## \[([^\]]+)\]", content, re.DOTALL
+    )
+    if prev_match:
+        prev = prev_match.group(1)
+        new_section += (
+            f"\n**Full Changelog**: "
+            f"[{tag_prefix}{prev}...{tag_prefix}{version}]"
+            f"(https://github.com/{owner}/{repo}/compare/"
+            f"{tag_prefix}{prev}...{tag_prefix}{version})\n"
+        )
 
-# Include any categories not in the standard list
-for cat in all_entries:
-    if cat not in CATEGORIES and all_entries[cat]:
-        new_section += f'\n### {cat}\n\n'
-        for bullet in all_entries[cat]:
-            new_section += bullet + '\n'
+    section_re = re.compile(
+        rf"## \[{re.escape(version)}\].*?(?=\n## \[|\Z)", re.DOTALL
+    )
+    new_content = section_re.sub(new_section.rstrip() + "\n", content, count=1)
+    changelog.write_text(new_content)
 
-# Find the previous version tag for the Full Changelog link
-prev_match = re.search(rf'## \[{re.escape(version)}\].*?\n## \[([^\]]+)\]', content, re.DOTALL)
-if prev_match:
-    prev_version = prev_match.group(1)
-    new_section += f'\n**Full Changelog**: [{tag_prefix}{prev_version}...{tag_prefix}{version}](https://github.com/{owner}/{repo}/compare/{tag_prefix}{prev_version}...{tag_prefix}{version})\n'
 
-# Replace the version section in the file
-section_pattern = rf'## \[{re.escape(version)}\].*?(?=\n## \[|\Z)'
-new_content = re.sub(section_pattern, new_section.rstrip() + '\n', content, count=1, flags=re.DOTALL)
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--tag")
+    parser.add_argument("repo_path", nargs="?", default=".")
+    args = parser.parse_args()
 
-with open(changelog_path, 'w') as f:
-    f.write(new_content)
+    repo = Path(args.repo_path).resolve()
+    cliff_toml = repo / "cliff.toml"
+    changelog = repo / "CHANGELOG.md"
+
+    if not cliff_toml.exists():
+        fail(f"cliff.toml not found in {repo}")
+
+    if args.check:
+        return check_mode(changelog)
+
+    if not have("git-cliff"):
+        print("error: git-cliff is not installed", file=sys.stderr)
+        print("  Install: cargo install git-cliff", file=sys.stderr)
+        print("  Or:      brew install git-cliff", file=sys.stderr)
+        return 1
+
+    tag = args.tag or detect_tag_from_branch()
+    version = tag[1:] if tag.startswith("v") else tag
+
+    ensure_github_token()
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(repo)
+        run_git_cliff(tag, changelog)
+    finally:
+        os.chdir(cwd)
+
+    owner, repo_name = read_remote_github(cliff_toml)
+    if not owner or not repo_name or not have("gh"):
+        print(
+            "Updated CHANGELOG.md (skipping PR expansion — missing [remote.github] or gh CLI)"
+        )
+        print("\nNext steps:")
+        print("  git add CHANGELOG.md")
+        print("  git commit -m 'docs: update CHANGELOG.md'")
+        return 0
+
+    section = extract_version_section(changelog.read_text(), version)
+    pr_nums = pr_numbers_from_section(section)
+    if pr_nums:
+        entries = collect_entries(owner, repo_name, pr_nums)
+        if entries:
+            rewrite_version_section(
+                changelog, version, tag, owner, repo_name, entries
+            )
+
+    print("Updated CHANGELOG.md")
+    print("\nNext steps:")
+    print("  git add CHANGELOG.md")
+    print("  git commit -m 'docs: update CHANGELOG.md'")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
