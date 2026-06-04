@@ -17,7 +17,7 @@ bird (CLI + intelligence) --> xurl (subprocess: auth + HTTP) --> X API
 ```bash
 git clone https://github.com/brettdavies/bird
 cd bird
-git config core.hooksPath .githooks
+git config core.hooksPath scripts/hooks
 cargo build --release
 ```
 
@@ -76,10 +76,12 @@ Location: `~/.config/bird/config.toml` (XDG). Example:
 After cloning, activate local hooks:
 
 ```bash
-git config core.hooksPath .githooks
+git config core.hooksPath scripts/hooks
 ```
 
-**`pre-push`** — Prevents direct pushes to `main`. All changes go through PRs.
+**`pre-push`** mirrors CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `cargo deny check`,
+shellcheck, MSRV verification, rustdoc-as-warnings, and Windows cross-clippy. Direct pushes to `main` are blocked
+server-side by the `protect-main` ruleset; the local hook focuses on catching CI failures before push.
 
 ## Branching workflow
 
