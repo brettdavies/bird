@@ -5,7 +5,7 @@
 //! runner's writer-injection makes them observable.
 //!
 //! The R25 carve-outs that genuinely need a subprocess (clap's `e.print()`
-//! help/version path; `BIRD_XURL_PATH` env-poisoning) remain in
+//! help/version path; transport-path env-poisoning) remain in
 //! [`tests/cli_smoke_subprocess.rs`].
 //!
 //! The `every_subcommand_help_has_example` and
