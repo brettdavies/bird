@@ -1,0 +1,19 @@
+# Manual preflight check run before cutting a release branch. Surfaces
+# pending cargo and github-actions dependency updates so they can be merged
+# on dev (or rejected) rather than landing as Dependabot PRs the moment the
+# release commit hits the target branch.
+#
+# Trigger from Actions → "Dependabot Preflight" → "Run workflow".
+# See RELEASES-PREFLIGHT.md § Dependabot preflight for when to run it and
+# how to act on the report.
+name: Dependabot Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    uses: brettdavies/.github/.github/workflows/dependabot-preflight.yml@4a9485ec7fd84c6f48ee3897ad4ada9c9ba153dd # dev as of 2026-06-04
