@@ -1,7 +1,7 @@
 //! `bird cache clear` and `bird cache stats` — local entity store management.
 
-use crate::cli::CacheAction;
 use crate::cli::dispatch::{GuardOutcome, require_confirmation};
+use crate::cli::{CacheAction, OutputFlags};
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -64,68 +64,72 @@ pub fn run(
                 }
             }
         }
-        CacheAction::Stats { pretty } => match client.db_stats() {
-            Some(Ok(stats)) => {
-                let path = client
-                    .db_path()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
-                let data = serde_json::json!({
-                    "path": path,
-                    "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
-                    "max_size_mb": stats.max_size_mb() as u64,
-                    "tweets": stats.tweet_count,
-                    "users": stats.user_count,
-                    "raw_responses": stats.raw_response_count,
-                    "healthy": stats.healthy(),
-                });
-                if pretty {
-                    writeln!(stdout, "Store: {}", path).map_err(cache_io_err)?;
-                    writeln!(
-                        stdout,
-                        "Size:  {:.1} MB / {:.0} MB limit",
-                        stats.size_mb(),
-                        stats.max_size_mb()
-                    )
-                    .map_err(cache_io_err)?;
-                    writeln!(stdout, "Tweets: {}", stats.tweet_count).map_err(cache_io_err)?;
-                    writeln!(stdout, "Users:  {}", stats.user_count).map_err(cache_io_err)?;
-                    writeln!(stdout, "Raw:    {}", stats.raw_response_count)
-                        .map_err(cache_io_err)?;
-                } else if out.is_raw_text() {
-                    // --raw text: one key=value per line, pipe-safe.
-                    writeln!(stdout, "path={}", path).map_err(cache_io_err)?;
-                    writeln!(stdout, "size_mb={:.1}", stats.size_mb()).map_err(cache_io_err)?;
-                    writeln!(stdout, "max_size_mb={:.0}", stats.max_size_mb())
-                        .map_err(cache_io_err)?;
-                    writeln!(stdout, "tweets={}", stats.tweet_count).map_err(cache_io_err)?;
-                    writeln!(stdout, "users={}", stats.user_count).map_err(cache_io_err)?;
-                    writeln!(stdout, "raw_responses={}", stats.raw_response_count)
-                        .map_err(cache_io_err)?;
-                    writeln!(stdout, "healthy={}", stats.healthy()).map_err(cache_io_err)?;
-                } else {
-                    let env = serde_json::json!({"data": data, "meta": {}});
-                    out.print_envelope(stdout, &env).map_err(cache_io_err)?;
-                }
-            }
-            Some(Err(e)) => {
-                return Err(BirdError::general(
-                    "cache",
-                    format!("failed to read store stats: {}", e).into(),
-                ));
-            }
-            None => {
-                if !pretty && !out.is_raw_text() {
-                    let env = serde_json::json!({
-                        "data": {"healthy": false},
-                        "meta": {"status": "store-unavailable"},
+        CacheAction::Stats {
+            common: OutputFlags { pretty },
+        } => {
+            match client.db_stats() {
+                Some(Ok(stats)) => {
+                    let path = client
+                        .db_path()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let data = serde_json::json!({
+                        "path": path,
+                        "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
+                        "max_size_mb": stats.max_size_mb() as u64,
+                        "tweets": stats.tweet_count,
+                        "users": stats.user_count,
+                        "raw_responses": stats.raw_response_count,
+                        "healthy": stats.healthy(),
                     });
-                    out.print_envelope(stdout, &env).map_err(cache_io_err)?;
-                } else if !quiet {
-                    writeln!(stderr, "Store is not available.").ok();
+                    if pretty {
+                        writeln!(stdout, "Store: {}", path).map_err(cache_io_err)?;
+                        writeln!(
+                            stdout,
+                            "Size:  {:.1} MB / {:.0} MB limit",
+                            stats.size_mb(),
+                            stats.max_size_mb()
+                        )
+                        .map_err(cache_io_err)?;
+                        writeln!(stdout, "Tweets: {}", stats.tweet_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "Users:  {}", stats.user_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "Raw:    {}", stats.raw_response_count)
+                            .map_err(cache_io_err)?;
+                    } else if out.is_raw_text() {
+                        // --raw text: one key=value per line, pipe-safe.
+                        writeln!(stdout, "path={}", path).map_err(cache_io_err)?;
+                        writeln!(stdout, "size_mb={:.1}", stats.size_mb()).map_err(cache_io_err)?;
+                        writeln!(stdout, "max_size_mb={:.0}", stats.max_size_mb())
+                            .map_err(cache_io_err)?;
+                        writeln!(stdout, "tweets={}", stats.tweet_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "users={}", stats.user_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "raw_responses={}", stats.raw_response_count)
+                            .map_err(cache_io_err)?;
+                        writeln!(stdout, "healthy={}", stats.healthy()).map_err(cache_io_err)?;
+                    } else {
+                        let env = serde_json::json!({"data": data, "meta": {}});
+                        out.print_envelope(stdout, &env).map_err(cache_io_err)?;
+                    }
+                }
+                Some(Err(e)) => {
+                    return Err(BirdError::general(
+                        "cache",
+                        format!("failed to read store stats: {}", e).into(),
+                    ));
+                }
+                None => {
+                    if !pretty && !out.is_raw_text() {
+                        let env = serde_json::json!({
+                            "data": {"healthy": false},
+                            "meta": {"status": "store-unavailable"},
+                        });
+                        out.print_envelope(stdout, &env).map_err(cache_io_err)?;
+                    } else if !quiet {
+                        writeln!(stderr, "Store is not available.").ok();
+                    }
                 }
             }
-        },
+        }
     }
     Ok(())
 }
