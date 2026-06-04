@@ -3,6 +3,13 @@
 //! bird is distributed as a binary; the library surface is unstable and
 //! intended for internal test infrastructure only. External consumers should
 //! shell out to the `bird` binary, not import this crate.
+//!
+//! Concrete invocation patterns — `run_argv`, `run_with_paths` against a
+//! `TempDir`-backed `ResolvedPaths`, captured writers, parsed JSON
+//! envelopes, parallel fixtures — live under `examples/` and mirror the
+//! shapes used by `tests/common/mod.rs` and `tests/parallel_run.rs`. They
+//! are reference code for someone debugging the in-process test surface,
+//! not an endorsement of the library as a downstream API.
 
 #[doc(hidden)]
 pub mod cli;

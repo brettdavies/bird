@@ -478,8 +478,10 @@ mod tests {
             "--help should exit 0, got {:?}",
             exit
         );
-        // Plan 1 note: --help currently bypasses the runner's writers (clap's
-        // `e.print()`). Plan 2 U11 will tighten the writer assertion.
+        // --help routes through clap's `e.print()`, which writes to the
+        // process stdout directly rather than the runner's injected stdout
+        // writer; the captured-content surface is therefore empty for
+        // --help/--version in in-process tests.
     }
 
     #[test]

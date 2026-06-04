@@ -1,0 +1,35 @@
+# Guards that the in-process library examples under `examples/` stay
+# compiling. The shared `rust-ci.yml` reusable workflow runs `cargo build`
+# against the default targets, which does not include `examples/`; a broken
+# example would otherwise only surface when a downstream consumer copied
+# the snippet. Mirrors the per-repo wrapper pattern used by the other
+# guard workflows.
+name: Build examples
+
+on:
+  push:
+    branches: [main, dev]
+    tags-ignore: ['**']
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE-*'
+      - 'docs/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+      - name: cargo build --examples
+        run: cargo build --workspace --examples --locked
