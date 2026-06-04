@@ -16,7 +16,6 @@ exclude = [
     ".claude/",
     ".context/",
     ".github/",
-    ".githooks/",
     ".markdownlint-cli2.yaml",
     "cliff.toml",
     "deny.toml",
