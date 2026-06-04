@@ -23,9 +23,10 @@ pub struct TestEnv {
 }
 
 impl TestEnv {
-    /// Construct a fresh fixture. Resets the transport's `XURL_PATH`
-    /// `OnceLock` cache per KTD-5 so prior tests' resolutions do not leak
-    /// across in-process invocations.
+    /// Construct a fresh fixture. Per-test xurl resolution lives on the
+    /// [`bird::transport::XurlTransport`] instance constructed by the runner
+    /// from this fixture's [`EnvOverrides`] — no process-global cache, no
+    /// in-process ordering hazard.
     pub fn new() -> Self {
         let tmp = TempDir::new().expect("test: tempdir");
         let config_dir = tmp.path().join(".config").join("bird");
@@ -34,12 +35,19 @@ impl TestEnv {
             config_dir: config_dir.clone(),
             store_path: config_dir,
         };
-        bird::transport::reset_xurl_path_for_tests();
         Self {
             paths,
             env: EnvOverrides::default(),
             _tmp: tmp,
         }
+    }
+
+    /// Set `xurl_path` on the snapshot so the runner constructs the transport
+    /// pointed at the given binary. Drives the in-process equivalent of a
+    /// `BIRD_XURL_PATH` env override.
+    pub fn with_xurl_path(mut self, path: std::path::PathBuf) -> Self {
+        self.env.xurl_path = Some(path);
+        self
     }
 }
 

@@ -10,6 +10,7 @@ pub mod spec;
 
 use crate::cli::WriteGuard;
 use crate::cli::dispatch::{GuardOutcome, require_confirmation, xurl_write, xurl_write_call};
+use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use spec::WriteSpec;
@@ -20,10 +21,13 @@ use std::io::Write;
 /// Guards via `require_confirmation` (`--dry-run`, `--force`/`--yes`, TTY
 /// confirmation prompt), short-circuits on dry-run, and routes through
 /// `xurl_write` which rejects `--cache-only` before invoking
-/// `xurl_write_call` with the verb's xurl args.
+/// `xurl_write_call` with the verb's xurl args. The client is threaded
+/// through so `xurl_write_call` reads the resolved xurl path and timeout
+/// off the live transport.
 #[allow(clippy::too_many_arguments)]
 pub fn execute(
     spec: WriteSpec,
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     guard: WriteGuard,
@@ -49,12 +53,13 @@ pub fn execute(
     let xurl_args = spec.xurl_args;
     xurl_write(cache_only, spec.verb, || {
         let args: Vec<&str> = xurl_args.iter().map(String::as_str).collect();
-        xurl_write_call(stdout, &args, username)
+        xurl_write_call(client, stdout, &args, username)
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_tweet(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     text: String,
@@ -78,6 +83,7 @@ pub fn run_tweet(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -89,6 +95,7 @@ pub fn run_tweet(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_reply(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     tweet_id: String,
@@ -107,6 +114,7 @@ pub fn run_reply(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -116,7 +124,9 @@ pub fn run_reply(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_like(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     tweet_id: String,
@@ -134,6 +144,7 @@ pub fn run_like(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -143,7 +154,9 @@ pub fn run_like(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_unlike(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     tweet_id: String,
@@ -161,6 +174,7 @@ pub fn run_unlike(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -170,7 +184,9 @@ pub fn run_unlike(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_repost(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     tweet_id: String,
@@ -188,6 +204,7 @@ pub fn run_repost(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -197,7 +214,9 @@ pub fn run_repost(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_unrepost(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     tweet_id: String,
@@ -215,6 +234,7 @@ pub fn run_unrepost(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -224,7 +244,9 @@ pub fn run_unrepost(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_follow(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -245,6 +267,7 @@ pub fn run_follow(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -254,7 +277,9 @@ pub fn run_follow(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_unfollow(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -275,6 +300,7 @@ pub fn run_unfollow(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -286,6 +312,7 @@ pub fn run_unfollow(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_dm(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -307,6 +334,7 @@ pub fn run_dm(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -316,7 +344,9 @@ pub fn run_dm(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_block(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -334,6 +364,7 @@ pub fn run_block(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -343,7 +374,9 @@ pub fn run_block(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_unblock(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -361,6 +394,7 @@ pub fn run_unblock(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -370,7 +404,9 @@ pub fn run_unblock(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_mute(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -388,6 +424,7 @@ pub fn run_mute(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -397,7 +434,9 @@ pub fn run_mute(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_unmute(
+    client: &db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     target: String,
@@ -415,6 +454,7 @@ pub fn run_unmute(
     };
     execute(
         spec,
+        client,
         out,
         stdout,
         guard,
@@ -428,6 +468,7 @@ pub fn run_unmute(
 mod tests {
     use super::*;
     use crate::output::OutputFormat;
+    use crate::transport::tests::MockTransport;
 
     fn quiet_out() -> OutputConfig {
         OutputConfig {
@@ -438,11 +479,18 @@ mod tests {
         }
     }
 
+    fn test_client() -> db::BirdClient {
+        let transport = Box::new(MockTransport::new(vec![]));
+        let db_obj = crate::db::db::in_memory_db();
+        db::BirdClient::new_test(transport, db_obj)
+    }
+
     // U6.3: execute() with --dry-run returns Ok without invoking xurl.
     // (If xurl were invoked, the test process would attempt to spawn the
     // xurl binary; here the dry-run short-circuits before xurl_write fires.)
     #[test]
     fn execute_dry_run_short_circuits() {
+        let client = test_client();
         let out = quiet_out();
         let spec = WriteSpec {
             verb: "like",
@@ -456,7 +504,7 @@ mod tests {
             dry_run: true,
         };
         let mut stdout: Vec<u8> = Vec::new();
-        assert!(execute(spec, &out, &mut stdout, guard, false, false, None).is_ok());
+        assert!(execute(spec, &client, &out, &mut stdout, guard, false, false, None).is_ok());
     }
 
     // U6.2: execute() with --cache-only and force=true returns Err(BirdError::General)
@@ -464,6 +512,7 @@ mod tests {
     // guard fires after confirmation succeeds and before transport is invoked.
     #[test]
     fn execute_cache_only_rejects_write() {
+        let client = test_client();
         let out = quiet_out();
         let spec = WriteSpec {
             verb: "like",
@@ -477,7 +526,7 @@ mod tests {
             dry_run: false,
         };
         let mut stdout: Vec<u8> = Vec::new();
-        match execute(spec, &out, &mut stdout, guard, true, false, None) {
+        match execute(spec, &client, &out, &mut stdout, guard, true, false, None) {
             Err(BirdError::General {
                 command, message, ..
             }) => {
@@ -496,6 +545,7 @@ mod tests {
     // usage error from the guard layer, before xurl_write runs.
     #[test]
     fn execute_no_interactive_without_force_errors() {
+        let client = test_client();
         let out = quiet_out();
         let spec = WriteSpec {
             verb: "like",
@@ -509,7 +559,7 @@ mod tests {
             dry_run: false,
         };
         let mut stdout: Vec<u8> = Vec::new();
-        match execute(spec, &out, &mut stdout, guard, false, true, None) {
+        match execute(spec, &client, &out, &mut stdout, guard, false, true, None) {
             Err(BirdError::Usage { error_id, .. }) => {
                 assert_eq!(error_id, "requires-confirmation");
             }
@@ -522,11 +572,13 @@ mod tests {
     // --media-id passthrough.
     #[test]
     fn tweet_builder_dry_run_envelope_with_media() {
+        let client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
         // Dry-run short-circuits before xurl_write but still exercises the
         // builder, body, and url_for_prompt assembly via require_confirmation.
         let res = run_tweet(
+            &client,
             &out,
             &mut stdout,
             "hello world".into(),
@@ -546,9 +598,11 @@ mod tests {
     // xurl_args without an extra `@` prefix).
     #[test]
     fn follow_builder_dry_run_envelope() {
+        let client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
         let res = run_follow(
+            &client,
             &out,
             &mut stdout,
             "someuser".into(),
@@ -567,9 +621,11 @@ mod tests {
     // xurl_args path (dm + target + text).
     #[test]
     fn dm_builder_dry_run_envelope() {
+        let client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
         let res = run_dm(
+            &client,
             &out,
             &mut stdout,
             "9876543210".into(),

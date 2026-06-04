@@ -77,8 +77,8 @@ bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) -
   `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
   pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 xurl-write verbs share a single `execute` helper).
 - `src/transport.rs` — xurl subprocess transport, `Transport: Send + Sync` trait, `XurlError`, `MockTransport` for unit
-  tests, `OnceLock<Mutex<Option<_>>>` wrappers around `XURL_PATH` and `TIMEOUT_OVERRIDE` with
-  `reset_xurl_path_for_tests()` shim for in-process test isolation.
+  tests. The resolved xurl binary path and `--timeout` value live on the per-call `XurlTransport` instance — no
+  process-global statics, no in-process ordering hazards.
 - `src/db/` — SQLite entity store: `db.rs` (tweets / users / raw rows + migrations; `Connection` wrapped in
   `std::sync::Mutex` for the Send + Sync gate), `client.rs` (entity-aware transport client wrapping `transport.rs`),
   `usage.rs` (per-call cost ledger).

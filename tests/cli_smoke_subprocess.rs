@@ -1,6 +1,6 @@
-//! Subprocess-bound smoke tests — the R25 carve-outs.
+//! Subprocess-bound smoke tests — the residual carve-outs.
 //!
-//! Two carve-out classes survive Plan 2 U11:
+//! Two carve-out classes live here:
 //!
 //! 1. **Clap exit class** — `--version` and top-level / subcommand `--help`
 //!    routes go through clap's [`clap::Error::print()`] path, which writes
@@ -10,19 +10,18 @@
 //!    the JSON-wrapped help envelope lives in `tests/cli_smoke.rs` and
 //!    `tests/envelope_consistency.rs`.
 //!
-//! 2. **`BIRD_XURL_PATH`-touching class** — three tests probe missing-binary
-//!    error paths by pointing `BIRD_XURL_PATH` at a nonexistent file. Even
-//!    with [`bird::transport::reset_xurl_path_for_tests`], in-process test
-//!    ordering becomes load-bearing because the `OnceLock` cache poisons
-//!    across tests. Deferred to a Transport-redesign follow-up.
-//!
-//! 3. **`BIRD_QUIET` env-var class** — two tests verify the env-var path
-//!    rather than the `--quiet` flag. Plan 1's [`bird::config::EnvOverrides`]
-//!    snapshot does not propagate `BIRD_QUIET` to clap (clap reads it via
+//! 2. **`BIRD_QUIET` env-var class** — two tests verify the env-var path
+//!    rather than the `--quiet` flag. [`bird::config::EnvOverrides`] does
+//!    not propagate `BIRD_QUIET` to clap (clap reads it via
 //!    `env = "BIRD_QUIET"` on the flag itself, from the real process env),
 //!    so a subprocess is the cleanest way to exercise the env path without
 //!    leaking env state across in-process tests. `--quiet` flag coverage
 //!    lives in `tests/cli_smoke.rs`.
+//!
+//! `BIRD_XURL_PATH`-touching tests live in `tests/cli_smoke.rs`: the
+//! resolved xurl path is per-transport state on
+//! [`bird::transport::XurlTransport`], so in-process tests supply per-test
+//! paths through `EnvOverrides::xurl_path` without ordering hazards.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -60,18 +59,6 @@ fn help_flag() {
         .stdout(predicate::str::contains("Usage:").or(predicate::str::contains("usage:")));
 }
 
-// --- BIRD_XURL_PATH-touching carve-out (R25) -----------------------------
-
-#[test]
-fn completions_works_without_xurl() {
-    bird()
-        .args(["completions", "bash"])
-        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
 // --- Subcommand `--help` (clap-exit) class --------------------------------
 
 #[test]
@@ -94,25 +81,6 @@ fn usage_help_does_not_show_sync_flag() {
     );
 }
 
-// --- BIRD_XURL_PATH-touching carve-out (R25) -----------------------------
-
-#[test]
-fn usage_local_flag_accepted_by_clap() {
-    // --local should be accepted by clap (exits later due to missing xurl, but not exit 2)
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["usage", "--local"])
-        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .output()
-        .unwrap();
-    // Should NOT be exit 2 (clap parse error) — any other exit is fine
-    assert_ne!(
-        output.status.code(),
-        Some(2),
-        "--local should be accepted by clap"
-    );
-}
-
 // --- Quiet flag + help (clap-exit) ----------------------------------------
 
 #[test]
@@ -124,7 +92,7 @@ fn quiet_flag_with_help() {
         .stdout(predicate::str::contains("Usage:").or(predicate::str::contains("usage:")));
 }
 
-// --- BIRD_QUIET env-var carve-out (R25) -----------------------------------
+// --- BIRD_QUIET env-var carve-out -----------------------------------------
 
 #[test]
 fn bird_quiet_env_var_activates_quiet() {
@@ -168,25 +136,6 @@ fn global_limit_and_cursor_flags_present() {
         stdout.contains("--cursor"),
         "global --cursor missing from help"
     );
-}
-
-// --- BIRD_XURL_PATH-touching carve-out (R25) -----------------------------
-
-#[test]
-fn output_json_command_error_schema() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "me"])
-        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .output()
-        .unwrap();
-
-    // xurl not found => config error (exit 78)
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
-    assert_eq!(json["exit_code"], 78);
 }
 
 // --- BIRD_OUTPUT env-var (real process env) -------------------------------
