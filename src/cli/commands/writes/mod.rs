@@ -13,6 +13,7 @@ use crate::cli::dispatch::{GuardOutcome, require_confirmation, xurl_write, xurl_
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use spec::WriteSpec;
+use std::io::Write;
 
 /// Shared dispatch sequence for every xurl-write verb.
 ///
@@ -24,6 +25,7 @@ use spec::WriteSpec;
 pub fn execute(
     spec: WriteSpec,
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     guard: WriteGuard,
     cache_only: bool,
     no_interactive: bool,
@@ -37,6 +39,7 @@ pub fn execute(
         guard,
         out,
         no_interactive,
+        stdout,
         &mut std::io::stderr().lock(),
         None,
     )?;
@@ -46,12 +49,14 @@ pub fn execute(
     let xurl_args = spec.xurl_args;
     xurl_write(cache_only, spec.verb, || {
         let args: Vec<&str> = xurl_args.iter().map(String::as_str).collect();
-        xurl_write_call(&args, username)
+        xurl_write_call(stdout, &args, username)
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_tweet(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     text: String,
     media_id: Option<String>,
     guard: WriteGuard,
@@ -74,6 +79,7 @@ pub fn run_tweet(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -81,8 +87,10 @@ pub fn run_tweet(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_reply(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     tweet_id: String,
     text: String,
     guard: WriteGuard,
@@ -100,6 +108,7 @@ pub fn run_reply(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -109,6 +118,7 @@ pub fn run_reply(
 
 pub fn run_like(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -125,6 +135,7 @@ pub fn run_like(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -134,6 +145,7 @@ pub fn run_like(
 
 pub fn run_unlike(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -150,6 +162,7 @@ pub fn run_unlike(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -159,6 +172,7 @@ pub fn run_unlike(
 
 pub fn run_repost(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -175,6 +189,7 @@ pub fn run_repost(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -184,6 +199,7 @@ pub fn run_repost(
 
 pub fn run_unrepost(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -200,6 +216,7 @@ pub fn run_unrepost(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -209,6 +226,7 @@ pub fn run_unrepost(
 
 pub fn run_follow(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -228,6 +246,7 @@ pub fn run_follow(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -237,6 +256,7 @@ pub fn run_follow(
 
 pub fn run_unfollow(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -256,6 +276,7 @@ pub fn run_unfollow(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -263,8 +284,10 @@ pub fn run_unfollow(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_dm(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     text: String,
     guard: WriteGuard,
@@ -285,6 +308,7 @@ pub fn run_dm(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -294,6 +318,7 @@ pub fn run_dm(
 
 pub fn run_block(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -310,6 +335,7 @@ pub fn run_block(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -319,6 +345,7 @@ pub fn run_block(
 
 pub fn run_unblock(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -335,6 +362,7 @@ pub fn run_unblock(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -344,6 +372,7 @@ pub fn run_unblock(
 
 pub fn run_mute(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -360,6 +389,7 @@ pub fn run_mute(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -369,6 +399,7 @@ pub fn run_mute(
 
 pub fn run_unmute(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -385,6 +416,7 @@ pub fn run_unmute(
     execute(
         spec,
         out,
+        stdout,
         guard,
         cache_only,
         no_interactive,
@@ -423,7 +455,8 @@ mod tests {
             force: false,
             dry_run: true,
         };
-        assert!(execute(spec, &out, guard, false, false, None).is_ok());
+        let mut stdout: Vec<u8> = Vec::new();
+        assert!(execute(spec, &out, &mut stdout, guard, false, false, None).is_ok());
     }
 
     // U6.2: execute() with --cache-only and force=true returns Err(BirdError::General)
@@ -443,7 +476,8 @@ mod tests {
             force: true,
             dry_run: false,
         };
-        match execute(spec, &out, guard, true, false, None) {
+        let mut stdout: Vec<u8> = Vec::new();
+        match execute(spec, &out, &mut stdout, guard, true, false, None) {
             Err(BirdError::General {
                 command, message, ..
             }) => {
@@ -474,7 +508,8 @@ mod tests {
             force: false,
             dry_run: false,
         };
-        match execute(spec, &out, guard, false, true, None) {
+        let mut stdout: Vec<u8> = Vec::new();
+        match execute(spec, &out, &mut stdout, guard, false, true, None) {
             Err(BirdError::Usage { error_id, .. }) => {
                 assert_eq!(error_id, "requires-confirmation");
             }
@@ -488,10 +523,12 @@ mod tests {
     #[test]
     fn tweet_builder_dry_run_envelope_with_media() {
         let out = quiet_out();
+        let mut stdout: Vec<u8> = Vec::new();
         // Dry-run short-circuits before xurl_write but still exercises the
         // builder, body, and url_for_prompt assembly via require_confirmation.
         let res = run_tweet(
             &out,
+            &mut stdout,
             "hello world".into(),
             Some("media-123".into()),
             WriteGuard {
@@ -510,8 +547,10 @@ mod tests {
     #[test]
     fn follow_builder_dry_run_envelope() {
         let out = quiet_out();
+        let mut stdout: Vec<u8> = Vec::new();
         let res = run_follow(
             &out,
+            &mut stdout,
             "someuser".into(),
             WriteGuard {
                 force: false,
@@ -529,8 +568,10 @@ mod tests {
     #[test]
     fn dm_builder_dry_run_envelope() {
         let out = quiet_out();
+        let mut stdout: Vec<u8> = Vec::new();
         let res = run_dm(
             &out,
+            &mut stdout,
             "9876543210".into(),
             "hi".into(),
             WriteGuard {

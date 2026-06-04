@@ -110,12 +110,18 @@ pub fn install_into(host: Host, home: &Path, dry_run: bool) -> Result<PathBuf, I
 /// line per target host to stdout. The caller resolves the home root; this
 /// keeps the function pure with respect to its inputs (production callers use
 /// `resolve_home()` below).
+///
+/// Signature takes `&OutputConfig` and an injected stdout writer (Plan 2 U2);
+/// per-line output writes through `writeln!(stdout, ...)` (Plan 2 U5 / R13).
 pub fn run(
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     host: Option<Host>,
     dry_run: bool,
     all: bool,
     home: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = cfg;
     let targets: Vec<Host> = if all {
         Host::all().to_vec()
     } else {
@@ -125,13 +131,19 @@ pub fn run(
     for h in targets {
         let dest = install_into(h, home, dry_run)?;
         if dry_run {
-            crate::out_println!(
+            writeln!(
+                stdout,
                 "[dry-run] would install bird skill ({}): {}",
                 h.name(),
                 dest.display()
-            );
+            )?;
         } else {
-            crate::out_println!("installed bird skill ({}): {}", h.name(), dest.display());
+            writeln!(
+                stdout,
+                "installed bird skill ({}): {}",
+                h.name(),
+                dest.display()
+            )?;
         }
     }
     Ok(())

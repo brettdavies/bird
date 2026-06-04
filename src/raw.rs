@@ -8,17 +8,22 @@ use crate::schema::resolve_path;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
+///
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6). `stderr` receives the cost-display line emitted by
+/// `cost::display_cost` for GET requests.
 #[allow(clippy::too_many_arguments)]
 pub fn run_raw(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     method: &str,
     path: &str,
     params: &HashMap<String, String>,
     query: &[String],
     body: Option<&str>,
     pretty: bool,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = resolve_path(path, params)?;
@@ -44,7 +49,7 @@ pub fn run_raw(
             &url,
             response.cache_hit,
         );
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, stderr, &estimate);
         response
     } else {
         client.request(&method_upper, &url, &ctx, body)?
@@ -64,9 +69,9 @@ pub fn run_raw(
         None => serde_json::Value::String(response.body),
     };
     if pretty {
-        crate::out_println!("{}", serde_json::to_string_pretty(&json)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&json)?)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&json)?);
+        writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
     }
     Ok(())
 }

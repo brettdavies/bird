@@ -10,39 +10,41 @@ use std::collections::HashMap;
 pub fn run_me(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     pretty: bool,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let params = HashMap::new();
     let auth_type = default_auth_type("me");
     raw::run_raw(
         client,
+        out,
+        stdout,
+        stderr,
         "GET",
         "/2/users/me",
         &params,
         &[],
         None,
         pretty,
-        use_color,
-        quiet,
         &auth_type,
     )
     .map_err(|e| BirdError::from_source("me", e))?;
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_get(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     path: String,
     param: Vec<String>,
     query: Vec<String>,
     pretty: bool,
     list_flags: &ListFlags,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let params = parse_param_vec(&param);
     let mut query = query;
     if let Some(ref tok) = list_flags.cursor {
@@ -54,7 +56,7 @@ pub fn run_get(
     }
     let auth_type = default_auth_type("get");
     raw::run_raw(
-        client, "GET", &path, &params, &query, None, pretty, use_color, quiet, &auth_type,
+        client, out, stdout, stderr, "GET", &path, &params, &query, None, pretty, &auth_type,
     )
     .map_err(|e| BirdError::from_source("get", e))?;
     Ok(())

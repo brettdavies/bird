@@ -9,20 +9,21 @@ use crate::profile;
 pub fn run(
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     username: String,
     pretty: bool,
 ) -> Result<(), BirdError> {
-    let use_color = out.use_color;
-    let quiet = out.suppress_diag();
     let auth_type = default_auth_type("profile");
     profile::run_profile(
         client,
+        out,
+        stdout,
+        stderr,
         profile::ProfileOpts {
             username: &username,
             pretty,
         },
-        use_color,
-        quiet,
         &auth_type,
     )
     .map_err(|e| BirdError::from_source("profile", e))?;

@@ -72,13 +72,18 @@ pub struct HeadlessAuthArgs {
 ///
 /// 1. Invoke `xurl auth oauth2 --no-browser --step 1 --output json` and capture
 ///    the `auth_url` + state-bearing query string.
-/// 2. Emit the prompt envelope (text or JSON per `out.format`) on stdout.
+/// 2. Emit the prompt envelope (text or JSON per `out.format`) on `stdout`.
 /// 3. Block on a single line from stdin (the redirect URL with `code` / `state`).
 /// 4. Invoke `xurl auth oauth2 --no-browser --step 2 --auth-url -` piping the
 ///    URL on its stdin; xurl validates state, exchanges the code, persists the
 ///    token.
+///
+/// `stdout` is the injected stdout writer (Plan 2 U2/U5 R13). The prompt is
+/// flushed against this same writer before blocking on stdin so test harnesses
+/// that pass a `Vec<u8>` observe the prompt bytes deterministically.
 pub fn run_oauth2_authenticate_headless(
     out: &OutputConfig,
+    stdout: &mut dyn Write,
     username: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let xurl_path = transport::resolve_xurl_path()?;
@@ -145,17 +150,18 @@ pub fn run_oauth2_authenticate_headless(
                     "awaiting": "callback_url_on_stdin",
                 },
             });
-            crate::out_println!("{}", envelope);
+            writeln!(stdout, "{}", envelope)?;
         }
         OutputFormat::Text => {
-            crate::out_println!("Open this URL in any browser:\n");
-            crate::out_println!("  {}\n", auth_url);
-            crate::out_println!(
+            writeln!(stdout, "Open this URL in any browser:\n")?;
+            writeln!(stdout, "  {}\n", auth_url)?;
+            writeln!(
+                stdout,
                 "After authorizing, paste the full redirect URL from your browser here and press Enter:"
-            );
+            )?;
         }
     }
-    std::io::stdout().flush().ok();
+    stdout.flush().ok();
 
     let mut redirect_url = String::new();
     let bytes = std::io::stdin().lock().read_line(&mut redirect_url)?;
@@ -209,16 +215,16 @@ pub fn run_oauth2_authenticate_headless(
                 },
                 "meta": {},
             });
-            crate::out_println!("{}", envelope);
+            writeln!(stdout, "{}", envelope)?;
         }
         OutputFormat::Text => {
-            let stdout = String::from_utf8_lossy(&step2_out.stdout);
-            let trimmed = crate::output::strip_ansi_lines(&stdout);
+            let step2_stdout = String::from_utf8_lossy(&step2_out.stdout);
+            let trimmed = crate::output::strip_ansi_lines(&step2_stdout);
             let trimmed = trimmed.trim();
             if trimmed.is_empty() {
-                crate::out_println!("OAuth2 authentication successful.");
+                writeln!(stdout, "OAuth2 authentication successful.")?;
             } else {
-                crate::out_println!("{}", trimmed);
+                writeln!(stdout, "{}", trimmed)?;
             }
         }
     }

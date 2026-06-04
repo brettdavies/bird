@@ -5,7 +5,6 @@
 use crate::db::{
     ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, RequestContext, UsageSummary,
 };
-use crate::diag;
 use crate::output;
 use crate::requirements::AuthType;
 
@@ -43,13 +42,24 @@ fn ymd_to_display(ymd: i64) -> String {
     )
 }
 
+/// Compute the usage report (with optional API sync) and stream it to the
+/// injected stdout writer via a local `BufWriter`. The buffer is flushed at
+/// end and on every early-return path. Mid-stream errors propagate `?`; the
+/// BufWriter is dropped on unwind, flushing buffered bytes in debug builds.
+/// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
+/// truncate — accepted property of streaming output.
 pub fn run_usage(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     since: Option<&str>,
     local: bool,
     pretty: bool,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use std::io::Write;
+    let mut out = std::io::BufWriter::new(stdout);
+    let quiet = cfg.suppress_diag();
     let since_ymd = parse_since(since)?;
 
     // Check DB availability (graceful degradation per D5)
@@ -59,10 +69,13 @@ pub fn run_usage(
         } else {
             "Store database is unavailable. Run `bird cache clear` to reset."
         };
-        diag!(quiet, "[usage] {}", msg);
-        if !pretty {
-            crate::out_println!("{}", serde_json::to_string(&empty_report(since_ymd))?);
+        if !quiet {
+            writeln!(stderr, "[usage] {}", msg).ok();
         }
+        if !pretty {
+            writeln!(out, "{}", serde_json::to_string(&empty_report(since_ymd))?)?;
+        }
+        out.flush()?;
         return Ok(());
     }
 
@@ -78,11 +91,12 @@ pub fn run_usage(
         )
     };
 
-    if summary.total_calls == 0 && local {
-        diag!(
-            quiet,
+    if summary.total_calls == 0 && local && !quiet {
+        writeln!(
+            stderr,
             "[usage] No usage data recorded yet. Run some API commands first."
-        );
+        )
+        .ok();
     }
 
     // Fetch actual usage from X API (default; skipped with --local)
@@ -97,15 +111,16 @@ pub fn run_usage(
         );
         if let Some(since_date) = since_date {
             let days_back = (now - since_date).num_days();
-            if days_back > 90 {
-                diag!(
-                    quiet,
+            if days_back > 90 && !quiet {
+                writeln!(
+                    stderr,
                     "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
-                );
+                )
+                .ok();
             }
         }
 
-        match sync_actual_usage(client, quiet)? {
+        match sync_actual_usage(client, stderr, quiet)? {
             Some(sync_data) => {
                 sync_status = "success";
                 (Some(sync_data.daily), sync_data.cap, sync_data.per_app)
@@ -144,10 +159,11 @@ pub fn run_usage(
     };
 
     if pretty {
-        print_usage_pretty(&report);
+        print_usage_pretty(&mut out, &report)?;
     } else {
-        crate::out_println!("{}", serde_json::to_string(&report)?);
+        writeln!(out, "{}", serde_json::to_string(&report)?)?;
     }
+    out.flush()?;
     Ok(())
 }
 
@@ -176,9 +192,9 @@ fn ordinal_day(day: u32) -> String {
     format!("{}{}", day, suffix)
 }
 
-fn print_usage_pretty(report: &UsageReport) {
-    crate::out_println!("API Usage ({} to {})", report.since, report.until);
-    crate::out_println!("{}", "-".repeat(45));
+fn print_usage_pretty(out: &mut impl std::io::Write, report: &UsageReport) -> std::io::Result<()> {
+    writeln!(out, "API Usage ({} to {})", report.since, report.until)?;
+    writeln!(out, "{}", "-".repeat(45))?;
 
     if let Some(ref cap) = report.cap {
         let pct = if cap.project_cap > 0 {
@@ -186,13 +202,18 @@ fn print_usage_pretty(report: &UsageReport) {
         } else {
             0.0
         };
-        crate::out_println!(
+        writeln!(
+            out,
             "Project cap:           {} / {} ({:.2}%)",
             format_number(cap.project_usage),
             format_number(cap.project_cap),
             pct
-        );
-        crate::out_println!("Cap reset day:         {}", ordinal_day(cap.cap_reset_day));
+        )?;
+        writeln!(
+            out,
+            "Cap reset day:         {}",
+            ordinal_day(cap.cap_reset_day)
+        )?;
     }
 
     let total_calls = report.summary.total_calls;
@@ -202,16 +223,21 @@ fn print_usage_pretty(report: &UsageReport) {
         0
     };
 
-    crate::out_println!("Total estimated cost:  ${:.2}", report.summary.total_cost);
-    crate::out_println!("Total API calls:       {}", total_calls);
-    crate::out_println!("Cache hit rate:        {}%", cache_rate);
-    crate::out_println!(
+    writeln!(
+        out,
+        "Total estimated cost:  ${:.2}",
+        report.summary.total_cost
+    )?;
+    writeln!(out, "Total API calls:       {}", total_calls)?;
+    writeln!(out, "Cache hit rate:        {}%", cache_rate)?;
+    writeln!(
+        out,
         "Estimated savings:     ~${:.2}",
         report.summary.estimated_savings
-    );
+    )?;
 
     if !report.daily.is_empty() {
-        crate::out_println!("\nDaily breakdown:");
+        writeln!(out, "\nDaily breakdown:")?;
         for day in &report.daily {
             let day_calls = day.calls;
             let day_cache_pct = if day_calls > 0 {
@@ -219,20 +245,25 @@ fn print_usage_pretty(report: &UsageReport) {
             } else {
                 0
             };
-            crate::out_println!(
+            writeln!(
+                out,
                 "  {}  ${:.2}  ({} calls, {}% cached)",
                 ymd_to_display(day.date_ymd),
                 day.cost,
                 day_calls,
                 day_cache_pct
-            );
+            )?;
         }
     }
 
     if !report.top_endpoints.is_empty() {
-        crate::out_println!("\nTop endpoints:");
+        writeln!(out, "\nTop endpoints:")?;
         for ep in &report.top_endpoints {
-            crate::out_println!("  {}  ${:.2}  ({} calls)", ep.endpoint, ep.cost, ep.calls);
+            writeln!(
+                out,
+                "  {}  ${:.2}  ({} calls)",
+                ep.endpoint, ep.cost, ep.calls
+            )?;
         }
     }
 
@@ -249,35 +280,35 @@ fn print_usage_pretty(report: &UsageReport) {
             })
             .unwrap_or_else(|| "unknown".to_string());
 
-        crate::out_println!("\nEstimated vs Actual (synced {})", synced_at);
-        crate::out_println!("{}", "-".repeat(50));
-        crate::out_println!(
+        writeln!(out, "\nEstimated vs Actual (synced {})", synced_at)?;
+        writeln!(out, "{}", "-".repeat(50))?;
+        writeln!(
+            out,
             "  {:<12} {:<14} {:<8} Diff",
-            "Date",
-            "Est. tweets",
-            "Actual"
-        );
+            "Date", "Est. tweets", "Actual"
+        )?;
         for actual in actuals {
-            crate::out_println!(
+            writeln!(
+                out,
                 "  {:<12} {:<14} {:<8}",
-                actual.date,
-                "-",
-                actual.tweet_count
-            );
+                actual.date, "-", actual.tweet_count
+            )?;
         }
     }
 
     if !report.per_app.is_empty() {
-        crate::out_println!("\nPer-app breakdown:");
+        writeln!(out, "\nPer-app breakdown:")?;
         for entry in &report.per_app {
-            crate::out_println!(
+            writeln!(
+                out,
                 "  app={}  {}  {} tweets",
                 entry.client_app_id,
                 entry.date,
                 format_number(entry.tweet_count)
-            );
+            )?;
         }
     }
+    Ok(())
 }
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
@@ -290,6 +321,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 /// Sync actual usage from X API via xurl with `--auth app` (Bearer token).
 fn sync_actual_usage(
     client: &mut BirdClient,
+    stderr: &mut dyn std::io::Write,
     quiet: bool,
 ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
     let url =
@@ -306,15 +338,18 @@ fn sync_actual_usage(
 
     // Graceful degradation: show local data on sync failure (D5)
     if !response.is_success() {
-        let msg = output::sanitize_for_stderr(&response.body, 200);
-        if response.body.contains("429") || response.body.contains("Too Many") {
-            diag!(quiet, "[usage] Rate limited. Showing local data only.");
-        } else {
-            diag!(
-                quiet,
-                "[usage] Sync failed: {}. Showing local data only.",
-                msg
-            );
+        if !quiet {
+            if response.body.contains("429") || response.body.contains("Too Many") {
+                writeln!(stderr, "[usage] Rate limited. Showing local data only.").ok();
+            } else {
+                let msg = output::sanitize_for_stderr(&response.body, 200);
+                writeln!(
+                    stderr,
+                    "[usage] Sync failed: {}. Showing local data only.",
+                    msg
+                )
+                .ok();
+            }
         }
         return Ok(None);
     }
@@ -369,10 +404,13 @@ fn sync_actual_usage(
     let db = match client.db() {
         Some(db) => db,
         None => {
-            diag!(
-                quiet,
-                "[usage] Cache database unavailable for storing actuals. Showing local data only."
-            );
+            if !quiet {
+                writeln!(
+                    stderr,
+                    "[usage] Cache database unavailable for storing actuals. Showing local data only."
+                )
+                .ok();
+            }
             return Ok(None);
         }
     };
@@ -401,11 +439,14 @@ fn sync_actual_usage(
         });
     }
 
-    diag!(
-        quiet,
-        "[usage] synced {} days of actual usage from X API",
-        results.len()
-    );
+    if !quiet {
+        writeln!(
+            stderr,
+            "[usage] synced {} days of actual usage from X API",
+            results.len()
+        )
+        .ok();
+    }
     Ok(Some(SyncData {
         daily: results,
         cap,
@@ -478,6 +519,7 @@ mod tests {
     use super::*;
     use crate::db::BirdClient;
     use crate::db::db::in_memory_db;
+    use crate::output::{OutputConfig, OutputFormat};
     use crate::transport::tests::MockTransport;
 
     /// Build a BirdClient backed by MockTransport + in-memory DB.
@@ -486,11 +528,22 @@ mod tests {
         BirdClient::new_test(Box::new(mock), in_memory_db())
     }
 
+    /// Quiet text-mode config used by run_usage integration tests.
+    fn quiet_cfg() -> OutputConfig {
+        OutputConfig {
+            format: OutputFormat::Text,
+            use_color: false,
+            quiet: true,
+            raw: false,
+        }
+    }
+
     /// Helper: call sync_actual_usage with a mock client.
     fn do_sync(
         client: &mut BirdClient,
     ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
-        sync_actual_usage(client, true)
+        let mut stderr: Vec<u8> = Vec::new();
+        sync_actual_usage(client, &mut stderr, true)
     }
 
     // -- Regression tests for the bug we fixed --
@@ -865,7 +918,19 @@ mod tests {
         // local=true should NOT call the API — empty mock proves it
         // (if API were called, the mock would error and run_usage would propagate it)
         let mut client = sync_client(vec![]);
-        run_usage(&mut client, None, true, false, true).expect("test");
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            true,
+            false,
+        )
+        .expect("test");
     }
 
     #[test]
@@ -881,14 +946,37 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        run_usage(&mut client, None, false, false, true).expect("test");
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            false,
+            false,
+        )
+        .expect("test");
     }
 
     #[test]
     fn run_usage_default_with_empty_mock_errors() {
         // Proves local=false actually hits the API — empty mock causes transport error
         let mut client = sync_client(vec![]);
-        let result = run_usage(&mut client, None, false, false, true);
+        let cfg = quiet_cfg();
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        let result = run_usage(
+            &mut client,
+            &cfg,
+            &mut stdout,
+            &mut stderr,
+            None,
+            false,
+            false,
+        );
         assert!(result.is_err(), "local=false should attempt API call");
     }
 

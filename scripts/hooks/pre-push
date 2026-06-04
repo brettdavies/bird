@@ -30,6 +30,24 @@ if rg -q 'BIRD_XURL_PATH' tests/cli_smoke.rs 2>/dev/null; then
 fi
 pass "r25 (BIRD_XURL_PATH not in cli_smoke.rs)"
 
+# 0.5. Plan 2 R20 guard: writer-injection compliance. Every call site that
+# emits user-visible output must use an injected &mut dyn Write writer (or an
+# OutputConfig::print_* method) — never the bare println! / eprintln! family
+# or the deleted out_println! / out_print! / diag! macros. The only permitted
+# survivors are:
+#   - src/main.rs (binary shim — no output today, future-proofed)
+#   - src/error/fatal.rs (the fatal-error chokepoint, intentionally bare)
+# Anywhere else in src/ — including elsewhere in src/error/ — the guard fires.
+forbidden=$(rg -n '\b(println|eprintln|print|eprint|out_println|out_print|diag)!' \
+    --glob 'src/**/*.rs' \
+    --glob '!src/main.rs' \
+    --glob '!src/error/fatal.rs' 2>/dev/null || true)
+if [ -n "$forbidden" ]; then
+    echo "$forbidden"
+    fail "forbidden output macro in src/ — use an injected writer or OutputConfig method (Plan 2 R20)"
+fi
+pass "r20 (no bare println!/eprintln!/out_println!/diag! outside fatal.rs)"
+
 # 1. Format check
 cargo fmt -- --check 2>/dev/null || fail "cargo fmt -- --check"
 pass "fmt"

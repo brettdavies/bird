@@ -2,7 +2,6 @@
 
 use crate::cost;
 use crate::db::{BirdClient, BookmarkRow, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -18,12 +17,23 @@ pub struct BookmarkOpts<'a> {
 }
 
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
+///
+/// The injected stdout writer is wrapped in a local `BufWriter` to amortize
+/// the per-record lock/syscall cost across the JSON stream. Flushed at end.
+/// Mid-stream errors (transport, JSON, write) propagate `?`; the BufWriter
+/// is dropped on unwind, flushing already-buffered bytes in debug builds.
+/// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
+/// truncate the buffer — an accepted property of streaming output.
 pub fn run_bookmarks(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: BookmarkOpts<'_>,
-    use_color: bool,
-    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use std::io::Write;
+    let mut out = std::io::BufWriter::new(stdout);
+    let quiet = cfg.suppress_diag();
     let pretty = opts.pretty;
     // Bookmarks require OAuth2 user context
     let auth_type = AuthType::OAuth2User;
@@ -53,7 +63,7 @@ pub fn run_bookmarks(
         "https://api.x.com/2/users/me",
         me_response.cache_hit,
     );
-    cost::display_cost(&me_estimate, use_color, quiet);
+    cost::display_cost(cfg, stderr, &me_estimate);
 
     // Extract username from /users/me for bookmark relationship storage
     let me_username = me_json
@@ -77,9 +87,9 @@ pub fn run_bookmarks(
 
     // Open the JSON array wrapper
     if pretty {
-        crate::out_println!("{{\n  \"data\": [");
+        writeln!(out, "{{\n  \"data\": [")?;
     } else {
-        crate::out_print!("{{\"data\":[");
+        write!(out, "{{\"data\":[")?;
     }
 
     loop {
@@ -111,7 +121,7 @@ pub fn run_bookmarks(
 
         let page = response.json.ok_or("invalid JSON from bookmarks")?;
         let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&page_estimate, use_color, quiet);
+        cost::display_cost(cfg, stderr, &page_estimate);
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {
@@ -120,19 +130,19 @@ pub fn run_bookmarks(
                 }
                 if !first_item {
                     if pretty {
-                        crate::out_println!(",");
+                        writeln!(out, ",")?;
                     } else {
-                        crate::out_print!(",");
+                        write!(out, ",")?;
                     }
                 }
                 first_item = false;
                 if pretty {
                     let s = serde_json::to_string_pretty(item)?;
                     for line in s.lines() {
-                        crate::out_println!("    {}", line);
+                        writeln!(out, "    {}", line)?;
                     }
                 } else {
-                    crate::out_print!("{}", serde_json::to_string(item)?);
+                    write!(out, "{}", serde_json::to_string(item)?)?;
                 }
                 emitted += 1;
                 if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
@@ -165,26 +175,28 @@ pub fn run_bookmarks(
         && !bookmark_rows.is_empty()
         && let Some(db) = client.db()
         && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
+        && !quiet
     {
-        diag!(quiet, "[store] warning: bookmark storage failed: {e}");
+        writeln!(stderr, "[store] warning: bookmark storage failed: {e}").ok();
     }
 
     // Close the JSON array wrapper, appending a meta block when there is a
     // next cursor so agents can paginate without re-scanning.
     if let Some(ref tok) = next_cursor {
         if pretty {
-            crate::out_println!("\n  ],");
-            crate::out_println!("  \"meta\": {{ \"next_cursor\": {:?} }}", tok);
-            crate::out_println!("}}");
+            writeln!(out, "\n  ],")?;
+            writeln!(out, "  \"meta\": {{ \"next_cursor\": {:?} }}", tok)?;
+            writeln!(out, "}}")?;
         } else {
-            crate::out_print!("],\"meta\":{{\"next_cursor\":");
-            crate::out_print!("{}", serde_json::to_string(tok)?);
-            crate::out_println!("}}}}");
+            write!(out, "],\"meta\":{{\"next_cursor\":")?;
+            write!(out, "{}", serde_json::to_string(tok)?)?;
+            writeln!(out, "}}}}")?;
         }
     } else if pretty {
-        crate::out_println!("\n  ]\n}}");
+        writeln!(out, "\n  ]\n}}")?;
     } else {
-        crate::out_println!("]}}");
+        writeln!(out, "]}}")?;
     }
+    out.flush()?;
     Ok(())
 }
