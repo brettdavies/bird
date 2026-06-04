@@ -186,8 +186,6 @@ The release-doc trio lands in PR1 of the 2026-06-01 modernization sprint; the li
 
 - `src/db/db.rs` and `src/db/client.rs` both exceed the 200-line refactor trigger. Split candidates: per-entity table
   modules in `db.rs`; per-shape request wrappers in `client.rs`.
-- `--pretty` is duplicated across ~11 subcommand variants in `cli/mod.rs`. Slated for a `CommonFlags` extraction
-  post-GA.
 - `src/db/client.rs` carries a TODO to re-serialize bodies from JSON rather than re-parsing a string, to avoid the
   round-trip cost on cache hits.
 - `out_println!` / `out_print!` / `diag!` macros still write to globally-locked stdout/stderr. The runner's writer

@@ -5,7 +5,7 @@
 //! consumer to depend on the binary crate root.
 
 use crate::cli::commands;
-use crate::cli::{CacheAction, Command, WatchlistCommand, WriteGuard};
+use crate::cli::{CacheAction, Command, OutputFlags, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
@@ -49,12 +49,14 @@ pub fn run(
             headless,
             config.username.as_deref(),
         ),
-        Command::Me { pretty } => commands::reads::run_me(client, out, stdout, stderr, pretty),
+        Command::Me {
+            common: OutputFlags { pretty },
+        } => commands::reads::run_me(client, out, stdout, stderr, pretty),
         Command::Get {
             path,
             param,
             query,
-            pretty,
+            common: OutputFlags { pretty },
         } => commands::reads::run_get(
             client,
             out,
@@ -66,15 +68,16 @@ pub fn run(
             pretty,
             &list_flags,
         ),
-        Command::Bookmarks { pretty } => {
-            commands::bookmarks::run(client, out, stdout, stderr, pretty, &list_flags)
-        }
-        Command::Profile { username, pretty } => {
-            commands::profile::run(client, out, stdout, stderr, username, pretty)
-        }
+        Command::Bookmarks {
+            common: OutputFlags { pretty },
+        } => commands::bookmarks::run(client, out, stdout, stderr, pretty, &list_flags),
+        Command::Profile {
+            username,
+            common: OutputFlags { pretty },
+        } => commands::profile::run(client, out, stdout, stderr, username, pretty),
         Command::Search {
             query,
-            pretty,
+            common: OutputFlags { pretty },
             sort,
             min_likes,
             max_results,
@@ -94,7 +97,7 @@ pub fn run(
         ),
         Command::Thread {
             tweet_id,
-            pretty,
+            common: OutputFlags { pretty },
             max_pages,
         } => commands::thread::run(client, out, stdout, stderr, tweet_id, pretty, max_pages),
         Command::Post {
@@ -102,7 +105,7 @@ pub fn run(
             param,
             query,
             body,
-            pretty,
+            common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_post(
             client,
@@ -122,7 +125,7 @@ pub fn run(
             param,
             query,
             body,
-            pretty,
+            common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_put(
             client,
@@ -141,7 +144,7 @@ pub fn run(
             path,
             param,
             query,
-            pretty,
+            common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_delete(
             client,
@@ -155,7 +158,10 @@ pub fn run(
             guard,
             no_interactive,
         ),
-        Command::Watchlist { action, pretty } => match action {
+        Command::Watchlist {
+            action,
+            common: OutputFlags { pretty },
+        } => match action {
             WatchlistCommand::Fetch => commands::watchlist::run_fetch(
                 client,
                 out,
@@ -173,7 +179,7 @@ pub fn run(
         Command::Usage {
             since,
             local,
-            pretty,
+            common: OutputFlags { pretty },
         } => commands::usage::run(client, out, stdout, stderr, since, local, pretty),
         Command::Tweet {
             text,
@@ -625,7 +631,7 @@ pub struct ListFlags {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::{CacheAction, Command, WriteGuard};
+    use crate::cli::{CacheAction, Command, OutputFlags, WriteGuard};
 
     fn cfg() -> OutputConfig {
         OutputConfig {
@@ -640,7 +646,9 @@ mod tests {
     #[test]
     fn command_needs_xurl_cache_stats_returns_false() {
         let cmd = Command::Cache {
-            action: CacheAction::Stats { pretty: false },
+            action: CacheAction::Stats {
+                common: OutputFlags::default(),
+            },
         };
         assert!(!command_needs_xurl(&cmd, true, false));
     }

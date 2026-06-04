@@ -22,7 +22,7 @@ use crate::cli::clap_errors::clap_error_to_bird;
 use crate::cli::dispatch::{
     GuardOutcome, ListFlags, clamp_limit, command_needs_xurl, require_confirmation,
 };
-use crate::cli::{Cli, Command, SkillAction, WatchlistCommand};
+use crate::cli::{Cli, Command, OutputFlags, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
@@ -335,10 +335,15 @@ where
     );
 
     // --- Diagnostic commands: need config/DB but not xurl ---
-    if let Command::Doctor { command, pretty } = &cli.command {
+    if let Command::Doctor {
+        command,
+        common: OutputFlags { pretty },
+    } = &cli.command
+    {
         let scope = command.as_deref();
-        let use_emoji = use_color && *pretty;
-        match doctor::run_doctor(&client, &out, stdout, stderr, *pretty, scope, use_emoji) {
+        let pretty = *pretty;
+        let use_emoji = use_color && pretty;
+        match doctor::run_doctor(&client, &out, stdout, stderr, pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
@@ -349,7 +354,10 @@ where
     }
 
     // --- Local watchlist commands: need config/DB but not xurl ---
-    if let Command::Watchlist { ref action, pretty } = cli.command
+    if let Command::Watchlist {
+        ref action,
+        common: OutputFlags { pretty },
+    } = cli.command
         && !matches!(action, WatchlistCommand::Fetch)
     {
         let result = match action {
