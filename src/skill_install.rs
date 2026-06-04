@@ -16,14 +16,14 @@ const BUNDLE_FILENAME: &str = "SKILL.md";
 
 /// Supported agent runtimes. Add new entries to extend `--host` and `--all`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub(crate) enum Host {
+pub enum Host {
     /// Claude Code (`~/.claude/skills/bird/`)
     #[value(name = "claude-code")]
     ClaudeCode,
 }
 
 impl Host {
-    pub(crate) fn all() -> &'static [Host] {
+    pub fn all() -> &'static [Host] {
         &[Host::ClaudeCode]
     }
 
@@ -49,7 +49,7 @@ impl Host {
 /// Errors emitted by the install pipeline. Mapped to `BirdError::Command` by
 /// the caller in `main.rs`.
 #[derive(Debug)]
-pub(crate) enum InstallError {
+pub enum InstallError {
     HomeNotSet,
     Io { path: PathBuf, source: io::Error },
 }
@@ -74,7 +74,9 @@ impl std::error::Error for InstallError {
     }
 }
 
-fn resolve_home() -> Result<PathBuf, InstallError> {
+/// Binary-side helper to resolve `$HOME` for the production call site. Tests
+/// supply a temp directory directly to `install_into` / `run` and skip this.
+pub fn resolve_home() -> Result<PathBuf, InstallError> {
     let raw = std::env::var("HOME").ok();
     raw.filter(|s| !s.is_empty())
         .map(PathBuf::from)
@@ -84,11 +86,7 @@ fn resolve_home() -> Result<PathBuf, InstallError> {
 /// Install the bundle for a single host under the given home root. When
 /// `dry_run` is true, no filesystem writes occur; the planned destination
 /// path is returned regardless so callers can report it.
-pub(crate) fn install_into(
-    host: Host,
-    home: &Path,
-    dry_run: bool,
-) -> Result<PathBuf, InstallError> {
+pub fn install_into(host: Host, home: &Path, dry_run: bool) -> Result<PathBuf, InstallError> {
     let dest_dir = host.dest_dir(home);
     let dest_file = dest_dir.join(BUNDLE_FILENAME);
 
@@ -109,13 +107,15 @@ pub(crate) fn install_into(
 }
 
 /// Orchestrate the `bird skill install` invocation. Emits one human-readable
-/// line per target host to stdout.
-pub(crate) fn run(
+/// line per target host to stdout. The caller resolves the home root; this
+/// keeps the function pure with respect to its inputs (production callers use
+/// `resolve_home()` below).
+pub fn run(
     host: Option<Host>,
     dry_run: bool,
     all: bool,
+    home: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let home = resolve_home()?;
     let targets: Vec<Host> = if all {
         Host::all().to_vec()
     } else {
@@ -123,7 +123,7 @@ pub(crate) fn run(
     };
 
     for h in targets {
-        let dest = install_into(h, &home, dry_run)?;
+        let dest = install_into(h, home, dry_run)?;
         if dry_run {
             crate::out_println!(
                 "[dry-run] would install bird skill ({}): {}",

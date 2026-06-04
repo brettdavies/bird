@@ -61,6 +61,14 @@ impl OutputConfig {
     }
 }
 
+// Plan 1 R19: compile-time guard that OutputConfig stays `Send + Sync + Clone`.
+// Plan 2's `Arc<Mutex<dyn Write + Send>>` storage on `BirdClient` needs every
+// type that crosses the writer-injection boundary to be `Send + Sync`.
+const _: fn() = || {
+    fn _assert_send_sync_clone<T: Send + Sync + Clone>() {}
+    _assert_send_sync_clone::<OutputConfig>();
+};
+
 /// stdout writer used by [`out_println!`] / [`out_print!`] macros. Wraps the
 /// standard `println!` / `print!` macros in functions exported from the
 /// output module so subcommand call sites are not flagged as naked

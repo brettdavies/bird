@@ -1,0 +1,29 @@
+//! bird library surface — internal test infrastructure only.
+//!
+//! bird is distributed as a binary; the library surface is unstable and
+//! intended for internal test infrastructure only. External consumers should
+//! shell out to the `bird` binary, not import this crate.
+
+#[doc(hidden)]
+pub mod cli;
+
+pub mod bookmarks;
+pub mod config;
+pub mod cost;
+pub mod db;
+pub mod doctor;
+pub mod error;
+pub mod fields;
+pub mod login;
+pub mod output;
+pub mod profile;
+pub mod raw;
+pub mod requirements;
+pub mod schema;
+pub mod schema_print;
+pub mod search;
+pub mod skill_install;
+pub mod thread;
+pub mod transport;
+pub mod usage;
+pub mod watchlist;
