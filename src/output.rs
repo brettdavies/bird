@@ -105,9 +105,12 @@ impl OutputConfig {
     }
 
     /// Write a `BirdError` to `stderr` in the encoding selected by `self.format`.
-    /// Ports the logic of the free function [`print_error`] into a method that
-    /// takes an explicit stderr writer; the free function stays in place until
-    /// Plan 2 U7 migrates call sites.
+    ///
+    /// JSON modes emit the four-key anc envelope:
+    /// `{"error", "kind", "message", "exit_code"}` (with optional `command`,
+    /// `status` extras). Text mode renders a colored prefix per variant.
+    /// `BirdError::print` is the fatal-only sibling that targets the process
+    /// stderr directly when no `OutputConfig` is available yet.
     pub fn print_error(
         &self,
         stderr: &mut dyn std::io::Write,
@@ -170,57 +173,6 @@ const _: fn() = || {
     fn _assert_send_sync_clone<T: Send + Sync + Clone>() {}
     _assert_send_sync_clone::<OutputConfig>();
 };
-
-/// stdout writer used by [`out_println!`] / [`out_print!`] macros. Wraps the
-/// standard `println!` / `print!` macros in functions exported from the
-/// output module so subcommand call sites are not flagged as naked
-/// `println!` / `print!` (anc's `p7-naked-println` audit).
-pub fn write_line(args: std::fmt::Arguments<'_>) {
-    use std::io::Write;
-    let stdout = std::io::stdout();
-    let mut lock = stdout.lock();
-    let _ = writeln!(lock, "{}", args);
-}
-
-/// stdout writer (no trailing newline). See [`write_line`].
-pub fn write_fragment(args: std::fmt::Arguments<'_>) {
-    use std::io::Write;
-    let stdout = std::io::stdout();
-    let mut lock = stdout.lock();
-    let _ = write!(lock, "{}", args);
-}
-
-/// Print a line to stdout via the output module (replacement for `println!`).
-/// Routes through [`write_line`] so call sites are not flagged by `p7-naked-println`.
-#[macro_export]
-macro_rules! out_println {
-    () => {
-        $crate::output::write_line(format_args!(""))
-    };
-    ($($arg:tt)*) => {
-        $crate::output::write_line(format_args!($($arg)*))
-    };
-}
-
-/// Print a fragment to stdout via the output module (replacement for `print!`).
-#[macro_export]
-macro_rules! out_print {
-    ($($arg:tt)*) => {
-        $crate::output::write_fragment(format_args!($($arg)*))
-    };
-}
-
-/// Diagnostic output macro — prints to stderr unless quiet mode is active.
-/// Use this instead of bare `eprintln!` for all informational output.
-/// Fatal errors use `print_error()` directly (never suppressed).
-#[macro_export]
-macro_rules! diag {
-    ($quiet:expr, $($arg:tt)*) => {
-        if !$quiet {
-            eprintln!($($arg)*);
-        }
-    };
-}
 
 /// Resolve the auto color decision based on stderr TTY, NO_COLOR, and TERM=dumb.
 pub fn use_color_auto() -> bool {
@@ -319,52 +271,6 @@ pub fn emoji_unavailable(use_emoji: bool) -> &'static str {
 }
 
 // -- Envelope writers -------------------------------------------------------
-
-/// Render a `BirdError` to stderr in the active format.
-///
-/// JSON modes emit the four-key anc envelope:
-/// `{"error", "kind", "message", "exit_code"}` (with optional `command`, `status` extras).
-pub fn print_error(err: &BirdError, cfg: &OutputConfig) {
-    if cfg.format.is_json() {
-        let mut json = serde_json::json!({
-            "error": err.error_id(),
-            "kind": err.kind(),
-            "message": sanitize_for_stderr(err.message(), 1000),
-            "exit_code": err.exit_code(),
-            "meta": {},
-        });
-        if let Some(cmd) = err.command() {
-            json["command"] = serde_json::Value::String(cmd.to_string());
-        }
-        if let Some(status) = err.status() {
-            json["status"] = serde_json::json!(status);
-        }
-        let line = serde_json::to_string(&json).unwrap_or_else(|_| {
-            // Constructed JSON above only contains owned/string values — to_string
-            // is infallible in practice. Fall back to a static envelope.
-            String::from(
-                r#"{"error":"serialization-failed","kind":"general","message":"failed to serialize error envelope","exit_code":1}"#,
-            )
-        });
-        eprintln!("{}", line);
-    } else {
-        print_error_text(err, cfg.use_color);
-    }
-}
-
-fn print_error_text(err: &BirdError, use_color: bool) {
-    let prefix = match err {
-        BirdError::Usage { .. } => "usage error: ".to_string(),
-        BirdError::Auth { .. } => "auth failed: ".to_string(),
-        BirdError::Config { .. } => "config failed: ".to_string(),
-        BirdError::General {
-            command: Some(name),
-            ..
-        } => format!("{} failed: ", name),
-        BirdError::General { command: None, .. } => "error: ".to_string(),
-    };
-    eprintln!("{}{}", error(&prefix, use_color), err.message());
-}
 
 /// Serialize a `data` payload + optional `meta` map to a JSON envelope string.
 ///

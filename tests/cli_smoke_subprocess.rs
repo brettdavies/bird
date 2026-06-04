@@ -15,10 +15,9 @@
 //!    migration.
 //!
 //! 3. **Stdout/stderr content-asserting class** — any test that asserts on
-//!    captured stdout/stderr content stays forked until Plan 2 U11 routes
-//!    the `out_println!` / `out_print!` / `diag!` macros through injected
-//!    writers. Plan 1's library-style runner exposes the writer surface,
-//!    but the macros still target global handles.
+//!    captured stdout/stderr content stays forked until Plan 2 U11
+//!    strengthens the in-process suite with stdout-content assertions
+//!    against the runner-injected writers.
 //!
 //! Migration target: when Plan 2 U11 lands, the content-asserting class
 //! collapses back into the library-style `cli_smoke.rs`. The clap-exit and

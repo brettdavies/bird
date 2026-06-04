@@ -91,8 +91,11 @@ where
     let paths = match ResolvedPaths::from_env() {
         Ok(p) => p,
         Err(e) => {
+            // Fatal pre-config path: no OutputConfig has been constructed
+            // yet, so route through the BirdError::print chokepoint per
+            // Plan 2 R18 instead of bypassing the format selection.
             let err = BirdError::config(e);
-            let _ = writeln!(stderr, "{}", err.message());
+            err.print();
             return ExitCode::from(err.exit_code());
         }
     };
@@ -189,7 +192,7 @@ where
                     quiet: false,
                     raw: false,
                 };
-                output::print_error(&bird_err, &cfg);
+                let _ = cfg.print_error(stderr, &bird_err);
                 return ExitCode::from(bird_err.exit_code());
             }
         },
@@ -237,7 +240,7 @@ where
             Ok(h) => h,
             Err(e) => {
                 let err = BirdError::from_source("skill", Box::new(e));
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         };
@@ -245,7 +248,7 @@ where
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::from_source("skill", e);
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 ExitCode::from(err.exit_code())
             }
         };
@@ -255,7 +258,7 @@ where
         return match schema_print::run(name.as_deref(), *list, &out, stdout) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 ExitCode::from(err.exit_code())
             }
         };
@@ -268,7 +271,7 @@ where
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
                 let err = BirdError::config(format!("--username: {}", e));
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         },
@@ -302,7 +305,7 @@ where
         Ok(c) => c,
         Err(e) => {
             let err = BirdError::config(e);
-            output::print_error(&err, &out);
+            let _ = out.print_error(stderr, &err);
             return ExitCode::from(err.exit_code());
         }
     };
@@ -339,7 +342,7 @@ where
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
-                output::print_error(&err, &out);
+                let _ = out.print_error(stderr, &err);
                 return ExitCode::from(err.exit_code());
             }
         }
@@ -394,7 +397,7 @@ where
         return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                output::print_error(&e, &out);
+                let _ = out.print_error(stderr, &e);
                 ExitCode::from(e.exit_code())
             }
         };
@@ -411,7 +414,7 @@ where
         && let Err(e) = transport::resolve_xurl_path()
     {
         let err = BirdError::config(e);
-        output::print_error(&err, &out);
+        let _ = out.print_error(stderr, &err);
         return ExitCode::from(err.exit_code());
     }
 
@@ -432,7 +435,7 @@ where
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            output::print_error(&e, &out);
+            let _ = out.print_error(stderr, &e);
             ExitCode::from(e.exit_code())
         }
     }

@@ -1,10 +1,11 @@
 //! Library-style smoke tests.
 //!
-//! Plan 1 U10 migration: every test that asserts only on exit code or on
-//! filesystem side effects runs in-process via [`common::run_in_process`].
-//! Tests that assert on captured stdout/stderr content stay forked in
-//! [`tests/cli_smoke_subprocess.rs`] until Plan 2 U11 routes the
-//! `out_println!` / `out_print!` / `diag!` macros through injected writers.
+//! Every test that asserts only on exit code or on filesystem side effects
+//! runs in-process via [`common::run_in_process`]. Tests that assert on
+//! captured stdout/stderr content stay forked in
+//! [`tests/cli_smoke_subprocess.rs`] until Plan 2 U11 strengthens the
+//! in-process suite with stdout-content assertions against the
+//! runner-injected writers.
 //!
 //! The `every_subcommand_help_has_example` and
 //! `nested_subcommand_help_has_example` tests call clap's
