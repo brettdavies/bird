@@ -113,7 +113,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Human-readable output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -153,7 +153,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -195,7 +195,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -240,7 +240,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -281,7 +281,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -316,7 +316,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -358,7 +358,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -397,7 +397,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -438,7 +438,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -479,7 +479,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[Pretty-print JSON output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -711,7 +711,7 @@ never\:"Never emit colors"))' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--local[Show only local estimates (skip API)]' \
-'--pretty[Pretty-print output]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1257,7 +1257,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1378,7 +1378,7 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--pretty[]' \
+'--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \

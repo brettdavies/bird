@@ -116,7 +116,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand me" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Human-readable output'
+complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand me" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -143,7 +143,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand get" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand get" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand get" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand get" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand get" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -171,7 +171,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand post" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand post" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand post" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand post" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand post" -l json -d 'Shorthand for `--output json`'
@@ -201,7 +201,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand put" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand put" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand put" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand put" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand put" -l json -d 'Shorthand for `--output json`'
@@ -228,7 +228,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -252,7 +252,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand profile" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -281,7 +281,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand search" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand search" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -307,7 +307,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand thread" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -334,7 +334,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand delete" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand delete" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l json -d 'Shorthand for `--output json`'
@@ -361,7 +361,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print JSON output'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -494,7 +494,7 @@ complete -c bird -n "__fish_bird_using_subcommand usage" -l timeout -d 'Network 
 complete -c bird -n "__fish_bird_using_subcommand usage" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l local -d 'Show only local estimates (skip API)'
-complete -c bird -n "__fish_bird_using_subcommand usage" -l pretty -d 'Pretty-print output'
+complete -c bird -n "__fish_bird_using_subcommand usage" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -851,7 +851,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -929,7 +929,7 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
