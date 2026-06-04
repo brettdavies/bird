@@ -17,15 +17,34 @@ _bird() {
     _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '-V[Print version]' \
@@ -43,15 +62,35 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--no-browser[Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -60,16 +99,35 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[Human-readable output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -81,16 +139,35 @@ _arguments "${_arguments_options[@]}" : \
 '*--query=[]:KEY=VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':path:_default' \
@@ -104,16 +181,38 @@ _arguments "${_arguments_options[@]}" : \
 '--body=[]:JSON:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':path:_default' \
@@ -127,16 +226,38 @@ _arguments "${_arguments_options[@]}" : \
 '--body=[]:JSON:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':path:_default' \
@@ -146,32 +267,70 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
 (profile)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[Pretty-print JSON output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X/Twitter username (with or without @):_default' \
@@ -185,16 +344,35 @@ _arguments "${_arguments_options[@]}" : \
 '--pages=[Number of pages to fetch (1-10, default\: 1)]:PAGES:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[Pretty-print JSON output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':query -- Search query (X API search syntax):_default' \
@@ -205,16 +383,35 @@ _arguments "${_arguments_options[@]}" : \
 '--max-pages=[Maximum number of search result pages (default\: 10, max\: 25)]:MAX_PAGES:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[Pretty-print JSON output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID (root tweet or any reply in the thread):_default' \
@@ -227,16 +424,38 @@ _arguments "${_arguments_options[@]}" : \
 '*--query=[]:KEY=VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':path:_default' \
@@ -246,16 +465,35 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[Pretty-print JSON output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_bird__watchlist_commands" \
@@ -268,34 +506,72 @@ json\:"Machine-readable JSON, no color"))' \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:bird-watchlist-command-$line[1]:"
         case $line[1] in
-            (check)
+            (fetch)
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
 (add)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X/Twitter username (with or without @):_default' \
@@ -303,15 +579,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (remove)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X/Twitter username to remove:_default' \
@@ -321,15 +619,34 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -346,7 +663,7 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:bird-watchlist-help-command-$line[1]:"
         case $line[1] in
-            (check)
+            (fetch)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -379,17 +696,36 @@ _arguments "${_arguments_options[@]}" : \
 '--since=[Show usage since this date (YYYY-MM-DD; default\: 30 days ago)]:SINCE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--sync[Sync actual usage from X API (requires Bearer token via xurl)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--local[Show only local estimates (skip API)]' \
 '--pretty[Pretty-print output]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -399,15 +735,37 @@ _arguments "${_arguments_options[@]}" : \
 '--media-id=[Media ID to attach]:MEDIA_ID:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':text -- Tweet text:_default' \
@@ -417,15 +775,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to reply to:_default' \
@@ -436,15 +816,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to like:_default' \
@@ -454,15 +856,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to unlike:_default' \
@@ -472,15 +896,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to repost:_default' \
@@ -490,15 +936,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to unrepost:_default' \
@@ -506,15 +974,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (follow)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to follow:_default' \
@@ -522,15 +1012,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (unfollow)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unfollow:_default' \
@@ -538,15 +1050,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (dm)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to message:_default' \
@@ -555,15 +1089,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (block)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to block:_default' \
@@ -571,15 +1127,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (unblock)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unblock:_default' \
@@ -587,15 +1165,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (mute)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to mute:_default' \
@@ -603,15 +1203,37 @@ json\:"Machine-readable JSON, no color"))' \
 ;;
 (unmute)
 _arguments "${_arguments_options[@]}" : \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unmute:_default' \
@@ -621,16 +1243,35 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '::command -- Scope report to this command only (e.g. me, bookmarks, get):_default' \
@@ -640,15 +1281,34 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_bird__cache_commands" \
@@ -665,15 +1325,37 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
+'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -682,16 +1364,35 @@ json\:"Machine-readable JSON, no color"))' \
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--pretty[]' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -732,18 +1433,229 @@ esac
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--output=[Error output format\: text (default for TTY), json (default for non-TTY)]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON, no color"))' \
-'--plain[Plain output (no color, no hyperlinks; script-friendly)]' \
-'--no-color[Disable ANSI colors (or set NO_COLOR)]' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
 '--refresh[Bypass store read, still write response to store]' \
 '--no-cache[Disable entity store entirely (no read, no write)]' \
 '--cache-only[Only serve from local store; never make API requests]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
+&& ret=0
+;;
+(skill)
+_arguments "${_arguments_options[@]}" : \
+'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
+'--refresh[Bypass store read, still write response to store]' \
+'--no-cache[Disable entity store entirely (no read, no write)]' \
+'--cache-only[Only serve from local store; never make API requests]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+":: :_bird__skill_commands" \
+"*::: :->skill" \
+&& ret=0
+
+    case $state in
+    (skill)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:bird-skill-command-$line[1]:"
+        case $line[1] in
+            (install)
+_arguments "${_arguments_options[@]}" : \
+'(--all)--host=[Target host (default\: claude-code). Mutually exclusive with --all]:HOST:((claude-code\:"Claude Code (\`~/.claude/skills/bird/\`)"))' \
+'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--all[Install into every supported host in one invocation]' \
+'--dry-run[Print the planned destination without writing]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
+'--refresh[Bypass store read, still write response to store]' \
+'--no-cache[Disable entity store entirely (no read, no write)]' \
+'--cache-only[Only serve from local store; never make API requests]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+'(--all)--host=[Target host (default\: claude-code). Mutually exclusive with --all]:HOST:((claude-code\:"Claude Code (\`~/.claude/skills/bird/\`)"))' \
+'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--all[Update every supported host in one invocation]' \
+'--dry-run[Print the planned destination without writing]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
+'--refresh[Bypass store read, still write response to store]' \
+'--no-cache[Disable entity store entirely (no read, no write)]' \
+'--cache-only[Only serve from local store; never make API requests]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_bird__skill__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:bird-skill-help-command-$line[1]:"
+        case $line[1] in
+            (install)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(schema)
+_arguments "${_arguments_options[@]}" : \
+'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
+json\:"Machine-readable JSON envelope, no color"
+jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
+ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
+'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
+always\:"Always emit colors"
+never\:"Never emit colors"))' \
+'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
+'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--list[List all available schema names instead of printing a schema]' \
+'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
+'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
+'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
+'--no-color[Deprecated alias for \`--color never\`]' \
+'-q[Suppress informational stderr output (keep only fatal errors)]' \
+'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
+'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
+'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
+'--raw[Emit pipe-safe, undecorated text. Ignored in JSON modes]' \
+'--examples[Print curated examples block and exit]' \
+'--refresh[Bypass store read, still write response to store]' \
+'--no-cache[Disable entity store entirely (no read, no write)]' \
+'--cache-only[Only serve from local store; never make API requests]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'::name -- Schema name to print. Omit to print the universal success envelope:_default' \
 && ret=0
 ;;
 (help)
@@ -810,7 +1722,7 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:bird-help-watchlist-command-$line[1]:"
         case $line[1] in
-            (check)
+            (fetch)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -918,6 +1830,34 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(skill)
+_arguments "${_arguments_options[@]}" : \
+":: :_bird__help__skill_commands" \
+"*::: :->skill" \
+&& ret=0
+
+    case $state in
+    (skill)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:bird-help-skill-command-$line[1]:"
+        case $line[1] in
+            (install)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(schema)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -962,6 +1902,8 @@ _bird_commands() {
 'doctor:Show what is available\: xurl status, commands, and entity store health' \
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
+'skill:Manage the bird agent-skill bundle (install for Claude Code, etc.)' \
+'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird commands' commands "$@"
@@ -1080,6 +2022,8 @@ _bird__help_commands() {
 'doctor:Show what is available\: xurl status, commands, and entity store health' \
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
+'skill:Manage the bird agent-skill bundle (install for Claude Code, etc.)' \
+'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird help commands' commands "$@"
@@ -1192,10 +2136,33 @@ _bird__help__repost_commands() {
     local commands; commands=()
     _describe -t commands 'bird help repost commands' commands "$@"
 }
+(( $+functions[_bird__help__schema_commands] )) ||
+_bird__help__schema_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird help schema commands' commands "$@"
+}
 (( $+functions[_bird__help__search_commands] )) ||
 _bird__help__search_commands() {
     local commands; commands=()
     _describe -t commands 'bird help search commands' commands "$@"
+}
+(( $+functions[_bird__help__skill_commands] )) ||
+_bird__help__skill_commands() {
+    local commands; commands=(
+'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Update the installed bird skill bundle to the embedded version' \
+    )
+    _describe -t commands 'bird help skill commands' commands "$@"
+}
+(( $+functions[_bird__help__skill__install_commands] )) ||
+_bird__help__skill__install_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird help skill install commands' commands "$@"
+}
+(( $+functions[_bird__help__skill__update_commands] )) ||
+_bird__help__skill__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird help skill update commands' commands "$@"
 }
 (( $+functions[_bird__help__thread_commands] )) ||
 _bird__help__thread_commands() {
@@ -1240,7 +2207,7 @@ _bird__help__usage_commands() {
 (( $+functions[_bird__help__watchlist_commands] )) ||
 _bird__help__watchlist_commands() {
     local commands; commands=(
-'check:Check recent activity for all watched users' \
+'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
 'remove:Remove a user from the watchlist' \
 'list:Show the current watchlist' \
@@ -1252,10 +2219,10 @@ _bird__help__watchlist__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird help watchlist add commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist__check_commands] )) ||
-_bird__help__watchlist__check_commands() {
+(( $+functions[_bird__help__watchlist__fetch_commands] )) ||
+_bird__help__watchlist__fetch_commands() {
     local commands; commands=()
-    _describe -t commands 'bird help watchlist check commands' commands "$@"
+    _describe -t commands 'bird help watchlist fetch commands' commands "$@"
 }
 (( $+functions[_bird__help__watchlist__list_commands] )) ||
 _bird__help__watchlist__list_commands() {
@@ -1312,10 +2279,58 @@ _bird__repost_commands() {
     local commands; commands=()
     _describe -t commands 'bird repost commands' commands "$@"
 }
+(( $+functions[_bird__schema_commands] )) ||
+_bird__schema_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird schema commands' commands "$@"
+}
 (( $+functions[_bird__search_commands] )) ||
 _bird__search_commands() {
     local commands; commands=()
     _describe -t commands 'bird search commands' commands "$@"
+}
+(( $+functions[_bird__skill_commands] )) ||
+_bird__skill_commands() {
+    local commands; commands=(
+'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Update the installed bird skill bundle to the embedded version' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'bird skill commands' commands "$@"
+}
+(( $+functions[_bird__skill__help_commands] )) ||
+_bird__skill__help_commands() {
+    local commands; commands=(
+'install:Install the bird skill bundle into a host'\''s canonical skills directory' \
+'update:Update the installed bird skill bundle to the embedded version' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'bird skill help commands' commands "$@"
+}
+(( $+functions[_bird__skill__help__help_commands] )) ||
+_bird__skill__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird skill help help commands' commands "$@"
+}
+(( $+functions[_bird__skill__help__install_commands] )) ||
+_bird__skill__help__install_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird skill help install commands' commands "$@"
+}
+(( $+functions[_bird__skill__help__update_commands] )) ||
+_bird__skill__help__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird skill help update commands' commands "$@"
+}
+(( $+functions[_bird__skill__install_commands] )) ||
+_bird__skill__install_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird skill install commands' commands "$@"
+}
+(( $+functions[_bird__skill__update_commands] )) ||
+_bird__skill__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird skill update commands' commands "$@"
 }
 (( $+functions[_bird__thread_commands] )) ||
 _bird__thread_commands() {
@@ -1360,7 +2375,7 @@ _bird__usage_commands() {
 (( $+functions[_bird__watchlist_commands] )) ||
 _bird__watchlist_commands() {
     local commands; commands=(
-'check:Check recent activity for all watched users' \
+'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
 'remove:Remove a user from the watchlist' \
 'list:Show the current watchlist' \
@@ -1373,15 +2388,15 @@ _bird__watchlist__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist add commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__check_commands] )) ||
-_bird__watchlist__check_commands() {
+(( $+functions[_bird__watchlist__fetch_commands] )) ||
+_bird__watchlist__fetch_commands() {
     local commands; commands=()
-    _describe -t commands 'bird watchlist check commands' commands "$@"
+    _describe -t commands 'bird watchlist fetch commands' commands "$@"
 }
 (( $+functions[_bird__watchlist__help_commands] )) ||
 _bird__watchlist__help_commands() {
     local commands; commands=(
-'check:Check recent activity for all watched users' \
+'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
 'remove:Remove a user from the watchlist' \
 'list:Show the current watchlist' \
@@ -1394,10 +2409,10 @@ _bird__watchlist__help__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help add commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__check_commands] )) ||
-_bird__watchlist__help__check_commands() {
+(( $+functions[_bird__watchlist__help__fetch_commands] )) ||
+_bird__watchlist__help__fetch_commands() {
     local commands; commands=()
-    _describe -t commands 'bird watchlist help check commands' commands "$@"
+    _describe -t commands 'bird watchlist help fetch commands' commands "$@"
 }
 (( $+functions[_bird__watchlist__help__help_commands] )) ||
 _bird__watchlist__help__help_commands() {
