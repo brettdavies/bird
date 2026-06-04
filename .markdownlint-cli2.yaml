@@ -1,5 +1,9 @@
-# Project markdownlint-cli2 configuration
-# Mirrors ~/.markdownlint-cli2.yaml (global config doesn't resolve from project dirs)
+# Global markdownlint-cli2 configuration
+# Canonical version: 2026.04.15
+# Symlinked to ~/.markdownlint-cli2.yaml via stow
+#
+# Per-repo copies should preserve the `Canonical version` line above and bump it on resync;
+# a stale calver compared to this file is the signal that the per-repo copy has drifted.
 #
 # Documentation: https://github.com/DavidAnson/markdownlint-cli2
 # Rules: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
@@ -20,6 +24,10 @@ config:
   # MD007: Unordered list indentation - 2 spaces
   MD007:
     indent: 2
+
+  # MD009: Trailing spaces - allow 2 spaces for line breaks
+  MD009:
+    br_spaces: 2
 
   # MD013: Line length - 120 chars (more reasonable for code docs)
   MD013:
@@ -46,7 +54,6 @@ config:
       - "sub"
       - "sup"
       - "kbd"
-      - "str"
 
   # MD034: Bare URLs - allow (common in docs)
   MD034: false
@@ -70,8 +77,8 @@ ignores:
   - "node_modules/**"
   - "**/node_modules/**"
   - "vendor/**"
+  - "target/**"  # Rust build artifacts; harmless for non-Rust projects
   - ".git/**"
-  - "target/**"
   - "*.min.md"
 
 # Fix automatically when --fix is used

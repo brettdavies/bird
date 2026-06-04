@@ -75,15 +75,18 @@ mod tests {
 
     #[test]
     fn validate_username_valid() {
-        assert_eq!(validate_username("elonmusk").unwrap(), "elonmusk");
-        assert_eq!(validate_username("a").unwrap(), "a");
-        assert_eq!(validate_username("user_name_123").unwrap(), "user_name_123");
-        assert_eq!(validate_username("A_B_C").unwrap(), "A_B_C");
+        assert_eq!(validate_username("elonmusk").expect("test"), "elonmusk");
+        assert_eq!(validate_username("a").expect("test"), "a");
+        assert_eq!(
+            validate_username("user_name_123").expect("test"),
+            "user_name_123"
+        );
+        assert_eq!(validate_username("A_B_C").expect("test"), "A_B_C");
     }
 
     #[test]
     fn validate_username_strips_at() {
-        assert_eq!(validate_username("@elonmusk").unwrap(), "elonmusk");
+        assert_eq!(validate_username("@elonmusk").expect("test"), "elonmusk");
     }
 
     #[test]

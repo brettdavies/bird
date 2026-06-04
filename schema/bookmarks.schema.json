@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/bookmarks-v1.json",
+  "title": "bird bookmarks payload",
+  "description": "Shape of the data payload returned by `bird bookmarks` under --output json. Under --output jsonl, one tweet object is emitted per line WITHOUT the success-envelope wrapper.",
+  "type": "object",
+  "required": ["tweets"],
+  "properties": {
+    "tweets": {
+      "type": "array",
+      "description": "List of bookmarked tweets, normalized from the X API response.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Tweet ID (numeric string)."
+          },
+          "text": {
+            "type": "string",
+            "description": "Tweet body text."
+          },
+          "author_id": {
+            "type": "string",
+            "description": "Authoring user's numeric ID."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "RFC 3339 timestamp of tweet creation."
+          },
+          "public_metrics": {
+            "type": "object",
+            "description": "Engagement counts (likes, retweets, replies, etc.)."
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "users": {
+      "type": "array",
+      "description": "Author user objects keyed by ID (X API includes block).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "next_cursor": {
+      "type": ["string", "null"],
+      "description": "Pagination token; null when no more pages."
+    }
+  },
+  "additionalProperties": true
+}

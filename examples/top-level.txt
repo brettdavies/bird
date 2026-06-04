@@ -1,0 +1,30 @@
+Examples:
+  bird me                                       # show current user (text)
+  bird me --output json                         # show current user (paired JSON)
+  bird login                                    # OAuth2 browser sign-in
+  bird login --no-browser                       # OAuth2 paste-back for agents
+  bird bookmarks                                # list bookmarks (text)
+  bird bookmarks --output json                  # list bookmarks (paired JSON)
+  bird profile jack                             # look up @jack
+  bird search "from:elonmusk has:media" --pages 2
+  bird thread 1734567890123456789               # reconstruct a conversation
+  bird get /2/tweets/1734567890123456789        # arbitrary GET
+  bird post /2/tweets --body '{"text":"hello"}' # arbitrary POST
+  bird tweet "shipping anc compliance"          # write tweet
+  bird like 1734567890123456789                 # like a tweet
+  bird follow jack                              # follow a user
+  bird dm jack "great work today"               # direct message
+  bird watchlist add jack                       # manage watchlist
+  bird watchlist check                          # check watched users
+  bird usage --since 2026-05-01                 # API cost breakdown
+  bird doctor                                   # diagnose environment
+  bird cache stats                              # store health (text)
+  bird cache stats --output json                # store health (paired JSON)
+  bird completions zsh > _bird                  # shell completions
+  bird skill install                            # install agent-skill bundle
+
+Environment:
+  BIRD_OUTPUT=json bird me                      # env-driven JSON
+  BIRD_QUIET=1 bird bookmarks                   # suppress stderr diagnostics
+
+Use --examples for this list, --help on any subcommand for its example block.

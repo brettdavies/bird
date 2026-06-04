@@ -1,0 +1,5 @@
+Examples:
+  bird watchlist check                              # text summary
+  bird watchlist check --output json                # paired JSON
+  bird watchlist check --pretty
+  BIRD_QUIET=1 bird watchlist check --output json   # suppress diagnostics

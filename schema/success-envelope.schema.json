@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/success-envelope-v1.json",
+  "title": "bird success envelope",
+  "description": "Universal success-response shape for bird subcommands emitting --output json. Streaming subcommands using --output jsonl write one payload object per line WITHOUT this wrapper.",
+  "type": "object",
+  "required": ["data", "meta"],
+  "properties": {
+    "data": {
+      "description": "Subcommand-specific payload. See per-command schemas (bookmarks, search, thread, profile, ...) for the shape this object takes.",
+      "type": ["object", "array", "string", "number", "boolean", "null"]
+    },
+    "meta": {
+      "description": "Non-payload metadata: pagination, truncation, dry-run flags. Always present, possibly an empty object.",
+      "type": "object",
+      "properties": {
+        "next_cursor": {
+          "type": ["string", "null"],
+          "description": "Pagination token for fetching the next page; null/absent when no more pages."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when the response was clamped by --limit before returning."
+        },
+        "format": {
+          "type": "string",
+          "description": "Hint about embedded payload encoding (e.g. \"text\" when data wraps a plain-text body)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Free-form status tag (e.g. \"store-unavailable\")."
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

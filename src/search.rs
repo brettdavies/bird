@@ -2,7 +2,6 @@
 
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
@@ -16,15 +15,22 @@ pub struct SearchOpts<'a> {
     pub min_likes: Option<u64>,
     pub max_results: u32,
     pub pages: u32,
+    /// Initial pagination cursor (X API `next_token`).
+    pub cursor: Option<&'a str>,
 }
 
+/// Signature takes `&OutputConfig` and injected stdout/stderr writers
+/// (Plan 2 U2/U6); per-line stdout writes through `writeln!(stdout, ...)`
+/// (R13) and diagnostic sites follow the KTD-1 guarded pattern (R15).
 pub fn run_search(
     client: &mut BirdClient,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
     opts: SearchOpts<'_>,
-    use_color: bool,
-    quiet: bool,
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let quiet = cfg.suppress_diag();
     // Validate sort key before any API calls (fail fast)
     if !matches!(opts.sort, "recent" | "likes") {
         return Err(format!(
@@ -45,7 +51,7 @@ pub fn run_search(
     let mut seen_ids: HashSet<String> = HashSet::new();
     let mut all_users: Vec<serde_json::Value> = Vec::new();
     let mut seen_user_ids: HashSet<String> = HashSet::new();
-    let mut next_token: Option<String> = None;
+    let mut next_token: Option<String> = opts.cursor.map(|s| s.to_string());
     let mut pages_fetched: u32 = 0;
 
     for page_num in 1..=opts.pages {
@@ -57,7 +63,7 @@ pub fn run_search(
             return Err(format!(
                 "GET search {}: {}",
                 response.status,
-                output::sanitize_for_stderr(&response.body, 200)
+                output::sanitize_for_stderr(&response.body(), 200)
             )
             .into());
         }
@@ -65,7 +71,7 @@ pub fn run_search(
         let page = response.json.ok_or("invalid JSON from search")?;
 
         let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&estimate, use_color, quiet);
+        cost::display_cost(cfg, stderr, &estimate);
 
         // Break on empty data (handles phantom next_token)
         let data = match page.get("data").and_then(|d| d.as_array()) {
@@ -106,14 +112,17 @@ pub fn run_search(
             }
         }
 
-        diag!(
-            quiet,
-            "[search] page {}/{}: {} new tweets ({} total)",
-            page_num,
-            opts.pages,
-            passed,
-            all_tweets.len()
-        );
+        if !quiet {
+            writeln!(
+                stderr,
+                "[search] page {}/{}: {} new tweets ({} total)",
+                page_num,
+                opts.pages,
+                passed,
+                all_tweets.len()
+            )
+            .ok();
+        }
 
         // Extract next_token
         next_token = page
@@ -135,31 +144,44 @@ pub fn run_search(
     // Post-fetch sorting
     sort_tweets(&mut all_tweets, opts.sort);
 
-    // Build output JSON preserving API response shape
+    // Build output JSON preserving API response shape, and surface the
+    // next cursor (if any) via `meta.next_cursor` so agents can paginate.
+    let mut meta = serde_json::Map::new();
+    if let Some(tok) = next_token.as_ref() {
+        meta.insert(
+            "next_cursor".to_string(),
+            serde_json::Value::String(tok.clone()),
+        );
+    }
     let output = serde_json::json!({
         "data": all_tweets,
         "includes": { "users": all_users },
+        "meta": serde_json::Value::Object(meta),
     });
 
     if opts.pretty {
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
     } else {
-        println!("{}", serde_json::to_string(&output)?);
+        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
     }
 
-    diag!(
-        quiet,
-        "[search] {} results | sorted by {} | {} pages fetched",
-        all_tweets.len(),
-        opts.sort,
-        pages_fetched
-    );
+    if !quiet {
+        writeln!(
+            stderr,
+            "[search] {} results | sorted by {} | {} pages fetched",
+            all_tweets.len(),
+            opts.sort,
+            pages_fetched
+        )
+        .ok();
+    }
 
     Ok(())
 }
 
 fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> String {
-    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent").unwrap();
+    let mut url = url::Url::parse("https://api.x.com/2/tweets/search/recent")
+        .expect("invariant: constant search endpoint URL is well-formed");
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);

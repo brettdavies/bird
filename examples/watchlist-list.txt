@@ -1,0 +1,4 @@
+Examples:
+  bird watchlist list                               # text list
+  bird watchlist list --output json                 # paired JSON
+  bird watchlist list --pretty

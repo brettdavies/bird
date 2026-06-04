@@ -1,175 +1,234 @@
-use assert_cmd::Command;
-use predicates::prelude::*;
-use std::path::Path;
+//! Library-style smoke tests.
+//!
+//! Every test runs in-process via [`common::run_in_process`]; both the exit
+//! code and the captured stdout/stderr content are asserted where the
+//! runner's writer-injection makes them observable.
+//!
+//! The transport layer holds the resolved xurl path on the
+//! [`bird::transport::XurlTransport`] instance constructed per call, so
+//! `xurl_path`-touching tests are safe to run in-process. The remaining
+//! subprocess holdouts in [`tests/cli_smoke_subprocess.rs`] cover clap's
+//! `e.print()` help/version path and env-var-only flag paths.
+//!
+//! The `every_subcommand_help_has_example` and
+//! `nested_subcommand_help_has_example` tests call clap's
+//! [`clap::Command::write_help`] directly on the parsed [`bird::cli::Cli`]
+//! command tree — no runner, no subprocess.
 
-fn bird() -> Command {
-    assert_cmd::cargo::cargo_bin_cmd!("bird")
-}
+use clap::CommandFactory;
 
-/// Set HOME and XDG_CONFIG_HOME to isolate config from the CI environment.
-/// Without this, XDG_CONFIG_HOME (if set on the runner) overrides HOME,
-/// causing parallel tests to share one config file — a race condition.
-fn with_temp_home<'a>(cmd: &'a mut Command, tmp: &Path) -> &'a mut Command {
-    cmd.env("HOME", tmp)
-        .env("XDG_CONFIG_HOME", tmp.join(".config"))
-}
+mod common;
 
-#[test]
-fn version_flag() {
-    bird()
-        .arg("--version")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("bird"));
-}
-
-#[test]
-fn help_flag() {
-    bird()
-        .arg("--help")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Usage:").or(predicate::str::contains("usage:")));
-}
+// --- Exit-only migrations -------------------------------------------------
 
 #[test]
 fn no_args_shows_usage() {
-    bird().assert().failure().code(2);
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird"], &env);
+    assert_eq!(exit, 2);
 }
 
 #[test]
 fn watchlist_list_empty_config() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "list"])
-        .assert()
-        .success();
-}
-
-#[test]
-fn watchlist_add_and_list() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    // Add alice
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "add", "alice"])
-        .assert()
-        .success();
-    // List should contain alice
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "list"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("alice"));
-}
-
-#[test]
-fn watchlist_add_remove_list() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "add", "alice"])
-        .assert()
-        .success();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "remove", "alice"])
-        .assert()
-        .success();
-    // List should be empty (no "alice")
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "list"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("alice").not());
-}
-
-#[test]
-fn username_invalid_chars_rejected() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--username", "'; DROP TABLE", "doctor"])
-        .env("NO_COLOR", "1")
-        .assert()
-        .failure()
-        .code(78)
-        .stderr(predicate::str::contains("--username"));
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "watchlist", "list"], &env);
+    assert_eq!(exit, 0);
+    // Empty config → empty JSON array on stdout (default output mode in a
+    // non-TTY test environment is JSON per the runner's auto-detect path).
+    assert_eq!(stdout.trim(), "[]");
 }
 
 #[test]
 fn username_at_prefix_normalized() {
     // @validuser should be accepted (normalized to validuser).
     // Doctor runs successfully — the username value is valid after stripping @.
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--username", "@validuser", "doctor"])
-        .env("NO_COLOR", "1")
-        .assert()
-        .success();
-}
-
-// --- Completions tests ---
-
-#[test]
-fn completions_bash_exits_zero() {
-    bird()
-        .args(["completions", "bash"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn completions_zsh_contains_function_name() {
-    bird()
-        .args(["completions", "zsh"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("_bird"));
-}
-
-#[test]
-fn completions_fish_exits_zero() {
-    bird()
-        .args(["completions", "fish"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn completions_powershell_exits_zero() {
-    bird()
-        .args(["completions", "powershell"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn completions_elvish_exits_zero() {
-    bird()
-        .args(["completions", "elvish"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) =
+        common::run_in_process(&["bird", "--username", "@validuser", "doctor"], &env);
+    assert_eq!(exit, 0);
 }
 
 #[test]
 fn completions_invalid_shell_exits_two() {
-    bird()
-        .args(["completions", "invalid-shell"])
-        .assert()
-        .failure()
-        .code(2);
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) =
+        common::run_in_process(&["bird", "completions", "invalid-shell"], &env);
+    assert_eq!(exit, 2);
 }
 
 #[test]
 fn completions_no_argument_exits_two() {
-    bird().args(["completions"]).assert().failure().code(2);
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "completions"], &env);
+    assert_eq!(exit, 2);
+}
+
+#[test]
+fn completions_does_not_create_config() {
+    let env = common::TestEnv::new();
+    let config_dir = env.paths.config_dir.clone();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
+    // Completions should not populate the config directory with state files.
+    // `TestEnv::new()` pre-creates the directory itself, so check for the
+    // bird config.toml that would be written if the loader ran.
+    assert!(
+        !config_dir.join("config.toml").exists(),
+        "completions should not create config.toml"
+    );
+}
+
+#[test]
+fn usage_sync_flag_rejected() {
+    // --sync should be rejected by clap (unknown flag)
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "usage", "--sync"], &env);
+    assert_eq!(exit, 2);
+}
+
+#[test]
+fn invalid_flag_exits_two() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "--invalid-flag"], &env);
+    assert_eq!(exit, 2);
+}
+
+#[test]
+fn watchlist_remove_yes_alias_proceeds() {
+    let env = common::TestEnv::new();
+    let (exit_add, _, _) = common::run_in_process(&["bird", "watchlist", "add", "alice"], &env);
+    assert_eq!(exit_add, 0);
+    let (exit_remove, _, _) =
+        common::run_in_process(&["bird", "watchlist", "remove", "alice", "--yes"], &env);
+    assert_eq!(exit_remove, 0);
+}
+
+#[test]
+fn login_no_browser_parses() {
+    // With closed stdin and an isolated HOME, the command must reach the headless
+    // path and exit non-zero (xurl absent or rejects empty redirect URL) — not a
+    // clap usage error.
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "login", "--no-browser"], &env);
+    assert_ne!(exit, 2, "clap usage error: --no-browser not recognized");
+}
+
+#[test]
+fn login_headless_alias_parses() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "login", "--headless"], &env);
+    assert_ne!(exit, 2, "clap usage error: --headless alias not recognized");
+}
+
+// --- Content-asserting migrations from cli_smoke_subprocess.rs (Plan 2 U11) -
+
+#[test]
+fn watchlist_add_and_list() {
+    let env = common::TestEnv::new();
+    let (exit_add, _, _) = common::run_in_process(&["bird", "watchlist", "add", "alice"], &env);
+    assert_eq!(exit_add, 0);
+    let (exit_list, stdout, _) = common::run_in_process(&["bird", "watchlist", "list"], &env);
+    assert_eq!(exit_list, 0);
+    assert!(
+        stdout.contains("alice"),
+        "watchlist list stdout should contain alice, got: {:?}",
+        stdout
+    );
+}
+
+#[test]
+fn watchlist_add_remove_list() {
+    let env = common::TestEnv::new();
+    let (exit_add, _, _) = common::run_in_process(&["bird", "watchlist", "add", "alice"], &env);
+    assert_eq!(exit_add, 0);
+    let (exit_rm, _, _) =
+        common::run_in_process(&["bird", "watchlist", "remove", "alice", "--force"], &env);
+    assert_eq!(exit_rm, 0);
+    let (exit_list, stdout, _) = common::run_in_process(&["bird", "watchlist", "list"], &env);
+    assert_eq!(exit_list, 0);
+    assert!(
+        !stdout.contains("alice"),
+        "watchlist list should not contain alice after remove, got: {:?}",
+        stdout
+    );
+}
+
+#[test]
+fn username_invalid_chars_rejected() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "--output",
+            "text",
+            "--username",
+            "'; DROP TABLE",
+            "doctor",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 78);
+    assert!(
+        stderr.contains("--username"),
+        "stderr should mention --username, got: {:?}",
+        stderr
+    );
+}
+
+// --- Completions content assertions ---------------------------------------
+
+#[test]
+fn completions_bash_exits_zero() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty(), "completions bash must emit stdout");
+}
+
+#[test]
+fn completions_zsh_contains_function_name() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "zsh"], &env);
+    assert_eq!(exit, 0);
+    assert!(
+        stdout.contains("_bird"),
+        "zsh completions should mention `_bird` function name"
+    );
+}
+
+#[test]
+fn completions_fish_exits_zero() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "fish"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty(), "completions fish must emit stdout");
+}
+
+#[test]
+fn completions_powershell_exits_zero() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "completions", "powershell"], &env);
+    assert_eq!(exit, 0);
+    assert!(
+        !stdout.is_empty(),
+        "completions powershell must emit stdout"
+    );
+}
+
+#[test]
+fn completions_elvish_exits_zero() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "elvish"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty(), "completions elvish must emit stdout");
 }
 
 #[test]
 fn completions_bash_contains_subcommand_names() {
-    let output = bird().args(["completions", "bash"]).output().unwrap();
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
     assert!(
         stdout.contains("me"),
         "bash completions should contain 'me' subcommand"
@@ -186,218 +245,388 @@ fn completions_bash_contains_subcommand_names() {
 
 #[test]
 fn completions_bash_output_is_substantial() {
-    let output = bird().args(["completions", "bash"]).output().unwrap();
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
     assert!(
-        output.stdout.len() > 1024,
+        stdout.len() > 1024,
         "bash completions should be >1KB for 28+ subcommands, got {} bytes",
-        output.stdout.len()
+        stdout.len()
     );
 }
 
-#[test]
-fn completions_works_without_xurl() {
-    bird()
-        .args(["completions", "bash"])
-        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn completions_does_not_create_config() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["completions", "bash"])
-        .assert()
-        .success();
-    // Completions should not create any config directory
-    assert!(
-        !tmp.path().join(".config/bird").exists(),
-        "completions should not create config directory"
-    );
-}
-
-// --- Quiet flag tests ---
-
-#[test]
-fn quiet_flag_with_help() {
-    bird()
-        .args(["--quiet", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Usage:").or(predicate::str::contains("usage:")));
-}
-
-#[test]
-fn quiet_flag_accepted_by_clap() {
-    // --quiet with completions should succeed (no xurl needed)
-    bird()
-        .args(["--quiet", "completions", "bash"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn quiet_short_flag_accepted() {
-    bird()
-        .args(["-q", "completions", "bash"])
-        .assert()
-        .success()
-        .stdout(predicate::str::is_empty().not());
-}
-
-#[test]
-fn bird_quiet_env_var_activates_quiet() {
-    // BIRD_QUIET=1 should suppress stderr diagnostics
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["watchlist", "list"])
-        .env("BIRD_QUIET", "1")
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
-}
-
-#[test]
-fn bird_quiet_env_var_zero_does_not_activate() {
-    // BIRD_QUIET=0 should NOT suppress stderr (FalseyValueParser)
-    // --output text forces text mode in non-TTY test environment
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "text", "watchlist", "list"])
-        .env("BIRD_QUIET", "0")
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("Watchlist is empty"));
-}
+// --- Quiet-flag content assertions (env-var variants stay subprocess) -----
 
 #[test]
 fn quiet_flag_suppresses_watchlist_empty_hint() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--quiet", "watchlist", "list"])
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
-}
-
-#[test]
-fn quiet_flag_suppresses_watchlist_add_confirmation() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--quiet", "watchlist", "add", "alice"])
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
-}
-
-#[test]
-fn quiet_flag_suppresses_watchlist_remove_message() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--quiet", "watchlist", "remove", "alice"])
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
-}
-
-#[test]
-fn invalid_flag_exits_two() {
-    bird().arg("--invalid-flag").assert().failure().code(2);
-}
-
-// --- JSON error output tests ---
-
-#[test]
-fn output_json_config_error_schema() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "--username", "'; DROP TABLE", "doctor"])
-        .output()
-        .unwrap();
-
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
-    assert_eq!(json["code"], 78);
-    assert!(json["error"].as_str().is_some());
-    assert!(json.get("command").is_none());
-}
-
-#[test]
-fn output_json_command_error_schema() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "me"])
-        .env("BIRD_XURL_PATH", "/tmp/nonexistent_xurl_12345")
-        .output()
-        .unwrap();
-
-    // xurl not found => config error (exit 78)
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
-    assert_eq!(json["code"], 78);
-}
-
-#[test]
-fn output_json_suppresses_diagnostics() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "watchlist", "list"])
-        .assert()
-        .success()
-        .stderr(predicate::str::is_empty());
-}
-
-#[test]
-fn output_text_explicit_shows_text_errors() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "text", "--username", "'; DROP TABLE", "doctor"])
-        .output()
-        .unwrap();
-
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--quiet", "watchlist", "list"], &env);
+    assert_eq!(exit, 0);
     assert!(
-        stderr.contains("config failed:"),
-        "Text mode should show human-readable errors, got: {}",
+        stderr.is_empty(),
+        "--quiet must suppress the watchlist empty hint, got stderr: {:?}",
         stderr
     );
 }
 
 #[test]
-fn bird_output_env_var_json() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--username", "'; DROP TABLE", "doctor"])
-        .env("BIRD_OUTPUT", "json")
-        .output()
-        .unwrap();
+fn quiet_flag_suppresses_watchlist_add_confirmation() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--quiet", "watchlist", "add", "alice"], &env);
+    assert_eq!(exit, 0);
+    assert!(
+        stderr.is_empty(),
+        "--quiet must suppress the watchlist add confirmation, got stderr: {:?}",
+        stderr
+    );
+}
 
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
+#[test]
+fn quiet_flag_suppresses_watchlist_remove_message() {
+    let env = common::TestEnv::new();
+    let (_, _, _) = common::run_in_process(&["bird", "watchlist", "add", "alice"], &env);
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &["bird", "--quiet", "watchlist", "remove", "alice", "--force"],
+        &env,
+    );
+    assert_eq!(exit, 0);
+    assert!(
+        stderr.is_empty(),
+        "--quiet must suppress the watchlist remove message, got stderr: {:?}",
+        stderr
+    );
+}
+
+#[test]
+fn quiet_flag_accepted_by_clap() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "--quiet", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty());
+}
+
+#[test]
+fn quiet_short_flag_accepted() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "-q", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty());
+}
+
+// --- Write-op guards (--force / --yes / --dry-run) ------------------------
+
+#[test]
+fn delete_without_force_or_tty_is_usage_error() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &["bird", "delete", "/2/tweets/123", "--output", "json"],
+        &env,
+    );
+    assert_eq!(exit, 2);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["error"], "requires-confirmation");
+    assert_eq!(json["kind"], "usage");
+}
+
+#[test]
+fn delete_dry_run_emits_envelope_and_skips_request() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(
+        &[
+            "bird",
+            "delete",
+            "/2/tweets/123",
+            "--dry-run",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 0);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["data"]["would"]["method"], "DELETE");
+}
+
+#[test]
+fn tweet_dry_run_includes_body() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(
+        &["bird", "tweet", "hi there", "--dry-run", "--output", "json"],
+        &env,
+    );
+    assert_eq!(exit, 0);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["data"]["would"]["body"]["text"], "hi there");
+}
+
+#[test]
+fn cache_clear_dry_run_does_not_clear() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(
+        &["bird", "cache", "clear", "--dry-run", "--output", "json"],
+        &env,
+    );
+    assert_eq!(exit, 0);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(json["data"]["dry_run"], true);
+}
+
+// --- JSON error output schemas --------------------------------------------
+
+#[test]
+fn output_json_config_error_schema() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "--output",
+            "json",
+            "--username",
+            "'; DROP TABLE",
+            "doctor",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 78);
     let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
     assert_eq!(json["kind"], "config");
+    assert_eq!(json["exit_code"], 78);
+    assert!(json["error"].as_str().is_some());
+    assert!(json.get("command").is_none());
+}
+
+#[test]
+fn output_json_suppresses_diagnostics() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "watchlist", "list"], &env);
+    assert_eq!(exit, 0);
+    assert!(
+        stderr.is_empty(),
+        "--output json must suppress diagnostics, got stderr: {:?}",
+        stderr
+    );
+}
+
+#[test]
+fn output_text_explicit_shows_text_errors() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "--output",
+            "text",
+            "--username",
+            "'; DROP TABLE",
+            "doctor",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 78);
+    assert!(
+        stderr.contains("config failed:"),
+        "text mode should show human-readable errors, got: {:?}",
+        stderr
+    );
 }
 
 #[test]
 fn non_tty_defaults_to_json_errors() {
-    // In test environment stderr is not a TTY, so auto-detection should pick JSON
-    let tmp = tempfile::TempDir::new().unwrap();
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--username", "'; DROP TABLE", "doctor"])
-        .output()
-        .unwrap();
-
-    assert_eq!(output.status.code(), Some(78));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    // Should be parseable as JSON (auto-detected non-TTY -> json)
+    // Cargo test harness runs non-TTY, so the runner's auto-detect must pick JSON.
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--username", "'; DROP TABLE", "doctor"], &env);
+    assert_eq!(exit, 78);
     let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
     assert_eq!(json["kind"], "config");
+}
+
+// --- `--examples` block ---------------------------------------------------
+
+#[test]
+fn examples_flag_prints_block() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "--examples", "--output", "text"], &env);
+    assert_eq!(exit, 0, "--examples must exit zero");
+    assert!(stdout.contains("Examples:"));
+    assert!(stdout.contains("bird me"));
+    assert!(stdout.contains("--output json"));
+}
+
+#[test]
+fn examples_flag_json_envelope() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "--examples", "--output", "json"], &env);
+    assert_eq!(exit, 0);
+    let val: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("--examples --output json must emit JSON");
+    let data = val.get("data").expect("envelope must have data");
+    let arr = data.as_array().expect("data must be an array");
+    assert!(!arr.is_empty(), "examples data array must be non-empty");
+    assert!(
+        arr.iter()
+            .any(|v| v.as_str().is_some_and(|s| s.starts_with("bird "))),
+        "every example should start with `bird `"
+    );
+    assert!(val.get("meta").is_some(), "envelope must have meta");
+}
+
+/// `bird --examples --output json` smoke-checks that captured stdout carries
+/// content — guards against any future regression that re-introduces a real
+/// stdout bypass for runner short-circuits.
+#[test]
+fn run_in_process_captures_stdout_for_examples() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "--examples"], &env);
+    assert_eq!(exit, 0);
+    assert!(
+        stdout.contains("bird"),
+        "stdout should contain bird example invocations: {:?}",
+        stdout
+    );
+}
+
+// --- Structural migrations via clap::Command::write_help ------------------
+
+/// Every subcommand's `--help` must include an example invocation line
+/// (matches anc's p3-must-subcommand-examples detection rules).
+///
+/// Migrated to library-style by walking `Cli::command().get_subcommands()` and
+/// calling `clap::Command::write_help` directly — bypasses both the runner and
+/// the subprocess path; clap renders the same bytes either way.
+#[test]
+fn every_subcommand_help_has_example() {
+    let subcommands = [
+        "login",
+        "me",
+        "get",
+        "post",
+        "put",
+        "bookmarks",
+        "profile",
+        "search",
+        "thread",
+        "delete",
+        "watchlist",
+        "usage",
+        "tweet",
+        "reply",
+        "like",
+        "unlike",
+        "repost",
+        "unrepost",
+        "follow",
+        "unfollow",
+        "dm",
+        "block",
+        "unblock",
+        "mute",
+        "unmute",
+        "doctor",
+        "cache",
+        "completions",
+        "skill",
+    ];
+    let mut cli = bird::cli::Cli::command();
+    for sub_name in subcommands {
+        let sub = cli
+            .find_subcommand_mut(sub_name)
+            .unwrap_or_else(|| panic!("subcommand `{sub_name}` missing from Cli"));
+        let mut buf: Vec<u8> = Vec::new();
+        sub.write_help(&mut buf)
+            .unwrap_or_else(|e| panic!("write_help({sub_name}): {e}"));
+        let stdout = String::from_utf8_lossy(&buf);
+        let has_marker = stdout.contains("Examples:")
+            || stdout.contains("EXAMPLES")
+            || stdout
+                .lines()
+                .any(|l| l.trim_start().starts_with("bird ") || l.trim_start().starts_with("$ "));
+        assert!(
+            has_marker,
+            "`bird {sub_name} --help` missing example marker; got:\n{stdout}"
+        );
+    }
+}
+
+/// Nested subcommands also need their own example blocks (anc walks each).
+#[test]
+fn nested_subcommand_help_has_example() {
+    let nested = [
+        ("watchlist", "check"),
+        ("watchlist", "add"),
+        ("watchlist", "remove"),
+        ("watchlist", "list"),
+        ("cache", "clear"),
+        ("cache", "stats"),
+    ];
+    let mut cli = bird::cli::Cli::command();
+    for (outer, inner) in nested {
+        let outer_cmd = cli
+            .find_subcommand_mut(outer)
+            .unwrap_or_else(|| panic!("outer subcommand `{outer}` missing"));
+        let inner_cmd = outer_cmd
+            .find_subcommand_mut(inner)
+            .unwrap_or_else(|| panic!("nested subcommand `{outer} {inner}` missing"));
+        let mut buf: Vec<u8> = Vec::new();
+        inner_cmd
+            .write_help(&mut buf)
+            .unwrap_or_else(|e| panic!("write_help({outer} {inner}): {e}"));
+        let stdout = String::from_utf8_lossy(&buf);
+        let has_marker = stdout.contains("Examples:")
+            || stdout.contains("EXAMPLES")
+            || stdout
+                .lines()
+                .any(|l| l.trim_start().starts_with("bird ") || l.trim_start().starts_with("$ "));
+        assert!(
+            has_marker,
+            "`bird {outer} {inner} --help` missing example marker"
+        );
+    }
+}
+
+// --- xurl-path-touching migrations (R22 — transport state, no global cache) -
+
+/// `bird completions <shell>` short-circuits before any xurl resolution.
+/// Pointing the snapshot at a non-existent path proves completions never even
+/// try to spawn xurl.
+#[test]
+fn completions_works_without_xurl() {
+    let env = common::TestEnv::new()
+        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
+    let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
+    assert_eq!(exit, 0);
+    assert!(!stdout.is_empty(), "completions bash must emit stdout");
+}
+
+/// `bird usage --local` must be accepted by clap even when xurl is missing
+/// (the local-only path bypasses xurl). Asserts clap doesn't reject the flag
+/// with exit 2 (the unrecognised-arg code).
+#[test]
+fn usage_local_flag_accepted_by_clap() {
+    let env = common::TestEnv::new()
+        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
+    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "usage", "--local"], &env);
+    assert_ne!(exit, 2, "--local must be accepted by clap");
+}
+
+/// xurl-missing config error must serialize as the canonical error envelope
+/// when `--output json` is set. R22 keeps this assertion in-process because
+/// the resolution result is per-transport state, not a global cache.
+#[test]
+fn output_json_command_error_schema_xurl_missing() {
+    let env = common::TestEnv::new()
+        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
+    let (exit, _stdout, stderr) = common::run_in_process(&["bird", "--output", "json", "me"], &env);
+    assert_eq!(exit, 78);
+    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(json["kind"], "config");
+    assert_eq!(json["exit_code"], 78);
 }

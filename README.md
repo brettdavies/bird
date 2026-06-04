@@ -1,8 +1,8 @@
 # bird
 
-**bird** is a Rust CLI for the X (Twitter) API, built on [xurl](https://github.com/xdevplatform/xurl) for
-authentication and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread
-reconstruction, and structured error output for agents.
+**bird** is a Rust CLI for the X (Twitter) API, built on [xurl](https://github.com/xdevplatform/xurl) for authentication
+and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread reconstruction, and structured
+error output for agents.
 
 ## Why bird?
 
@@ -35,7 +35,7 @@ brew install bird
 
 ```bash
 # From source (requires Rust toolchain)
-cargo install bird
+cargo install --locked bird
 
 # Pre-built binary (fast, no compiler needed)
 cargo binstall bird
@@ -43,8 +43,8 @@ cargo binstall bird
 
 ### From a release
 
-Download the latest binary for your platform from [Releases](https://github.com/brettdavies/bird/releases). Extract
-and place `bird` on your `PATH`.
+Download the latest binary for your platform from [Releases](https://github.com/brettdavies/bird/releases). Extract and
+place `bird` on your `PATH`.
 
 ### From source
 
@@ -57,8 +57,8 @@ cargo build --release
 
 ### Prerequisite: xurl
 
-bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go
-[xurl](https://github.com/xdevplatform/xurl)) for X API authentication:
+bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go [xurl](https://github.com/xdevplatform/xurl))
+for X API authentication:
 
 ```bash
 # Recommended: xurl-rs (Rust)
@@ -104,21 +104,21 @@ No config or app creation needed.
 
 ### Write
 
-| Command                   | Description                |
-| ------------------------- | -------------------------- |
-| `bird tweet <text>`       | Post a tweet               |
-| `bird reply <id> <text>`  | Reply to a tweet           |
-| `bird like <id>`          | Like a tweet               |
-| `bird unlike <id>`        | Unlike a tweet             |
-| `bird repost <id>`        | Repost (retweet) a tweet   |
-| `bird unrepost <id>`      | Undo a repost              |
-| `bird follow <user>`      | Follow a user              |
-| `bird unfollow <user>`    | Unfollow a user            |
-| `bird dm <user> <text>`   | Send a direct message      |
-| `bird block <user>`       | Block a user               |
-| `bird unblock <user>`     | Unblock a user             |
-| `bird mute <user>`        | Mute a user                |
-| `bird unmute <user>`      | Unmute a user              |
+| Command                  | Description              |
+| ------------------------ | ------------------------ |
+| `bird tweet <text>`      | Post a tweet             |
+| `bird reply <id> <text>` | Reply to a tweet         |
+| `bird like <id>`         | Like a tweet             |
+| `bird unlike <id>`       | Unlike a tweet           |
+| `bird repost <id>`       | Repost (retweet) a tweet |
+| `bird unrepost <id>`     | Undo a repost            |
+| `bird follow <user>`     | Follow a user            |
+| `bird unfollow <user>`   | Unfollow a user          |
+| `bird dm <user> <text>`  | Send a direct message    |
+| `bird block <user>`      | Block a user             |
+| `bird unblock <user>`    | Unblock a user           |
+| `bird mute <user>`       | Mute a user              |
+| `bird unmute <user>`     | Unmute a user            |
 
 ### Monitoring
 
@@ -142,14 +142,14 @@ No config or app creation needed.
 
 ### System
 
-| Command                       | Description                                                        |
-| ----------------------------- | ------------------------------------------------------------------ |
-| `bird login`                  | Sign in via browser (delegates to xurl)                            |
-| `bird doctor`                 | Diagnostics: xurl status, auth, commands, store health             |
-| `bird doctor <cmd>`           | Scoped diagnostics for a single command                            |
-| `bird cache stats`            | Entity store status                                                |
-| `bird cache clear`            | Delete all cached entities                                         |
-| `bird completions <shell>`    | Generate shell completions (bash, zsh, fish, powershell, elvish)   |
+| Command                    | Description                                                        |
+| -------------------------- | ------------------------------------------------------------------ |
+| `bird login`               | Sign in via browser (delegates to xurl); `--no-browser` for agents |
+| `bird doctor`              | Diagnostics: xurl status, auth, commands, store health             |
+| `bird doctor <cmd>`        | Scoped diagnostics for a single command                            |
+| `bird cache stats`         | Entity store status                                                |
+| `bird cache clear`         | Delete all cached entities                                         |
+| `bird completions <shell>` | Generate shell completions (bash, zsh, fish, powershell, elvish)   |
 
 ---
 
@@ -186,15 +186,18 @@ Colors and hyperlinks are disabled automatically when stdout is not a TTY or `TE
 
 ## Agent and non-interactive usage
 
-Authentication is handled entirely by xurl. For headless/CI environments where a browser is not available, configure
-auth tokens through xurl's environment variables — see [xurl documentation](https://github.com/xdevplatform/xurl).
+Authentication is handled entirely by xurl. For headless/CI environments where a browser is not available, use `bird
+login --no-browser` (alias `--headless`): bird prints the authorization URL on stdout, then reads the redirect URL back
+from stdin. Under `--output json` the prompt and result are wrapped in the standard envelope so agents can parse them
+programmatically. Tokens are otherwise configurable through xurl's environment variables — see
+[xurl documentation](https://github.com/xdevplatform/xurl).
 
 bird reads one environment variable: `X_API_USERNAME` (or `--username`) to select which stored account xurl should use.
 
 ### Structured error output
 
-Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is
-the default.
+Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is the
+default.
 
 ```json
 {"error":"message","kind":"config","code":78}
@@ -235,12 +238,20 @@ Generate and install completions for your shell:
 # Bash
 bird completions bash > ~/.local/share/bash-completion/completions/bird
 
-# Zsh
-bird completions zsh > ~/.zfunc/_bird
+# Zsh (writes to the first directory on your fpath)
+bird completions zsh > "${fpath[1]}/_bird"
 
 # Fish
 bird completions fish > ~/.config/fish/completions/bird.fish
+
+# PowerShell
+bird completions powershell > bird.ps1
+
+# Elvish
+bird completions elvish > bird.elv
 ```
+
+Pre-generated scripts are also available in `completions/`.
 
 Homebrew users get completions installed automatically.
 
@@ -248,12 +259,12 @@ Homebrew users get completions installed automatically.
 
 ## Documentation
 
-| Doc                                           | Purpose                                                              |
-| --------------------------------------------- | -------------------------------------------------------------------- |
-| [docs/CLI_DESIGN.md](docs/CLI_DESIGN.md)      | Auth requirements, doctor, and error design                          |
-| [docs/DEVELOPER.md](docs/DEVELOPER.md)        | Build from source, architecture, project layout                      |
-| [RELEASING.md](RELEASING.md)                  | Release process and distribution channels                            |
-| [CHANGELOG.md](CHANGELOG.md)                  | Version history (generated by [git-cliff](https://git-cliff.org))    |
+| Doc                                      | Purpose                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| [docs/CLI_DESIGN.md](docs/CLI_DESIGN.md) | Auth requirements, doctor, and error design                       |
+| [docs/DEVELOPER.md](docs/DEVELOPER.md)   | Build from source, architecture, project layout                   |
+| [RELEASES.md](RELEASES.md)               | Release process and distribution channels                         |
+| [CHANGELOG.md](CHANGELOG.md)             | Version history (generated by [git-cliff](https://git-cliff.org)) |
 
 ---
 

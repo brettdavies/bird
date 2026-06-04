@@ -1,0 +1,3 @@
+Examples:
+  bird unblock spambot42                                   # unblock a user
+  bird unblock spambot42 --output json                     # paired JSON

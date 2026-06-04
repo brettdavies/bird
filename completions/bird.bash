@@ -73,8 +73,14 @@ _bird() {
             bird,repost)
                 cmd="bird__repost"
                 ;;
+            bird,schema)
+                cmd="bird__schema"
+                ;;
             bird,search)
                 cmd="bird__search"
+                ;;
+            bird,skill)
+                cmd="bird__skill"
                 ;;
             bird,thread)
                 cmd="bird__thread"
@@ -178,8 +184,14 @@ _bird() {
             bird__help,repost)
                 cmd="bird__help__repost"
                 ;;
+            bird__help,schema)
+                cmd="bird__help__schema"
+                ;;
             bird__help,search)
                 cmd="bird__help__search"
+                ;;
+            bird__help,skill)
+                cmd="bird__help__skill"
                 ;;
             bird__help,thread)
                 cmd="bird__help__thread"
@@ -214,11 +226,17 @@ _bird() {
             bird__help__cache,stats)
                 cmd="bird__help__cache__stats"
                 ;;
+            bird__help__skill,install)
+                cmd="bird__help__skill__install"
+                ;;
+            bird__help__skill,update)
+                cmd="bird__help__skill__update"
+                ;;
             bird__help__watchlist,add)
                 cmd="bird__help__watchlist__add"
                 ;;
-            bird__help__watchlist,check)
-                cmd="bird__help__watchlist__check"
+            bird__help__watchlist,fetch)
+                cmd="bird__help__watchlist__fetch"
                 ;;
             bird__help__watchlist,list)
                 cmd="bird__help__watchlist__list"
@@ -226,11 +244,29 @@ _bird() {
             bird__help__watchlist,remove)
                 cmd="bird__help__watchlist__remove"
                 ;;
+            bird__skill,help)
+                cmd="bird__skill__help"
+                ;;
+            bird__skill,install)
+                cmd="bird__skill__install"
+                ;;
+            bird__skill,update)
+                cmd="bird__skill__update"
+                ;;
+            bird__skill__help,help)
+                cmd="bird__skill__help__help"
+                ;;
+            bird__skill__help,install)
+                cmd="bird__skill__help__install"
+                ;;
+            bird__skill__help,update)
+                cmd="bird__skill__help__update"
+                ;;
             bird__watchlist,add)
                 cmd="bird__watchlist__add"
                 ;;
-            bird__watchlist,check)
-                cmd="bird__watchlist__check"
+            bird__watchlist,fetch)
+                cmd="bird__watchlist__fetch"
                 ;;
             bird__watchlist,help)
                 cmd="bird__watchlist__help"
@@ -244,8 +280,8 @@ _bird() {
             bird__watchlist__help,add)
                 cmd="bird__watchlist__help__add"
                 ;;
-            bird__watchlist__help,check)
-                cmd="bird__watchlist__help__check"
+            bird__watchlist__help,fetch)
+                cmd="bird__watchlist__help__fetch"
                 ;;
             bird__watchlist__help,help)
                 cmd="bird__watchlist__help__help"
@@ -263,7 +299,7 @@ _bird() {
 
     case "${cmd}" in
         bird)
-            opts="-u -q -h -V --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help --version login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions help"
+            opts="-u -o -q -v -h -V --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help --version login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -278,7 +314,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -289,14 +345,34 @@ _bird() {
             return 0
             ;;
         bird__block)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -307,7 +383,7 @@ _bird() {
             return 0
             ;;
         bird__bookmarks)
-            opts="-u -q -h --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -322,7 +398,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -333,7 +429,7 @@ _bird() {
             return 0
             ;;
         bird__cache)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help clear stats help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help clear stats help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -348,7 +444,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -359,7 +475,7 @@ _bird() {
             return 0
             ;;
         bird__cache__clear)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -374,7 +490,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -441,7 +577,7 @@ _bird() {
             return 0
             ;;
         bird__cache__stats)
-            opts="-u -q -h --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -456,7 +592,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -467,7 +623,7 @@ _bird() {
             return 0
             ;;
         bird__completions)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help bash elvish fish powershell zsh"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -482,7 +638,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -493,7 +669,7 @@ _bird() {
             return 0
             ;;
         bird__delete)
-            opts="-p -u -q -h --param --query --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <PATH>"
+            opts="-p -f -u -o -q -v -h --param --query --pretty --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <PATH>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -520,7 +696,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -531,14 +727,34 @@ _bird() {
             return 0
             ;;
         bird__dm)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME> <TEXT>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME> <TEXT>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -549,7 +765,7 @@ _bird() {
             return 0
             ;;
         bird__doctor)
-            opts="-u -q -h --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help [COMMAND]"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help [COMMAND]"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -564,7 +780,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -575,14 +811,34 @@ _bird() {
             return 0
             ;;
         bird__follow)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -593,7 +849,7 @@ _bird() {
             return 0
             ;;
         bird__get)
-            opts="-p -u -q -h --param --query --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <PATH>"
+            opts="-p -u -o -q -v -h --param --query --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <PATH>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -620,7 +876,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -631,7 +907,7 @@ _bird() {
             return 0
             ;;
         bird__help)
-            opts="login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions help"
+            opts="login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -938,9 +1214,65 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        bird__help__schema)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         bird__help__search)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__help__skill)
+            opts="install update"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__help__skill__install)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__help__skill__update)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -1065,7 +1397,7 @@ _bird() {
             return 0
             ;;
         bird__help__watchlist)
-            opts="check add remove list"
+            opts="fetch add remove list"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1092,7 +1424,7 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        bird__help__watchlist__check)
+        bird__help__watchlist__fetch)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -1135,7 +1467,7 @@ _bird() {
             return 0
             ;;
         bird__like)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID>"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1150,7 +1482,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1161,7 +1513,7 @@ _bird() {
             return 0
             ;;
         bird__login)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --no-browser --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1176,7 +1528,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1187,7 +1559,7 @@ _bird() {
             return 0
             ;;
         bird__me)
-            opts="-u -q -h --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1202,7 +1574,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1213,14 +1605,34 @@ _bird() {
             return 0
             ;;
         bird__mute)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1231,7 +1643,7 @@ _bird() {
             return 0
             ;;
         bird__post)
-            opts="-p -u -q -h --param --query --body --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <PATH>"
+            opts="-p -f -u -o -q -v -h --param --query --body --pretty --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <PATH>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1262,7 +1674,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1273,14 +1705,34 @@ _bird() {
             return 0
             ;;
         bird__profile)
-            opts="-q -h --pretty --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-o -q -v -h --pretty --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1291,7 +1743,7 @@ _bird() {
             return 0
             ;;
         bird__put)
-            opts="-p -u -q -h --param --query --body --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <PATH>"
+            opts="-p -f -u -o -q -v -h --param --query --body --pretty --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <PATH>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1322,7 +1774,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1333,7 +1805,7 @@ _bird() {
             return 0
             ;;
         bird__reply)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID> <TEXT>"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID> <TEXT>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1348,7 +1820,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1359,7 +1851,7 @@ _bird() {
             return 0
             ;;
         bird__repost)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID>"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1374,7 +1866,73 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__schema)
+            opts="-u -o -q -v -h --list --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help [NAME]"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --username)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1385,7 +1943,7 @@ _bird() {
             return 0
             ;;
         bird__search)
-            opts="-u -q -h --pretty --sort --min-likes --max-results --pages --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <QUERY>"
+            opts="-u -o -q -v -h --pretty --sort --min-likes --max-results --pages --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <QUERY>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1416,7 +1974,221 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill)
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help install update help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --username)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__help)
+            opts="install update help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__help__install)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__help__update)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__install)
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help claude_code codex cursor factory kiro opencode"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --username)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        bird__skill__update)
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help claude_code codex cursor factory kiro opencode"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --username)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1427,7 +2199,7 @@ _bird() {
             return 0
             ;;
         bird__thread)
-            opts="-u -q -h --pretty --max-pages --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID>"
+            opts="-u -o -q -v -h --pretty --max-pages --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1446,7 +2218,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1457,7 +2249,7 @@ _bird() {
             return 0
             ;;
         bird__tweet)
-            opts="-u -q -h --media-id --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TEXT>"
+            opts="-f -u -o -q -v -h --media-id --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TEXT>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1476,7 +2268,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1487,14 +2299,34 @@ _bird() {
             return 0
             ;;
         bird__unblock)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1505,14 +2337,34 @@ _bird() {
             return 0
             ;;
         bird__unfollow)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1523,7 +2375,7 @@ _bird() {
             return 0
             ;;
         bird__unlike)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID>"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1538,7 +2390,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1549,14 +2421,34 @@ _bird() {
             return 0
             ;;
         bird__unmute)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1567,7 +2459,7 @@ _bird() {
             return 0
             ;;
         bird__unrepost)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <TWEET_ID>"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <TWEET_ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1582,7 +2474,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1593,7 +2505,7 @@ _bird() {
             return 0
             ;;
         bird__usage)
-            opts="-u -q -h --since --sync --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --since --local --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1612,7 +2524,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1623,7 +2555,7 @@ _bird() {
             return 0
             ;;
         bird__watchlist)
-            opts="-u -q -h --pretty --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help check add remove list help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help fetch add remove list help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1638,7 +2570,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1649,14 +2601,34 @@ _bird() {
             return 0
             ;;
         bird__watchlist__add)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-o -q -v -h --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1666,8 +2638,8 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        bird__watchlist__check)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+        bird__watchlist__fetch)
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1682,7 +2654,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1693,7 +2685,7 @@ _bird() {
             return 0
             ;;
         bird__watchlist__help)
-            opts="check add remove list help"
+            opts="fetch add remove list help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1720,7 +2712,7 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        bird__watchlist__help__check)
+        bird__watchlist__help__fetch)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -1777,7 +2769,7 @@ _bird() {
             return 0
             ;;
         bird__watchlist__list)
-            opts="-u -q -h --username --plain --no-color --refresh --no-cache --cache-only --quiet --output --help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1792,7 +2784,27 @@ _bird() {
                     return 0
                     ;;
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -1803,14 +2815,34 @@ _bird() {
             return 0
             ;;
         bird__watchlist__remove)
-            opts="-q -h --plain --no-color --refresh --no-cache --cache-only --quiet --output --help <USERNAME>"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --help <USERNAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --output)
-                    COMPREPLY=($(compgen -W "text json" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)

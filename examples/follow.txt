@@ -1,0 +1,4 @@
+Examples:
+  bird follow jack                                         # follow @jack
+  bird follow jack --output json                           # paired JSON
+  bird follow @elonmusk

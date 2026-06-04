@@ -2,18 +2,39 @@
 
 use crate::cost;
 use crate::db::{BirdClient, BookmarkRow, RequestContext};
-use crate::diag;
 use crate::fields;
 use crate::output;
 use crate::requirements::AuthType;
 
+/// Options bundle for `bird bookmarks` (keeps the public signature stable as
+/// flags are added).
+pub struct BookmarkOpts<'a> {
+    pub pretty: bool,
+    /// Maximum results per upstream page (X API caps `max_results` at 100).
+    pub limit: u32,
+    /// Optional pagination cursor that maps to X API `pagination_token`.
+    pub cursor: Option<&'a str>,
+}
+
 /// Fetch bookmarks for the authenticated user, streaming each page to stdout as it arrives.
+///
+/// The injected stdout writer is wrapped in a local `BufWriter` to amortize
+/// the per-record lock/syscall cost across the JSON stream. Flushed at end.
+/// Mid-stream errors (transport, JSON, write) propagate `?`; the BufWriter
+/// is dropped on unwind, flushing already-buffered bytes in debug builds.
+/// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
+/// truncate the buffer — an accepted property of streaming output.
 pub fn run_bookmarks(
     client: &mut BirdClient,
-    pretty: bool,
-    use_color: bool,
-    quiet: bool,
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
+    opts: BookmarkOpts<'_>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use std::io::Write;
+    let mut out = std::io::BufWriter::new(stdout);
+    let quiet = cfg.suppress_diag();
+    let pretty = opts.pretty;
     // Bookmarks require OAuth2 user context
     let auth_type = AuthType::OAuth2User;
     let ctx = RequestContext {
@@ -26,7 +47,7 @@ pub fn run_bookmarks(
     if !me_response.is_success() {
         return Err(format!(
             "GET /2/users/me failed: {}",
-            output::sanitize_for_stderr(&me_response.body, 200)
+            output::sanitize_for_stderr(&me_response.body(), 200)
         )
         .into());
     }
@@ -42,7 +63,7 @@ pub fn run_bookmarks(
         "https://api.x.com/2/users/me",
         me_response.cache_hit,
     );
-    cost::display_cost(&me_estimate, use_color, quiet);
+    cost::display_cost(cfg, stderr, &me_estimate);
 
     // Extract username from /users/me for bookmark relationship storage
     let me_username = me_json
@@ -52,26 +73,33 @@ pub fn run_bookmarks(
         .unwrap_or("")
         .to_string();
 
-    let mut pagination_token: Option<String> = None;
+    let mut pagination_token: Option<String> = opts.cursor.map(|s| s.to_string());
     let mut first_item = true;
     let mut bookmark_rows: Vec<BookmarkRow> = Vec::new();
     let mut position: i64 = 0;
+    // X API caps `max_results` at 100; clamp here so callers can pass any value.
+    let max_results = opts.limit.clamp(1, 100);
+    // Stop after this many items so `--limit` bounds the response, not just
+    // the per-page page size.
+    let limit_cap: usize = opts.limit as usize;
+    let mut emitted = 0usize;
+    let mut next_cursor: Option<String> = None;
 
     // Open the JSON array wrapper
     if pretty {
-        println!("{{\n  \"data\": [");
+        writeln!(out, "{{\n  \"data\": [")?;
     } else {
-        print!("{{\"data\":[");
+        write!(out, "{{\"data\":[")?;
     }
 
     loop {
         let url = {
             let mut u =
                 url::Url::parse(&format!("https://api.x.com/2/users/{}/bookmarks", user_id))
-                    .unwrap();
+                    .expect("invariant: bookmarks endpoint URL is well-formed");
             {
                 let mut pairs = u.query_pairs_mut();
-                pairs.append_pair("max_results", "100");
+                pairs.append_pair("max_results", &max_results.to_string());
                 for (key, value) in fields::tweet_query_params() {
                     pairs.append_pair(key, value);
                 }
@@ -86,34 +114,37 @@ pub fn run_bookmarks(
         if !response.is_success() {
             return Err(format!(
                 "GET bookmarks failed: {}",
-                output::sanitize_for_stderr(&response.body, 200)
+                output::sanitize_for_stderr(&response.body(), 200)
             )
             .into());
         }
 
         let page = response.json.ok_or("invalid JSON from bookmarks")?;
         let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
-        cost::display_cost(&page_estimate, use_color, quiet);
+        cost::display_cost(cfg, stderr, &page_estimate);
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {
             for item in data {
+                if limit_cap > 0 && emitted >= limit_cap {
+                    break;
+                }
                 if !first_item {
                     if pretty {
-                        println!(",");
+                        writeln!(out, ",")?;
                     } else {
-                        print!(",");
+                        write!(out, ",")?;
                     }
                 }
                 first_item = false;
                 if pretty {
                     let s = serde_json::to_string_pretty(item)?;
                     for line in s.lines() {
-                        println!("    {}", line);
+                        writeln!(out, "    {}", line)?;
                     }
                 } else {
-                    print!("{}", serde_json::to_string(item)?);
+                    write!(out, "{}", serde_json::to_string(item)?)?;
                 }
-                // Accumulate bookmark relationships for storage
+                emitted += 1;
                 if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
                     bookmark_rows.push(BookmarkRow {
                         username: me_username.clone(),
@@ -130,6 +161,10 @@ pub fn run_bookmarks(
             .and_then(|m| m.get("next_token"))
             .and_then(|t| t.as_str())
             .map(String::from);
+        if limit_cap > 0 && emitted >= limit_cap {
+            next_cursor.clone_from(&pagination_token);
+            break;
+        }
         if pagination_token.is_none() {
             break;
         }
@@ -140,15 +175,28 @@ pub fn run_bookmarks(
         && !bookmark_rows.is_empty()
         && let Some(db) = client.db()
         && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
+        && !quiet
     {
-        diag!(quiet, "[store] warning: bookmark storage failed: {e}");
+        writeln!(stderr, "[store] warning: bookmark storage failed: {e}").ok();
     }
 
-    // Close the JSON array wrapper
-    if pretty {
-        println!("\n  ]\n}}");
+    // Close the JSON array wrapper, appending a meta block when there is a
+    // next cursor so agents can paginate without re-scanning.
+    if let Some(ref tok) = next_cursor {
+        if pretty {
+            writeln!(out, "\n  ],")?;
+            writeln!(out, "  \"meta\": {{ \"next_cursor\": {:?} }}", tok)?;
+            writeln!(out, "}}")?;
+        } else {
+            write!(out, "],\"meta\":{{\"next_cursor\":")?;
+            write!(out, "{}", serde_json::to_string(tok)?)?;
+            writeln!(out, "}}}}")?;
+        }
+    } else if pretty {
+        writeln!(out, "\n  ]\n}}")?;
     } else {
-        println!("]}}");
+        writeln!(out, "]}}")?;
     }
+    out.flush()?;
     Ok(())
 }

@@ -2,7 +2,7 @@
 
 use rusqlite::params;
 
-use super::db::BirdDb;
+use super::store::BirdDb;
 use super::unix_now;
 
 // -- Usage data structures --
@@ -55,26 +55,30 @@ impl BirdDb {
     pub fn log_usage(&mut self, entry: &UsageLogEntry<'_>) -> Result<(), rusqlite::Error> {
         let now = unix_now();
         let date_ymd = {
-            let dt = chrono::DateTime::from_timestamp(now, 0).unwrap();
+            let dt = chrono::DateTime::from_timestamp(now, 0)
+                .expect("invariant: unix_now() returns a timestamp chrono can represent");
             let d = dt.date_naive();
             use chrono::Datelike;
             d.year() as i64 * 10000 + d.month() as i64 * 100 + d.day() as i64
         };
-        let mut stmt = self.conn.prepare_cached(
-            "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        )?;
-        stmt.execute(params![
-            now,
-            date_ymd,
-            entry.endpoint,
-            entry.method,
-            entry.object_type,
-            entry.object_count,
-            entry.estimated_cost,
-            entry.cache_hit as i32,
-            entry.username
-        ])?;
+        {
+            let conn = self.conn();
+            let mut stmt = conn.prepare_cached(
+                "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            )?;
+            stmt.execute(params![
+                now,
+                date_ymd,
+                entry.endpoint,
+                entry.method,
+                entry.object_type,
+                entry.object_count,
+                entry.estimated_cost,
+                entry.cache_hit as i32,
+                entry.username
+            ])?;
+        }
 
         self.write_count += 1;
         if self.write_count.is_multiple_of(50) {
@@ -86,14 +90,15 @@ impl BirdDb {
     /// Delete usage rows older than 90 days.
     fn prune_old_usage(&self, now_ts: i64) -> Result<(), rusqlite::Error> {
         let cutoff = now_ts - (90 * 24 * 60 * 60);
-        self.conn
+        self.conn()
             .execute("DELETE FROM usage WHERE timestamp < ?1", [cutoff])?;
         Ok(())
     }
 
     /// Query usage summary (totals) since a given YYYYMMDD date.
     pub fn query_usage_summary(&self, since_ymd: i64) -> Result<UsageSummary, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT
                 COALESCE(SUM(CASE WHEN cache_hit = 0 THEN estimated_cost ELSE 0 END), 0.0),
                 COUNT(*),
@@ -113,7 +118,8 @@ impl BirdDb {
 
     /// Query daily usage breakdown since a given YYYYMMDD date.
     pub fn query_daily_usage(&self, since_ymd: i64) -> Result<Vec<DailyUsage>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT
                 date_ymd,
                 SUM(CASE WHEN cache_hit = 0 THEN estimated_cost ELSE 0 END),
@@ -140,7 +146,8 @@ impl BirdDb {
         &self,
         since_ymd: i64,
     ) -> Result<Vec<EndpointUsage>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT endpoint, SUM(estimated_cost), COUNT(*)
              FROM usage
              WHERE date_ymd >= ?1 AND cache_hit = 0
@@ -158,10 +165,11 @@ impl BirdDb {
         rows.collect()
     }
 
-    /// Upsert actual usage from X API (for --sync comparison).
+    /// Upsert actual usage from X API sync.
     pub fn upsert_actual_usage(&self, date: &str, tweet_count: u64) -> Result<(), rusqlite::Error> {
         let now = unix_now();
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "INSERT OR REPLACE INTO usage_actual (date, tweet_count, synced_at)
              VALUES (?1, ?2, ?3)",
         )?;
@@ -169,7 +177,7 @@ impl BirdDb {
         Ok(())
     }
 
-    /// Query actual usage data (from previous --sync operations).
+    /// Query actual usage data (from previous API syncs).
     pub fn query_actual_usage(
         &self,
         since_ymd: i64,
@@ -180,7 +188,8 @@ impl BirdDb {
             (since_ymd % 10000) / 100,
             since_ymd % 100
         );
-        let mut stmt = self.conn.prepare_cached(
+        let conn = self.conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT date, tweet_count, synced_at FROM usage_actual
              WHERE date >= ?1
              ORDER BY date DESC",
@@ -204,7 +213,7 @@ impl BirdDb {
 
 #[cfg(test)]
 mod tests {
-    use super::super::db::in_memory_db;
+    use super::super::store::in_memory_db;
     use super::*;
 
     #[test]
@@ -219,7 +228,7 @@ mod tests {
             cache_hit: false,
             username: Some("alice"),
         })
-        .unwrap();
+        .expect("test");
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
@@ -229,9 +238,9 @@ mod tests {
             cache_hit: true,
             username: Some("alice"),
         })
-        .unwrap();
+        .expect("test");
 
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(summary.total_calls, 2);
         assert_eq!(summary.cache_hits, 1);
         assert!((summary.total_cost - 0.015).abs() < f64::EPSILON);
@@ -241,23 +250,23 @@ mod tests {
     #[test]
     fn query_daily_usage_groups_by_day() {
         let db = in_memory_db();
-        db.conn.execute(
+        db.conn().execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1000, 20260210, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
             [],
-        ).unwrap();
-        db.conn.execute(
+        ).expect("test");
+        db.conn().execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (2000, 20260211, '/2/tweets/search/recent', 'GET', 2, 0.010, 0)",
             [],
-        ).unwrap();
-        db.conn.execute(
+        ).expect("test");
+        db.conn().execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (3000, 20260211, '/2/users/me', 'GET', 1, 0.010, 1)",
             [],
-        ).unwrap();
+        ).expect("test");
 
-        let daily = db.query_daily_usage(20260210).unwrap();
+        let daily = db.query_daily_usage(20260210).expect("test");
         assert_eq!(daily.len(), 2);
         assert_eq!(daily[0].date_ymd, 20260211);
         assert_eq!(daily[0].calls, 2);
@@ -270,19 +279,19 @@ mod tests {
     fn query_top_endpoints_aggregates() {
         let db = in_memory_db();
         for _ in 0..3 {
-            db.conn.execute(
+            db.conn().execute(
                 "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
                  VALUES (1000, 20260211, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
                 [],
-            ).unwrap();
+            ).expect("test");
         }
-        db.conn.execute(
+        db.conn().execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (2000, 20260211, '/2/users/me', 'GET', 1, 0.010, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
 
-        let top = db.query_top_endpoints(20260210).unwrap();
+        let top = db.query_top_endpoints(20260210).expect("test");
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].endpoint, "/2/tweets/search/recent");
         assert_eq!(top[0].calls, 3);
@@ -293,7 +302,7 @@ mod tests {
     #[test]
     fn empty_usage_returns_zero_summary() {
         let db = in_memory_db();
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(summary.total_calls, 0);
         assert_eq!(summary.total_cost, 0.0);
         assert_eq!(summary.cache_hits, 0);
@@ -303,11 +312,11 @@ mod tests {
     #[test]
     fn usage_pruning_via_write_count() {
         let mut db = in_memory_db();
-        db.conn.execute(
+        db.conn().execute(
             "INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_count, estimated_cost, cache_hit)
              VALUES (1, 20200101, '/2/tweets/search/recent', 'GET', 1, 0.005, 0)",
             [],
-        ).unwrap();
+        ).expect("test");
 
         db.write_count = 49;
         db.log_usage(&UsageLogEntry {
@@ -319,9 +328,9 @@ mod tests {
             cache_hit: false,
             username: None,
         })
-        .unwrap();
+        .expect("test");
 
-        let summary = db.query_usage_summary(0).unwrap();
+        let summary = db.query_usage_summary(0).expect("test");
         assert_eq!(
             summary.total_calls, 1,
             "old entry should be pruned, leaving only the fresh one"
@@ -331,8 +340,11 @@ mod tests {
     #[test]
     fn actual_usage_round_trip() {
         let db = in_memory_db();
-        db.upsert_actual_usage("2026-02-18", 42).unwrap();
-        let actuals = db.query_actual_usage(20260201).unwrap().unwrap();
+        db.upsert_actual_usage("2026-02-18", 42).expect("test");
+        let actuals = db
+            .query_actual_usage(20260201)
+            .expect("test")
+            .expect("test");
         assert_eq!(actuals.len(), 1);
         assert_eq!(actuals[0].date, "2026-02-18");
         assert_eq!(actuals[0].tweet_count, 42);

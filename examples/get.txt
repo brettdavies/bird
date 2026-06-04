@@ -1,0 +1,6 @@
+Examples:
+  bird get /2/users/me                                          # text output
+  bird get /2/users/me --output json                            # paired JSON
+  bird get /2/tweets/1734567890123456789
+  bird get /2/users/2244994945/bookmarks -p id=2244994945
+  bird get /2/tweets/search/recent --query "query=from:jack"

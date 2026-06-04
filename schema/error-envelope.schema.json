@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bird.dev/schema/error-envelope-v1.json",
+  "title": "bird error envelope",
+  "description": "Universal error-response shape emitted on stderr when bird exits non-zero under --output json. Matches the anc (agent-native-cli) envelope contract.",
+  "type": "object",
+  "required": ["error", "kind", "message", "exit_code"],
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "Stable kebab-case machine identifier (e.g. \"auth-error\", \"unknown-schema\", \"invalid-value\").",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Error category, mapped 1:1 to exit code.",
+      "enum": ["usage", "auth", "config", "general"]
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable error message. Control characters sanitized to '?' to prevent terminal escape injection from upstream API bodies."
+    },
+    "exit_code": {
+      "type": "integer",
+      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config), 1 (general).",
+      "enum": [1, 2, 77, 78]
+    },
+    "meta": {
+      "type": "object",
+      "description": "Always-present metadata object (possibly empty) for parity with the success envelope.",
+      "additionalProperties": true
+    },
+    "command": {
+      "type": "string",
+      "description": "Subcommand name that triggered the error, when known."
+    },
+    "status": {
+      "type": "integer",
+      "description": "Upstream HTTP status code, when the error originated from an API response."
+    }
+  },
+  "additionalProperties": false
+}

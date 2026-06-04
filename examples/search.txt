@@ -1,0 +1,6 @@
+Examples:
+  bird search "from:jack has:media"                       # text results
+  bird search "from:jack has:media" --output json         # paired JSON
+  bird search "rust lang" --min-likes 100 --pages 3
+  bird search "#WWDC has:videos" --sort likes --max-results 50
+  bird search "openapi spec" --pages 5 --output jsonl     # one tweet per line

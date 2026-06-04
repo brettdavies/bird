@@ -1,0 +1,4 @@
+Examples:
+  bird tweet "shipping anc compliance today"        # post a tweet
+  bird tweet "ship it" --output json                # paired JSON
+  bird tweet "with a photo" --media-id 1734000000000000000
