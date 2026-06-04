@@ -6,33 +6,24 @@
 //!   error:   {"error", "kind", "message", "exit_code"} (+ optional command, status)
 //!
 //! `data` is in anc's payload-key allowlist, so the two envelopes do not drift.
+//!
+//! Plan 2 U11 migrated this file from the subprocess harness to
+//! [`common::run_in_process`] now that the runner's writer-injection
+//! captures stdout / stderr content end-to-end.
 
-use assert_cmd::Command;
-use std::path::Path;
-
-fn bird() -> Command {
-    assert_cmd::cargo::cargo_bin_cmd!("bird")
-}
-
-fn with_temp_home<'a>(cmd: &'a mut Command, tmp: &Path) -> &'a mut Command {
-    cmd.env("HOME", tmp)
-        .env("XDG_CONFIG_HOME", tmp.join(".config"))
-}
+mod common;
 
 #[test]
 fn success_envelope_has_data_and_meta_keys() {
     // `--help` under `--output json` emits the success envelope without touching
     // disk state, config, or sqlite — hermetic across local + CI environments.
-    let tmp = tempfile::TempDir::new().expect("test: tempdir");
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "--help"])
-        .output()
-        .expect("test: spawn bird");
+    let env = common::TestEnv::new();
+    let (exit, stdout, _stderr) =
+        common::run_in_process(&["bird", "--output", "json", "--help"], &env);
+    assert_eq!(exit, 0);
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value =
         serde_json::from_str(stdout.trim()).expect("test: help envelope JSON parse");
-
     let obj = json
         .as_object()
         .expect("test: help envelope top-level is object");
@@ -42,16 +33,13 @@ fn success_envelope_has_data_and_meta_keys() {
 
 #[test]
 fn error_envelope_has_required_keys() {
-    let tmp = tempfile::TempDir::new().expect("test: tempdir");
-    let output = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "--bogus-flag"])
-        .output()
-        .expect("test: spawn bird");
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "--bogus-flag"], &env);
+    assert_eq!(exit, 2);
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
     let json: serde_json::Value =
         serde_json::from_str(stderr.trim()).expect("test: error JSON parse");
-
     let obj = json
         .as_object()
         .expect("test: error envelope top-level is object");
@@ -74,14 +62,10 @@ fn success_and_error_envelope_share_payload_filtered_keys() {
     // anc's audit treats error envelopes as separate documents. We assert each
     // envelope independently has its required shape.
 
-    let tmp = tempfile::TempDir::new().expect("test: tempdir");
-
     // Success — hermetic via --help envelope (no disk dependency).
-    let success = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "--help"])
-        .output()
-        .expect("test: spawn bird");
-    let success_stdout = String::from_utf8_lossy(&success.stdout);
+    let env_ok = common::TestEnv::new();
+    let (_, success_stdout, _) =
+        common::run_in_process(&["bird", "--output", "json", "--help"], &env_ok);
     let success_json: serde_json::Value =
         serde_json::from_str(success_stdout.trim()).expect("test: success JSON parse");
     let success_keys: Vec<&str> = success_json
@@ -92,11 +76,9 @@ fn success_and_error_envelope_share_payload_filtered_keys() {
         .collect();
 
     // Error
-    let err = with_temp_home(&mut bird(), tmp.path())
-        .args(["--output", "json", "--bogus-flag"])
-        .output()
-        .expect("test: spawn bird");
-    let err_stderr = String::from_utf8_lossy(&err.stderr);
+    let env_err = common::TestEnv::new();
+    let (_, _, err_stderr) =
+        common::run_in_process(&["bird", "--output", "json", "--bogus-flag"], &env_err);
     let err_json: serde_json::Value =
         serde_json::from_str(err_stderr.trim()).expect("test: error JSON parse");
     let err_keys: Vec<&str> = err_json

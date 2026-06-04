@@ -477,4 +477,99 @@ mod method_tests {
         );
         assert_eq!(obj["kind"], "config");
     }
+
+    // U11 edge-case coverage --------------------------------------------------
+
+    /// Multi-line input must arrive at the writer with every embedded `\n`
+    /// preserved; `print_message` adds exactly one trailing `\n`.
+    #[test]
+    fn print_message_preserves_embedded_newlines() {
+        let cfg = text_cfg();
+        let mut buf = Vec::new();
+        cfg.print_message(&mut buf, "line one\nline two\nline three")
+            .unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert_eq!(s, "line one\nline two\nline three\n");
+        // Three embedded `\n` (between lines) + one terminator.
+        assert_eq!(s.matches('\n').count(), 3);
+    }
+
+    /// A nested JSON object must serialize to a single compact line with
+    /// inner structure preserved. Confirms `print_envelope` does not pretty-
+    /// print or split into multiple lines.
+    #[test]
+    fn print_envelope_nested_object_serializes_compactly() {
+        let cfg = json_cfg();
+        let mut buf = Vec::new();
+        let env = json!({
+            "data": {
+                "user": {"id": "1", "name": "alice"},
+                "items": [1, 2, 3],
+            },
+            "meta": {"count": 3, "nested": {"deep": true}},
+        });
+        cfg.print_envelope(&mut buf, &env).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert!(s.ends_with('\n'), "envelope ends with newline");
+        // Exactly one terminating newline — no embedded ones.
+        assert_eq!(s.matches('\n').count(), 1);
+        let parsed: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
+        assert_eq!(parsed["data"]["user"]["name"], "alice");
+        assert_eq!(parsed["meta"]["nested"]["deep"], true);
+    }
+
+    /// With `use_color = true` in text mode the error prefix must carry an
+    /// ANSI escape sequence (`\x1b[`). With color disabled it must not.
+    #[test]
+    fn print_error_text_color_emits_ansi() {
+        let cfg = OutputConfig {
+            format: OutputFormat::Text,
+            use_color: true,
+            quiet: false,
+            raw: false,
+        };
+        let mut buf = Vec::new();
+        let err = BirdError::config("missing");
+        cfg.print_error(&mut buf, &err).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert!(
+            s.contains('\x1b'),
+            "use_color=true should embed ANSI escape, got: {:?}",
+            s
+        );
+        // The same call with color disabled must be plain.
+        let plain = text_cfg();
+        let mut plain_buf = Vec::new();
+        plain.print_error(&mut plain_buf, &err).unwrap();
+        let plain_s = String::from_utf8(plain_buf).unwrap();
+        assert!(
+            !plain_s.contains('\x1b'),
+            "use_color=false must not embed ANSI escape, got: {:?}",
+            plain_s
+        );
+    }
+
+    /// Empty message strings produce just the terminator — no panic, no double
+    /// newline.
+    #[test]
+    fn print_message_empty_writes_single_newline() {
+        let cfg = text_cfg();
+        let mut buf = Vec::new();
+        cfg.print_message(&mut buf, "").unwrap();
+        assert_eq!(String::from_utf8(buf).unwrap(), "\n");
+    }
+
+    /// Large input (~64 KiB) must round-trip through the writer without loss
+    /// or truncation.
+    #[test]
+    fn print_message_large_input_round_trips() {
+        let cfg = text_cfg();
+        let big = "x".repeat(64 * 1024);
+        let mut buf = Vec::new();
+        cfg.print_message(&mut buf, &big).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert_eq!(s.len(), big.len() + 1, "preserve content + 1 newline");
+        assert!(s.starts_with("xxxx"));
+        assert!(s.ends_with("x\n"));
+    }
 }
