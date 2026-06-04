@@ -233,26 +233,15 @@ where
     }
 
     if let Command::Skill { action } = &cli.command {
-        let (host, all, dry_run) = match *action {
-            SkillAction::Install { host, all, dry_run }
-            | SkillAction::Update { host, all, dry_run } => (host, all, dry_run),
-        };
-        let home = match skill_install::resolve_home() {
-            Ok(h) => h,
-            Err(e) => {
-                let err = BirdError::from_source("skill", Box::new(e));
-                let _ = out.print_error(stderr, &err);
-                return ExitCode::from(err.exit_code());
+        let code = match *action {
+            SkillAction::Install { host, all, dry_run } => {
+                skill_install::run_install_multi(host, all, dry_run, &out, stdout)
+            }
+            SkillAction::Update { host, all, dry_run } => {
+                skill_install::run_update_multi(host, all, dry_run, &out, stdout)
             }
         };
-        return match skill_install::run(&out, stdout, host, dry_run, all, &home) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(e) => {
-                let err = BirdError::from_source("skill", e);
-                let _ = out.print_error(stderr, &err);
-                ExitCode::from(err.exit_code())
-            }
-        };
+        return ExitCode::from((code.clamp(0, 255)) as u8);
     }
 
     if let Command::Schema { name, list } = &cli.command {
