@@ -50,7 +50,7 @@ pub fn run_profile(
         return Err(format!(
             "GET profile {}: {}",
             response.status,
-            output::sanitize_for_stderr(&response.body, 200)
+            output::sanitize_for_stderr(&response.body(), 200)
         )
         .into());
     }

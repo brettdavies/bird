@@ -9,6 +9,7 @@ use super::db::{BirdDb, TweetRow, UserRow};
 use super::normalize_endpoint;
 
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Write;
@@ -36,10 +37,19 @@ pub struct CacheOpts {
 }
 
 /// Response from BirdClient (covers both store hits and fresh API responses).
-// TODO: body is re-serialized from json; eliminate when Transport trait returns raw stdout
+///
+/// `cached_body` holds the authoritative bytes-as-stored when available —
+/// today, only the `raw_responses` cache hit populates it, preserving the
+/// exact bytes the API emitted. Every other constructor leaves it `None`;
+/// `body()` derives the string lazily from `json` on the rare caller (error
+/// formatting, fallback) that still needs `&str`.
+///
+/// When Transport begins returning raw bytes (a future redesign), `xurl_get`
+/// is expected to populate `cached_body` alongside `json`; `body()` will then
+/// take the borrowed branch. Until then, only raw_responses cache hits set it.
 pub struct ApiResponse {
     pub status: u16,
-    pub body: String,
+    cached_body: Option<String>,
     pub cache_hit: bool,
     /// Pre-parsed JSON body (populated by transport methods to avoid double-parse).
     pub json: Option<serde_json::Value>,
@@ -49,14 +59,64 @@ impl ApiResponse {
     pub fn is_success(&self) -> bool {
         (200..300).contains(&self.status)
     }
+
+    /// Test-only constructor mirroring a `raw_responses` cache hit whose
+    /// stored bytes don't parse as JSON. Used by `raw.rs::tests` to
+    /// exercise the `into_body()` fallback without standing up a full DB.
+    #[cfg(test)]
+    pub(crate) fn for_test_raw_body(body: impl Into<String>) -> Self {
+        Self {
+            status: 200,
+            cached_body: Some(body.into()),
+            cache_hit: true,
+            json: None,
+        }
+    }
+
+    /// Borrow the response body as `&str`.
+    ///
+    /// Returns `Cow::Borrowed` when a raw payload is stored (raw_responses
+    /// cache hits today); other paths serialize lazily from `json` into
+    /// `Cow::Owned`. The optimization wins because the common caller never
+    /// reaches `body()` at all — they read `self.json` directly.
+    pub fn body(&self) -> Cow<'_, str> {
+        debug_assert!(
+            self.cached_body.is_some() || self.json.is_some(),
+            "ApiResponse with no body and no json"
+        );
+        if let Some(ref s) = self.cached_body {
+            Cow::Borrowed(s.as_str())
+        } else if let Some(ref jv) = self.json {
+            Cow::Owned(serde_json::to_string(jv).unwrap_or_default())
+        } else {
+            Cow::Borrowed("")
+        }
+    }
+
+    /// Consume the response and yield an owned body `String`.
+    ///
+    /// Delegates to `body()`; the borrowed branch incurs one `String`
+    /// allocation, the owned branch is a direct move. Used by the `raw.rs`
+    /// fallback when `json` is absent (raw_responses cache hits with a
+    /// non-JSON BLOB payload).
+    pub fn into_body(self) -> String {
+        self.body().into_owned()
+    }
 }
 
 impl fmt::Debug for ApiResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Avoid serializing `json` just to measure length: when `cached_body`
+        // is absent (the common path — every fresh request and every
+        // freshness cache hit) report `None` instead of paying for a
+        // discarded `serde_json::to_string`. The Debug contract here is
+        // redaction + sizing, not faithful body reproduction.
+        let body_len: Option<usize> = self.cached_body.as_ref().map(|s| s.len());
         f.debug_struct("ApiResponse")
             .field("status", &self.status)
             .field("cache_hit", &self.cache_hit)
-            .field("body_len", &self.body.len())
+            .field("body_len", &body_len)
+            .field("json_present", &self.json.is_some())
             .finish()
     }
 }
@@ -401,7 +461,7 @@ impl BirdClient {
             if entity_type.is_some() {
                 self.decompose_and_upsert(url, jv);
             } else {
-                self.store_raw_response(url, response.status, &response.body);
+                self.store_raw_response(url, response.status, &response.body());
             }
         }
 
@@ -430,11 +490,10 @@ impl BirdClient {
         args.push(url.into());
 
         let json_value = self.transport.request(&args)?;
-        let body = serde_json::to_string(&json_value)?;
         self.log_api_call(url, method, Some(&json_value), false, ctx.username);
         Ok(ApiResponse {
             status: 200,
-            body,
+            cached_body: None,
             cache_hit: false,
             json: Some(json_value),
         })
@@ -524,10 +583,9 @@ impl BirdClient {
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let args = self.build_get_args(url, ctx);
         let json_value = self.transport.request(&args)?;
-        let body = serde_json::to_string(&json_value)?;
         Ok(ApiResponse {
             status: 200,
-            body,
+            cached_body: None,
             cache_hit: false,
             json: Some(json_value),
         })
@@ -567,11 +625,10 @@ impl BirdClient {
                 .filter_map(|t| serde_json::from_str(&t.raw_json).ok())
                 .collect();
             let json = serde_json::json!({"data": data});
-            let body = serde_json::to_string(&json)?;
             self.log_api_call(url, "GET", Some(&json), true, ctx.username);
             return Ok(ApiResponse {
                 status: 200,
-                body,
+                cached_body: None,
                 cache_hit: true,
                 json: Some(json),
             });
@@ -587,11 +644,10 @@ impl BirdClient {
                 .filter_map(|t| serde_json::from_str(&t.raw_json).ok())
                 .collect();
             let json = serde_json::json!({"data": data});
-            let body = serde_json::to_string(&json)?;
             self.log_api_call(url, "GET", Some(&json), true, ctx.username);
             return Ok(ApiResponse {
                 status: 200,
-                body,
+                cached_body: None,
                 cache_hit: true,
                 json: Some(json),
             });
@@ -654,12 +710,11 @@ impl BirdClient {
             merged_json["errors"] = errors.clone();
         }
 
-        let body = serde_json::to_string(&merged_json)?;
         self.log_api_call(&fetch_url, "GET", Some(&api_json), false, ctx.username);
 
         Ok(ApiResponse {
             status: response_status,
-            body,
+            cached_body: None,
             cache_hit: false,
             json: Some(merged_json),
         })
@@ -777,10 +832,9 @@ fn check_tweet_freshness(db: &BirdDb, id: &str) -> Option<ApiResponse> {
     }
     let jv: serde_json::Value = serde_json::from_str(&tweet.raw_json).ok()?;
     let json = serde_json::json!({"data": jv});
-    let body = serde_json::to_string(&json).ok()?;
     Some(ApiResponse {
         status: 200,
-        body,
+        cached_body: None,
         cache_hit: true,
         json: Some(json),
     })
@@ -794,16 +848,17 @@ fn check_user_freshness(db: &BirdDb, username: &str) -> Option<ApiResponse> {
     }
     let jv: serde_json::Value = serde_json::from_str(&user.raw_json).ok()?;
     let json = serde_json::json!({"data": jv});
-    let body = serde_json::to_string(&json).ok()?;
     Some(ApiResponse {
         status: 200,
-        body,
+        cached_body: None,
         cache_hit: true,
         json: Some(json),
     })
 }
 
-/// Try serving from the raw_responses table.
+/// Try serving from the raw_responses table. Stores the exact bytes the API
+/// emitted in `cached_body` so `body()` returns `Cow::Borrowed` (the cache
+/// key here is content-addressed; preserving the original payload matters).
 fn try_raw_response(db: &BirdDb, url: &str) -> Option<ApiResponse> {
     let key = compute_raw_cache_key("GET", url);
     let raw = db.get_raw_response(&key).ok()??;
@@ -811,7 +866,7 @@ fn try_raw_response(db: &BirdDb, url: &str) -> Option<ApiResponse> {
     let json = serde_json::from_str(&body).ok();
     Some(ApiResponse {
         status: raw.status_code as u16,
-        body,
+        cached_body: Some(body),
         cache_hit: true,
         json,
     })
@@ -1022,7 +1077,16 @@ mod tests {
         assert!(resp.is_some());
         let resp = resp.expect("test");
         assert!(resp.cache_hit);
-        assert!(resp.body.contains("t1"));
+        // Cache hits must leave `cached_body` empty so we don't round-trip
+        // the JSON through `serde_json::to_string`. Callers that need a
+        // `&str` pay the conversion lazily via `body()`.
+        assert!(
+            resp.cached_body.is_none(),
+            "cache hit must not store a re-serialized body"
+        );
+        assert!(resp.json.is_some(), "cache hit should keep parsed json");
+        assert!(matches!(resp.body(), Cow::Owned(_)));
+        assert!(resp.body().contains("t1"));
     }
 
     #[test]
@@ -1050,37 +1114,82 @@ mod tests {
         })
         .expect("test");
 
-        let resp = check_user_freshness(&db, "alice");
-        assert!(resp.is_some());
-        assert!(resp.expect("test").cache_hit);
+        let resp = check_user_freshness(&db, "alice").expect("cache hit expected");
+        assert!(resp.cache_hit);
+        // Same invariant as tweets: cache hits keep parsed json and skip
+        // the re-serialization step.
+        assert!(
+            resp.cached_body.is_none(),
+            "cache hit must not store a re-serialized body"
+        );
+        assert!(resp.json.is_some());
     }
 
     #[test]
     fn try_raw_response_returns_stored() {
+        // The raw_responses table preserves exact API bytes; `body()` must
+        // return them borrowed (no re-serialization, no allocation).
         let db = in_memory_db();
         let url = "https://api.x.com/2/usage/tweets";
         let key = compute_raw_cache_key("GET", url);
         db.upsert_raw_response(&key, url, 200, b"test body")
             .expect("test");
 
-        let resp = try_raw_response(&db, url);
-        assert!(resp.is_some());
-        let resp = resp.expect("test");
+        let resp = try_raw_response(&db, url).expect("cache hit expected");
         assert!(resp.cache_hit);
-        assert_eq!(resp.body, "test body");
+        assert!(matches!(resp.body(), Cow::Borrowed(_)));
+        assert_eq!(resp.body(), "test body");
     }
 
     #[test]
     fn api_response_debug_redacts_body() {
         let response = ApiResponse {
             status: 200,
-            body: "sensitive data here".to_string(),
+            cached_body: Some("sensitive data here".to_string()),
             cache_hit: true,
             json: None,
         };
         let debug = format!("{:?}", response);
         assert!(!debug.contains("sensitive data here"));
         assert!(debug.contains("body_len"));
+    }
+
+    /// Documents the empty-body contract: an `ApiResponse` with neither
+    /// `cached_body` nor `json` returns `""` from `body()` in release
+    /// builds. Production paths never construct such a response — the
+    /// `debug_assert!` in `body()` would fire — so this test is
+    /// release-only.
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn empty_body_fallback_returns_empty_string() {
+        let resp = ApiResponse {
+            status: 200,
+            cached_body: None,
+            cache_hit: false,
+            json: None,
+        };
+        assert_eq!(resp.body(), "");
+        assert_eq!(resp.into_body(), "");
+    }
+
+    /// Asserts the `body()` debug_assert fires when both bodies are absent.
+    /// Debug-only counterpart to `empty_body_fallback_returns_empty_string`.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn empty_body_triggers_debug_assert() {
+        let result = std::panic::catch_unwind(|| {
+            let resp = ApiResponse {
+                status: 200,
+                cached_body: None,
+                cache_hit: false,
+                json: None,
+            };
+            let _ = resp.body();
+        });
+        assert!(
+            result.is_err(),
+            "body() must debug_assert when no body is present"
+        );
     }
 
     #[test]
@@ -1142,7 +1251,7 @@ mod tests {
         let alice_resp = alice_resp.expect("test");
         assert!(alice_resp.cache_hit, "profile user should be a cache hit");
         assert!(
-            alice_resp.body.contains("alice"),
+            alice_resp.body().contains("alice"),
             "profile response should contain username"
         );
 

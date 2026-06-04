@@ -55,7 +55,7 @@ pub fn run_thread(
         return Err(format!(
             "GET tweet {}: {}",
             response.status,
-            output::sanitize_for_stderr(&response.body, 200)
+            output::sanitize_for_stderr(&response.body(), 200)
         )
         .into());
     }
@@ -129,7 +129,7 @@ pub fn run_thread(
                 "GET search page {} {}: {}",
                 page_num,
                 response.status,
-                output::sanitize_for_stderr(&response.body, 200)
+                output::sanitize_for_stderr(&response.body(), 200)
             )
             .into());
         }
