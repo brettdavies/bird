@@ -1,4 +1,4 @@
-//! BirdClient: entity-aware transport layer replacing CachedClient.
+//! Entity-aware transport layer over xurl with optional BirdDb cache.
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
 mod entity;
@@ -125,13 +125,9 @@ impl fmt::Debug for ApiResponse {
 
 // -- BirdClient --
 
-// Plan 1 R19: compile-time guard that BirdClient stays `Send + Sync`. This is
-// the gate-critical assertion: Plan 2's `Arc<Mutex<dyn Write + Send>>` writer
-// storage on `BirdClient` is only sound if `BirdClient: Send + Sync` is
-// provable, which transitively requires `Box<dyn Transport>: Send + Sync`
-// (R20 supplies the trait bound). A future field with a non-`Sync` type (e.g.
-// `RefCell`, `Rc`, or a `rusqlite::Connection` not wrapped in a `Mutex`) will
-// fail this assertion at build time.
+// Compile-time guard that BirdClient: Send + Sync. A future field with a
+// non-Sync type (RefCell, Rc, bare rusqlite::Connection) fails this assertion
+// at build time.
 const _: fn() = || {
     fn _assert_send_sync<T: Send + Sync>() {}
     _assert_send_sync::<BirdClient>();
@@ -149,8 +145,8 @@ pub struct BirdClient {
     /// which is parameter-passed) because 7+ internal methods emit diagnostics and
     /// threading through every method signature would be excessive.
     pub quiet: bool,
-    /// Shared writer handle for diagnostic output (KTD-2). `Arc::clone` of this
-    /// is passed into `BirdDb::open` so both layers emit through the same sink.
+    /// Shared writer handle for diagnostic output. `Arc::clone` of this is
+    /// passed into `BirdDb::open` so both layers emit through the same sink.
     /// Read by the internal diagnostic sites under the `if !self.quiet` gate
     /// — the lock is acquired only when emission is required, so suppressed
     /// paths pay zero.
@@ -160,8 +156,8 @@ pub struct BirdClient {
 impl BirdClient {
     /// Create a new BirdClient. If entity store cannot be opened, degrades to no-store.
     ///
-    /// `stderr` is the shared writer handle (KTD-2). `Arc::clone` is forwarded
-    /// to `BirdDb::open` so both layers emit through the same sink. Internal
+    /// `stderr` is the shared writer handle: `Arc::clone` is forwarded to
+    /// `BirdDb::open` so both layers emit through the same sink. Internal
     /// diagnostic sites lock the shared handle under the `if !self.quiet`
     /// gate.
     pub fn new(

@@ -1,7 +1,7 @@
-//! BirdDb: entity-level SQLite store replacing the request-level cache.
-//! Stores tweets, users, bookmarks, and raw responses keyed by entity ID.
-//! Single connection per CLI invocation -- no pool needed (short-lived process).
-//! Blocking SQLite calls are fine: bird is synchronous (no async runtime).
+//! Entity-level SQLite store for tweets, users, bookmarks, raw responses, and
+//! usage tracking. Single connection per CLI invocation -- no pool needed
+//! (short-lived process). Blocking SQLite calls are fine: bird is synchronous
+//! (no async runtime).
 
 use rusqlite::Connection;
 use rusqlite_migration::{M, Migrations};
@@ -103,14 +103,14 @@ pub(crate) fn migrations() -> Migrations<'static> {
 /// Single connection per CLI invocation -- no pool needed (short-lived process).
 ///
 /// `conn` is wrapped in `std::sync::Mutex` so `BirdDb` (and the enclosing
-/// `BirdClient`) satisfy `Sync`. The bird CLI is single-threaded today, but
-/// Plan 2's writer-injection design (`Arc<Mutex<dyn Write + Send>>`) needs
-/// `BirdClient: Send + Sync` as a compile-time gate. The per-call lock is
-/// uncontended (single-threaded access) and adds sub-microsecond cost.
+/// `BirdClient`) satisfy `Sync`, which the writer-injection design
+/// (`Arc<Mutex<dyn Write + Send>>`) requires as a compile-time gate. The
+/// per-call lock is uncontended (single-threaded access) and adds
+/// sub-microsecond cost.
 ///
-/// `stderr` is a shared writer handle cloned from the enclosing `BirdClient`
-/// (KTD-2). Internal diagnostic sites lock the shared handle under the
-/// `if !self.quiet` gate; suppressed paths pay zero (no lock, no allocation).
+/// `stderr` is a shared writer handle cloned from the enclosing `BirdClient`.
+/// Internal diagnostic sites lock the shared handle under the `if !self.quiet`
+/// gate; suppressed paths pay zero (no lock, no allocation).
 pub struct BirdDb {
     pub(crate) conn: std::sync::Mutex<Connection>,
     pub(crate) write_count: u32,
@@ -123,10 +123,10 @@ impl BirdDb {
     /// Open (or create) the entity store at the given path.
     /// Sets process umask before opening to ensure SQLite sidecar files inherit restrictive permissions.
     ///
-    /// `stderr` is the shared writer handle (cloned from `BirdClient`) per KTD-2;
-    /// `quiet` is stored so internal diagnostic sites suppress without taking a
-    /// per-method parameter. Both fields receive the locked writeln pattern from
-    /// KTD-1.
+    /// `stderr` is the shared writer handle cloned from `BirdClient`; `quiet`
+    /// is stored so internal diagnostic sites suppress without taking a
+    /// per-method parameter. Both fields drive the locked-writeln pattern in
+    /// diagnostic call sites: lock only when `!self.quiet`.
     pub fn open(
         path: &Path,
         max_size_mb: u64,
@@ -238,7 +238,8 @@ impl BirdDb {
 
     /// Attempt to migrate usage data from the old cache.db on first open.
     /// Idempotent: checks a sentinel row in migrations_meta. Uses `self.quiet`
-    /// and `self.stderr` to gate and route diagnostic output per KTD-1/KTD-2.
+    /// and `self.stderr` to gate and route diagnostic output through the
+    /// shared writer handle.
     pub fn migrate_usage_from_cache(&self, cache_db_path: &Path) {
         if !cache_db_path.exists() {
             return;
