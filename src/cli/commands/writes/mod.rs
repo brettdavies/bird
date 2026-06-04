@@ -481,7 +481,7 @@ mod tests {
 
     fn test_client() -> db::BirdClient {
         let transport = Box::new(MockTransport::new(vec![]));
-        let db_obj = crate::db::db::in_memory_db();
+        let db_obj = crate::db::store::in_memory_db();
         db::BirdClient::new_test(transport, db_obj)
     }
 

@@ -2,7 +2,7 @@
 
 use rusqlite::params;
 
-use super::db::BirdDb;
+use super::store::BirdDb;
 use super::unix_now;
 
 // -- Usage data structures --
@@ -213,7 +213,7 @@ impl BirdDb {
 
 #[cfg(test)]
 mod tests {
-    use super::super::db::in_memory_db;
+    use super::super::store::in_memory_db;
     use super::*;
 
     #[test]

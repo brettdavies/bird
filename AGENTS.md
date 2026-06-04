@@ -79,9 +79,9 @@ bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) -
 - `src/transport.rs` — xurl subprocess transport, `Transport: Send + Sync` trait, `XurlError`, `MockTransport` for unit
   tests. The resolved xurl binary path and `--timeout` value live on the per-call `XurlTransport` instance — no
   process-global statics, no in-process ordering hazards.
-- `src/db/` — SQLite entity store: `db.rs` (tweets / users / raw rows + migrations; `Connection` wrapped in
-  `std::sync::Mutex` for the Send + Sync gate), `client.rs` (entity-aware transport client wrapping `transport.rs`),
-  `usage.rs` (per-call cost ledger).
+- `src/db/` — SQLite entity store: `store/` (per-entity table modules + migrations; `Connection` wrapped in
+  `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware transport client wrapping `transport.rs`, split
+  into per-shape request modules), `usage.rs` (per-call cost ledger).
 - `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist.rs`,
   `src/usage.rs` — per-command handlers; streaming where the endpoint paginates.
 - `src/doctor.rs` — diagnostic report (xurl status, auth, command availability, cache health).
@@ -184,8 +184,6 @@ The release-doc trio lands in PR1 of the 2026-06-01 modernization sprint; the li
 
 ## Known debt
 
-- `src/db/db.rs` and `src/db/client.rs` both exceed the 200-line refactor trigger. Split candidates: per-entity table
-  modules in `db.rs`; per-shape request wrappers in `client.rs`.
 - `src/db/client.rs` carries a TODO to re-serialize bodies from JSON rather than re-parsing a string, to avoid the
   round-trip cost on cache hits.
 - `out_println!` / `out_print!` / `diag!` macros still write to globally-locked stdout/stderr. The runner's writer
