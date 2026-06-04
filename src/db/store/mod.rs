@@ -18,7 +18,6 @@ pub mod users;
 
 pub use bookmarks::BookmarkRow;
 pub use maintenance::StoreStats;
-pub use raw::RawResponseRow;
 pub use tweets::TweetRow;
 pub use users::UserRow;
 
