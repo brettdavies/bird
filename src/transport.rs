@@ -12,23 +12,15 @@
 //!   xurl reads auth from its own token store (~/.xurl).
 //! - All user input (search queries, tweet text) passes as separate argv elements.
 
+use crate::config::EnvOverrides;
 use crate::output;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 /// Maximum stdout capture size (50 MB) to prevent memory exhaustion.
 const MAX_STDOUT_BYTES: usize = 50 * 1024 * 1024;
-
-/// Default subprocess timeout before SIGTERM, used when no per-call value is set.
-const DEFAULT_TIMEOUT_SECS: u64 = 60;
-
-/// Effective timeout, wrapped per KTD-5 so the static stays test-resettable
-/// without `unsafe`. The runner seeds it via [`set_timeout_secs`] during
-/// startup; R22 deferral leaves the per-call thread-through for a follow-up.
-static TIMEOUT_OVERRIDE: OnceLock<Mutex<Option<u64>>> = OnceLock::new();
 
 /// Grace period after SIGTERM before SIGKILL.
 const KILL_GRACE_SECS: u64 = 5;
@@ -36,106 +28,63 @@ const KILL_GRACE_SECS: u64 = 5;
 /// Minimum supported xurl version.
 const MIN_VERSION: &str = "1.0.3";
 
-/// Set the effective subprocess timeout (in seconds). Idempotent; last writer
-/// wins (unlike the previous first-caller-wins `OnceLock<u64>` which created
-/// a process-global hazard for in-process tests).
-pub fn set_timeout_secs(secs: u64) {
-    let mutex = TIMEOUT_OVERRIDE.get_or_init(|| Mutex::new(None));
-    *mutex.lock().expect("TIMEOUT_OVERRIDE mutex poisoned") = Some(secs);
-}
-
-/// Effective subprocess timeout, honoring [`set_timeout_secs`] when set.
-pub fn effective_timeout_secs() -> u64 {
-    TIMEOUT_OVERRIDE
-        .get()
-        .and_then(|m| m.lock().ok().and_then(|g| *g))
-        .unwrap_or(DEFAULT_TIMEOUT_SECS)
-}
-
 /// Centralized xurl install guidance (DRY across transport.rs and doctor.rs).
 pub const XURL_INSTALL_HINT: &str = "Install xurl-rs: brew install brettdavies/tap/xurl-rs (or Go xurl: brew install xdevplatform/tap/xurl)";
 
-/// Cached absolute path to the xurl binary, resolved once at startup.
+/// Resolve the absolute path to the xurl binary against caller-supplied env.
 ///
-/// Wrapped per KTD-5: `OnceLock<Mutex<Option<Result<...>>>>` lets the static
-/// stay test-resettable via [`reset_xurl_path_for_tests`] without `unsafe`.
-/// The previous `OnceLock<Result<PathBuf, String>>` design required `&mut`
-/// on the immutable static for `OnceLock::take`, which rustc rejects (E0596).
-static XURL_PATH: OnceLock<Mutex<Option<Result<PathBuf, String>>>> = OnceLock::new();
-
-/// Resolve and cache the absolute path to the xurl binary.
-/// Checks `BIRD_XURL_PATH` env var first, falls back to `which::which("xr")`
-/// then `which::which("xurl")`. Resolved paths are canonicalized and version-checked
-/// as an integrity gate (rejects binaries that don't report a valid version).
+/// Pure with respect to its input: the runner snapshots the host env into
+/// [`EnvOverrides`] once at startup and threads that snapshot through here.
+/// Tests pass an [`EnvOverrides`] with an explicit `xurl_path` (or `None` to
+/// exercise the `which` fallback) without mutating process env.
 ///
-/// Returns an owned `PathBuf` (not `&'static Path`) because the cached value
-/// lives inside a `Mutex` and cannot escape the lock as a borrow.
-pub fn resolve_xurl_path() -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-    let mutex = XURL_PATH.get_or_init(|| Mutex::new(None));
-    let mut guard = mutex.lock().expect("XURL_PATH mutex poisoned");
-    if let Some(cached) = guard.as_ref() {
-        return match cached {
-            Ok(p) => Ok(p.clone()),
-            Err(e) => Err(e.clone().into()),
-        };
-    }
-    let resolved: Result<PathBuf, String> = (|| {
-        if let Ok(path) = std::env::var("BIRD_XURL_PATH") {
-            let p = PathBuf::from(&path);
-            if !p.exists() {
-                return Err(format!("BIRD_XURL_PATH={} does not exist", path));
-            }
-            let p = p
-                .canonicalize()
-                .map_err(|e| format!("BIRD_XURL_PATH={} cannot be resolved: {}", path, e))?;
-            if !p.is_file() {
-                return Err(format!("BIRD_XURL_PATH={} is not a file", p.display()));
-            }
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mode = p
-                    .metadata()
-                    .map_err(|e| format!("BIRD_XURL_PATH={}: {}", path, e))?
-                    .permissions()
-                    .mode();
-                if mode & 0o111 == 0 {
-                    return Err(format!("BIRD_XURL_PATH={} is not executable", path));
-                }
-            }
-            return Ok(p);
+/// Honors `env.xurl_path` first (validating existence + executable bit), then
+/// falls back to `which::which("xr")` then `which::which("xurl")`. Resolved
+/// paths are canonicalized and version-checked as an integrity gate.
+pub fn resolve_xurl_path(
+    env: &EnvOverrides,
+) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    if let Some(path) = env.xurl_path.as_ref() {
+        if !path.exists() {
+            return Err(format!("BIRD_XURL_PATH={} does not exist", path.display()).into());
         }
-        // Try xr (xurl-rs) first, then xurl (Go original).
-        // Canonicalize to resolve symlinks and mitigate impersonation.
-        // Version check acts as integrity gate: reject binaries that don't
-        // report a parseable version with "xurl " or "xr " prefix.
-        for name in &["xr", "xurl"] {
-            if let Ok(found) = which::which(name) {
-                let canonical = found.canonicalize().unwrap_or(found);
-                if verify_xurl_binary(&canonical) {
-                    return Ok(canonical);
-                }
+        let p = path.canonicalize().map_err(|e| {
+            format!(
+                "BIRD_XURL_PATH={} cannot be resolved: {}",
+                path.display(),
+                e
+            )
+        })?;
+        if !p.is_file() {
+            return Err(format!("BIRD_XURL_PATH={} is not a file", p.display()).into());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = p
+                .metadata()
+                .map_err(|e| format!("BIRD_XURL_PATH={}: {}", path.display(), e))?
+                .permissions()
+                .mode();
+            if mode & 0o111 == 0 {
+                return Err(format!("BIRD_XURL_PATH={} is not executable", path.display()).into());
             }
         }
-        Err(format!("xurl not found. {}", XURL_INSTALL_HINT))
-    })();
-    *guard = Some(resolved.clone());
-    match resolved {
-        Ok(p) => Ok(p),
-        Err(e) => Err(e.into()),
+        return Ok(p);
     }
-}
-
-/// Clear the cached `XURL_PATH` so the next [`resolve_xurl_path`] call
-/// re-runs the resolution from scratch. Used by in-process tests (both unit
-/// and integration) that need to toggle `BIRD_XURL_PATH` between runs without
-/// spawning a fresh process. Not part of the public API — exposed via the
-/// doc-hidden test-infrastructure surface only.
-#[doc(hidden)]
-pub fn reset_xurl_path_for_tests() {
-    if let Some(mutex) = XURL_PATH.get() {
-        *mutex.lock().expect("XURL_PATH mutex poisoned") = None;
+    // Try xr (xurl-rs) first, then xurl (Go original).
+    // Canonicalize to resolve symlinks and mitigate impersonation.
+    // Version check acts as integrity gate: reject binaries that don't
+    // report a parseable version with "xurl " or "xr " prefix.
+    for name in &["xr", "xurl"] {
+        if let Ok(found) = which::which(name) {
+            let canonical = found.canonicalize().unwrap_or(found);
+            if verify_xurl_binary(&canonical) {
+                return Ok(canonical);
+            }
+        }
     }
+    Err(format!("xurl not found. {}", XURL_INSTALL_HINT).into())
 }
 
 /// Verify a candidate binary is a genuine xurl/xr by checking its version output.
@@ -211,8 +160,8 @@ pub enum XurlError {
     Auth(String),
     /// xurl returned an API error (non-auth HTTP error)
     Api { status: u16, message: String },
-    /// xurl process timed out
-    Timeout,
+    /// xurl process timed out after the given duration.
+    Timeout(Duration),
     /// xurl process failed (non-JSON stderr, crash, etc.)
     Process(String),
 }
@@ -223,8 +172,8 @@ impl std::fmt::Display for XurlError {
             XurlError::NotFound(msg) => write!(f, "{}", msg),
             XurlError::Auth(msg) => write!(f, "auth error: {}", msg),
             XurlError::Api { status, message } => write!(f, "API error {}: {}", status, message),
-            XurlError::Timeout => {
-                write!(f, "timeout: xurl exceeded {}s", effective_timeout_secs())
+            XurlError::Timeout(d) => {
+                write!(f, "timeout: xurl exceeded {}s", d.as_secs())
             }
             XurlError::Process(msg) => write!(f, "xurl process error: {}", msg),
         }
@@ -238,12 +187,15 @@ impl std::error::Error for XurlError {}
 /// Spawns xurl with `NO_COLOR=1` to suppress ANSI escape codes in output.
 /// Stdout is piped and parsed as JSON. On failure, classifies the error type
 /// from the JSON body's `status` field or stderr content.
+///
+/// Caller supplies the resolved xurl binary path and the subprocess timeout;
+/// the runner resolves both once at startup and threads them through.
 pub fn xurl_call(
     args: &[&str],
+    xurl_path: &Path,
+    timeout: Duration,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-    let path = resolve_xurl_path()?;
-
-    let mut child = match Command::new(path)
+    let mut child = match Command::new(xurl_path)
         .args(args)
         .env("NO_COLOR", "1")
         .stdout(Stdio::piped())
@@ -284,7 +236,7 @@ pub fn xurl_call(
     });
 
     // Wait with timeout (child can now write freely — readers are draining)
-    let status = wait_with_timeout(&mut child, Duration::from_secs(effective_timeout_secs()))?;
+    let status = wait_with_timeout(&mut child, timeout)?;
 
     // Join reader threads
     let stdout_buf = stdout_thread
@@ -318,10 +270,11 @@ pub fn xurl_call(
 
 /// Run xurl with inherited stdio (for interactive flows like `bird login`).
 /// No timeout: OAuth2 flows require user interaction in a browser; user can Ctrl+C.
-pub fn xurl_passthrough(args: &[&str]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let path = resolve_xurl_path()?;
-
-    let status = Command::new(path)
+pub fn xurl_passthrough(
+    args: &[&str],
+    xurl_path: &Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let status = Command::new(xurl_path)
         .args(args)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
@@ -425,7 +378,7 @@ fn wait_with_timeout(
                                     // SIGKILL and reap to prevent zombie
                                     let _ = child.kill();
                                     let _ = child.wait();
-                                    return Err(Box::new(XurlError::Timeout));
+                                    return Err(Box::new(XurlError::Timeout(timeout)));
                                 }
                                 std::thread::sleep(poll_interval);
                             }
@@ -438,28 +391,85 @@ fn wait_with_timeout(
     }
 }
 
-/// Transport trait for testability. Production uses XurlTransport; tests use MockTransport.
+/// Transport trait for testability. Production uses [`XurlTransport`]; tests
+/// use [`MockTransport`].
 ///
-/// The `Send + Sync` bound (R20) is a hard prerequisite for sibling Plan 2's
+/// The `Send + Sync` bound is a hard prerequisite for the
 /// `Arc<Mutex<dyn Write + Send>>` writer storage on `BirdClient`, which needs
 /// `Box<dyn Transport>` (a field on `BirdClient`) to qualify as `Send + Sync`.
+///
+/// Implementations carry their own configuration (resolved xurl path,
+/// subprocess timeout). The runner constructs the production transport with
+/// the resolved path and `--timeout` value at startup and threads it through.
 pub trait Transport: Send + Sync {
     fn request(
         &self,
         args: &[String],
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Resolved xurl binary path, when the transport spawns a real subprocess.
+    /// Mock transports return `None`. Surfaced for direct call sites
+    /// (`bird login`, write commands) that need the binary path without going
+    /// through [`Self::request`].
+    fn xurl_path(&self) -> Option<&Path> {
+        None
+    }
 }
 
-/// Production transport: delegates to xurl subprocess.
-pub struct XurlTransport;
+/// Production transport: delegates to xurl subprocess. Carries the resolved
+/// xurl binary path (or the resolution error message) and the subprocess
+/// timeout; both are caller-supplied at construction.
+///
+/// The path is wrapped in `Result<PathBuf, String>` so the runner can
+/// construct the transport unconditionally: commands that never spawn xurl
+/// (local watchlist, cache, doctor's xurl-status report) tolerate the error
+/// path silently, while commands that DO spawn xurl surface the resolution
+/// error on first [`Transport::request`].
+pub struct XurlTransport {
+    xurl_path: Result<PathBuf, String>,
+    timeout: Duration,
+}
+
+impl XurlTransport {
+    /// Construct a transport bound to a successfully-resolved xurl binary.
+    /// The resolved path is surfaced through the [`Transport::xurl_path`]
+    /// trait method so direct call sites (`bird login`, write commands) read
+    /// off the live transport rather than re-resolving.
+    pub fn new(xurl_path: PathBuf, timeout: Duration) -> Self {
+        Self {
+            xurl_path: Ok(xurl_path),
+            timeout,
+        }
+    }
+
+    /// Construct a transport that will surface `error` on every
+    /// [`Transport::request`] call. Used when the runner could not resolve
+    /// the xurl binary but the command being dispatched might still succeed
+    /// without spawning xurl (`bird doctor`, local-only watchlist commands).
+    pub fn from_error(error: String, timeout: Duration) -> Self {
+        Self {
+            xurl_path: Err(error),
+            timeout,
+        }
+    }
+}
 
 impl Transport for XurlTransport {
     fn request(
         &self,
         args: &[String],
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        xurl_call(&arg_refs)
+        match &self.xurl_path {
+            Ok(path) => {
+                let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                xurl_call(&arg_refs, path, self.timeout)
+            }
+            Err(msg) => Err(Box::new(XurlError::NotFound(msg.clone()))),
+        }
+    }
+
+    fn xurl_path(&self) -> Option<&Path> {
+        self.xurl_path.as_ref().ok().map(|p| p.as_path())
     }
 }
 
@@ -524,8 +534,9 @@ pub mod tests {
 
     #[test]
     fn xurl_error_display_timeout() {
-        let e = XurlError::Timeout;
+        let e = XurlError::Timeout(Duration::from_secs(42));
         assert!(e.to_string().contains("timeout"));
+        assert!(e.to_string().contains("42"));
     }
 
     #[test]
@@ -610,13 +621,6 @@ pub mod tests {
         assert!(a < b);
     }
 
-    #[test]
-    fn reset_xurl_path_for_tests_is_callable() {
-        // Smoke test for R21a's test-reset shim: must not panic regardless of
-        // prior XURL_PATH state (uninitialized, Ok, or Err).
-        super::reset_xurl_path_for_tests();
-    }
-
     // Negative example (intentionally commented out — uncomment locally to
     // verify the regression catches it). The `Transport: Send + Sync` bound
     // and the `BirdClient: Send + Sync` compile-time assertion should both
@@ -627,4 +631,156 @@ pub mod tests {
     //     fn _assert<T: Send + Sync>() {}
     //     _assert::<NotSend>(); // compile error: Rc is neither Send nor Sync
     // };
+
+    // --- XurlTransport accessor + from_error mapping --------------------
+
+    #[test]
+    fn xurl_transport_new_exposes_path_via_trait_accessor() {
+        let path = std::path::PathBuf::from("/tmp/xurl-fixture-path");
+        let t = XurlTransport::new(path.clone(), Duration::from_secs(7));
+        assert_eq!(t.xurl_path(), Some(path.as_path()));
+    }
+
+    #[test]
+    fn xurl_transport_from_error_hides_path() {
+        let t = XurlTransport::from_error("boom".to_string(), Duration::from_secs(7));
+        assert_eq!(t.xurl_path(), None);
+    }
+
+    #[test]
+    fn xurl_transport_from_error_request_surfaces_not_found() {
+        let t = XurlTransport::from_error(
+            "BIRD_XURL_PATH=/missing does not exist".to_string(),
+            Duration::from_secs(7),
+        );
+        let err = t.request(&[]).expect_err("from_error transport must error");
+        let xerr = err
+            .downcast_ref::<XurlError>()
+            .expect("error must downcast to XurlError");
+        match xerr {
+            XurlError::NotFound(msg) => {
+                assert!(
+                    msg.contains("BIRD_XURL_PATH=/missing does not exist"),
+                    "NotFound message must carry the resolution error verbatim, got: {msg}"
+                );
+            }
+            other => panic!("expected XurlError::NotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn mock_transport_xurl_path_defaults_to_none() {
+        let mock = MockTransport::new(vec![]);
+        assert_eq!(mock.xurl_path(), None);
+    }
+
+    #[test]
+    fn xurl_transport_instances_carry_independent_paths() {
+        // Two transports constructed with different paths must surface their
+        // own path through `xurl_path()` — no shared state between instances.
+        let path_a = std::path::PathBuf::from("/tmp/xurl-instance-a");
+        let path_b = std::path::PathBuf::from("/tmp/xurl-instance-b");
+        let a = XurlTransport::new(path_a.clone(), Duration::from_secs(1));
+        let b = XurlTransport::new(path_b.clone(), Duration::from_secs(2));
+        assert_eq!(a.xurl_path(), Some(path_a.as_path()));
+        assert_eq!(b.xurl_path(), Some(path_b.as_path()));
+    }
+
+    // --- resolve_xurl_path error-branch coverage -----------------------
+
+    #[test]
+    fn resolve_xurl_path_with_nonexistent_path_errors() {
+        let env = EnvOverrides {
+            xurl_path: Some(std::path::PathBuf::from(
+                "/tmp/bird-resolve-nonexistent-xurl-fixture",
+            )),
+            ..EnvOverrides::default()
+        };
+        let err = resolve_xurl_path(&env).expect_err("nonexistent path must error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("does not exist"),
+            "error must mention nonexistence, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn resolve_xurl_path_with_directory_errors() {
+        let tmp = tempfile::tempdir().expect("test: tempdir");
+        let env = EnvOverrides {
+            xurl_path: Some(tmp.path().to_path_buf()),
+            ..EnvOverrides::default()
+        };
+        let err = resolve_xurl_path(&env).expect_err("directory must error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("is not a file"),
+            "directory error must mention 'is not a file', got: {msg}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn resolve_xurl_path_with_non_executable_errors() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("test: tempdir");
+        let file_path = tmp.path().join("not-executable");
+        std::fs::write(&file_path, b"#!/bin/sh\necho hi\n").expect("test: write");
+        let mut perms = std::fs::metadata(&file_path)
+            .expect("test: metadata")
+            .permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&file_path, perms).expect("test: chmod");
+        let env = EnvOverrides {
+            xurl_path: Some(file_path),
+            ..EnvOverrides::default()
+        };
+        let err = resolve_xurl_path(&env).expect_err("non-executable must error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("is not executable"),
+            "non-executable error must mention 'is not executable', got: {msg}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn resolve_xurl_path_with_valid_executable_succeeds() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("test: tempdir");
+        let file_path = tmp.path().join("fake-xurl");
+        // Print a version string `verify_xurl_binary` is not called for the
+        // env-supplied path (the function trusts the user's choice), but the
+        // file still has to pass the existence / file / executable checks.
+        std::fs::write(&file_path, b"#!/bin/sh\necho 'xurl 1.0.3'\n").expect("test: write");
+        let mut perms = std::fs::metadata(&file_path)
+            .expect("test: metadata")
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).expect("test: chmod");
+        let env = EnvOverrides {
+            xurl_path: Some(file_path.clone()),
+            ..EnvOverrides::default()
+        };
+        let resolved = resolve_xurl_path(&env).expect("valid executable must resolve");
+        let canonical_expected = file_path
+            .canonicalize()
+            .expect("test: canonicalize fixture");
+        assert_eq!(resolved, canonical_expected);
+    }
+
+    #[test]
+    fn resolve_xurl_path_with_none_falls_back_to_which() {
+        // Without a `xurl_path` snapshot the resolver falls back to
+        // `which::which("xr")` then `which::which("xurl")`. The PATH on the
+        // test host may or may not carry either binary, so this assertion is
+        // intentionally weak: it only proves the resolver does NOT consult
+        // the snapshot when the field is None, by feeding an empty snapshot
+        // and accepting either outcome.
+        let env = EnvOverrides {
+            xurl_path: None,
+            ..EnvOverrides::default()
+        };
+        let _ = resolve_xurl_path(&env);
+    }
 }

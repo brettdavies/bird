@@ -12,22 +12,20 @@ use crate::error::BirdError;
 use crate::output::{self, OutputConfig};
 use crate::requirements;
 use crate::schema;
-use crate::transport;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
 
 /// Top-level dispatcher: routes a parsed `Command` to its per-command module.
 ///
 /// Pre-dispatched commands (`Completions`, `Skill`, `Schema`, `Doctor`,
-/// `Watchlist::Add`/`Remove`/`List`) are handled in `fn main` before this is
-/// called; their arms here are unreachable but kept as `Ok(())` returns for
-/// exhaustiveness — the dispatcher never panics on a stray pre-dispatched
-/// variant slipping through.
+/// `Watchlist::Add`/`Remove`/`List`) are handled by the runner before this
+/// is called; their arms here are unreachable but kept as `Ok(())` returns
+/// for exhaustiveness — the dispatcher never panics on a stray
+/// pre-dispatched variant slipping through.
 ///
-/// Plan 2 U2/U6: `stdout` and `stderr` writers are threaded through here so
-/// each per-command module can pass them to its handler. The `stderr` writer
-/// is now consumed by handlers' KTD-1 diagnostic sites (per R15) and by
-/// `cost::display_cost` (per R16).
+/// `stdout` and `stderr` writers are threaded through here so each
+/// per-command module can pass them to its handler. The `stderr` writer
+/// reaches handlers' diagnostic sites and `cost::display_cost`.
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     command: Command,
@@ -180,6 +178,7 @@ pub fn run(
             media_id,
             guard,
         } => commands::writes::run_tweet(
+            client,
             out,
             stdout,
             text,
@@ -194,6 +193,7 @@ pub fn run(
             text,
             guard,
         } => commands::writes::run_reply(
+            client,
             out,
             stdout,
             tweet_id,
@@ -204,6 +204,7 @@ pub fn run(
             config.username.as_deref(),
         ),
         Command::Like { tweet_id, guard } => commands::writes::run_like(
+            client,
             out,
             stdout,
             tweet_id,
@@ -213,6 +214,7 @@ pub fn run(
             config.username.as_deref(),
         ),
         Command::Unlike { tweet_id, guard } => commands::writes::run_unlike(
+            client,
             out,
             stdout,
             tweet_id,
@@ -222,6 +224,7 @@ pub fn run(
             config.username.as_deref(),
         ),
         Command::Repost { tweet_id, guard } => commands::writes::run_repost(
+            client,
             out,
             stdout,
             tweet_id,
@@ -231,6 +234,7 @@ pub fn run(
             config.username.as_deref(),
         ),
         Command::Unrepost { tweet_id, guard } => commands::writes::run_unrepost(
+            client,
             out,
             stdout,
             tweet_id,
@@ -243,6 +247,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_follow(
+            client,
             out,
             stdout,
             target,
@@ -255,6 +260,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_unfollow(
+            client,
             out,
             stdout,
             target,
@@ -268,6 +274,7 @@ pub fn run(
             text,
             guard,
         } => commands::writes::run_dm(
+            client,
             out,
             stdout,
             target,
@@ -281,6 +288,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_block(
+            client,
             out,
             stdout,
             target,
@@ -293,6 +301,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_unblock(
+            client,
             out,
             stdout,
             target,
@@ -305,6 +314,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_mute(
+            client,
             out,
             stdout,
             target,
@@ -317,6 +327,7 @@ pub fn run(
             username: target,
             guard,
         } => commands::writes::run_unmute(
+            client,
             out,
             stdout,
             target,
@@ -328,7 +339,9 @@ pub fn run(
         Command::Cache { action } => {
             commands::cache::run(client, out, stdout, stderr, action, no_interactive)
         }
-        // Pre-dispatched in main(); unreachable here.
+        // Pre-dispatched by the runner before `run` is invoked
+        // (`Completions`, `Skill`, `Schema`, `Doctor`); arms kept for
+        // exhaustiveness so a stray variant never panics.
         Command::Doctor { .. }
         | Command::Completions { .. }
         | Command::Skill { .. }
@@ -372,11 +385,14 @@ pub fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: boo
             CacheAction::Stats { .. } => false,
         },
         Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Fetch),
-        // Pre-dispatched in main(); never reach run().
-        Command::Login { .. }
-        | Command::Completions { .. }
-        | Command::Schema { .. }
-        | Command::Skill { .. } => false,
+        // Login spawns xurl directly (`xurl auth oauth2` or headless OAuth2),
+        // so it must surface the detailed resolution error from the runner's
+        // xurl gate rather than falling through to a generic install-hint
+        // message inside the handler.
+        Command::Login { .. } => true,
+        // Pre-dispatched in main() / runner short-circuits before `run` —
+        // never reach the dispatcher's xurl gate.
+        Command::Completions { .. } | Command::Schema { .. } | Command::Skill { .. } => false,
         // Diagnostic: doctor probes xurl itself but should not gate on absence.
         Command::Doctor { .. } => false,
         // Write commands — gate fires only when the command will actually run.
@@ -583,17 +599,22 @@ pub fn clamp_limit(requested: Option<u32>, default: u32, ceiling: u32) -> (u32, 
 }
 
 /// Call xurl for a write command and print the JSON result to `stdout`.
+///
+/// Routes through `BirdClient`'s transport so the resolved xurl path and
+/// timeout flow through a single chokepoint.
 pub fn xurl_write_call(
+    client: &crate::db::BirdClient,
     stdout: &mut dyn Write,
     args: &[&str],
     username: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut full_args: Vec<&str> = Vec::new();
+    let mut full_args: Vec<String> = Vec::new();
     if let Some(u) = username {
-        full_args.extend(["-u", u]);
+        full_args.push("-u".into());
+        full_args.push(u.into());
     }
-    full_args.extend_from_slice(args);
-    let json = transport::xurl_call(&full_args)?;
+    full_args.extend(args.iter().map(|s| (*s).to_string()));
+    let json = client.transport_request(&full_args)?;
     writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
     Ok(())
 }

@@ -47,17 +47,21 @@ pub struct DoctorReport {
     pub cache: Option<CacheStatus>,
 }
 
-fn build_xurl_status(stderr: &mut dyn std::io::Write, quiet: bool) -> XurlStatus {
-    match crate::transport::resolve_xurl_path() {
-        Ok(path) => {
-            let version = crate::transport::check_xurl_version(&path, stderr, quiet).ok();
+fn build_xurl_status(
+    client: &BirdClient,
+    stderr: &mut dyn std::io::Write,
+    quiet: bool,
+) -> XurlStatus {
+    match client.xurl_path() {
+        Some(path) => {
+            let version = crate::transport::check_xurl_version(path, stderr, quiet).ok();
             XurlStatus {
                 path: Some(path.display().to_string()),
                 version,
                 available: true,
             }
         }
-        Err(_) => XurlStatus {
+        None => XurlStatus {
             path: None,
             version: None,
             available: false,
@@ -66,8 +70,8 @@ fn build_xurl_status(stderr: &mut dyn std::io::Write, quiet: bool) -> XurlStatus
 }
 
 /// Detect auth state by running `xurl whoami`. Returns username on success.
-fn detect_auth() -> AuthState {
-    match crate::transport::xurl_call(&["whoami"]) {
+fn detect_auth(client: &BirdClient) -> AuthState {
+    match client.transport_request(&["whoami".to_string()]) {
         Ok(json) => {
             let username = json
                 .get("data")
@@ -143,9 +147,9 @@ pub(crate) fn report(
     scope: Option<&str>,
     quiet: bool,
 ) -> DoctorReport {
-    let xurl = build_xurl_status(stderr, quiet);
+    let xurl = build_xurl_status(client, stderr, quiet);
     let auth = if xurl.available {
-        detect_auth()
+        detect_auth(client)
     } else {
         AuthState {
             authenticated: false,

@@ -7,7 +7,6 @@
 //! and stdin plumbing.
 
 use crate::output::{OutputConfig, OutputFormat};
-use crate::transport;
 use std::io::{BufRead, Write};
 use std::process::{Command, Stdio};
 
@@ -84,10 +83,9 @@ pub struct HeadlessAuthArgs {
 pub fn run_oauth2_authenticate_headless(
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    xurl_path: &std::path::Path,
     username: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let xurl_path = transport::resolve_xurl_path()?;
-
     let mut step1_args: Vec<String> = vec![
         "auth".into(),
         "oauth2".into(),
@@ -101,7 +99,7 @@ pub fn run_oauth2_authenticate_headless(
         step1_args.push(u.into());
     }
 
-    let step1 = Command::new(&xurl_path)
+    let step1 = Command::new(xurl_path)
         .args(step1_args.iter().map(String::as_str))
         .env("NO_COLOR", "1")
         .stdin(Stdio::null())
@@ -184,7 +182,7 @@ pub fn run_oauth2_authenticate_headless(
         step2_args.push(u.into());
     }
 
-    let mut step2 = Command::new(&xurl_path)
+    let mut step2 = Command::new(xurl_path)
         .args(step2_args.iter().map(String::as_str))
         .env("NO_COLOR", "1")
         .stdin(Stdio::piped())

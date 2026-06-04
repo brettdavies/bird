@@ -217,10 +217,11 @@ where
         raw,
     };
 
-    // Apply --timeout to the xurl transport layer. U8 wraps TIMEOUT_OVERRIDE
-    // in OnceLock<Mutex<Option<u64>>> per KTD-5; the deferred R22 follow-up
-    // threads the value through Transport::request and drops the static.
-    transport::set_timeout_secs(cli.timeout);
+    // The xurl binary path and `--timeout` value are per-transport state:
+    // resolve once below and pass into `XurlTransport::new`. Resolution
+    // errors are stored on the transport and only surface when a command
+    // actually spawns xurl.
+    let xurl_timeout = std::time::Duration::from_secs(cli.timeout);
 
     // --- Meta-commands: need nothing beyond parsed args ---
     if let Command::Completions { shell } = &cli.command {
@@ -310,7 +311,18 @@ where
         }
     };
 
-    let transport = Box::new(transport::XurlTransport);
+    // Resolve the xurl binary path once at startup. Commands that need xurl
+    // surface the error on first transport call (or via the xurl gate below);
+    // commands that never spawn xurl (local watchlist, cache, doctor's
+    // xurl-status report) tolerate the error transport silently.
+    let xurl_resolution = transport::resolve_xurl_path(&env);
+    let transport: Box<dyn transport::Transport> = match &xurl_resolution {
+        Ok(path) => Box::new(transport::XurlTransport::new(path.clone(), xurl_timeout)),
+        Err(e) => Box::new(transport::XurlTransport::from_error(
+            e.to_string(),
+            xurl_timeout,
+        )),
+    };
     let cache_opts = db::CacheOpts {
         no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
@@ -411,9 +423,9 @@ where
     let stdin_is_tty = std::io::stdin().is_terminal();
     if command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive)
         && !cli.cache_only
-        && let Err(e) = transport::resolve_xurl_path()
+        && let Err(e) = &xurl_resolution
     {
-        let err = BirdError::config(e);
+        let err = BirdError::config(e.to_string());
         let _ = out.print_error(stderr, &err);
         return ExitCode::from(err.exit_code());
     }
