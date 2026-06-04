@@ -63,7 +63,7 @@ pub fn run_search(
             return Err(format!(
                 "GET search {}: {}",
                 response.status,
-                output::sanitize_for_stderr(&response.body, 200)
+                output::sanitize_for_stderr(&response.body(), 200)
             )
             .into());
         }
