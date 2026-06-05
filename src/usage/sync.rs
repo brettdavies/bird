@@ -149,7 +149,7 @@ pub(super) fn sync_actual_usage(
     }))
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "embedded-xurl")))]
 mod tests {
     use super::*;
     use crate::db::BirdClient;

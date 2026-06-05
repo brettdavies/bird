@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Integration tests for the xurl subprocess transport layer.
 //!
 //! Tests the subprocess security properties and mock xurl behavior.

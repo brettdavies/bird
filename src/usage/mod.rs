@@ -226,7 +226,7 @@ struct UsageReport {
     sync_status: &'static str,
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "embedded-xurl")))]
 mod tests {
     use super::*;
     use crate::db::BirdClient;

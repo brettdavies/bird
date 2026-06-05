@@ -56,6 +56,16 @@ libc = "0.2"
 semver = "1"
 thiserror = "2"
 
+[dependencies.xurl]
+package = "xurl-rs"
+version = "2.0.0"
+git = "https://github.com/brettdavies/xurl-rs"
+rev = "193fd27e7de4e142f7c3529f167b6c5540c5bb98" # v2.0.0
+optional = true
+
+[features]
+embedded-xurl = ["dep:xurl"]
+
 [build-dependencies]
 serde_json = "1"
 

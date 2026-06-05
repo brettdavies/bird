@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Subprocess-bound smoke tests — the residual carve-outs.
 //!
 //! Two carve-out classes live here:

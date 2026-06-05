@@ -19,14 +19,16 @@
 
 use crate::cli::argv::{explicit_output_from_argv, output_from_argv};
 use crate::cli::clap_errors::clap_error_to_bird;
-use crate::cli::dispatch::{
-    GuardOutcome, ListFlags, clamp_limit, command_needs_xurl, require_confirmation,
-};
+#[cfg(not(feature = "embedded-xurl"))]
+use crate::cli::dispatch::command_needs_xurl;
+use crate::cli::dispatch::{GuardOutcome, ListFlags, clamp_limit, require_confirmation};
 use crate::cli::{Cli, Command, OutputFlags, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::{db, doctor, output, schema, schema_print, skill_install, transport, watchlist};
+#[cfg(not(feature = "embedded-xurl"))]
+use crate::transport;
+use crate::{db, doctor, output, schema, schema_print, skill_install, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
@@ -304,7 +306,9 @@ where
     // surface the error on first transport call (or via the xurl gate below);
     // commands that never spawn xurl (local watchlist, cache, doctor's
     // xurl-status report) tolerate the error transport silently.
+    #[cfg(not(feature = "embedded-xurl"))]
     let xurl_resolution = transport::resolve_xurl_path(&env);
+    #[cfg(not(feature = "embedded-xurl"))]
     let transport: Box<dyn transport::Transport> = match &xurl_resolution {
         Ok(path) => Box::new(transport::XurlTransport::new(path.clone(), xurl_timeout)),
         Err(e) => Box::new(transport::XurlTransport::from_error(
@@ -312,6 +316,22 @@ where
             xurl_timeout,
         )),
     };
+
+    // Embedded transport: construct `xurl::api::ApiClient` from env. A
+    // construction failure is captured as a stub impl that returns the
+    // original error on every call, mirroring the subprocess `from_error`
+    // shape so commands that don't reach the network (cache ops, doctor's
+    // local view) continue to work. PR1 ships this field unused — handler
+    // bodies migrate to call through `client.xurl` in PR2.
+    #[cfg(feature = "embedded-xurl")]
+    let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> =
+        match xurl::api::ApiClient::from_env() {
+            Ok(c) => Box::new(c),
+            Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
+        };
+    #[cfg(feature = "embedded-xurl")]
+    let _ = xurl_timeout;
+
     let cache_opts = db::CacheOpts {
         no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
@@ -326,7 +346,10 @@ where
     let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
         std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
     let mut client = db::BirdClient::new(
+        #[cfg(not(feature = "embedded-xurl"))]
         transport,
+        #[cfg(feature = "embedded-xurl")]
+        xurl_client,
         &config.cache_path,
         cache_opts,
         config.cache_max_size_mb,
@@ -417,7 +440,9 @@ where
     //   * The command is local-only (Cache, Watchlist Add/Remove/List)
     //   * --cache-only is set (no network)
     //   * The command's guard is --dry-run (we print the would-be call and exit)
+    #[cfg(not(feature = "embedded-xurl"))]
     let stdin_is_tty = std::io::stdin().is_terminal();
+    #[cfg(not(feature = "embedded-xurl"))]
     if command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive)
         && !cli.cache_only
         && let Err(e) = &xurl_resolution

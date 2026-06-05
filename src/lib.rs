@@ -34,3 +34,6 @@ pub mod thread;
 pub mod transport;
 pub mod usage;
 pub mod watchlist;
+
+#[cfg(feature = "embedded-xurl")]
+pub mod xurl_client;
