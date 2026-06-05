@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 uv run --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -8,11 +8,17 @@
 Usage:
     generate-changelog.py [--tag vX.Y.Z] [repo-path]
     generate-changelog.py --check [repo-path]
+    generate-changelog.py --dry-run [--tag vX.Y.Z] [repo-path]
 
 Options:
     --tag vX.Y.Z   Override version tag (default: extracted from branch name).
     --check        Verify CHANGELOG.md has a versioned section
                    (exit 1 if only [Unreleased]).
+    --dry-run      Run the regen flow against the current CHANGELOG.md and
+                   restore the original on exit. Exit 0 if regeneration
+                   produces identical content (idempotent), exit 1 with a
+                   unified diff if it would drift. Requires an existing
+                   CHANGELOG.md.
 
 Version detection: the branch name must match release/vN.N.N (with optional
 suffix like release/v1.0.5-ci-migration). Pass --tag when not on a release
@@ -35,6 +41,7 @@ Run on a release/vX.Y.Z branch before opening the PR to main.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -301,6 +308,14 @@ def rewrite_version_section(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run regen against the current CHANGELOG.md and restore the original on exit. "
+            "Exit 0 if idempotent, 1 with a unified diff if it would drift."
+        ),
+    )
     parser.add_argument("--tag")
     parser.add_argument("repo_path", nargs="?", default=".")
     args = parser.parse_args()
@@ -326,37 +341,81 @@ def main() -> int:
 
     ensure_github_token()
 
-    cwd = os.getcwd()
-    try:
-        os.chdir(repo)
-        run_git_cliff(tag, changelog)
-    finally:
-        os.chdir(cwd)
+    dry_run_original: str | None = None
+    if args.dry_run:
+        if not changelog.exists():
+            fail("--dry-run requires an existing CHANGELOG.md to compare against")
+        dry_run_original = changelog.read_text()
 
-    owner, repo_name = read_remote_github(cliff_toml)
-    if not owner or not repo_name or not have("gh"):
-        print(
-            "Updated CHANGELOG.md (skipping PR expansion — missing [remote.github] or gh CLI)"
-        )
+    # Duplicate-section guard: skip the git-cliff prepend when a section for
+    # this tag already exists, so re-running against an already-released tag
+    # doesn't append a second copy of the same version. In dry-run mode we
+    # still need the PR-body expansion below to run so it can compare against
+    # the current file.
+    section_header_re = re.compile(
+        rf"^## \[{re.escape(version)}\]", re.MULTILINE
+    )
+    duplicate_section = (
+        changelog.exists() and bool(section_header_re.search(changelog.read_text()))
+    )
+    if duplicate_section and not args.dry_run:
+        print(f"CHANGELOG.md already has a [{version}] section; skipping prepend")
+        return 0
+
+    try:
+        if not duplicate_section:
+            cwd = os.getcwd()
+            try:
+                os.chdir(repo)
+                run_git_cliff(tag, changelog)
+            finally:
+                os.chdir(cwd)
+
+        owner, repo_name = read_remote_github(cliff_toml)
+        has_gh_integration = bool(owner and repo_name and have("gh"))
+
+        if has_gh_integration:
+            section = extract_version_section(changelog.read_text(), version)
+            pr_nums = pr_numbers_from_section(section)
+            if pr_nums:
+                entries = collect_entries(owner, repo_name, pr_nums)
+                if entries:
+                    rewrite_version_section(
+                        changelog, version, tag, owner, repo_name, entries
+                    )
+
+        if dry_run_original is not None:
+            new_content = changelog.read_text()
+            if new_content == dry_run_original:
+                print("DRY RUN: CHANGELOG.md is current (no regen drift)")
+                return 0
+            print(
+                "DRY RUN: CHANGELOG.md would change (regen drift detected)",
+                file=sys.stderr,
+            )
+            sys.stderr.writelines(
+                difflib.unified_diff(
+                    dry_run_original.splitlines(keepends=True),
+                    new_content.splitlines(keepends=True),
+                    fromfile="CHANGELOG.md (current)",
+                    tofile="CHANGELOG.md (regenerated)",
+                )
+            )
+            return 1
+
+        if has_gh_integration:
+            print("Updated CHANGELOG.md")
+        else:
+            print(
+                "Updated CHANGELOG.md (skipping PR expansion — missing [remote.github] or gh CLI)"
+            )
         print("\nNext steps:")
         print("  git add CHANGELOG.md")
         print("  git commit -m 'docs: update CHANGELOG.md'")
         return 0
-
-    section = extract_version_section(changelog.read_text(), version)
-    pr_nums = pr_numbers_from_section(section)
-    if pr_nums:
-        entries = collect_entries(owner, repo_name, pr_nums)
-        if entries:
-            rewrite_version_section(
-                changelog, version, tag, owner, repo_name, entries
-            )
-
-    print("Updated CHANGELOG.md")
-    print("\nNext steps:")
-    print("  git add CHANGELOG.md")
-    print("  git commit -m 'docs: update CHANGELOG.md'")
-    return 0
+    finally:
+        if dry_run_original is not None:
+            changelog.write_text(dry_run_original)
 
 
 if __name__ == "__main__":
