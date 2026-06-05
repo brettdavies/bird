@@ -35,6 +35,19 @@ Every `!:` commit drives the major-version decision and gets a row in the releas
 
 ## Checklist
 
+### `embedded-xurl` feature-flag transition (active 3-PR cutover window)
+
+Active for the duration of the xurl-rs embedding refactor (PR1 -> PR2 -> PR3 on `dev`). Removed once PR3 lands the
+cutover and the `embedded-xurl` feature flag itself is gone.
+
+- [ ] `cargo build` (default features = subprocess transport) succeeds on `dev` HEAD.
+- [ ] `cargo build --features embedded-xurl` succeeds on `dev` HEAD.
+- [ ] `cargo build --no-default-features --features embedded-xurl` succeeds on `dev` HEAD.
+- [ ] `cargo test` (default features) is green on `dev` HEAD — the subprocess transport contract is locked.
+- [ ] `.github/workflows/embedded-xurl-build.yml` is present and green on the most recent `dev` push. If it is missing,
+  the cutover has either not started or has completed; reconcile against the active plan in
+  `docs/plans/2026-06-05-001-refactor-embed-xurl-crate-plan.md`.
+
 ### Dependabot preflight
 
 Run before any other checklist work, before `Cargo.toml` is bumped, before any release branch is cut. Surfaces pending
