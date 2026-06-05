@@ -60,7 +60,7 @@ thiserror = "2"
 package = "xurl-rs"
 version = "2.0.0"
 git = "https://github.com/brettdavies/xurl-rs"
-rev = "193fd27e7de4e142f7c3529f167b6c5540c5bb98" # v2.0.0
+rev = "ed992a031fbbd53c88c19825ca3b6a9e0e5dc03e" # xurl-rs/dev post v2.0.0 (CRATE_VERSION + missing_docs)
 optional = true
 
 [features]
