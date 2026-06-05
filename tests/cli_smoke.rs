@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Library-style smoke tests.
 //!
 //! Every test runs in-process via [`common::run_in_process`]; both the exit

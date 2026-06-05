@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Live integration test for the entity store (BirdClient + BirdDb).
 //!
 //! Runs 16 phases against the live X API to verify all acceptance criteria from

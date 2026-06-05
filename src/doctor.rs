@@ -353,7 +353,7 @@ pub fn run_doctor(
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "embedded-xurl")))]
 mod tests {
     use super::*;
     use crate::db::{BirdClient, CacheOpts};

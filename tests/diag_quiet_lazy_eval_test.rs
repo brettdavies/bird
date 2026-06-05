@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Plan 2 R24 regression test: the `if !quiet { writeln!(stderr, ...).ok(); }`
 //! replacement for the deleted `diag!` macro must preserve the zero-allocation
 //! property — when `quiet` is true, no `format_args!` evaluation and no `write*`

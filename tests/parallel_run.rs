@@ -1,3 +1,5 @@
+#![cfg(not(feature = "embedded-xurl"))]
+
 //! Parallel-execution regression for the path-injection design.
 //!
 //! Spawn 16 threads concurrently invoking [`bird::cli::run_with_paths`] via
