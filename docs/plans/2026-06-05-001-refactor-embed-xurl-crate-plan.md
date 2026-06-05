@@ -11,8 +11,9 @@ type: refactor
 
 Replace bird's xr/xurl subprocess transport with the xurl v2.0.0 crate so bird ships as a single binary. The cutover
 happens across three sequential PRs on `dev`, gated by a Cargo feature `embedded-xurl` whose lifecycle is `default-off
-(PR1) → default-on (PR3) → removed (PR3)`. Bird's `BirdClient` gains a `Mutex<xurl::ApiClient>` field; a new
-`XurlClient` trait wraps the xurl methods bird actually calls (~14 today) so tests substitute a hand-rolled fake at the
+(PR1, PR2) → flipped to default-on then removed in PR3 (same commit)`. Bird's `BirdClient` gains a
+`Mutex<xurl::ApiClient>` field; a new `XurlClient` trait wraps the xurl shortcuts bird actually calls (~18 methods at
+PR2 close — exceeds R18's ~15 trip-point, see Open Questions resolution) so tests substitute a hand-rolled fake at the
 bird/xurl boundary; `bird doctor` is rebuilt with presence-only credential reporting; and `bird raw` adopts
 `xurl::RequestTarget::Template` so xurl owns path substitution and `auth_matrix` lookup atomically. The xurl-rs P0 todo
 `012-honor-user-supplied-authorization-header` is tracked as an upstream dependency for R13 but does not gate this plan
@@ -77,9 +78,12 @@ The brainstorm carries 5 deferred Open Questions; each is resolved inline below.
    documented in CHANGELOG; xurl-rs is pinned by SHA in `Cargo.toml`; a follow-up `fix(deps): bump xurl-rs` PR (Deferred
    to Follow-Up Work) bumps the pin once xurl-rs P0 todo `012-pending-p0-honor-user-supplied-authorization-header`
    lands.
-4. **Typed-adapter trip-point** — Resolved: trait grows monotonically to ~14 methods at PR2 close (already near the ~15
-   trip-point named in R18). The plan accepts this and revisits the typed-adapter alternative when bird adds the next
-   API-hitting command, per R18's standing instruction. No work in this plan.
+4. **Typed-adapter trip-point** — Resolved with calibration: post-research verification against
+   `xurl-rs/src/api/shortcuts.rs` shows the trait ships at ~18 methods on day one (17 typed shortcuts + 1 generic
+   `send_request`), **exceeding R18's ~15 trip-point at PR2 close, not nearly-hit**. The plan accepts this for the
+   cutover (preempting now would reopen Deferred Open Question on typed-adapter in this plan's scope), and the next bird
+   command added past PR3 fires the typed-adapter revisit immediately. The follow-up is named in Deferred to Follow-Up
+   Work as a fire-soon-after-cutover item, not a vague "when bird grows."
 5. **xurl v3.0.0 lifecycle** — Genuinely deferred. The Dependencies/Assumptions clause in the origin stands. No work in
    this plan.
 
@@ -96,12 +100,15 @@ this becomes `tokio::sync::Mutex` or moves inside `ApiClient` — local change. 
 assertion at `src/db/client/mod.rs:131-134` tracks to the new field.
 
 **KTD-2. `XurlClient` trait wraps typed xurl methods, not a generic `send_request` adapter.** Trait grows with bird's
-command surface — one method per xurl shortcut bird uses (`users_me`, `user_by_username`, `bookmarks`, `tweets_lookup`,
-`search_recent`, `usage_tweets`, plus 11 write verbs) plus a generic `send_request` for `bird raw`. Production impl is
+command surface — one method per xurl shortcut bird uses (`get_me`, `lookup_user`, `read_post`, `get_bookmarks`,
+`search_posts`, `get_usage`, plus the 11 write verbs `create_post`/`reply_to_post`/`like_post`/`unlike_post`/`repost`/
+`unrepost`/`follow_user`/`unfollow_user`/`send_dm`/`mute_user`/`unmute_user`) plus a generic `send_request` for `bird
+raw` (and for the bird `block`/`unblock` verbs since xurl has no shortcut for them — see U2). Production impl is
 `xurl::ApiClient`; test impl is a hand-rolled fake returning canned typed responses. Bird preserves xurl's typed
 `ApiResponse<T>` + structured `XurlError` ergonomic surface at every call site. Trip-point at ~15 methods (R18) is
-nearly hit on day one; revisit the typed-adapter alternative when bird adds its next API-hitting command. Pattern
-reference: `docs/solutions/architecture-patterns/xurl-subprocess-transport-layer.md` (the existing `Transport` trait +
+**exceeded** on day one at ~18 methods; the typed-adapter revisit is named in Deferred to Follow-Up Work and fires on
+the next bird command added after PR3. Pattern reference:
+`docs/solutions/architecture-patterns/xurl-subprocess-transport-layer.md` (the existing `Transport` trait +
 `MockTransport` pattern with canned-response queues — same shape, different surface).
 
 **KTD-3. Cargo feature `embedded-xurl` selects transport at `BirdClient` construction time only.** No per-call-site
@@ -123,9 +130,9 @@ documented in CHANGELOG. Pattern reference: `docs/solutions/architecture-pattern
 via `resolve_path` in `src/schema.rs:44-70` and passes a fully-rendered URL to `BirdClient`. xurl's
 `auth_matrix::supported_auth(method, path)` requires the template (`/2/users/{id}/likes`), not the rendered URL. Bird
 passes `RequestTarget::Template { path, path_params, query }` to xurl; xurl substitutes path params and resolves the
-auth scheme atomically. Removing bird's `resolve_path` collapses the duplicated substitution surface. Caveat: the `bird
-raw -p` param validation (`validate_param_value` in `src/schema.rs:6-23`) stays bird-side — clap-layer validation,
-before constructing `RequestTarget`.
+auth scheme atomically. Removing bird's `resolve_path` collapses the duplicated substitution surface. Caveat: whether
+bird keeps the existing `validate_param_value` clap-layer validation (stricter than xurl-rs's `InvalidPathParam` check)
+or falls back to xurl-rs's looser rules is deferred to implementation — see U6.
 
 **KTD-6. Doctor credential reporting is presence-only, covering env vars AND token-store struct fields.**
 `CLIENT_ID`/`CLIENT_SECRET` (env), `App.client_id`/`App.client_secret` (struct fields persisted by xurl),
@@ -261,10 +268,14 @@ embedded-xurl` matrix entry, not just `--all-features`.
 - `cargo build` succeeds with default features (subprocess only).
 - `cargo build --features embedded-xurl` succeeds.
 - `cargo build --no-default-features --features embedded-xurl` succeeds (catches accidental default-feature coupling).
-- CI matrix entries cover all three axes.
+- **PR1 CI matrix runs builds only under `--features embedded-xurl`, NOT `cargo test`.** Test runs on the embedded axis
+  enter the matrix in PR2 (U6 close), once the U6-U13 handler bodies replace the U3 stubs. Running `cargo test
+  --features embedded-xurl` in PR1 would panic on the stubs (see U3's stub strategy) — the matrix entry is `cargo build
+  --features embedded-xurl`, explicitly build-only.
+- `cargo test` (default features) on PR1 passes — subprocess path is untouched.
 
-**Verification:** Cargo.toml has the SHA pin with trailing version comment; CI matrix on the PR1 PR run shows all three
-feature configurations green.
+**Verification:** `Cargo.toml` has the SHA pin with trailing version comment; CI matrix on the PR1 PR run shows
+build-success across all three feature configurations + test-success on default.
 
 ---
 
@@ -282,17 +293,24 @@ trait method to the corresponding xurl shortcut.
 - `src/xurl_client/mod.rs` (NEW — trait definition + production impl, `#[cfg(feature = "embedded-xurl")]`)
 - `src/lib.rs` (declare the new module)
 
-**Approach:** Trait has one method per xurl shortcut bird uses today (~14, enumerated in repo research §4): `users_me`,
-`user_by_username(username)`, `bookmarks(user_id, opts)`, `tweets_lookup(id, opts)`, `search_recent(query, opts)`,
-`usage_tweets(opts)`, plus one method per write verb (`tweet`, `reply`, `like`, `unlike`, `repost`, `unrepost`,
-`follow`, `unfollow`, `dm`, `block`/`unblock`, `mute`/`unmute`), plus `send_request(target, options)` for `bird raw`.
-Typed shortcut methods return `Result<ApiResponse<T>, XurlError>` with `T` matching the corresponding xurl shortcut
-(e.g., `Tweet`, `User`, `Bookmarks`). The catch-all `send_request(target, options)` method used by `bird raw` returns
-`Result<serde_json::Value, XurlError>` — xurl's generic `send_request` is `Value`-shaped, not `ApiResponse<T>`. All
-methods take `&self`. Production impl acquires `MutexGuard<ApiClient>`, calls the shortcut, returns the typed result.
+**Approach:** Trait has one method per xurl shortcut bird uses today, named per xurl-rs's verified API surface
+(`xurl-rs/src/api/shortcuts.rs:162-926`): `get_me`, `lookup_user`, `read_post`, `get_bookmarks`, `search_posts`,
+`get_usage`, plus write verbs `create_post`, `reply_to_post`, `like_post`, `unlike_post`, `repost`, `unrepost`,
+`follow_user`, `unfollow_user`, `send_dm`, `mute_user`, `unmute_user`, plus the catch-all `send_request(options)` for
+`bird raw`. **Block/unblock have no xurl shortcuts** — bird's `block`/`unblock` write verbs call `send_request` with a
+hand-built `RequestTarget::Template { path: "/2/users/{id}/blocking", ... }` rather than a typed method. (Filing an
+upstream xurl-rs PR to add `block_user`/`unblock_user` shortcuts is tracked in Deferred to Follow-Up Work.)
 
-Trait grows with bird's command surface; trip-point at ~15 (R18) is essentially hit today — revisit typed-adapter when
-adding the next command.
+Typed shortcut methods return `Result<ApiResponse<T>, XurlError>` with `T` matching xurl's response type for that
+endpoint (e.g., `Tweet`, `User`, `Bookmarks` — verify in `xurl-rs/src/api/shortcuts.rs`). The catch-all
+`send_request(options)` returns `Result<serde_json::Value, XurlError>` since xurl's generic `send_request` is
+`Value`-shaped, not `ApiResponse<T>`. All methods take `&self`. Production impl acquires `MutexGuard<ApiClient>`, calls
+the shortcut, returns the typed result.
+
+**Method count and trip-point:** the trait ships at ~18 methods on day one (17 typed shortcuts + 1 generic
+`send_request`; block/unblock route through `send_request` so they don't add methods). The R18 trip-point of ~15 is
+**exceeded at PR2 close, not nearly-hit**. The next bird command added past PR3 fires the typed-adapter revisit
+immediately. See Deferred to Follow-Up Work.
 
 **Patterns to follow:**
 
@@ -328,14 +346,18 @@ selected at construction time. Public method signatures stay `&self`.
   cfg-gated branch — embedded constructs via `xurl::ApiClient::from_env()`; subprocess preserves existing
   `XurlTransport::new` / `from_error` shape)
 - `src/db/client/get.rs`, `src/db/client/write.rs`, `src/db/client/mod.rs:245-249` (`BirdClient::transport_request`) —
-  these are touched only structurally in PR1; bodies are NOT yet migrated (that's PR2). For PR1, the embedded variant's
-  stub methods can `unimplemented!()` since the feature is default-off and the embedded path is exercised only by the CI
-  matrix entry's compile check.
+  these are touched only structurally in PR1; bodies are NOT yet migrated (that's PR2). PR1's embedded-variant stub
+  methods return a benign error rather than panicking (see Approach), so even if a test accidentally constructs a
+  `BirdClient` under the embedded feature, the failure surfaces as a clean error path with a useful message rather than
+  a panic stack trace.
 
 **Approach:** PR1 introduces the structural restructure without yet migrating any handler bodies. Under `embedded-xurl`,
-`BirdClient` constructs an `xurl::ApiClient::from_env()` and wraps it in `Mutex`; calls into old transport methods
-either `unimplemented!()` or get cfg'd out, since PR2 will provide real impls. The CI matrix's `--features
-embedded-xurl` build asserts that the structural change compiles; full behavior validation lives in PR2.
+`BirdClient` constructs an `xurl::ApiClient::from_env()` and wraps it in `Mutex`. Embedded-variant stub methods return
+`Err(BirdError::Internal("embedded transport stub — handler migration lands in PR2"))` rather than `unimplemented!()`
+(panic). This keeps PR1 CI green even if a test path exercises the embedded variant before U6-U13 land — the behavior is
+wrong but observable as an error, not a process crash. PR1's CI matrix only runs `cargo build --features embedded-xurl`
+(per U1's test-scenario clarification), so the stubs won't be exercised at all under normal PR1 CI; the benign-error
+fallback is the defense-in-depth for accidental matrix expansion or local `cargo test --features embedded-xurl` runs.
 
 The `Send + Sync` compile-time assertion at `src/db/client/mod.rs:131-134` tracks to the new field — if it stops
 compiling, that's the rusqlite `Connection: !Sync` precedent reappearing (per learnings) and must be resolved at PR1.
@@ -416,18 +438,16 @@ codes inherited from xurl per R4.
 produce each exit code; assert the code matches. This is test-first — they MUST pass under the current subprocess
 transport before any handler migration begins, so PR2 commits can verify the contract holds during migration.
 
-Code-trigger map:
+Code-trigger map for PR1 (78/77/1 only per R19):
 
 - 78: invalid `--output xml` (clap validation failure) → existing `tests/cli_smoke.rs` asserts this; the new file
   collects all 78-triggers in one place
 - 77: missing auth on an auth-required command (use existing `tests/cli_smoke.rs` patterns)
 - 1: command-level failures (network error, no internet — mock via env var override or xurl path point-at-fail)
-- 3: rate-limited (covered by U7's error-mapping; PR1 lands the test scaffolding that PR2 unblocks)
-- 4: not-found (same)
-- 5: network error (same)
 
-For PR1, codes 3/4/5 tests are written with `#[ignore]` attributes and unignored in PR2 when the error-mapping U7 lands.
-PR1's responsibility is the 78/77/1 contract lock.
+Codes 3 / 4 / 5 (xurl-inherited rate-limited / not-found / network) are written as active tests in U7 where the
+error-mapping refactor lands, not pre-scaffolded with `#[ignore]` in U5. R19 only requires the 78/77/1 contract pass
+unchanged; PR1's responsibility is exactly that.
 
 **Execution note:** Test-first per `docs/solutions/architecture-patterns/xurl-subprocess-transport-layer.md`'s "Exit
 codes are public API. Write contract tests for them before refactoring."
@@ -445,12 +465,9 @@ codes are public API. Write contract tests for them before refactoring."
 - 77: `bird bookmarks` without auth → exit 77.
 - 1: any command with `BIRD_XURL_PATH=/nonexistent` → exit 1 (transport failure today; covered by today's
   transport_integration patterns).
-- 3 (PR2-enabled): rate-limit error from xurl → exit 3.
-- 4 (PR2-enabled): 404 from xurl → exit 4.
-- 5 (PR2-enabled): network/io error from xurl → exit 5.
 
-**Verification:** All 78/77/1 tests pass under PR1 (default features). 3/4/5 tests are `#[ignore]`'d but compile. PR2 U7
-unignores them.
+**Verification:** All 78/77/1 tests pass under PR1 (default features). The 3 / 4 / 5 tests land in U7, written as active
+(non-ignored) tests against the new error-mapping path.
 
 ---
 
@@ -463,9 +480,11 @@ Changelog` documents the per-handler migration and the new flags (`--app`, `--au
 ### U6. Adopt `RequestTarget::Template`; remove `resolve_path`
 
 **Goal:** Bird passes `RequestTarget::Template { path, path_params, query }` to xurl. The current `resolve_path` helper
-in `src/schema.rs:44-70` is deleted in favor of xurl owning substitution. `bird raw -p` param validation
-(`validate_param_value` at `src/schema.rs:6-23`) stays bird-side as clap-layer input validation, before constructing the
-`RequestTarget`.
+in `src/schema.rs:44-70` is deleted in PR3's U15 (not here — see Execution note). The `bird raw -p` param-validation
+question (whether to elevate `validate_param_value` at `src/schema.rs:6-23` to `pub` and keep bird's stricter
+alphanumeric/_/-/. rules at the clap layer, OR delete it and accept xurl-rs's looser `InvalidPathParam` check rejecting
+only `/`/`?`/`#`/`%`) is **deferred to implementation**. The implementer picks based on whether they hit cases that
+motivate one direction; if they delete, they document the behavior change in CHANGELOG.
 
 **Requirements:** R5, R7, KTD-5.
 
@@ -473,8 +492,11 @@ in `src/schema.rs:44-70` is deleted in favor of xurl owning substitution. `bird 
 
 **Files:**
 
-- `src/schema.rs` (REMOVE `resolve_path` body, keep `validate_param_value`)
-- `src/raw.rs` (rewire to construct `RequestTarget::Template` instead of pre-rendering URL)
+- `src/schema.rs` (NO body changes in PR2 — `resolve_path` stays intact for the subprocess arm; PR3's U15 deletes it
+  alongside the rest of the subprocess code. Only the `bird raw` embedded arm constructs `RequestTarget::Template`
+  directly, bypassing `resolve_path`.)
+- `src/raw.rs` (cfg-gated: embedded arm constructs `RequestTarget::Template`; subprocess arm still calls `resolve_path`
+- `format!`)
 - `src/db/client/mod.rs` (`RequestContext` may gain a `template` field alongside the URL, or be replaced by direct
   `RequestTarget` plumbing — implementer decides)
 
@@ -495,9 +517,11 @@ substitutes path_params and dispatches.
 For the typed handler call sites (bookmarks, tweets, etc.), the call shape is `xurl_client.bookmarks(user_id, opts)` —
 xurl owns the template internally. No bird-side `RequestTarget::Template` construction needed.
 
-**Execution note:** Land this unit's structural changes first, leave `resolve_path` deleted under `#[cfg(feature =
-"embedded-xurl")]` only — subprocess path still calls it. U13 deletes the subprocess `resolve_path` when
-`requirements.rs` dissolves.
+**Execution note:** `resolve_path` is NOT cfg-gated in PR2. The embedded arm of `bird raw` constructs
+`RequestTarget::Template` directly without calling it; the subprocess arm continues to use it unchanged. PR3's U15
+deletes `resolve_path` as part of removing the subprocess transport entirely (U15's Files list now includes
+`src/schema.rs`). This avoids `dead_code` warnings during PR2 under `--features embedded-xurl` and keeps the deletion in
+one place.
 
 **Patterns to follow:**
 
@@ -511,7 +535,9 @@ xurl owns the template internally. No bird-side `RequestTarget::Template` constr
 - `bird raw GET /2/users/{id}/bookmarks -p id=12345` constructs the right path_params vec; xurl sees the template, not
   the rendered URL.
 - `bird raw GET /2/tweets/search/recent -q query=hello -q max_results=10` constructs the right query vec.
-- Param validation rejects `-p id=foo;bar` (semicolon) — caught by `validate_param_value`, never reaches xurl.
+- Param validation: `-p id=foo;bar` (semicolon) is rejected somewhere — either bird's clap layer (if implementer
+  elevates `validate_param_value` to `pub`) or xurl-rs's `InvalidPathParam`. The test asserts rejection happens; the
+  exact rejection layer depends on the deferred-to-implementation decision in U6.
 - The fake `XurlClient::send_request` records the `RequestTarget` it received; tests inspect the recorded value.
 
 **Verification:** Bird raw's smoke tests pass with the new RequestTarget shape. resolve_path is no longer called on the
@@ -565,10 +591,14 @@ mapping is updated.
 - Fake returns `XurlError::AuthMethodMismatch { ... }`; exit 77 with diagnostic detail per R9 (endpoint, supported
   schemes, scheme bird selected).
 - Fake returns `XurlError::Validation(...)`; exit 78.
-- `tests/exit_codes.rs` from U5 — unignore the 3/4/5 tests; they now pass.
+- **Land 3 / 4 / 5 contract tests in `tests/exit_codes.rs`** as active (non-ignored) tests in this unit's commit —
+  written against the new embedded error-mapping path, not pre-scaffolded `#[ignore]`'d in U5. The 3 / 4 / 5 cases
+  exercise the fake-driven error injections above end-to-end through `BirdError::from_source` to the process exit code.
+- 4xx codes not in {401, 403, 404, 429} (e.g., 408, 409, 422, 451): fake returns `XurlError::Api { status: 422, ... }`;
+  exit 1 (inherited xurl mapping). CHANGELOG documents this is the default for unmapped 4xx.
 
-**Verification:** All exit codes in `tests/exit_codes.rs` pass under `--features embedded-xurl`. Subprocess path
-unchanged.
+**Verification:** All exit codes (78 / 77 / 1 / 3 / 4 / 5) in `tests/exit_codes.rs` pass under `--features
+embedded-xurl`. Subprocess path unchanged.
 
 ---
 
@@ -646,18 +676,27 @@ gains an embedded path via typed `XurlClient` write methods. `bird raw` adds `-H
 
 - `src/cli/commands/writes/mod.rs` (each write verb's embedded path)
 - `src/cli/dispatch.rs` (`xurl_write_call` at lines 611-626 — cfg-gated)
-- `src/raw.rs` (add `-H`/`--header` clap arg; thread into `CallOptions.headers`)
+- `src/raw.rs` (add `-H`/`--header` clap arg; thread into `RequestOptions.headers` after constructing it via
+  `CallOptions::to_request_options()` — see Approach below)
 - `src/cli/commands/raw_write.rs` (POST/PUT/DELETE variants — same `-H` plumbing)
-- `src/cli/mod.rs` (clap definition for `bird raw -H`)
+- `src/cli/mod.rs` (clap definition for `bird raw -H` referencing the parser)
+- `src/cli/parsers.rs` (NEW or extended — `pub fn parse_header_kv(s: &str) -> Result<String, String>` used as the clap
+  `value_parser` for `-H/--header`; splits on first `:`, trims, returns descriptive `Err` on malformed input)
 
 **Approach:** Write handlers follow the same pattern as reads — typed method on `XurlClient` (`tweet`, `like`, `dm`,
 etc.) called from `BirdClient::tweet`, etc. The `WriteSpec.xurl_args` argv-shape (used by current `xurl_write_call`)
 stays for the subprocess path; the embedded path constructs `CallOptions` directly.
 
-For `bird raw -H`: clap accepts `-H/--header` as a repeatable string in `Key: Value` form. Bird parses each value into a
-`(key, value)` tuple at the clap layer (bird-side validation: warn on `Authorization`-family headers per the
-brainstorm's Open Question — duplicate-`Authorization` is documented in CHANGELOG until xurl-rs todo 012 lands). Headers
-flow into `CallOptions.headers`; xurl's `send_request` appends them to the request builder.
+For `bird raw -H`: clap accepts `-H/--header` as a repeatable `String` value, validated by a custom `value_parser`
+(`parse_header_kv` — see Files) that splits on the first `:`, trims both sides, and returns `Err("header must be in Key:
+Value form")` on malformed input so clap surfaces a usage error (mapped to exit 78 via bird's clap-error path).
+Validated `"Key: Value"` strings are then plumbed into xurl through `RequestOptions.headers` — bird's `bird raw` path
+constructs `RequestOptions` via `CallOptions::to_request_options()` and pushes the header strings onto `opts.headers`
+(xurl's actual field is on `RequestOptions`, NOT `CallOptions`; verified at `xurl-rs/src/api/request.rs:88-105`). Typed
+shortcut methods have no header-injection point, so `-H` is bird-raw-only (consistent with R13 scope). The
+duplicate-`Authorization`-header limitation is documented in CHANGELOG until xurl-rs todo 012 lands; whether to also
+emit a runtime stderr warning when the user passes `-H "Authorization: ..."` is a P2 judgment call resolved during plan
+walkthrough (see brainstorm Open Question).
 
 **Patterns to follow:**
 
@@ -706,12 +745,24 @@ behavior matches the documented contract.
 
 **Approach:** Under `#[cfg(feature = "embedded-xurl")]`:
 
-- `bird login` (default, interactive): call `xurl::auth::Auth::with_app_name(opt_app).oauth2_flow()` directly. The TTY
-  prompt + browser-open behavior moves to bird's clap layer (per `docs/solutions/best-practices/rust-library-
-  cli-separation-for-interactive-concerns-2026-04-20.md` — TTY prompts stay in the binary, not the embedded library call
-  sites).
-- `bird login --no-browser` (headless): call `Auth::remote_oauth2_step1` for the auth URL, prompt user via bird's
-  existing stdout envelope, read stdin for the callback URL, call `Auth::remote_oauth2_step2` with it.
+- `bird login` (default, interactive): construct the Auth instance in the correct order:
+
+1. Build `Config::new()` (or load via xurl's config-resolution path).
+2. Construct `Auth::new(&cfg)` (or `Auth::new_with_store_path(&cfg, path)` when bird needs to pin the token-store
+   location for tests).
+3. If `--app <name>` is set, mutate the instance: `auth.with_app_name(name);` — this is `&mut self -> ()`, not a builder
+   chain.
+4. Call `auth.oauth2_flow(username, &out, &mut stdout)` where `out: &OutputConfig` is bird's output config and `stdout:
+   &mut dyn Write` is bird's writer. The TTY prompt + browser-open behavior lives inside `Auth::oauth2_flow` per xurl's
+   existing implementation; bird passes the output sink through and lets xurl drive prompts (per
+   `docs/solutions/best-practices/rust-library-cli-separation-for-interactive-concerns-2026-04-20.md` — the binary owns
+   the writer but the library owns the prompt protocol).
+
+- `bird login --no-browser` (headless): same `Auth` construction (steps 1-3 above), then call
+  `Auth::remote_oauth2_step1(...)` for the auth URL, emit bird's existing prompt envelope, read stdin for the callback
+  URL, call `Auth::remote_oauth2_step2(...)` with it. Verify exact signatures of the two `remote_*` methods at
+  implementation time — the planning verification (repo research §7) confirmed they exist but did not enumerate
+  parameters.
 - On success, call `client.db_clear()` (existing behavior) and report rows cleared on stderr.
 
 Subprocess path (default features in PR1/PR2): unchanged from today.
@@ -752,12 +803,23 @@ token-store struct fields per KTD-6). Per-command AuthScheme + credential matrix
 
 **Approach:** Under `#[cfg(feature = "embedded-xurl")]`, `report(client, ...)` reads:
 
-- xurl's linked crate version (from `xurl::VERSION` or `env!("CARGO_PKG_VERSION")` proxied through xurl)
+- xurl's linked crate version via `xurl::VERSION`. **Prerequisite upstream change:** xurl-rs needs `pub const VERSION:
+  &str = env!("CARGO_PKG_VERSION");` added to `xurl-rs/src/lib.rs`. This lands as a tiny upstream PR before U1's SHA pin
+  — same maintainer, ~5 minutes of work. U1 cites the post-change SHA.
 - xurl token-store introspection: `App.client_id.is_empty()`, `App.client_secret.is_empty()`, `has_tokens()` per app,
   accepted schemes per command via `auth_matrix::supported_auth(method, path_template)`
 - Per-command: `accepted_schemes`, `credentialed_schemes`, `reachable` (boolean = AuthScheme list ∩ credentialed schemes
   is non-empty)
 - `CLIENT_ID`/`CLIENT_SECRET` env: presence-only
+
+**Schema regeneration is hand-authored**, not codegen. bird has no `schemars` derive on `DoctorReport`, no schema
+build.rs, no generation script — `schema/doctor.schema.json` is a static JSON file. U11's commit hand-edits the JSON to
+add the new fields (`accepted_schemes`, `credentialed_schemes`, `reachable`, `linked_xurl_version`) matching the new
+`DoctorReport` shape. `tests/schema_parity.rs` only checks the embedded `include_str!` bytes equal the on-disk file (per
+repo research §12 verification) — so a separate test rounds-trips a fixture `DoctorReport` through
+`serde_json::to_value` and asserts the keys match the schema's `required`/`properties`. That round-trip test is the
+load-bearing safeguard against runtime-emitter / schema drift; the parity test alone is insufficient. (Introducing
+`schemars` for true generation is tracked as a future option, not in scope for this plan.)
 
 Subprocess path: unchanged from today (still calls `transport::check_xurl_version` etc.).
 
@@ -773,8 +835,20 @@ Schema regen happens in this unit's commit; `tests/schema_parity.rs` enforces th
 
 - Doctor report serializes successfully under embedded; new fields (`accepted_schemes`, `credentialed_schemes`,
   `reachable`, `linked_xurl_version`) present.
-- Credential reporting: `CLIENT_ID=secret` env → doctor output shows `set`, NOT the value.
-- Token-store: fake xurl client reports presence; doctor output shows `present`/`absent`, NOT token bytes.
+- Credential reporting — env vars: `CLIENT_ID=secret` → output shows `set`, NOT the value; `CLIENT_SECRET=secret` →
+  same.
+- Credential reporting — token-store `App` fields: fake xurl client with non-empty `App.client_id` → output shows `set`;
+  non-empty `App.client_secret` → same. Empty → `not set`.
+- Credential reporting — `OAuth2Token` fields: fake with `access_token` present → output shows `present`; with
+  `refresh_token` present → same.
+- Credential reporting — `OAuth1Token` fields: fake with `access_token`, `token_secret`, `consumer_key`,
+  `consumer_secret` populated → all four report `present`; never the value.
+- **Negative assertion**: for every credential test above, the serialized `DoctorReport` (as JSON via
+  `serde_json::to_string(&report)`) must NOT contain the literal credential value anywhere in the output. Use a
+  string-contains negative assertion.
+- **Schema round-trip test** (new file `tests/doctor_schema_runtime.rs`): construct a fixture `DoctorReport`, run
+  through `serde_json::to_value`, and assert every key matches the schema's `required` and `properties` arrays. This
+  catches runtime-emitter / schema drift that `tests/schema_parity.rs` cannot.
 - Per-command output: `bird doctor bookmarks` returns the bookmarks command's accepted/credentialed schemes; same shape
   as full report scoped down.
 - Schema parity: `tests/schema_parity.rs` passes (committed schema matches runtime emitter).
@@ -801,7 +875,9 @@ non-empty `auth_matrix` scheme lists).
 **Files:**
 
 - `src/cli/mod.rs` (clap definitions for `--app <name>` global, `BIRD_APP` env, `--auth <type>` per-call)
-- `src/cli/runner.rs` (startup XURL_APP migration warn check, before `BirdClient` construction)
+- `src/cli/runner.rs` (XURL_APP migration warn check — gated to API-hitting commands only per R8's non-API carve-out,
+  fires inside the BirdClient-needed branch and skips for `bird --help`, `bird --version`, `bird completions`, `bird
+  examples`, `bird schema`, `bird cache`, `bird watchlist` local ops, `bird skill`, bare `bird`)
 - `src/cli/dispatch.rs` (`--auth` value gating: query `auth_matrix::supported_auth(method, template)` at clap parse
   time; reject `--auth none` for commands with non-empty scheme list)
 
@@ -809,14 +885,21 @@ non-empty `auth_matrix` scheme lists).
 `Auth::with_app_name(...)` before `ApiClient` construction. Precedence is automatic via clap: flag wins over env;
 absence falls through to xurl's token-store default.
 
-XURL_APP warn at startup:
+XURL_APP migration warn — gated to API-hitting commands so it doesn't fire on `bird --help`, `bird completions zsh`,
+`bird examples`, or any other R8 non-API command (those don't construct an `ApiClient` and won't reach the multi-app
+routing surface):
 
 ```text
+// Inside the "is the resolved command API-hitting?" branch in runner, BEFORE BirdClient construction
 if env::var("XURL_APP").is_ok() && env::var("BIRD_APP").is_err() {
-    writeln!(stderr, "warning: XURL_APP is set but bird does not read it; set BIRD_APP or pass --app to pin the app
-    selection")
+    writeln!(stderr, "warning: XURL_APP is set but bird does not read it; set BIRD_APP or pass --app to pin the
+    app selection")
 }
 ```
+
+The R8 non-API command list (cache ops, schema, completions, skill, examples, version, bare bird, watchlist local ops)
+is the same set that already skips `ApiClient` construction; reusing it for the warn skip keeps the rule coherent in one
+place.
 
 `--auth` value gating: at clap parse time (after dispatch identifies the command), look up the command's `auth_matrix`
 template and method. If `supported_auth(method, template)` returns `Some(schemes)` and the schemes are non-empty, reject
@@ -928,6 +1011,12 @@ surface.
 - `.github/workflows/ci.yml` (add a PR3-only gate job that runs both feature configurations)
 - `RELEASES-PREFLIGHT.md` (add a pre-merge checklist item: "Run `cargo test --features embedded-xurl` AND `cargo test`
   locally; both must be green before PR3 merge.")
+- **GitHub branch protection on `dev`**: configure the new CI gate job as a required status check before PR3 opens. This
+  is NOT a file change — it lives in GitHub repo settings → Branches → branch protection rules → `dev`, or in
+  `.github/rulesets/` if rulesets are in use. **Implementer step before PR3 opens**: navigate to repo settings and add
+  the gate job name (e.g., `embedded-xurl-gate`) to the required-status-checks list for `dev`. Without this step, PR3
+  can merge while the gate job is failing or skipped. Logged as an explicit RELEASES-PREFLIGHT.md checklist item:
+  "Confirm `embedded-xurl-gate` is in required-status-checks on `dev` before opening PR3."
 
 **Approach:** This unit's commit is the flag flip — single-line `Cargo.toml` change. The CI matrix already exercises
 both paths from U1; PR3 adds an additional invariant gate that wraps both checks into a single CI step bird's
@@ -943,12 +1032,13 @@ exercise subprocess. The pre-merge gate makes sure both still pass.
 
 **Test scenarios:**
 
-- `cargo test` (default features after flip) passes.
-- `cargo test --no-default-features` (no features at all) — this case is unreachable today (subprocess is the only impl
-  when feature is off) so this run is expected to fail with a clear error from U15's cleanup; the gate doesn't test this
-  directly.
-- `cargo test --features embedded-xurl` passes (redundant with default after flip, but documents the contract).
-- The new CI gate job is required-status-check before PR3 can merge to dev.
+- `cargo test` (default features after flip — now embedded) passes.
+- `cargo test --features embedded-xurl` passes (redundant with default after flip but documents the contract, kept as a
+  CI axis through PR3 because the contract is what the gate asserts).
+- `cargo test --no-default-features` is removed from the matrix — it has no implementation (subprocess path doesn't
+  survive the flip; only embedded exists and it requires the feature). Don't keep "expected to fail" rows in the matrix.
+- The PR3-only gate job runs both axes above and reports a single pass/fail status; the job name is added to GitHub
+  branch protection on `dev` as a required status check before PR3 opens (per Files list).
 
 **Verification:** After this commit, `cargo test` runs the embedded path. PR3's required-status-check gate passes.
 
@@ -982,6 +1072,8 @@ exercise subprocess. The pre-merge gate makes sure both still pass.
   typed error remains)
 - `src/cli/dispatch.rs` (drop the inline subprocess argv mapping introduced in U13)
 - `src/db/client/get.rs` and `src/db/client/write.rs` (drop subprocess-path bodies; embedded becomes the only path)
+- `src/schema.rs` (DELETE `resolve_path` body + the now-orphaned `validate_param_value` if not made `pub` and called
+  from clap per U6's validate_param_value decision — coordinate with U6's resolution)
 - README.md (drop `BIRD_XURL_PATH` mention at line 73)
 - AGENTS.md (drop `BIRD_XURL_PATH` documentation at line 289-291)
 - `RELEASES-PREFLIGHT.md` (drop subprocess-specific preflight items)
@@ -1059,6 +1151,67 @@ single version bump.
 
 ---
 
+### U17. Documentation + CHANGELOG accountability
+
+**Goal:** Documentation work for the 3-PR cutover has an owner and a checklist. Per-PR `## Changelog` body sections land
+in PR descriptions; README/AGENTS prose updates accompany the breaking changes; RELEASES-PREFLIGHT.md tracks the
+dual-feature CI invariant during the cutover window. The release-branch CHANGELOG.md regeneration is the finalization
+step.
+
+**Requirements:** R20 (all four clauses a/b/c/d), R21 (per-PR changelog discipline).
+
+**Dependencies:** U1 (preflight notes), U11 (doctor schema commit), U15 (README/AGENTS edits), U16 (preflight notes
+removal). U17 work for each PR lands in the SAME PR that ships the code change — this isn't a separate PR sequenced
+after U16; it's the documentation slice of PR1, PR2, PR3 made explicit.
+
+**Files:**
+
+- PR1 body's `## Changelog` section (lives in the GitHub PR description, not committed to the repo) — `### Added:
+  embedded-xurl Cargo feature (default-off) for evaluation`
+- PR2 body's `## Changelog` section — `### Changed: bird doctor JSON envelope per R20 clause (c) (accepted_schemes /
+  credentialed_schemes / reachable / linked_xurl_version added; xurl_installed / xurl_version_compatible removed);
+  --app/--auth/-H/--header flags added; bird inherits xurl exit codes 3/4/5 per R20 clause (b); XURL_APP migration
+  warning gated to API commands per R20 clause (d)`
+- PR3 body's `## Changelog` section — `### Removed: subprocess xurl transport, BIRD_XURL_PATH env var per R20 clause
+  (a), embedded-xurl Cargo feature itself`
+- `README.md` (U15 — drop `BIRD_XURL_PATH` mention at line 73; verify no other subprocess language survives)
+- `AGENTS.md` (U15 — drop `BIRD_XURL_PATH` documentation at lines 289-291; refresh "bird depends on xr/xurl" framing to
+  reflect embedded reality)
+- `RELEASES-PREFLIGHT.md` (U1 adds the dual-feature CI invariant note; U16 removes it after PR3 cutover; U14 adds the
+  `embedded-xurl-gate` required-status-check confirmation step)
+- `CHANGELOG.md` — **NOT touched in any of PR1/PR2/PR3**. Regenerated on the release branch via
+  `scripts/generate-changelog.py` reading each PR body's `## Changelog` section; the release-branch step is the
+  authoritative CHANGELOG mutation per the bird release process.
+
+**Approach:** Documentation is sliced per-PR so each lands atomically with its code change. The accountability question
+the C1/C2 review surfaced — "who owns R20 documentation work?" — resolves to: **the same PR that ships the code change
+owns its CHANGELOG body section and any in-repo doc edits**. U17 names this discipline so the traceability table can
+reference U17 without ambiguity. Release-branch CHANGELOG generation is its own unit of work (covered in Operational /
+Rollout Notes), separate from per-PR body authoring.
+
+**Patterns to follow:**
+
+- `docs/solutions/best-practices/pr-body-driven-changelog-generation-20260423.md` — per-PR `## Changelog` body sections
+  are the source of truth
+- `docs/solutions/architecture-patterns/changelog-as-committed-artifact-20260319.md` — CHANGELOG.md is generated; never
+  manually edited
+- `docs/solutions/best-practices/ci-changelog-skip-non-release-prs-20260402.md` — the changelog generation skips PRs
+  without a version bump, so PR1/PR2 land with their `## Changelog` bodies queued for PR3's eventual release branch
+
+**Test scenarios:** No automated tests for documentation discipline — verification is by inspection during PR review:
+
+- Each PR's body has a `## Changelog` section with `### Added` / `### Changed` / `### Removed` subsections as
+  appropriate.
+- After PR3 lands and the release branch runs `scripts/generate-changelog.py`, the generated `CHANGELOG.md` contains
+  entries for all three PRs covering all four R20 clauses (a/b/c/d).
+- README.md and AGENTS.md greps for `BIRD_XURL_PATH` / `xurl subprocess` return nothing after PR3.
+
+**Verification:** Manual review during each PR; final review during release-branch CHANGELOG generation. The
+release-branch `git cliff` output covers R20 clauses (a) BIRD_XURL_PATH, (b) exit codes 3/4/5, (c) doctor JSON envelope,
+(d) XURL_APP migration warning.
+
+---
+
 ## Scope Boundaries
 
 ### Deferred for later
@@ -1086,14 +1239,18 @@ single version bump.
 ### Deferred to Follow-Up Work
 
 - **`fix(deps): bump xurl-rs`** — when xurl-rs P0 todo `012-pending-p0-honor-user-supplied-authorization-header` lands
-  and ships in a tagged release, bird bumps its SHA pin to the new release. CHANGELOG entry: "Fixed: bird raw -H
-  Authorization no longer produces duplicate-header requests (upstream xurl-rs fix)."
-- **`bird doctor` startup warning consolidation** — the XURL_APP migration warn introduced in U12 fires on every `bird`
-  invocation (not just `bird doctor`). A future refinement could move it to a one-time-per-session check or surface it
-  in `bird doctor` output specifically. Tracking only.
-- **Reconsider `XurlClient` trait shape if bird crosses the typed-adapter trip-point** — the trait is already at ~14
-  methods at PR2 close (very near the R18-named ~15 trip-point). The next bird command added past saturation should
-  trigger a revisit of the brainstorm's deferred typed-adapter Open Question.
+  and ships in a tagged release, bird bumps its SHA pin to the new release. **This PR also removes the bird-side stderr
+  warning** introduced in U9 that fires when the user passes `-H "Authorization: ..."` (the warning was a UX guardrail
+  until the upstream fix landed; once it lands, the warning becomes a spurious false-positive and must be deleted in the
+  same PR that pins the fixed SHA). CHANGELOG entry: "Fixed: bird raw -H Authorization no longer produces
+  duplicate-header requests (upstream xurl-rs fix); the related stderr warning is removed."
+- **Typed-adapter trip-point revisit (fire-soon-after-cutover)** — the `XurlClient` trait ships at ~18 methods,
+  exceeding R18's ~15 trip-point. The next bird command added past PR3 fires the revisit of the brainstorm's deferred
+  typed-adapter Open Question. Treat as a near-term, not far-future, follow-up.
+- **Add `block_user` / `unblock_user` shortcuts upstream in xurl-rs** — bird's `block`/`unblock` write verbs go through
+  `send_request` with hand-built `RequestTarget::Template` because xurl-rs has no typed shortcuts for them (verified at
+  `xurl-rs/src/api/shortcuts.rs`). A small upstream PR adding the shortcuts lets bird drop the hand-built RequestTarget
+  construction at the next xurl-rs SHA bump.
 - **xurl v3.0.0 lifecycle decision** — picks a path (async-migrate / v2.x maintenance fork / pin-and-stale) when v3 is
   announced. Not before.
 - **Agent-skill bundle schema update (`brettdavies/bird-skill`)** — the bundle consumes `bird doctor --json`; R20 clause
@@ -1162,22 +1319,6 @@ losing them at the call site defeats the refactor's stated motive.
 **Alt-4 (considered, rejected). Hold R10/R11 (`--app`) out of the cutover entirely.** Brainstorm Round-2 deferred this.
 Planning synthesis surfaced as a fork; user redirected to include in PR2. Rejected: hold-out keeps PR2's surface tighter
 at the cost of an extra follow-up PR. User judged the inclusion preferable.
-
----
-
-## Documentation Plan
-
-- **CHANGELOG.md (via release branch + `generate-changelog.py`):** generated from each PR's `## Changelog` body section.
-  PR1: `### Added: embedded-xurl Cargo feature (default-off) for evaluation`. PR2: `### Changed: bird doctor JSON
-  envelope; --app/--auth/-H/--header flags added; bird inherits xurl exit codes 3/4/5; XURL_APP migration warning`. PR3:
-  `### Removed: subprocess xurl transport, BIRD_XURL_PATH env var, embedded-xurl feature flag itself`.
-- **README.md (U15):** drop `BIRD_XURL_PATH` line at line 73.
-- **AGENTS.md (U15):** drop `BIRD_XURL_PATH` documentation at line 289-291; refresh "bird depends on xr/xurl" language
-  to reflect the embedded reality.
-- **RELEASES-PREFLIGHT.md (U1, U16):** add CI feature-matrix invariant during the 3-PR window; remove at PR3.
-- **`schema/doctor.schema.json` (U11):** regenerated from the new `DoctorReport` shape; committed as part of U11.
-- **`docs/solutions/`:** no new docs in this plan. After release, a retrospective doc on the cutover may be valuable;
-  not committed to here.
 
 ---
 
