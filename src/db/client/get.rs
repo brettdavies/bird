@@ -230,10 +230,8 @@ impl BirdClient {
     /// GET via xurl transport. Returns ApiResponse with parsed JSON.
     fn xurl_get(
         &self,
-        #[cfg(not(feature = "embedded-xurl"))] url: &str,
-        #[cfg(feature = "embedded-xurl")] _url: &str,
-        #[cfg(not(feature = "embedded-xurl"))] ctx: &RequestContext<'_>,
-        #[cfg(feature = "embedded-xurl")] _ctx: &RequestContext<'_>,
+        url: &str,
+        ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(not(feature = "embedded-xurl"))]
         {
@@ -248,7 +246,13 @@ impl BirdClient {
         }
         #[cfg(feature = "embedded-xurl")]
         {
-            Err("embedded transport stub — handler migration lands in PR2".into())
+            let json = self.xurl_send_raw_url("GET", url, "", ctx)?;
+            Ok(ApiResponse {
+                status: 200,
+                cached_body: None,
+                cache_hit: false,
+                json: Some(json),
+            })
         }
     }
 

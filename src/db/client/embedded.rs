@@ -47,6 +47,38 @@ impl BirdClient {
         f(&mut **guard)
     }
 
+    /// Dispatch a request through xurl using a `RequestTarget::RawUrl`. Used
+    /// by `xurl_get` and the write-path `BirdClient::request` to route their
+    /// already-rendered URLs through the embedded client without inventing
+    /// a path-template parser. `RawUrl` bypasses xurl's `auth_matrix` lookup;
+    /// during PR2 bird's `requirements.rs` (U13's incoming dissolution
+    /// notwithstanding) authoritatively selects `auth_type`, so the
+    /// validation is informational rather than load-bearing. PR3's cleanup
+    /// revisits the typed-shortcut adoption per KTD-5.
+    pub(super) fn xurl_send_raw_url(
+        &self,
+        method: &str,
+        url: &str,
+        data: &str,
+        ctx: &RequestContext<'_>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        let opts = RequestOptions {
+            method: method.to_uppercase(),
+            target: RequestTarget::RawUrl(url.to_string()),
+            data: data.to_string(),
+            auth_type: auth_type_to_xurl_wire(ctx.auth_type),
+            username: self
+                .username
+                .clone()
+                .or_else(|| ctx.username.map(str::to_string))
+                .unwrap_or_default(),
+            no_auth: matches!(ctx.auth_type, AuthType::None),
+            ..RequestOptions::default()
+        };
+        self.with_xurl(|x| x.send_request(&opts))
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })
+    }
+
     /// `bird raw` embedded seam: dispatch a request through the typed xurl
     /// client using a `RequestTarget::Template`. xurl owns path substitution
     /// and the `auth_matrix::supported_auth(method, template)` lookup
@@ -266,6 +298,57 @@ mod tests {
         let target = &calls[0].args["target"];
         assert_eq!(target["query"][0], serde_json::json!(["query", "hello"]));
         assert_eq!(target["query"][1], serde_json::json!(["max_results", "10"]),);
+    }
+
+    /// `BirdClient::get` under embedded routes the fully-rendered URL
+    /// through `xurl::send_request` with `RequestTarget::RawUrl`. The mock
+    /// must see the URL verbatim so `auth_type` resolution at the
+    /// embedded boundary keys on what bird actually constructed.
+    #[test]
+    fn client_get_dispatches_through_xurl_as_raw_url() {
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": []}));
+        let (mut client, handle) = client_with_mock(mock);
+
+        let auth = AuthType::OAuth2User;
+        let ctx = RequestContext {
+            auth_type: &auth,
+            username: None,
+        };
+        let url = "https://api.x.com/2/tweets/search/recent?query=rust&max_results=10";
+        let _ = client.get(url, &ctx).expect("get must succeed");
+
+        let calls = handle.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].method, "send_request");
+        assert_eq!(calls[0].args["method"], "GET");
+        assert_eq!(calls[0].args["target"]["type"], "raw_url");
+        assert_eq!(calls[0].args["target"]["url"], url);
+    }
+
+    /// `BirdClient::request` (POST/PUT/DELETE) routes through xurl with
+    /// `RequestTarget::RawUrl` and forwards the body as `data`.
+    #[test]
+    fn client_request_post_forwards_body_to_xurl() {
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": {"ok": true}}));
+        let (mut client, handle) = client_with_mock(mock);
+
+        let auth = AuthType::OAuth2User;
+        let ctx = RequestContext {
+            auth_type: &auth,
+            username: None,
+        };
+        let url = "https://api.x.com/2/tweets";
+        let _ = client
+            .request("POST", url, &ctx, Some(r#"{"text":"hi"}"#))
+            .expect("write request must succeed");
+
+        let calls = handle.calls();
+        assert_eq!(calls[0].args["method"], "POST");
+        assert_eq!(calls[0].args["data"], r#"{"text":"hi"}"#);
+        assert_eq!(calls[0].args["target"]["type"], "raw_url");
+        assert_eq!(calls[0].args["target"]["url"], url);
     }
 
     /// `bird raw GET /2/users/{id}/likes -p id=foo;bar` — bird's deleted

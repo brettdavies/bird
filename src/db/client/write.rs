@@ -41,8 +41,14 @@ impl BirdClient {
         }
         #[cfg(feature = "embedded-xurl")]
         {
-            let _ = (method, url, ctx, body);
-            Err("embedded transport stub — handler migration lands in PR2".into())
+            let json = self.xurl_send_raw_url(method, url, body.unwrap_or(""), ctx)?;
+            self.log_api_call(url, method, Some(&json), false, ctx.username);
+            Ok(ApiResponse {
+                status: 200,
+                cached_body: None,
+                cache_hit: false,
+                json: Some(json),
+            })
         }
     }
 }
