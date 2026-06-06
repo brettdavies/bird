@@ -7,13 +7,13 @@
 #![allow(clippy::result_large_err)]
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde_json::Value;
 use xurl::api::{
     ApiResponse, CallOptions, DmEvent, FollowingResult, LikedResult, MutingResult, RequestOptions,
-    RetweetedResult, Tweet, UsageData, User,
+    RequestTarget, RetweetedResult, Tweet, UsageData, User,
 };
 use xurl::error::{Result as XurlResult, XurlError};
 
@@ -39,14 +39,28 @@ struct Inner {
 
 /// In-memory `XurlClient` impl whose responses are programmed by the test.
 /// Tracks calls and pops canned outcomes per method.
+///
+/// State lives behind `Arc<Mutex<_>>` so a test can hand the mock to
+/// `BirdClient` (as `Box<dyn XurlClient + Send>`) while keeping a separate
+/// handle outside via [`MockXurlClient::clone_handle`] for inspecting
+/// recorded calls afterward.
 pub struct MockXurlClient {
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl MockXurlClient {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(Inner::default()),
+            inner: Arc::new(Mutex::new(Inner::default())),
+        }
+    }
+
+    /// Returns a separate handle pointing at the same shared queues + call
+    /// log. Use when the primary `MockXurlClient` is moved into `BirdClient`
+    /// and the test still needs to read what was dispatched.
+    pub fn clone_handle(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
         }
     }
 
@@ -318,12 +332,43 @@ impl XurlClient for MockXurlClient {
     fn send_request(&mut self, options: &RequestOptions) -> XurlResult<Value> {
         let args = serde_json::json!({
             "method": options.method,
+            "target": serialize_request_target(&options.target),
             "data": options.data,
             "headers": options.headers,
             "auth_type": options.auth_type,
             "no_auth": options.no_auth,
         });
         self.pop("send_request", args)
+    }
+}
+
+/// Renders a `RequestTarget` into the JSON shape recorded in the mock's
+/// `Call.args`. Tests inspect the `target` sub-object to assert that
+/// `RequestTarget::Template` survived round-trip without bird pre-rendering
+/// the URL (which would surface as `{ "type": "raw_url", "url": "..." }`).
+fn serialize_request_target(target: &RequestTarget) -> Value {
+    match target {
+        RequestTarget::Template {
+            path,
+            path_params,
+            query,
+        } => {
+            let path_params_value = serde_json::to_value(path_params).unwrap_or(Value::Null);
+            let query_value: Vec<Value> = query
+                .iter()
+                .map(|(k, v)| serde_json::json!([k, v]))
+                .collect();
+            serde_json::json!({
+                "type": "template",
+                "path": path,
+                "path_params": path_params_value,
+                "query": query_value,
+            })
+        }
+        RequestTarget::RawUrl(url) => serde_json::json!({
+            "type": "raw_url",
+            "url": url,
+        }),
     }
 }
 
