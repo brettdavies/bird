@@ -35,19 +35,6 @@ Every `!:` commit drives the major-version decision and gets a row in the releas
 
 ## Checklist
 
-### `embedded-xurl` feature-flag transition (PR3 cutover, active until U16 lands)
-
-The PR3 cutover flipped `default = ["embedded-xurl"]`. Default-feature builds now exercise the embedded transport. This
-block is the pre-merge gate for PR3 itself; it is deleted alongside the feature flag in U16.
-
-- [ ] `cargo test` (default features, now = embedded) is green on the PR3 head.
-- [ ] `cargo test --features embedded-xurl` is green on the PR3 head (the explicit-axis contract assertion alongside the
-  default-features run; both must pass before PR3 merges).
-- [ ] `.github/workflows/embedded-xurl-gate.yml` ran green on the PR3 head — both matrix axes pass.
-- [ ] The `embedded-xurl-gate / gate` job is listed in GitHub branch protection on `dev` as a required status check.
-  Verify in repo settings → Branches → branch protection rules → `dev`, or in `.github/rulesets/` if rulesets are in
-  use. Without this, PR3 can merge while the gate is failing or skipped.
-
 ### Dependabot preflight
 
 Run before any other checklist work, before `Cargo.toml` is bumped, before any release branch is cut. Surfaces pending

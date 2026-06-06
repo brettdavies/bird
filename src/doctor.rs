@@ -155,10 +155,8 @@ pub struct DoctorReport {
     pub commands: HashMap<String, CommandStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<CacheStatus>,
-    /// Version of the xurl crate linked into this bird build. Populated
-    /// under `--features embedded-xurl` from `xurl::CRATE_VERSION`;
-    /// subprocess builds leave this `None` so the subprocess version (read
-    /// via `xurl --version`) keeps its existing `xurl.version` slot.
+    /// Version of the xurl crate linked into this bird build, populated
+    /// from `xurl::CRATE_VERSION`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_xurl_version: Option<String>,
 }

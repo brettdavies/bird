@@ -1,7 +1,6 @@
-//! `BirdClient`'s embedded-xurl seam: the `bird raw` template-shaped entry
-//! point, the lock-acquire helper that typed methods (U8/U9) will share, and
-//! the local AuthType → wire-string mapping. PR3's cutover removes the cfg
-//! gates; this module survives as the only transport surface.
+//! `BirdClient`'s xurl-rs seam: the `bird raw` template-shaped entry point,
+//! the lock-acquire helper typed methods share, and the local AuthType →
+//! wire-string mapping.
 
 // Mirrors xurl-rs's own `#[allow(clippy::result_large_err)]` on `XurlError`
 // (192 bytes). Closures threaded through `with_xurl` return `XurlResult<…>`
@@ -213,9 +212,7 @@ impl BirdClient {
     /// and the `auth_matrix::supported_auth(method, template)` lookup
     /// atomically — bird passes the template, not a rendered URL.
     ///
-    /// Used by `src/raw.rs::run_raw` under `embedded-xurl`. The subprocess
-    /// arm continues to call `BirdClient::get`/`request` with a rendered URL.
-    /// PR3's U15 deletes the subprocess arm; this seam becomes the only path.
+    /// Used by `src/raw.rs::run_raw`.
     #[allow(clippy::too_many_arguments)]
     pub fn raw_template_request(
         &mut self,
