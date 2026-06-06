@@ -9,7 +9,9 @@
 pub mod spec;
 
 use crate::cli::WriteGuard;
-use crate::cli::dispatch::{GuardOutcome, require_confirmation, xurl_write, xurl_write_call};
+#[cfg(not(feature = "embedded-xurl"))]
+use crate::cli::dispatch::xurl_write_call;
+use crate::cli::dispatch::{GuardOutcome, require_confirmation, xurl_write};
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -50,10 +52,28 @@ pub fn execute(
     if matches!(outcome, GuardOutcome::DryRun) {
         return Ok(());
     }
+    let verb = spec.verb;
+    #[cfg(not(feature = "embedded-xurl"))]
     let xurl_args = spec.xurl_args;
-    xurl_write(cache_only, spec.verb, || {
-        let args: Vec<&str> = xurl_args.iter().map(String::as_str).collect();
-        xurl_write_call(client, stdout, &args, username)
+    #[cfg(feature = "embedded-xurl")]
+    let embedded_call = spec.embedded_call;
+    xurl_write(cache_only, verb, move || {
+        #[cfg(not(feature = "embedded-xurl"))]
+        {
+            let args: Vec<&str> = xurl_args.iter().map(String::as_str).collect();
+            xurl_write_call(client, stdout, &args, username)
+        }
+        #[cfg(feature = "embedded-xurl")]
+        {
+            let auth = crate::requirements::AuthType::OAuth2User;
+            let ctx = db::RequestContext {
+                auth_type: &auth,
+                username,
+            };
+            let json = client.execute_embedded_write(embedded_call, &ctx)?;
+            writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
+            Ok(())
+        }
     })
 }
 
@@ -80,6 +100,11 @@ pub fn run_tweet(
         url_for_prompt: "https://api.x.com/2/tweets".into(),
         body: Some(body),
         xurl_args,
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::TweetCreate {
+            text: text.clone(),
+            media_id: media_id.clone(),
+        },
     };
     execute(
         spec,
@@ -110,7 +135,12 @@ pub fn run_reply(
         method: "POST",
         url_for_prompt: format!("https://api.x.com/2/tweets (reply to {})", tweet_id),
         body: Some(serde_json::json!({"text": text, "reply_to": tweet_id})),
-        xurl_args: vec!["reply".into(), tweet_id, text],
+        xurl_args: vec!["reply".into(), tweet_id.clone(), text.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Reply {
+            parent_id: tweet_id,
+            text,
+        },
     };
     execute(
         spec,
@@ -140,7 +170,9 @@ pub fn run_like(
         method: "POST",
         url_for_prompt: format!("https://api.x.com/2/users/me/likes/{}", tweet_id),
         body: None,
-        xurl_args: vec!["like".into(), tweet_id],
+        xurl_args: vec!["like".into(), tweet_id.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Like { tweet_id },
     };
     execute(
         spec,
@@ -170,7 +202,9 @@ pub fn run_unlike(
         method: "DELETE",
         url_for_prompt: format!("https://api.x.com/2/users/me/likes/{}", tweet_id),
         body: None,
-        xurl_args: vec!["unlike".into(), tweet_id],
+        xurl_args: vec!["unlike".into(), tweet_id.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Unlike { tweet_id },
     };
     execute(
         spec,
@@ -200,7 +234,9 @@ pub fn run_repost(
         method: "POST",
         url_for_prompt: format!("https://api.x.com/2/users/me/retweets/{}", tweet_id),
         body: None,
-        xurl_args: vec!["repost".into(), tweet_id],
+        xurl_args: vec!["repost".into(), tweet_id.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Repost { tweet_id },
     };
     execute(
         spec,
@@ -230,7 +266,9 @@ pub fn run_unrepost(
         method: "DELETE",
         url_for_prompt: format!("https://api.x.com/2/users/me/retweets/{}", tweet_id),
         body: None,
-        xurl_args: vec!["unrepost".into(), tweet_id],
+        xurl_args: vec!["unrepost".into(), tweet_id.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Unrepost { tweet_id },
     };
     execute(
         spec,
@@ -263,7 +301,11 @@ pub fn run_follow(
             target
         ),
         body: None,
-        xurl_args: vec!["follow".into(), target],
+        xurl_args: vec!["follow".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Follow {
+            target_username: target,
+        },
     };
     execute(
         spec,
@@ -296,7 +338,11 @@ pub fn run_unfollow(
             target
         ),
         body: None,
-        xurl_args: vec!["unfollow".into(), target],
+        xurl_args: vec!["unfollow".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Unfollow {
+            target_username: target,
+        },
     };
     execute(
         spec,
@@ -330,7 +376,12 @@ pub fn run_dm(
             target
         ),
         body: Some(serde_json::json!({"to": target, "text": text})),
-        xurl_args: vec!["dm".into(), target, text],
+        xurl_args: vec!["dm".into(), target.clone(), text.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Dm {
+            target_username: target,
+            text,
+        },
     };
     execute(
         spec,
@@ -360,7 +411,11 @@ pub fn run_block(
         method: "POST",
         url_for_prompt: format!("https://api.x.com/2/users/me/blocking (target=@{})", target),
         body: None,
-        xurl_args: vec!["block".into(), target],
+        xurl_args: vec!["block".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Block {
+            target_username: target,
+        },
     };
     execute(
         spec,
@@ -390,7 +445,11 @@ pub fn run_unblock(
         method: "DELETE",
         url_for_prompt: format!("https://api.x.com/2/users/me/blocking (target=@{})", target),
         body: None,
-        xurl_args: vec!["unblock".into(), target],
+        xurl_args: vec!["unblock".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Unblock {
+            target_username: target,
+        },
     };
     execute(
         spec,
@@ -420,7 +479,11 @@ pub fn run_mute(
         method: "POST",
         url_for_prompt: format!("https://api.x.com/2/users/me/muting (target=@{})", target),
         body: None,
-        xurl_args: vec!["mute".into(), target],
+        xurl_args: vec!["mute".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Mute {
+            target_username: target,
+        },
     };
     execute(
         spec,
@@ -450,7 +513,11 @@ pub fn run_unmute(
         method: "DELETE",
         url_for_prompt: format!("https://api.x.com/2/users/me/muting (target=@{})", target),
         body: None,
-        xurl_args: vec!["unmute".into(), target],
+        xurl_args: vec!["unmute".into(), target.clone()],
+        #[cfg(feature = "embedded-xurl")]
+        embedded_call: spec::EmbeddedWriteCall::Unmute {
+            target_username: target,
+        },
     };
     execute(
         spec,

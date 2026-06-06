@@ -54,6 +54,7 @@ pub fn run(
             path,
             param,
             query,
+            header,
             common: OutputFlags { pretty },
         } => commands::reads::run_get(
             client,
@@ -63,6 +64,7 @@ pub fn run(
             path,
             param,
             query,
+            header,
             pretty,
             &list_flags,
         ),
@@ -103,6 +105,7 @@ pub fn run(
             param,
             query,
             body,
+            header,
             common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_post(
@@ -114,6 +117,7 @@ pub fn run(
             param,
             query,
             body,
+            header,
             pretty,
             guard,
             no_interactive,
@@ -123,6 +127,7 @@ pub fn run(
             param,
             query,
             body,
+            header,
             common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_put(
@@ -134,6 +139,7 @@ pub fn run(
             param,
             query,
             body,
+            header,
             pretty,
             guard,
             no_interactive,
@@ -142,6 +148,7 @@ pub fn run(
             path,
             param,
             query,
+            header,
             common: OutputFlags { pretty },
             guard,
         } => commands::raw_write::run_delete(
@@ -152,6 +159,7 @@ pub fn run(
             path,
             param,
             query,
+            header,
             pretty,
             guard,
             no_interactive,

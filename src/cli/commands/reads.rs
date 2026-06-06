@@ -25,6 +25,7 @@ pub fn run_me(
         "/2/users/me",
         &params,
         &[],
+        &[],
         None,
         pretty,
         &auth_type,
@@ -42,6 +43,7 @@ pub fn run_get(
     path: String,
     param: Vec<String>,
     query: Vec<String>,
+    header: Vec<String>,
     pretty: bool,
     list_flags: &ListFlags,
 ) -> Result<(), BirdError> {
@@ -56,7 +58,8 @@ pub fn run_get(
     }
     let auth_type = default_auth_type("get");
     raw::run_raw(
-        client, out, stdout, stderr, "GET", &path, &params, &query, None, pretty, &auth_type,
+        client, out, stdout, stderr, "GET", &path, &params, &query, &header, None, pretty,
+        &auth_type,
     )
     .map_err(|e| BirdError::from_source("get", e))?;
     Ok(())

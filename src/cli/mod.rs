@@ -6,6 +6,7 @@ pub mod argv;
 pub mod clap_errors;
 pub mod commands;
 pub mod dispatch;
+pub mod parsers;
 pub mod runner;
 
 pub use runner::{run, run_argv, run_with_paths};
@@ -180,6 +181,9 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
     },
@@ -194,6 +198,9 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]
@@ -210,6 +217,9 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]
@@ -278,6 +288,9 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]

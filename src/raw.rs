@@ -23,6 +23,7 @@ pub fn run_raw(
     path: &str,
     params: &HashMap<String, String>,
     query: &[String],
+    headers: &[String],
     body: Option<&str>,
     pretty: bool,
     auth_type: &AuthType,
@@ -44,6 +45,13 @@ pub fn run_raw(
             }
         }
         let url = url_builder.to_string();
+        // The subprocess transport stack still routes through
+        // `xr` argv, which has no `-H/--header` equivalent today; drop the
+        // headers here so the subprocess arm continues to compile and the
+        // user sees a clear "no effect" rather than silent failure on the
+        // default-off path. The U17 documentation slice in the PR body
+        // names this transition-window limitation explicitly.
+        let _ = headers;
 
         if method_upper == "GET" {
             let response = client.get(&url, &ctx)?;
@@ -79,6 +87,7 @@ pub fn run_raw(
             path,
             params.clone(),
             query_pairs,
+            headers.to_vec(),
             body,
             &ctx,
         )?;

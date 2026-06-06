@@ -47,6 +47,135 @@ impl BirdClient {
         f(&mut **guard)
     }
 
+    /// Reads `/2/users/me` through the embedded transport and extracts
+    /// `data.id`. Used by write verbs whose API endpoint is keyed on the
+    /// caller's user id (likes, retweets, following, muting, blocking).
+    pub fn fetch_me_id(
+        &self,
+        ctx: &RequestContext<'_>,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let json = self.xurl_send_raw_url("GET", "https://api.x.com/2/users/me", "", ctx)?;
+        json.get("data")
+            .and_then(|d| d.get("id"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| "/2/users/me did not return data.id; cannot resolve caller user".into())
+    }
+
+    /// Reads `/2/users/by/username/{username}` through the embedded
+    /// transport and extracts `data.id`. Used by write verbs whose target
+    /// is named by username (follow/unfollow/dm/block/unblock/mute/unmute).
+    pub fn fetch_user_id_by_username(
+        &self,
+        username: &str,
+        ctx: &RequestContext<'_>,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let url = format!("https://api.x.com/2/users/by/username/{username}");
+        let json = self.xurl_send_raw_url("GET", &url, "", ctx)?;
+        json.get("data")
+            .and_then(|d| d.get("id"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| format!("/2/users/by/username/{username} did not return data.id").into())
+    }
+
+    /// Dispatches an [`EmbeddedWriteCall`] through the embedded transport,
+    /// resolving `/me` and target-by-username as needed, then issuing the
+    /// real X API call. Returns the parsed JSON response on success.
+    pub fn execute_embedded_write(
+        &self,
+        call: crate::cli::commands::writes::spec::EmbeddedWriteCall,
+        ctx: &RequestContext<'_>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::cli::commands::writes::spec::EmbeddedWriteCall as Call;
+        match call {
+            Call::TweetCreate { text, media_id } => {
+                let mut body = serde_json::json!({ "text": text });
+                if let Some(id) = media_id {
+                    body["media"] = serde_json::json!({ "media_ids": [id] });
+                }
+                self.xurl_send_raw_url("POST", "https://api.x.com/2/tweets", &body.to_string(), ctx)
+            }
+            Call::Reply { parent_id, text } => {
+                let body = serde_json::json!({
+                    "text": text,
+                    "reply": { "in_reply_to_tweet_id": parent_id },
+                });
+                self.xurl_send_raw_url("POST", "https://api.x.com/2/tweets", &body.to_string(), ctx)
+            }
+            Call::Like { tweet_id } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/likes");
+                let body = serde_json::json!({ "tweet_id": tweet_id });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+            Call::Unlike { tweet_id } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/likes/{tweet_id}");
+                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+            }
+            Call::Repost { tweet_id } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/retweets");
+                let body = serde_json::json!({ "tweet_id": tweet_id });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+            Call::Unrepost { tweet_id } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/retweets/{tweet_id}");
+                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+            }
+            Call::Follow { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/following");
+                let body = serde_json::json!({ "target_user_id": target_id });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+            Call::Unfollow { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/following/{target_id}");
+                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+            }
+            Call::Mute { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/muting");
+                let body = serde_json::json!({ "target_user_id": target_id });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+            Call::Unmute { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/muting/{target_id}");
+                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+            }
+            Call::Block { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/blocking");
+                let body = serde_json::json!({ "target_user_id": target_id });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+            Call::Unblock { target_username } => {
+                let me_id = self.fetch_me_id(ctx)?;
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/users/{me_id}/blocking/{target_id}");
+                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+            }
+            Call::Dm {
+                target_username,
+                text,
+            } => {
+                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let url = format!("https://api.x.com/2/dm_conversations/with/{target_id}/messages");
+                let body = serde_json::json!({ "text": text });
+                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+            }
+        }
+    }
+
     /// Dispatch a request through xurl using a `RequestTarget::RawUrl`. Used
     /// by `xurl_get` and the write-path `BirdClient::request` to route their
     /// already-rendered URLs through the embedded client without inventing
@@ -87,12 +216,14 @@ impl BirdClient {
     /// Used by `src/raw.rs::run_raw` under `embedded-xurl`. The subprocess
     /// arm continues to call `BirdClient::get`/`request` with a rendered URL.
     /// PR3's U15 deletes the subprocess arm; this seam becomes the only path.
+    #[allow(clippy::too_many_arguments)]
     pub fn raw_template_request(
         &mut self,
         method: &str,
         path_template: &str,
         path_params: HashMap<String, String>,
         query: Vec<(String, String)>,
+        headers: Vec<String>,
         body: Option<&str>,
         ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
@@ -103,6 +234,7 @@ impl BirdClient {
                 path_params,
                 query,
             },
+            headers,
             data: body.unwrap_or("").to_string(),
             auth_type: auth_type_to_xurl_wire(ctx.auth_type),
             username: self
@@ -187,7 +319,15 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("id".to_string(), "12345".to_string());
         let response = client
-            .raw_template_request("GET", "/2/users/{id}/likes", params, Vec::new(), None, &ctx)
+            .raw_template_request(
+                "GET",
+                "/2/users/{id}/likes",
+                params,
+                Vec::new(),
+                Vec::new(),
+                None,
+                &ctx,
+            )
             .expect("raw template request must succeed");
 
         // The queued response carries a `Tweet { id: "abc" }`; surfacing it on
@@ -220,7 +360,15 @@ mod tests {
             username: None,
         };
         client
-            .raw_template_request("GET", "/2/users/me", HashMap::new(), Vec::new(), None, &ctx)
+            .raw_template_request(
+                "GET",
+                "/2/users/me",
+                HashMap::new(),
+                Vec::new(),
+                Vec::new(),
+                None,
+                &ctx,
+            )
             .expect("dispatch");
 
         let calls = handle.calls();
@@ -251,6 +399,7 @@ mod tests {
                 "GET",
                 "/2/users/{id}/bookmarks",
                 params,
+                Vec::new(),
                 Vec::new(),
                 None,
                 &ctx,
@@ -289,6 +438,7 @@ mod tests {
                 "/2/tweets/search/recent",
                 HashMap::new(),
                 query,
+                Vec::new(),
                 None,
                 &ctx,
             )
@@ -351,6 +501,137 @@ mod tests {
         assert_eq!(calls[0].args["target"]["url"], url);
     }
 
+    /// `bird raw -H "X-Custom: foo"` must flow the validated header string
+    /// into `RequestOptions.headers` so xurl emits it on the wire. The
+    /// mock asserts the headers slice arrived intact.
+    #[test]
+    fn raw_request_headers_reach_xurl() {
+        let mock = MockXurlClient::new();
+        queue_one_tweet(&mock);
+        let (mut client, handle) = client_with_mock(mock);
+
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        let headers = vec!["X-Custom: foo".to_string(), "X-Trace: 1".to_string()];
+        client
+            .raw_template_request(
+                "GET",
+                "/2/users/me",
+                HashMap::new(),
+                Vec::new(),
+                headers,
+                None,
+                &ctx,
+            )
+            .expect("dispatch");
+
+        let calls = handle.calls();
+        let recorded = calls[0].args["headers"].as_array().expect("headers");
+        assert_eq!(recorded.len(), 2);
+        assert_eq!(recorded[0], "X-Custom: foo");
+        assert_eq!(recorded[1], "X-Trace: 1");
+    }
+
+    /// `bird like <tweet_id>` under embedded must first resolve `/me` for
+    /// the caller's user id, then POST `/2/users/{me}/likes` with the
+    /// canonical body `{"tweet_id":"<id>"}`. The mock pops responses in
+    /// FIFO order, so the test queues `/me` first, then the like response.
+    #[test]
+    fn embedded_write_like_resolves_me_id_and_posts_body() {
+        use crate::cli::commands::writes::spec::EmbeddedWriteCall;
+
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": {"id": "42"}}));
+        mock.push_value("send_request", serde_json::json!({"data": {"liked": true}}));
+        let (client, handle) = client_with_mock(mock);
+
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        let json = client
+            .execute_embedded_write(
+                EmbeddedWriteCall::Like {
+                    tweet_id: "999".to_string(),
+                },
+                &ctx,
+            )
+            .expect("like must dispatch");
+        assert_eq!(json["data"]["liked"], true);
+
+        let calls = handle.calls();
+        assert_eq!(calls.len(), 2, "must dispatch /me then the like POST");
+
+        // First call: GET /2/users/me
+        assert_eq!(calls[0].args["method"], "GET");
+        assert_eq!(
+            calls[0].args["target"]["url"],
+            "https://api.x.com/2/users/me",
+        );
+
+        // Second call: POST /2/users/42/likes with body {"tweet_id":"999"}
+        assert_eq!(calls[1].args["method"], "POST");
+        assert_eq!(
+            calls[1].args["target"]["url"],
+            "https://api.x.com/2/users/42/likes",
+        );
+        let body: serde_json::Value =
+            serde_json::from_str(calls[1].args["data"].as_str().expect("data")).expect("json");
+        assert_eq!(body["tweet_id"], "999");
+    }
+
+    /// `bird follow <username>` resolves both `/me` and
+    /// `/users/by/username/{target}` before POSTing the following call.
+    #[test]
+    fn embedded_write_follow_resolves_me_and_target_then_posts() {
+        use crate::cli::commands::writes::spec::EmbeddedWriteCall;
+
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": {"id": "me-1"}}));
+        mock.push_value(
+            "send_request",
+            serde_json::json!({"data": {"id": "target-9"}}),
+        );
+        mock.push_value(
+            "send_request",
+            serde_json::json!({"data": {"following": true}}),
+        );
+        let (client, handle) = client_with_mock(mock);
+
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        client
+            .execute_embedded_write(
+                EmbeddedWriteCall::Follow {
+                    target_username: "elonmusk".to_string(),
+                },
+                &ctx,
+            )
+            .expect("follow must dispatch");
+
+        let calls = handle.calls();
+        assert_eq!(calls.len(), 3);
+        assert_eq!(
+            calls[0].args["target"]["url"],
+            "https://api.x.com/2/users/me",
+        );
+        assert_eq!(
+            calls[1].args["target"]["url"],
+            "https://api.x.com/2/users/by/username/elonmusk",
+        );
+        assert_eq!(
+            calls[2].args["target"]["url"],
+            "https://api.x.com/2/users/me-1/following",
+        );
+        let body: serde_json::Value =
+            serde_json::from_str(calls[2].args["data"].as_str().expect("data")).expect("json");
+        assert_eq!(body["target_user_id"], "target-9");
+    }
+
     /// `bird raw GET /2/users/{id}/likes -p id=foo;bar` — bird's deleted
     /// `validate_param_value` would have rejected the semicolon. Embedded
     /// now hands the value straight to xurl, whose `InvalidPathParam`
@@ -370,7 +651,15 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("id".to_string(), "foo;bar".to_string());
         client
-            .raw_template_request("GET", "/2/users/{id}/likes", params, Vec::new(), None, &ctx)
+            .raw_template_request(
+                "GET",
+                "/2/users/{id}/likes",
+                params,
+                Vec::new(),
+                Vec::new(),
+                None,
+                &ctx,
+            )
             .expect("dispatch must succeed; bird no longer pre-rejects this value");
 
         let calls = handle.calls();
