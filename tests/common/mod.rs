@@ -5,8 +5,7 @@
 //!
 //! Default assertion scope: exit code + filesystem side effects. The
 //! [`Vec<u8>`] writers passed into `run_with_paths` capture every stdout and
-//! stderr byte the runner emits — Plan 2 U11 will fold the
-//! content-asserting subprocess holdouts back into this in-process suite.
+//! stderr byte the runner emits.
 
 #![allow(dead_code)]
 
@@ -23,10 +22,6 @@ pub struct TestEnv {
 }
 
 impl TestEnv {
-    /// Construct a fresh fixture. Per-test xurl resolution lives on the
-    /// [`bird::transport::XurlTransport`] instance constructed by the runner
-    /// from this fixture's [`EnvOverrides`] — no process-global cache, no
-    /// in-process ordering hazard.
     pub fn new() -> Self {
         let tmp = TempDir::new().expect("test: tempdir");
         let config_dir = tmp.path().join(".config").join("bird");
@@ -40,14 +35,6 @@ impl TestEnv {
             env: EnvOverrides::default(),
             _tmp: tmp,
         }
-    }
-
-    /// Set `xurl_path` on the snapshot so the runner constructs the transport
-    /// pointed at the given binary. Drives the in-process equivalent of a
-    /// `BIRD_XURL_PATH` env override.
-    pub fn with_xurl_path(mut self, path: std::path::PathBuf) -> Self {
-        self.env.xurl_path = Some(path);
-        self
     }
 }
 

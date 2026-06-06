@@ -4,8 +4,6 @@ use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::output;
-#[cfg(not(feature = "embedded-xurl"))]
-use crate::schema::resolve_path;
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
@@ -34,73 +32,36 @@ pub fn run_raw(
     };
     let method_upper = method.to_uppercase();
 
-    #[cfg(not(feature = "embedded-xurl"))]
-    let mut response = {
-        let path = resolve_path(path, params)?;
-        let url = format!("https://api.x.com{}", path);
-        let mut url_builder = url::Url::parse(&url).map_err(|e| e.to_string())?;
-        for q in query {
-            if let Some((k, v)) = q.split_once('=') {
-                url_builder.query_pairs_mut().append_pair(k, v);
-            }
-        }
-        let url = url_builder.to_string();
-        // The subprocess transport stack still routes through
-        // `xr` argv, which has no `-H/--header` equivalent today; drop the
-        // headers here so the subprocess arm continues to compile and the
-        // user sees a clear "no effect" rather than silent failure on the
-        // default-off path. The U17 documentation slice in the PR body
-        // names this transition-window limitation explicitly.
-        let _ = headers;
-
-        if method_upper == "GET" {
-            let response = client.get(&url, &ctx)?;
-            let estimate = cost::estimate_cost(
-                response.json.as_ref().unwrap_or(&serde_json::Value::Null),
-                &url,
-                response.cache_hit,
-            );
-            cost::display_cost(cfg, stderr, &estimate);
-            response
-        } else {
-            client.request(&method_upper, &url, &ctx, body)?
-        }
-    };
-
-    // Embedded arm: bird hands the template + params + query to xurl, which
-    // substitutes path params and runs the `auth_matrix` lookup against the
-    // template (rather than against an already-rendered URL bird produces).
-    // The bird-side entity-store decomposition that `client.get` performs is
+    // Bird hands the template + params + query to xurl, which substitutes
+    // path params and runs the `auth_matrix` lookup against the template
+    // (rather than against an already-rendered URL bird produces). The
+    // bird-side entity-store decomposition that `client.get` performs is
     // intentionally skipped here — `bird raw` is the escape hatch, and the
-    // typed handlers (U8) own the decomposition path.
-    #[cfg(feature = "embedded-xurl")]
-    let mut response = {
-        let query_pairs: Vec<(String, String)> = query
-            .iter()
-            .filter_map(|q| {
-                q.split_once('=')
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-            })
-            .collect();
-        let response = client.raw_template_request(
-            &method_upper,
+    // typed handlers own the decomposition path.
+    let query_pairs: Vec<(String, String)> = query
+        .iter()
+        .filter_map(|q| {
+            q.split_once('=')
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+        })
+        .collect();
+    let mut response = client.raw_template_request(
+        &method_upper,
+        path,
+        params.clone(),
+        query_pairs,
+        headers.to_vec(),
+        body,
+        &ctx,
+    )?;
+    if method_upper == "GET" {
+        let estimate = cost::estimate_cost(
+            response.json.as_ref().unwrap_or(&serde_json::Value::Null),
             path,
-            params.clone(),
-            query_pairs,
-            headers.to_vec(),
-            body,
-            &ctx,
-        )?;
-        if method_upper == "GET" {
-            let estimate = cost::estimate_cost(
-                response.json.as_ref().unwrap_or(&serde_json::Value::Null),
-                path,
-                response.cache_hit,
-            );
-            cost::display_cost(cfg, stderr, &estimate);
-        }
-        response
-    };
+            response.cache_hit,
+        );
+        cost::display_cost(cfg, stderr, &estimate);
+    }
 
     if !response.is_success() {
         return Err(format!(

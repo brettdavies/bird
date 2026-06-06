@@ -5,12 +5,11 @@
 //! separately by the runner so each builder stays small.
 
 /// Structured description of the X API call each write verb should make
-/// when the embedded xurl client is the active transport. The variant
-/// captures enough verb-specific shape that the dispatcher can run any
-/// required pre-call resolution (`/2/users/me` for the caller's id,
+/// when dispatched through the embedded xurl client. The variant captures
+/// enough verb-specific shape that the dispatcher can run any required
+/// pre-call resolution (`/2/users/me` for the caller's id,
 /// `/2/users/by/username/{}` for a target's id) and then construct the
 /// final request without each per-verb builder having to do so itself.
-#[cfg(feature = "embedded-xurl")]
 #[derive(Clone, Debug)]
 pub enum EmbeddedWriteCall {
     /// `POST /2/tweets`. No prerequisite resolution.
@@ -51,7 +50,7 @@ pub enum EmbeddedWriteCall {
 
 /// Verb-specific inputs that vary per xurl-write subcommand.
 pub struct WriteSpec {
-    /// Verb name used in prompts, error envelopes, and the xurl subcommand
+    /// Verb name used in prompts, error envelopes, and dispatcher diagnostics
     /// (e.g. `"tweet"`, `"like"`, `"unfollow"`).
     pub verb: &'static str,
     /// HTTP method shown in the confirmation prompt (`"POST"` or `"DELETE"`).
@@ -61,11 +60,8 @@ pub struct WriteSpec {
     /// JSON body shown in the prompt (and dry-run envelope); `None` for
     /// DELETE-shaped verbs that send no body.
     pub body: Option<serde_json::Value>,
-    /// Actual CLI args passed to `xurl_write_call`.
-    pub xurl_args: Vec<String>,
-    /// Structured shape consumed by the embedded transport dispatcher so the
+    /// Structured shape the embedded transport dispatcher consumes so the
     /// call can be reconstructed without parsing `url_for_prompt` (which is
     /// a display string, not a real API URL for many verbs).
-    #[cfg(feature = "embedded-xurl")]
     pub embedded_call: EmbeddedWriteCall,
 }

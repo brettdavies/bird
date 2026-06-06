@@ -10,7 +10,6 @@
 //! 18 (17 typed + 1 generic) and the next bird command added past PR3 fires
 //! the typed-adapter revisit.
 
-#![cfg(feature = "embedded-xurl")]
 // Mirrors xurl-rs's own decision to keep `XurlError` unboxed in `Result`
 // returns (`#[allow(clippy::result_large_err)]` upstream at the enum). Boxing
 // at every bird seam method would pay an allocation per error path for no

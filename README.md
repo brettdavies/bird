@@ -55,22 +55,18 @@ cargo build --release
 # Binary: target/release/bird
 ```
 
-### Prerequisite: xurl
+### App credentials
 
-bird requires [xurl-rs](https://github.com/brettdavies/xurl-rs) (or the Go [xurl](https://github.com/xdevplatform/xurl))
-for X API authentication:
+bird embeds xurl-rs as a library, so it ships as a single binary. You still need X API app credentials. Either set them
+as env vars:
 
 ```bash
-# Recommended: xurl-rs (Rust)
-brew tap brettdavies/tap
-brew install xurl-rs
-
-# Alternative: xurl (Go original)
-brew tap xdevplatform/tap
-brew install xurl
+export CLIENT_ID=<your_client_id>
+export CLIENT_SECRET=<your_client_secret>
 ```
 
-bird checks for `xr` (xurl-rs) first, then `xurl` (Go). Override with `BIRD_XURL_PATH`.
+Or store an app once via the optional [xurl-rs CLI](https://github.com/brettdavies/xurl-rs) (`xr auth app`); bird reads
+the same token store. After credentials are in place, run `bird login` for OAuth2.
 
 Verify your setup: `bird doctor`
 

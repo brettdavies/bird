@@ -6,10 +6,10 @@
 //!
 //! Concrete invocation patterns — `run_argv`, `run_with_paths` against a
 //! `TempDir`-backed `ResolvedPaths`, captured writers, parsed JSON
-//! envelopes, parallel fixtures — live under `examples/` and mirror the
-//! shapes used by `tests/common/mod.rs` and `tests/parallel_run.rs`. They
-//! are reference code for someone debugging the in-process test surface,
-//! not an endorsement of the library as a downstream API.
+//! envelopes — live under `examples/` and mirror the shapes used by
+//! `tests/common/mod.rs`. They are reference code for someone debugging
+//! the in-process test surface, not an endorsement of the library as a
+//! downstream API.
 
 #[doc(hidden)]
 pub mod cli;
@@ -30,9 +30,6 @@ pub mod schema_print;
 pub mod search;
 pub mod skill_install;
 pub mod thread;
-pub mod transport;
 pub mod usage;
 pub mod watchlist;
-
-#[cfg(feature = "embedded-xurl")]
 pub mod xurl_client;

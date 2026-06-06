@@ -160,7 +160,6 @@ fn doctor_runtime_keys_present_in_schema() {
 }
 
 #[test]
-#[cfg(not(feature = "embedded-xurl"))]
 fn doctor_report_serializes_match_schema_keys() {
     use bird::doctor::{
         AppCredentials, AuthState, BearerTokenPresence, CacheStatus, CommandStatus, DoctorReport,
@@ -289,7 +288,6 @@ fn doctor_report_serializes_match_schema_keys() {
 }
 
 #[test]
-#[cfg(not(feature = "embedded-xurl"))]
 fn serialized_report_omits_credential_material() {
     use bird::doctor::{
         AppCredentials, AuthState, BearerTokenPresence, CommandStatus, DoctorReport,

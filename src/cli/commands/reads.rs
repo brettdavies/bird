@@ -1,6 +1,7 @@
 //! `bird me` and `bird get` — raw GET reads via `raw::run_raw`.
 
-use crate::cli::dispatch::{ListFlags, clamp_limit, default_auth_type, parse_param_vec};
+use crate::cli::auth_scheme::AuthType;
+use crate::cli::dispatch::{ListFlags, clamp_limit, parse_param_vec};
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -15,7 +16,7 @@ pub fn run_me(
     pretty: bool,
 ) -> Result<(), BirdError> {
     let params = HashMap::new();
-    let auth_type = default_auth_type("me");
+    let auth_type = AuthType::OAuth2User;
     raw::run_raw(
         client,
         out,
@@ -56,7 +57,7 @@ pub fn run_get(
         let (clamped, _) = clamp_limit(Some(n), 100, 1000);
         query.push(format!("max_results={}", clamped));
     }
-    let auth_type = default_auth_type("get");
+    let auth_type = AuthType::OAuth2User;
     raw::run_raw(
         client, out, stdout, stderr, "GET", &path, &params, &query, &header, None, pretty,
         &auth_type,

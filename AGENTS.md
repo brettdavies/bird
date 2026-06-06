@@ -82,34 +82,35 @@ Bare `bird` (no arguments) prints help and exits 2. Run `bird --examples` for th
 Every subcommand inherits these global flags. Each binds to a `BIRD_*` env var so non-interactive callers can configure
 bird without arguments.
 
-| Flag                                | Env var                 | Purpose                                                                   |
-| ----------------------------------- | ----------------------- | ------------------------------------------------------------------------- |
-| `--output {text,json,jsonl,ndjson}` | `BIRD_OUTPUT`           | Output format. Defaults to `text` on TTY, `json` when stderr is non-TTY.  |
-| `--json`                            | `BIRD_JSON=1`           | Shorthand for `--output json`.                                            |
-| `--jsonl`                           | `BIRD_JSONL=1`          | Shorthand for `--output jsonl`.                                           |
-| `--color {auto,always,never}`       | `BIRD_COLOR`            | Color mode. `NO_COLOR=1` forces `never`.                                  |
-| `-q`, `--quiet`                     | `BIRD_QUIET=1`          | Suppress informational stderr; keep fatal errors.                         |
-| `-v`, `--verbose`                   | `BIRD_VERBOSE`          | Repeatable: `-v` info, `-vv` debug, `-vvv` trace.                         |
-| `--timeout <secs>`                  | `BIRD_TIMEOUT`          | Network timeout for xurl subprocesses (default 30).                       |
-| `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                |
-| `--raw`                             |                         | Emit pipe-safe undecorated text. Ignored in JSON modes.                   |
-| `--examples`                        |                         | Print the curated examples block and exit zero.                           |
-| `--refresh`                         |                         | Bypass the entity store read; still write the response.                   |
-| `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                    |
-| `--cache-only`                      |                         | Serve from the local store only; never hit the API.                       |
-| `--limit <N>`                       |                         | Cap for list-style commands (default 100, ceiling 1000).                  |
-| `--cursor <TOKEN>`                  |                         | Pagination cursor (alias `--page`); responses surface `meta.next_cursor`. |
-| `-u`, `--username <name>`           | `X_API_USERNAME`        | Multi-user token selection (passed to xurl `-u`).                         |
+| Flag                                | Env var                 | Purpose                                                                          |
+| ----------------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `--output {text,json,jsonl,ndjson}` | `BIRD_OUTPUT`           | Output format. Defaults to `text` on TTY, `json` when stderr is non-TTY.         |
+| `--json`                            | `BIRD_JSON=1`           | Shorthand for `--output json`.                                                   |
+| `--jsonl`                           | `BIRD_JSONL=1`          | Shorthand for `--output jsonl`.                                                  |
+| `--color {auto,always,never}`       | `BIRD_COLOR`            | Color mode. `NO_COLOR=1` forces `never`.                                         |
+| `-q`, `--quiet`                     | `BIRD_QUIET=1`          | Suppress informational stderr; keep fatal errors.                                |
+| `-v`, `--verbose`                   | `BIRD_VERBOSE`          | Repeatable: `-v` info, `-vv` debug, `-vvv` trace.                                |
+| `--timeout <secs>`                  | `BIRD_TIMEOUT`          | Network timeout threaded into `xurl::api::ApiClient::with_timeout` (default 30). |
+| `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                       |
+| `--raw`                             |                         | Emit pipe-safe undecorated text. Ignored in JSON modes.                          |
+| `--examples`                        |                         | Print the curated examples block and exit zero.                                  |
+| `--refresh`                         |                         | Bypass the entity store read; still write the response.                          |
+| `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                           |
+| `--cache-only`                      |                         | Serve from the local store only; never hit the API.                              |
+| `--limit <N>`                       |                         | Cap for list-style commands (default 100, ceiling 1000).                         |
+| `--cursor <TOKEN>`                  |                         | Pagination cursor (alias `--page`); responses surface `meta.next_cursor`.        |
+| `-u`, `--username <name>`           | `X_API_USERNAME`        | Multi-user token selection threaded into the embedded request options.           |
 
-Two additional env vars without flag pairs:
+Additional env vars without flag pairs:
 
-- `BIRD_XURL_PATH` — override transport discovery with a direct path to an `xr` or `xurl` binary.
+- `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI (`xr auth
+  app`).
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
 
 ```text
-bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) --> X API
+bird (CLI + entity store + intelligence) --> xurl-rs (embedded library: auth + HTTP) --> X API
 ```
 
 - `src/main.rs` — thin binary entrypoint (≤30 LOC): SIGPIPE restore, tracing init, delegates to `bird::cli::run_argv()`.
@@ -120,27 +121,29 @@ bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) -
 - `src/cli/runner.rs` — layered entrypoints: `run_argv()`, `run(args, &mut stdout, &mut stderr)`, `run_with_paths(args,
   &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with TempDir-backed `ResolvedPaths` and
   `Vec<u8>` writers.
-- `src/cli/dispatch.rs` — `fn run` top-level match plus shared dispatcher helpers (`command_needs_xurl`,
-  `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `xurl_write_call`, etc.).
+- `src/cli/dispatch.rs` — `fn run` top-level match plus shared dispatcher helpers (`command_is_api_hitting`,
+  `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `validate_auth_value`, etc.).
 - `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
 - `src/cli/clap_errors.rs` — clap → `BirdError` mapping for `try_parse_from`.
 - `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me, Get), `bookmarks.rs`, `profile.rs`,
   `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
   pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 xurl-write verbs share a single `execute` helper).
-- `src/transport.rs` — xurl subprocess transport, `Transport: Send + Sync` trait, `XurlError`, `MockTransport` for unit
-  tests. The resolved xurl binary path and `--timeout` value live on the per-call `XurlTransport` instance — no
-  process-global statics, no in-process ordering hazards.
+- `src/xurl_client/` — bird's seam over the embedded `xurl-rs` library. `mod.rs` declares the `XurlClient` trait (one
+  method per typed xurl shortcut bird uses plus a generic `send_request`), `mock.rs` is the `MockXurlClient` test
+  double, `ConstructionStub` is the no-credentials fallback.
 - `src/db/` — SQLite entity store: `store/` (per-entity table modules + migrations; `Connection` wrapped in
-  `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware transport client wrapping `transport.rs`, split
-  into per-shape request modules), `usage.rs` (per-call cost ledger).
+  `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware client wrapping `XurlClient`, split into
+  per-shape request modules including the `embedded` seam), `usage.rs` (per-call cost ledger).
 - `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist/`, `src/usage/` —
   per-command handlers; streaming where the endpoint paginates.
-- `src/doctor.rs` — diagnostic report (xurl status, auth, command availability, cache health).
-- `src/requirements.rs` — per-command auth requirements (`AuthType` enum: `OAuth2User`, `OAuth1`, `Bearer`, `None`).
-  Single source of truth consumed by both runtime and `bird doctor`.
+- `src/doctor.rs` — diagnostic report (linked xurl crate version, per-app auth state, per-command accepted vs.
+  credentialed schemes, cache health).
+- `src/cli/auth_scheme.rs` — `AuthType` enum (`OAuth2User`, `OAuth1`, `Bearer`, `None`); bird's request-time scheme
+  identifier rendered to xurl's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
 - `src/output.rs` — `OutputConfig`, color helpers, ANSI sanitization for stderr envelopes, `print_*` methods that take
   an injected `&mut dyn Write`.
-- `src/error.rs` — `BirdError` enum, exit-code mapping, XurlError-to-BirdError downcast for the 77/78 contract.
+- `src/error.rs` — `BirdError` enum, exit-code mapping, exhaustive `xurl::error::XurlError → BirdError` translation for
+  the 77 / 78 / 1 / 3 / 4 / 5 contract.
 - `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
 - `src/schema.rs` — input validation (`validate_username` strips `@`, enforces X charset).
@@ -151,13 +154,14 @@ bird (CLI + entity store + intelligence) --> xr/xurl (subprocess: auth + HTTP) -
 
 ## Transport dependency
 
-bird does **not** implement HTTP or OAuth itself. Every API call shells out to `xr` (xurl-rs) or `xurl` (Go fallback).
-Discovery order: `BIRD_XURL_PATH` env override → `xr` on `PATH` → `xurl` on `PATH`. Missing xurl → exit 78 with an
-install hint. Minimum xurl version: 1.0.3.
+bird does **not** implement HTTP or OAuth itself. It embeds the [`xurl-rs`](https://github.com/brettdavies/xurl-rs)
+crate as a library; every API call goes through `xurl::api::ApiClient` constructed once per CLI invocation. App
+credentials come from `CLIENT_ID` / `CLIENT_SECRET` env vars or a stored app written by the optional `xr auth app`
+command (xurl-rs's CLI shares the token store with the embedded client).
 
-`bird login` is a passthrough to xurl's interactive OAuth2-PKCE flow; bird never owns tokens. `bird login --no-browser`
-(alias `--headless`) prints the authorization URL to stdout and reads the redirect URL back from stdin for agents and
-headless machines. Token storage, refresh, and OAuth1 signing all live in xurl.
+`bird login` calls `xurl::auth::Auth::oauth2_flow` directly; bird never owns tokens. `bird login --no-browser` (alias
+`--headless`) drives `remote_oauth2_step1` / `remote_oauth2_step2` so agents and headless machines get the authorization
+URL on stdout and feed the redirect URL back on stdin. Token storage, refresh, and OAuth1 signing all live in xurl-rs.
 
 ## Output formats
 
@@ -277,18 +281,20 @@ rustdoc-as-warnings, Windows cross-clippy. Set `git config core.hooksPath script
 
 ## Testing
 
-- Unit tests inline in each module.
-- CLI smoke tests in `tests/cli_smoke.rs` exercise clap surface and exit codes.
-- Transport integration in `tests/transport_integration.rs` uses `MockTransport` so the suite runs without a real xurl
-  binary on `PATH`.
+- Unit tests inline in each module. Exit-code coverage for the full `xurl::error::XurlError → BirdError` mapping (78 /
+  77 / 1 / 3 / 4 / 5) lives in `src/error/mod.rs::tests`.
+- CLI smoke tests in `tests/cli_smoke.rs` exercise the clap surface, exit codes, and JSON envelope shape via the
+  in-process `run_with_paths` entry point.
 - `tests/json_envelope.rs`, `tests/envelope_consistency.rs`, `tests/schema_parity.rs` lock the JSON envelope shape and
   ensure the embedded `schema/` documents stay in sync with the runtime emitters.
-- `tests/parallel_run.rs` exercises the library-style `run_with_paths` entry point with concurrent callers (path
-  injection + `Send+Sync` gate).
-- `tests/live_integration.rs` exercises real X API endpoints; gated `#[ignore]` so it runs only via `cargo test --test
-  live_integration -- --ignored`. Requires `BIRD_XURL_PATH` pointing at a logged-in xurl install.
+- `tests/doctor_schema_runtime.rs` round-trips a fixture `DoctorReport` through `serde_json::to_value` and asserts every
+  runtime-emitted key matches `schema/doctor.schema.json`, plus a sentinel-string negative check that no credential
+  value can leak into the JSON output.
+- `tests/diag_quiet_lazy_eval_test.rs` regression-locks the R24 zero-allocation `if !quiet` diag guard via a
+  `PanicOnWrite` writer backed by `ConstructionStub`.
 
-`BIRD_XURL_PATH` is the canonical hook for wiring tests into a real xurl binary.
+Bird tests only the bird/xurl boundary via `MockXurlClient`; xurl-rs owns the X API HTTP shapes upstream. No bird-side
+wiremock; no bird-side real-API integration suite.
 
 ## Releasing
 

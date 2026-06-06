@@ -149,16 +149,20 @@ pub(super) fn sync_actual_usage(
     }))
 }
 
-#[cfg(all(test, not(feature = "embedded-xurl")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::BirdClient;
     use crate::db::store::in_memory_db;
-    use crate::transport::tests::MockTransport;
+    use crate::xurl_client::mock::MockXurlClient;
 
-    /// Build a BirdClient backed by MockTransport + in-memory DB.
+    /// Build a BirdClient backed by MockXurlClient queueing `send_request`
+    /// outcomes plus an in-memory DB.
     fn sync_client(responses: Vec<serde_json::Value>) -> BirdClient {
-        let mock = MockTransport::new(responses.into_iter().map(Ok).collect());
+        let mock = MockXurlClient::new();
+        for value in responses {
+            mock.push_value("send_request", value);
+        }
         BirdClient::new_test(Box::new(mock), in_memory_db())
     }
 

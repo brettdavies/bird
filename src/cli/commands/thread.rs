@@ -1,6 +1,6 @@
 //! `bird thread` — reconstruct a conversation thread.
 
-use crate::cli::dispatch::default_auth_type;
+use crate::cli::auth_scheme::AuthType;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -15,7 +15,7 @@ pub fn run(
     pretty: bool,
     max_pages: u32,
 ) -> Result<(), BirdError> {
-    let auth_type = default_auth_type("thread");
+    let auth_type = AuthType::OAuth2User;
     thread::run_thread(
         client,
         out,

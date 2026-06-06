@@ -195,7 +195,7 @@ impl BirdClient {
     }
 }
 
-#[cfg(all(test, not(feature = "embedded-xurl")))]
+#[cfg(test)]
 mod tests {
     use super::super::super::store::in_memory_db;
     use super::super::tests::test_client_with_db;
