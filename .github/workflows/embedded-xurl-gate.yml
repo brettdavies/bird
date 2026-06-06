@@ -1,0 +1,47 @@
+# PR3 pre-merge gate for the xurl-rs cutover.
+#
+# Asserts the contract that both `cargo test` (default features, which after
+# the U14 default flip equals embedded-xurl) AND `cargo test --features
+# embedded-xurl` (explicit axis) pass on the PR3 head. Keeping both axes is
+# the contract assertion the cutover commit relies on — they are equivalent
+# post-flip and must stay equivalent until U16 removes the feature flag in
+# the same PR. The dual-axis gate dies alongside the flag.
+#
+# Add the job name (`gate`) to GitHub branch protection on `dev` as a
+# required status check before opening PR3 — without it, the PR can merge
+# while this workflow is failing or skipped.
+name: Embedded xurl gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+    tags-ignore: ['**']
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE-*'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flags:
+          - ""
+          - "--features embedded-xurl"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+      - name: cargo test ${{ matrix.flags }}
+        run: cargo test --locked ${{ matrix.flags }}

@@ -64,6 +64,7 @@ rev = "ed992a031fbbd53c88c19825ca3b6a9e0e5dc03e" # xurl-rs/dev post v2.0.0 (CRAT
 optional = true
 
 [features]
+default = ["embedded-xurl"]
 embedded-xurl = ["dep:xurl"]
 
 [build-dependencies]
