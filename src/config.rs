@@ -69,8 +69,6 @@ pub struct EnvOverrides {
     pub no_color: Option<bool>,
     /// `TERM` raw string.
     pub term: Option<String>,
-    /// `BIRD_XURL_PATH` filesystem path.
-    pub xurl_path: Option<PathBuf>,
     /// Currently main.rs argv-bound; U8 (runner) wires this through.
     pub timeout_secs: Option<u64>,
     /// `BIRD_NO_CACHE=1` → `Some(false)`; unset → `None` (load_with_paths
@@ -90,7 +88,6 @@ impl EnvOverrides {
                 None
             },
             term: std::env::var("TERM").ok(),
-            xurl_path: std::env::var_os("BIRD_XURL_PATH").map(PathBuf::from),
             timeout_secs: None,
             cache_enabled: match std::env::var("BIRD_NO_CACHE").as_deref() {
                 Ok("1") => Some(false),
@@ -251,7 +248,6 @@ mod tests {
         assert_eq!(env.term.as_deref(), Some("dumb"));
         assert!(env.output.is_none());
         assert!(env.username.is_none());
-        assert!(env.xurl_path.is_none());
         assert!(env.timeout_secs.is_none());
         assert!(env.cache_enabled.is_none());
     }

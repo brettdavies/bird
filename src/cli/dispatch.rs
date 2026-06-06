@@ -4,14 +4,12 @@
 //! and the layered runner entrypoint can call them without forcing every
 //! consumer to depend on the binary crate root.
 
-use crate::cli::auth_scheme;
 use crate::cli::commands;
-use crate::cli::{CacheAction, Command, OutputFlags, WatchlistCommand, WriteGuard};
+use crate::cli::{Command, OutputFlags, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::{self, OutputConfig};
-use crate::schema;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
 
@@ -375,88 +373,8 @@ pub fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
     m
 }
 
-/// Returns true if this command will spawn xurl during normal execution.
-/// Skips the eager xurl presence check for:
-///   - Local-only commands (Cache, Watchlist Add/Remove/List)
-///   - `--dry-run` invocations (we print the would-be call and exit)
-///   - Destructive commands without `--force`/`--yes` in non-TTY context —
-///     `require_confirmation` will refuse first with a usage error, no xurl needed
-pub fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: bool) -> bool {
-    // For write-guarded commands: if guard would refuse (no force/yes, no dry-run,
-    // and the caller can't confirm interactively), xurl is never invoked.
-    let guard_proceeds = |g: &WriteGuard| -> bool {
-        if g.dry_run {
-            return false;
-        }
-        if g.force {
-            return true;
-        }
-        stdin_is_tty && !no_interactive
-    };
-    match cmd {
-        // Local-only: never call xurl.
-        Command::Cache { action } => match action {
-            CacheAction::Clear { guard } => guard_proceeds(guard),
-            CacheAction::Stats { .. } => false,
-        },
-        Command::Watchlist { action, .. } => matches!(action, WatchlistCommand::Fetch),
-        // Login spawns xurl directly (`xurl auth oauth2` or headless OAuth2),
-        // so it must surface the detailed resolution error from the runner's
-        // xurl gate rather than falling through to a generic install-hint
-        // message inside the handler.
-        Command::Login { .. } => true,
-        // Pre-dispatched in main() / runner short-circuits before `run` —
-        // never reach the dispatcher's xurl gate.
-        Command::Completions { .. } | Command::Schema { .. } | Command::Skill { .. } => false,
-        // Diagnostic: doctor probes xurl itself but should not gate on absence.
-        Command::Doctor { .. } => false,
-        // Write commands — gate fires only when the command will actually run.
-        Command::Delete { guard, .. }
-        | Command::Post { guard, .. }
-        | Command::Put { guard, .. }
-        | Command::Tweet { guard, .. }
-        | Command::Reply { guard, .. }
-        | Command::Like { guard, .. }
-        | Command::Unlike { guard, .. }
-        | Command::Repost { guard, .. }
-        | Command::Unrepost { guard, .. }
-        | Command::Follow { guard, .. }
-        | Command::Unfollow { guard, .. }
-        | Command::Dm { guard, .. }
-        | Command::Block { guard, .. }
-        | Command::Unblock { guard, .. }
-        | Command::Mute { guard, .. }
-        | Command::Unmute { guard, .. } => guard_proceeds(guard),
-        // Read-only network commands with no guard.
-        Command::Me { .. }
-        | Command::Get { .. }
-        | Command::Bookmarks { .. }
-        | Command::Profile { .. }
-        | Command::Search { .. }
-        | Command::Thread { .. }
-        | Command::Usage { .. } => true,
-    }
-}
-
-/// Resolve the default auth type for a command name. PR3's cutover deletes
-/// this entire match alongside the subprocess transport; under embedded the
-/// per-command auth scheme is resolved by `xurl::api::auth_matrix::supported_auth`
-/// at the seam, so this helper is read only by the subprocess argv builder.
-pub fn default_auth_type(command_name: &str) -> auth_scheme::AuthType {
-    use auth_scheme::AuthType;
-    match command_name {
-        "usage" | "watchlist_add" | "watchlist_remove" | "watchlist_list" | "login" => {
-            AuthType::None
-        }
-        "usage_sync" => AuthType::Bearer,
-        _ => AuthType::OAuth2User,
-    }
-}
-
 /// `true` when the dispatched command is one that ultimately hits the X API
-/// (and therefore should receive the `XURL_APP` migration warning). Mirrors
-/// `command_needs_xurl` without the guard-resolution gating, since the warn
-/// fires before the runner figures out whether a write will actually run.
+/// (and therefore should receive the `XURL_APP` migration warning).
 pub fn command_is_api_hitting(cmd: &Command) -> bool {
     match cmd {
         Command::Cache { .. }
@@ -517,11 +435,8 @@ pub fn validate_auth_value(value: &str, cmd: &Command) -> Result<(), String> {
 }
 
 /// `true` when the command's API endpoint requires any auth scheme other
-/// than `AuthType::None`. Replaces the U13-deleted
-/// `requirements_for_command` query; the contract surfaced to
-/// `validate_auth_value` is identical. PR3's cutover redirects this query
-/// to `xurl::api::auth_matrix::supported_auth` after subprocess transport
-/// is gone.
+/// than `AuthType::None`. Used by `validate_auth_value` to reject
+/// `--auth none` on commands that hit the X API.
 fn command_requires_auth(cmd: &Command) -> bool {
     match cmd {
         // Pure-local + diagnostic commands: never hit the API.
@@ -684,7 +599,7 @@ pub fn build_dry_run_url(
     params: &HashMap<String, String>,
     query: &[String],
 ) -> Option<String> {
-    let resolved = schema::resolve_path(path, params).ok()?;
+    let resolved = substitute_path_template(path, params)?;
     let mut url = url::Url::parse(&format!("https://api.x.com{}", resolved)).ok()?;
     for q in query {
         if let Some((k, v)) = q.split_once('=') {
@@ -692,6 +607,31 @@ pub fn build_dry_run_url(
         }
     }
     Some(url.to_string())
+}
+
+/// Substitute `{name}` placeholders in a path template with values from
+/// `params`. Bird does not enforce the API's substitution semantics at this
+/// layer — xurl's `RequestTarget::Template` owns the canonical substitution
+/// at request time; this helper only assembles a display string for the
+/// dry-run confirmation prompt. Returns `None` when a placeholder has no
+/// matching param.
+fn substitute_path_template(template: &str, params: &HashMap<String, String>) -> Option<String> {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(start) = rest.find('{') {
+        out.push_str(&rest[..start]);
+        rest = &rest[start..];
+        let end = rest.find('}')?;
+        let name = &rest[1..end];
+        let value = params.get(name)?;
+        if value.is_empty() {
+            return None;
+        }
+        out.push_str(value);
+        rest = &rest[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 /// Clamp a list `--limit` value to a per-command ceiling, mirroring U4 plan
@@ -704,27 +644,6 @@ pub fn clamp_limit(requested: Option<u32>, default: u32, ceiling: u32) -> (u32, 
         Some(n) => (n, false),
         None => (default, false),
     }
-}
-
-/// Call xurl for a write command and print the JSON result to `stdout`.
-///
-/// Routes through `BirdClient`'s transport so the resolved xurl path and
-/// timeout flow through a single chokepoint.
-pub fn xurl_write_call(
-    client: &crate::db::BirdClient,
-    stdout: &mut dyn Write,
-    args: &[&str],
-    username: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut full_args: Vec<String> = Vec::new();
-    if let Some(u) = username {
-        full_args.push("-u".into());
-        full_args.push(u.into());
-    }
-    full_args.extend(args.iter().map(|s| (*s).to_string()));
-    let json = client.transport_request(&full_args)?;
-    writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
-    Ok(())
 }
 
 /// Guard + dispatch for write commands: reject --cache-only, then run the closure.
@@ -834,41 +753,6 @@ mod tests {
             guard: WriteGuard::default(),
         };
         assert!(command_is_api_hitting(&tweet));
-    }
-
-    // U4.1: command_needs_xurl on Cache::Stats returns false.
-    #[test]
-    fn command_needs_xurl_cache_stats_returns_false() {
-        let cmd = Command::Cache {
-            action: CacheAction::Stats {
-                common: OutputFlags::default(),
-            },
-        };
-        assert!(!command_needs_xurl(&cmd, true, false));
-    }
-
-    // U4.2: command_needs_xurl on Tweet returns false for --dry-run, true otherwise.
-    #[test]
-    fn command_needs_xurl_tweet_respects_dry_run() {
-        let dry = Command::Tweet {
-            text: "hi".to_string(),
-            media_id: None,
-            guard: WriteGuard {
-                force: false,
-                dry_run: true,
-            },
-        };
-        assert!(!command_needs_xurl(&dry, true, false));
-
-        let go = Command::Tweet {
-            text: "hi".to_string(),
-            media_id: None,
-            guard: WriteGuard {
-                force: true,
-                dry_run: false,
-            },
-        };
-        assert!(command_needs_xurl(&go, true, false));
     }
 
     // U4.3a: require_confirmation with "yes" closure returns Proceed and writes the prompt.

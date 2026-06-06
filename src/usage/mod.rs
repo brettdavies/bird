@@ -226,16 +226,19 @@ struct UsageReport {
     sync_status: &'static str,
 }
 
-#[cfg(all(test, not(feature = "embedded-xurl")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::BirdClient;
     use crate::db::store::in_memory_db;
     use crate::output::{OutputConfig, OutputFormat};
-    use crate::transport::tests::MockTransport;
+    use crate::xurl_client::mock::MockXurlClient;
 
     fn sync_client(responses: Vec<serde_json::Value>) -> BirdClient {
-        let mock = MockTransport::new(responses.into_iter().map(Ok).collect());
+        let mock = MockXurlClient::new();
+        for value in responses {
+            mock.push_value("send_request", value);
+        }
         BirdClient::new_test(Box::new(mock), in_memory_db())
     }
 

@@ -3,9 +3,6 @@
 
 use std::collections::HashMap;
 
-#[cfg(not(feature = "embedded-xurl"))]
-use crate::cli::auth_scheme;
-
 use super::super::store::{BirdDb, TweetRow};
 use super::entity::{compute_raw_cache_key, is_entity_endpoint};
 use super::{ApiResponse, BirdClient, RequestContext};
@@ -213,47 +210,19 @@ impl BirdClient {
         Ok(response)
     }
 
-    /// Build xurl args for a GET request with auth and username flags.
-    #[cfg(not(feature = "embedded-xurl"))]
-    fn build_get_args(&self, url: &str, ctx: &RequestContext<'_>) -> Vec<String> {
-        let mut args: Vec<String> = Vec::new();
-        if let Some(flag) = auth_scheme::auth_flag(ctx.auth_type) {
-            args.extend_from_slice(&["--auth".into(), flag.into()]);
-        }
-        if let Some(ref username) = self.username {
-            args.extend_from_slice(&["-u".into(), username.clone()]);
-        }
-        args.push(url.into());
-        args
-    }
-
-    /// GET via xurl transport. Returns ApiResponse with parsed JSON.
+    /// GET via the embedded xurl client. Returns ApiResponse with parsed JSON.
     fn xurl_get(
         &self,
         url: &str,
         ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
-        #[cfg(not(feature = "embedded-xurl"))]
-        {
-            let args = self.build_get_args(url, ctx);
-            let json_value = self.transport.request(&args)?;
-            Ok(ApiResponse {
-                status: 200,
-                cached_body: None,
-                cache_hit: false,
-                json: Some(json_value),
-            })
-        }
-        #[cfg(feature = "embedded-xurl")]
-        {
-            let json = self.xurl_send_raw_url("GET", url, "", ctx)?;
-            Ok(ApiResponse {
-                status: 200,
-                cached_body: None,
-                cache_hit: false,
-                json: Some(json),
-            })
-        }
+        let json = self.xurl_send_raw_url("GET", url, "", ctx)?;
+        Ok(ApiResponse {
+            status: 200,
+            cached_body: None,
+            cache_hit: false,
+            json: Some(json),
+        })
     }
 
     /// Direct GET without store interaction (for no_store / no db paths).

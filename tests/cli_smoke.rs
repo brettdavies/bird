@@ -1,21 +1,13 @@
-#![cfg(not(feature = "embedded-xurl"))]
-
 //! Library-style smoke tests.
 //!
 //! Every test runs in-process via [`common::run_in_process`]; both the exit
 //! code and the captured stdout/stderr content are asserted where the
 //! runner's writer-injection makes them observable.
 //!
-//! The transport layer holds the resolved xurl path on the
-//! [`bird::transport::XurlTransport`] instance constructed per call, so
-//! `xurl_path`-touching tests are safe to run in-process. The remaining
-//! subprocess holdouts in [`tests/cli_smoke_subprocess.rs`] cover clap's
-//! `e.print()` help/version path and env-var-only flag paths.
-//!
 //! The `every_subcommand_help_has_example` and
 //! `nested_subcommand_help_has_example` tests call clap's
 //! [`clap::Command::write_help`] directly on the parsed [`bird::cli::Cli`]
-//! command tree — no runner, no subprocess.
+//! command tree — no runner.
 
 use clap::CommandFactory;
 
@@ -594,41 +586,22 @@ fn nested_subcommand_help_has_example() {
     }
 }
 
-// --- xurl-path-touching migrations (R22 — transport state, no global cache) -
+// --- Local-only path smokes (no API call required) ------------------------
 
-/// `bird completions <shell>` short-circuits before any xurl resolution.
-/// Pointing the snapshot at a non-existent path proves completions never even
-/// try to spawn xurl.
+/// `bird completions <shell>` short-circuits before any xurl construction.
 #[test]
 fn completions_works_without_xurl() {
-    let env = common::TestEnv::new()
-        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
+    let env = common::TestEnv::new();
     let (exit, stdout, _stderr) = common::run_in_process(&["bird", "completions", "bash"], &env);
     assert_eq!(exit, 0);
     assert!(!stdout.is_empty(), "completions bash must emit stdout");
 }
 
-/// `bird usage --local` must be accepted by clap even when xurl is missing
-/// (the local-only path bypasses xurl). Asserts clap doesn't reject the flag
-/// with exit 2 (the unrecognised-arg code).
+/// `bird usage --local` must be accepted by clap. Asserts clap doesn't reject
+/// the flag with exit 2 (the unrecognised-arg code).
 #[test]
 fn usage_local_flag_accepted_by_clap() {
-    let env = common::TestEnv::new()
-        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
+    let env = common::TestEnv::new();
     let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "usage", "--local"], &env);
     assert_ne!(exit, 2, "--local must be accepted by clap");
-}
-
-/// xurl-missing config error must serialize as the canonical error envelope
-/// when `--output json` is set. R22 keeps this assertion in-process because
-/// the resolution result is per-transport state, not a global cache.
-#[test]
-fn output_json_command_error_schema_xurl_missing() {
-    let env = common::TestEnv::new()
-        .with_xurl_path(std::path::PathBuf::from("/tmp/nonexistent_xurl_12345"));
-    let (exit, _stdout, stderr) = common::run_in_process(&["bird", "--output", "json", "me"], &env);
-    assert_eq!(exit, 78);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
-    assert_eq!(json["exit_code"], 78);
 }

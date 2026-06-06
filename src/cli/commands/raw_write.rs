@@ -1,8 +1,9 @@
 //! `bird post`, `bird put`, `bird delete` — raw write requests via `raw::run_raw`.
 
 use crate::cli::WriteGuard;
+use crate::cli::auth_scheme::AuthType;
 use crate::cli::dispatch::{
-    GuardOutcome, build_dry_run_url, default_auth_type, parse_param_vec, require_confirmation,
+    GuardOutcome, build_dry_run_url, parse_param_vec, require_confirmation,
 };
 use crate::db;
 use crate::error::BirdError;
@@ -43,7 +44,7 @@ pub fn run_post(
         GuardOutcome::DryRun => return Ok(()),
         GuardOutcome::Proceed => {}
     }
-    let auth_type = default_auth_type("post");
+    let auth_type = AuthType::OAuth2User;
     raw::run_raw(
         client,
         out,
@@ -96,7 +97,7 @@ pub fn run_put(
         GuardOutcome::DryRun => return Ok(()),
         GuardOutcome::Proceed => {}
     }
-    let auth_type = default_auth_type("put");
+    let auth_type = AuthType::OAuth2User;
     raw::run_raw(
         client,
         out,
@@ -147,7 +148,7 @@ pub fn run_delete(
         GuardOutcome::DryRun => return Ok(()),
         GuardOutcome::Proceed => {}
     }
-    let auth_type = default_auth_type("delete");
+    let auth_type = AuthType::OAuth2User;
     raw::run_raw(
         client, out, stdout, stderr, "DELETE", &path, &params, &query, &header, None, pretty,
         &auth_type,

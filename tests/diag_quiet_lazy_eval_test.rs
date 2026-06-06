@@ -1,9 +1,7 @@
-#![cfg(not(feature = "embedded-xurl"))]
-
 //! Plan 2 R24 regression test: the `if !quiet { writeln!(stderr, ...).ok(); }`
 //! replacement for the deleted `diag!` macro must preserve the zero-allocation
-//! property — when `quiet` is true, no `format_args!` evaluation and no `write*`
-//! call may run.
+//! property — when `quiet` is true, no `format_args!` evaluation and no
+//! `write*` call may run.
 //!
 //! Strategy: install a `PanicOnWrite` writer in BirdClient's `stderr` slot,
 //! then drive a code path that previously emitted a `diag!` (now a guarded
@@ -40,9 +38,8 @@ impl Write for PanicOnWrite {
 /// Uses no_store=true so no DB file is opened (avoids the BirdDb::open path
 /// that has its own diag sites we may not be exercising).
 fn make_client(quiet: bool) -> bird::db::BirdClient {
-    let transport = Box::new(bird::transport::XurlTransport::from_error(
+    let xurl = Box::new(bird::xurl_client::ConstructionStub::new(
         "test: no xurl resolved".to_string(),
-        std::time::Duration::from_secs(60),
     ));
     let cache_opts = bird::db::CacheOpts {
         no_store: true,
@@ -51,7 +48,7 @@ fn make_client(quiet: bool) -> bird::db::BirdClient {
     };
     let stderr: Arc<Mutex<dyn Write + Send>> = Arc::new(Mutex::new(PanicOnWrite));
     bird::db::BirdClient::new(
-        transport,
+        xurl,
         &PathBuf::from("/tmp/bird-lazy-eval-test-store"),
         cache_opts,
         100,
@@ -86,9 +83,8 @@ fn diag_quiet_gate_does_panic_when_not_quiet_and_a_diag_fires() {
     // The no_store=false branch of BirdClient::new opens a real DB, and if
     // the path is invalid the diag site at "[store] warning: failed to open"
     // fires.
-    let transport = Box::new(bird::transport::XurlTransport::from_error(
+    let xurl = Box::new(bird::xurl_client::ConstructionStub::new(
         "test: no xurl resolved".to_string(),
-        std::time::Duration::from_secs(60),
     ));
     let cache_opts = bird::db::CacheOpts {
         no_store: false,
@@ -97,7 +93,7 @@ fn diag_quiet_gate_does_panic_when_not_quiet_and_a_diag_fires() {
     };
     let stderr: Arc<Mutex<dyn Write + Send>> = Arc::new(Mutex::new(PanicOnWrite));
     let _ = bird::db::BirdClient::new(
-        transport,
+        xurl,
         // Force the BirdDb::open failure path so the warning diag fires.
         &PathBuf::from("/dev/null/cannot-exist-here/store"),
         cache_opts,

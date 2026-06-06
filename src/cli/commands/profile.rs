@@ -1,6 +1,6 @@
 //! `bird profile` — look up a user profile by username.
 
-use crate::cli::dispatch::default_auth_type;
+use crate::cli::auth_scheme::AuthType;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -14,7 +14,7 @@ pub fn run(
     username: String,
     pretty: bool,
 ) -> Result<(), BirdError> {
-    let auth_type = default_auth_type("profile");
+    let auth_type = AuthType::OAuth2User;
     profile::run_profile(
         client,
         out,

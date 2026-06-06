@@ -1,7 +1,6 @@
 //! Entity-aware transport layer over xurl with optional BirdDb cache.
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
-#[cfg(feature = "embedded-xurl")]
 mod embedded;
 mod entity;
 mod get;
@@ -9,9 +8,6 @@ mod write;
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-#[cfg(not(feature = "embedded-xurl"))]
-use crate::transport::Transport;
-#[cfg(feature = "embedded-xurl")]
 use crate::xurl_client::XurlClient;
 
 use super::normalize_endpoint;
@@ -20,7 +16,7 @@ use super::store::BirdDb;
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 // -- Shared types (re-exported from db::mod) --
@@ -141,19 +137,16 @@ const _: fn() = || {
 /// Entity-aware transport layer. Wraps xurl transport + optional BirdDb.
 /// If BirdDb is unavailable (corrupted, disk error), degrades to direct transport.
 pub struct BirdClient {
-    #[cfg(not(feature = "embedded-xurl"))]
-    pub(super) transport: Box<dyn Transport>,
     /// Embedded xurl client guarded by a Mutex so `&self` methods can acquire
     /// the lock and call `&mut self` xurl methods. The lock-acquire-in-method
     /// pattern mirrors the existing `Mutex<rusqlite::Connection>` precedent in
     /// `src/db/store/mod.rs`. Read through `BirdClient::with_xurl` in
     /// `db::client::embedded`.
-    #[cfg(feature = "embedded-xurl")]
     pub(super) xurl: Mutex<Box<dyn XurlClient + Send>>,
     pub(super) db: Option<BirdDb>,
     pub(super) cache_opts: CacheOpts,
-    /// Username for xurl `-u` flag (subprocess) and `RequestOptions.username`
-    /// (embedded). Multi-user token selection threads through either path.
+    /// Username threaded into `RequestOptions.username` for multi-user token
+    /// selection.
     pub(super) username: Option<String>,
     /// Suppress informational stderr output. Stored on the struct (unlike `use_color`
     /// which is parameter-passed) because 7+ internal methods emit diagnostics and
@@ -175,23 +168,18 @@ impl BirdClient {
     /// diagnostic sites lock the shared handle under the `if !self.quiet`
     /// gate.
     pub fn new(
-        #[cfg(not(feature = "embedded-xurl"))] transport: Box<dyn Transport>,
-        #[cfg(feature = "embedded-xurl")] xurl: Box<dyn XurlClient + Send>,
-        store_path: &Path,
+        xurl: Box<dyn XurlClient + Send>,
+        store_path: &std::path::Path,
         cache_opts: CacheOpts,
         max_size_mb: u64,
         username: Option<String>,
         quiet: bool,
         stderr: Arc<Mutex<dyn Write + Send>>,
     ) -> Self {
-        #[cfg(feature = "embedded-xurl")]
         let xurl = Mutex::new(xurl);
 
         if cache_opts.no_store {
             return Self {
-                #[cfg(not(feature = "embedded-xurl"))]
-                transport,
-                #[cfg(feature = "embedded-xurl")]
                 xurl,
                 db: None,
                 cache_opts,
@@ -228,9 +216,6 @@ impl BirdClient {
             }
         };
         Self {
-            #[cfg(not(feature = "embedded-xurl"))]
-            transport,
-            #[cfg(feature = "embedded-xurl")]
             xurl,
             db,
             cache_opts,
@@ -240,51 +225,18 @@ impl BirdClient {
         }
     }
 
-    /// Test-only constructor with explicit transport and in-memory DB.
-    /// Uses `io::sink()` as the stderr writer so tests don't capture internal
-    /// diagnostic output.
-    #[cfg(all(test, not(feature = "embedded-xurl")))]
-    pub(crate) fn new_test(transport: Box<dyn Transport>, db: super::store::BirdDb) -> Self {
+    /// Test-only constructor with an explicit `XurlClient` and an in-memory
+    /// `BirdDb`. Uses `io::sink()` as the stderr sink so internal diagnostics
+    /// don't bleed into captured-output assertions.
+    #[cfg(test)]
+    pub(crate) fn new_test(xurl: Box<dyn XurlClient + Send>, db: super::store::BirdDb) -> Self {
         Self {
-            transport,
+            xurl: Mutex::new(xurl),
             db: Some(db),
             cache_opts: CacheOpts::default(),
             username: None,
             quiet: true,
             stderr: Arc::new(Mutex::new(std::io::sink())),
-        }
-    }
-
-    /// Resolved xurl binary path, when the live transport spawns one. Mock
-    /// transports return `None`. Surfaced for direct call sites (`bird login`,
-    /// `bird doctor`'s `whoami`, write commands) that need the path without
-    /// going through [`Transport::request`].
-    pub fn xurl_path(&self) -> Option<&Path> {
-        #[cfg(not(feature = "embedded-xurl"))]
-        {
-            self.transport.xurl_path()
-        }
-        #[cfg(feature = "embedded-xurl")]
-        {
-            None
-        }
-    }
-
-    /// Direct-trait request, used by handlers (`bird doctor whoami`, write
-    /// verbs) that need to pass argv through to xurl without the entity-store
-    /// pipeline.
-    pub fn transport_request(
-        &self,
-        #[cfg(not(feature = "embedded-xurl"))] args: &[String],
-        #[cfg(feature = "embedded-xurl")] _args: &[String],
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-        #[cfg(not(feature = "embedded-xurl"))]
-        {
-            self.transport.request(args)
-        }
-        #[cfg(feature = "embedded-xurl")]
-        {
-            Err("embedded transport stub — handler migration lands in PR2".into())
         }
     }
 
@@ -350,15 +302,15 @@ impl BirdClient {
     }
 }
 
-#[cfg(all(test, not(feature = "embedded-xurl")))]
+#[cfg(test)]
 mod tests {
     use super::super::store::BirdDb;
     use super::*;
-    use crate::transport::tests::MockTransport;
+    use crate::xurl_client::mock::MockXurlClient;
 
     pub(super) fn test_client_with_db(db: BirdDb) -> BirdClient {
         BirdClient {
-            transport: Box::new(MockTransport::new(vec![])),
+            xurl: Mutex::new(Box::new(MockXurlClient::new())),
             db: Some(db),
             cache_opts: CacheOpts::default(),
             username: None,

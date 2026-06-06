@@ -19,10 +19,7 @@
 
 use crate::cli::argv::{explicit_output_from_argv, output_from_argv};
 use crate::cli::clap_errors::clap_error_to_bird;
-#[cfg(feature = "embedded-xurl")]
 use crate::cli::dispatch::command_is_api_hitting;
-#[cfg(not(feature = "embedded-xurl"))]
-use crate::cli::dispatch::command_needs_xurl;
 use crate::cli::dispatch::{
     GuardOutcome, ListFlags, clamp_limit, require_confirmation, validate_auth_value,
 };
@@ -30,8 +27,6 @@ use crate::cli::{Cli, Command, OutputFlags, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-#[cfg(not(feature = "embedded-xurl"))]
-use crate::transport;
 use crate::{db, doctor, output, schema, schema_print, skill_install, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
@@ -223,12 +218,6 @@ where
         raw,
     };
 
-    // The xurl binary path and `--timeout` value are per-transport state:
-    // resolve once below and pass into `XurlTransport::new`. Resolution
-    // errors are stored on the transport and only surface when a command
-    // actually spawns xurl.
-    let xurl_timeout = std::time::Duration::from_secs(cli.timeout);
-
     // --- Meta-commands: need nothing beyond parsed args ---
     if let Command::Completions { shell } = &cli.command {
         use clap::CommandFactory;
@@ -307,30 +296,13 @@ where
     };
     config.app = cli.app.clone();
 
-    // Resolve the xurl binary path once at startup. Commands that need xurl
-    // surface the error on first transport call (or via the xurl gate below);
-    // commands that never spawn xurl (local watchlist, cache, doctor's
-    // xurl-status report) tolerate the error transport silently.
-    #[cfg(not(feature = "embedded-xurl"))]
-    let xurl_resolution = transport::resolve_xurl_path(&env);
-    #[cfg(not(feature = "embedded-xurl"))]
-    let transport: Box<dyn transport::Transport> = match &xurl_resolution {
-        Ok(path) => Box::new(transport::XurlTransport::new(path.clone(), xurl_timeout)),
-        Err(e) => Box::new(transport::XurlTransport::from_error(
-            e.to_string(),
-            xurl_timeout,
-        )),
-    };
-
-    // Embedded transport: construct `xurl::api::ApiClient` honoring the
-    // bird-side `--app` / `BIRD_APP` resolution. The standard
-    // `ApiClient::from_env()` path resolves the app from `XURL_APP`, which
-    // bird intentionally ignores (R10/R11); the XURL_APP migration warn
-    // fires elsewhere in the runner when the user has `XURL_APP` set but
-    // not `BIRD_APP`. A construction failure (missing `CLIENT_ID`, etc.)
-    // is captured as a stub impl returning the original error on every
-    // call so non-API commands keep working.
-    #[cfg(feature = "embedded-xurl")]
+    // Construct `xurl::api::ApiClient` honoring the bird-side `--app` /
+    // `BIRD_APP` resolution. The standard `ApiClient::from_env()` path resolves
+    // the app from `XURL_APP`, which bird intentionally ignores (R10/R11); the
+    // XURL_APP migration warn fires elsewhere in the runner when the user has
+    // `XURL_APP` set but not `BIRD_APP`. A construction failure (missing
+    // `CLIENT_ID`, etc.) is captured as a stub impl returning the original
+    // error on every call so non-API commands keep working.
     let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> = {
         let mut cfg = xurl::config::Config::new();
         if let Some(ref app) = cli.app {
@@ -346,8 +318,6 @@ where
             Box::new(client) as Box<dyn crate::xurl_client::XurlClient + Send>
         }
     };
-    #[cfg(feature = "embedded-xurl")]
-    let _ = xurl_timeout;
 
     let cache_opts = db::CacheOpts {
         no_store: cli.no_cache || !config.cache_enabled,
@@ -363,9 +333,6 @@ where
     let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
         std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
     let mut client = db::BirdClient::new(
-        #[cfg(not(feature = "embedded-xurl"))]
-        transport,
-        #[cfg(feature = "embedded-xurl")]
         xurl_client,
         &config.cache_path,
         cache_opts,
@@ -452,31 +419,9 @@ where
         };
     }
 
-    // --- xurl gate: only for commands that actually spawn xurl ---
-    // Skip when:
-    //   * The command is local-only (Cache, Watchlist Add/Remove/List)
-    //   * --cache-only is set (no network)
-    //   * The command's guard is --dry-run (we print the would-be call and exit)
-    #[cfg(not(feature = "embedded-xurl"))]
-    let stdin_is_tty = std::io::stdin().is_terminal();
-    #[cfg(not(feature = "embedded-xurl"))]
-    if command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive)
-        && !cli.cache_only
-        && let Err(e) = &xurl_resolution
-    {
-        let err = BirdError::config(e.to_string());
-        let _ = out.print_error(stderr, &err);
-        return ExitCode::from(err.exit_code());
-    }
-
     // R10/R11: XURL_APP migration warn. Fires only on API-hitting commands
     // so `bird --help`, `bird completions`, `bird examples`, `bird cache`,
-    // and the watchlist local ops stay clean. Gated to the same predicate
-    // the xurl-gate uses (subprocess) or to "anything but the early
-    // diagnostic commands" (embedded).
-    #[cfg(not(feature = "embedded-xurl"))]
-    let needs_xurl_for_warn = command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive);
-    #[cfg(feature = "embedded-xurl")]
+    // and the watchlist local ops stay clean.
     let needs_xurl_for_warn = command_is_api_hitting(&cli.command);
     if needs_xurl_for_warn
         && cli.app.is_none()

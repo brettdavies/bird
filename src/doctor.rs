@@ -205,7 +205,6 @@ fn command_template(name: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-#[cfg(feature = "embedded-xurl")]
 fn build_xurl_status(
     _client: &BirdClient,
     _stderr: &mut dyn std::io::Write,
@@ -215,29 +214,6 @@ fn build_xurl_status(
         path: None,
         version: Some(xurl::CRATE_VERSION.to_string()),
         available: true,
-    }
-}
-
-#[cfg(not(feature = "embedded-xurl"))]
-fn build_xurl_status(
-    client: &BirdClient,
-    stderr: &mut dyn std::io::Write,
-    quiet: bool,
-) -> XurlStatus {
-    match client.xurl_path() {
-        Some(path) => {
-            let version = crate::transport::check_xurl_version(path, stderr, quiet).ok();
-            XurlStatus {
-                path: Some(path.display().to_string()),
-                version,
-                available: true,
-            }
-        }
-        None => XurlStatus {
-            path: None,
-            version: None,
-            available: false,
-        },
     }
 }
 
@@ -254,42 +230,9 @@ fn build_env_credentials() -> EnvCredentials {
     }
 }
 
-/// Build the auth section under subprocess. Reads `xurl whoami` (which
-/// the subprocess transport already handles) to learn the active username,
-/// then surfaces a single-app shape so the JSON envelope stays well-formed
-/// without invading xurl's token store directly.
-#[cfg(not(feature = "embedded-xurl"))]
-fn build_auth_state(client: &BirdClient) -> AuthState {
-    let username = client
-        .transport_request(&["whoami".to_string()])
-        .ok()
-        .and_then(|json| {
-            json.get("data")
-                .and_then(|d| d.get("username"))
-                .and_then(|u| u.as_str())
-                .or_else(|| json.get("username").and_then(|u| u.as_str()))
-                .map(String::from)
-        });
-    let mut apps = HashMap::new();
-    apps.insert(
-        "default".to_string(),
-        AppCredentials {
-            default_user: username,
-            ..AppCredentials::default()
-        },
-    );
-    AuthState {
-        active_app: "default".to_string(),
-        apps,
-        env: build_env_credentials(),
-    }
-}
-
-/// Build the auth section under embedded. Enumerates every app in xurl's
-/// `TokenStore` and reports presence-only flags for every credential type.
-/// The active app is the one xurl's runner would pick when no `--app NAME`
-/// is supplied.
-#[cfg(feature = "embedded-xurl")]
+/// Build the auth section by enumerating every app in xurl's `TokenStore`
+/// and reporting presence-only flags for every credential type. The active
+/// app is the one xurl's runner would pick when no `--app NAME` is supplied.
 fn build_auth_state(_client: &BirdClient) -> AuthState {
     let cfg = xurl::config::Config::new();
     let auth = xurl::auth::Auth::new(&cfg);
@@ -338,7 +281,6 @@ fn build_auth_state(_client: &BirdClient) -> AuthState {
 /// presence descriptor. `token.oauth2` is `Some` when
 /// `token_type == TokenType::Oauth2`; for any other discriminator the
 /// payload is absent and every presence flag stays `false`.
-#[cfg(feature = "embedded-xurl")]
 fn oauth2_presence(token: &xurl::store::types::Token) -> OAuth2TokenPresence {
     let payload = token.oauth2.as_ref();
     OAuth2TokenPresence {
@@ -347,7 +289,6 @@ fn oauth2_presence(token: &xurl::store::types::Token) -> OAuth2TokenPresence {
     }
 }
 
-#[cfg(feature = "embedded-xurl")]
 fn oauth1_presence(token: &xurl::store::types::Token) -> OAuth1TokenPresence {
     let payload = token.oauth1.as_ref();
     OAuth1TokenPresence {
@@ -358,7 +299,6 @@ fn oauth1_presence(token: &xurl::store::types::Token) -> OAuth1TokenPresence {
     }
 }
 
-#[cfg(feature = "embedded-xurl")]
 fn bearer_presence(token: &xurl::store::types::Token) -> BearerTokenPresence {
     BearerTokenPresence {
         token_present: token.bearer.as_ref().is_some_and(|s| !s.is_empty()),
@@ -384,11 +324,7 @@ fn credentialed_for_app(app: &AppCredentials, env: &EnvCredentials) -> Vec<Strin
     out
 }
 
-/// Resolve accepted_schemes for a single command. Under embedded queries
-/// xurl's `auth_matrix`; under subprocess returns an empty vec (the
-/// subprocess transport can't query the matrix at all without spawning
-/// xurl, which the doctor command deliberately avoids).
-#[cfg(feature = "embedded-xurl")]
+/// Resolve accepted_schemes for a single command via xurl's `auth_matrix`.
 fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
     use xurl::api::auth_matrix::{WireScheme, supported_auth};
     let Some(schemes) = supported_auth(method, template) else {
@@ -409,11 +345,6 @@ fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
     wires.dedup();
     let _ = WireScheme::ALL_BY_PREFERENCE; // touch to discourage drift on the upstream enum
     wires
-}
-
-#[cfg(not(feature = "embedded-xurl"))]
-fn accepted_schemes_for(_method: &str, _template: &str) -> Vec<String> {
-    Vec::new()
 }
 
 /// Command availability based on xurl + auth state. Populates the new
@@ -489,12 +420,6 @@ fn build_commands_section(
     cmds
 }
 
-#[cfg(not(feature = "embedded-xurl"))]
-fn xurl_unavailable_reason() -> String {
-    format!("xurl not found. {}", crate::transport::XURL_INSTALL_HINT)
-}
-
-#[cfg(feature = "embedded-xurl")]
 fn xurl_unavailable_reason() -> String {
     "embedded xurl client unavailable; check CLIENT_ID/CLIENT_SECRET env".into()
 }
@@ -546,10 +471,7 @@ pub(crate) fn report(
         None => None,
     };
 
-    #[cfg(feature = "embedded-xurl")]
     let linked_xurl_version = Some(xurl::CRATE_VERSION.to_string());
-    #[cfg(not(feature = "embedded-xurl"))]
-    let linked_xurl_version: Option<String> = None;
 
     DoctorReport {
         xurl,
@@ -778,17 +700,16 @@ pub fn run_doctor(
     Ok(())
 }
 
-#[cfg(all(test, not(feature = "embedded-xurl")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::{BirdClient, CacheOpts};
-    use crate::transport::tests::MockTransport;
+    use crate::xurl_client::mock::MockXurlClient;
     use std::path::Path;
 
     fn no_cache_client() -> BirdClient {
-        let transport = Box::new(MockTransport::new(vec![]));
         BirdClient::new(
-            transport,
+            Box::new(MockXurlClient::new()),
             Path::new("/dev/null"),
             CacheOpts {
                 no_store: true,
@@ -832,13 +753,5 @@ mod tests {
         assert!(json.contains("accepted_schemes"));
         assert!(json.contains("credentialed_schemes"));
         assert!(json.contains("reachable"));
-    }
-
-    #[test]
-    fn auth_state_subprocess_has_default_app_entry() {
-        let client = no_cache_client();
-        let r = report(&client, &mut std::io::sink(), None, false);
-        assert_eq!(r.auth.active_app, "default");
-        assert!(r.auth.apps.contains_key("default"));
     }
 }

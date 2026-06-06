@@ -3,7 +3,8 @@
 //! `Add`/`Remove`/`List` are pre-dispatched in `fn main` (they don't need xurl
 //! and don't reach the dispatcher's `run` function).
 
-use crate::cli::dispatch::{ListFlags, clamp_limit, default_auth_type};
+use crate::cli::auth_scheme::AuthType;
+use crate::cli::dispatch::{ListFlags, clamp_limit};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
@@ -20,7 +21,7 @@ pub fn run_fetch(
     list_flags: &ListFlags,
 ) -> Result<(), BirdError> {
     let (limit, _) = clamp_limit(list_flags.limit, 100, 1000);
-    let auth_type = default_auth_type("watchlist_check");
+    let auth_type = AuthType::OAuth2User;
     watchlist::run_watchlist_check(
         client,
         config,

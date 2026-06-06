@@ -1,6 +1,7 @@
 //! `bird search` — search recent tweets.
 
-use crate::cli::dispatch::{ListFlags, default_auth_type};
+use crate::cli::auth_scheme::AuthType;
+use crate::cli::dispatch::ListFlags;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -20,7 +21,7 @@ pub fn run(
     pages: Option<u32>,
     list_flags: &ListFlags,
 ) -> Result<(), BirdError> {
-    let auth_type = default_auth_type("search");
+    let auth_type = AuthType::OAuth2User;
     // `--limit` is the canonical agent-facing flag; `--max-results` is kept
     // as the per-page Twitter-API knob. When both are set, `--limit` wins.
     let resolved_max = list_flags.limit.or(max_results);
