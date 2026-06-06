@@ -3,6 +3,7 @@
 //! Pure data structures with no runtime behavior. Command dispatch lives in main.rs.
 
 pub mod argv;
+pub mod auth_scheme;
 pub mod clap_errors;
 pub mod commands;
 pub mod dispatch;

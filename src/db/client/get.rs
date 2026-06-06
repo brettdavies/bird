@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 #[cfg(not(feature = "embedded-xurl"))]
-use crate::requirements;
+use crate::cli::auth_scheme;
 
 use super::super::store::{BirdDb, TweetRow};
 use super::entity::{compute_raw_cache_key, is_entity_endpoint};
@@ -217,7 +217,7 @@ impl BirdClient {
     #[cfg(not(feature = "embedded-xurl"))]
     fn build_get_args(&self, url: &str, ctx: &RequestContext<'_>) -> Vec<String> {
         let mut args: Vec<String> = Vec::new();
-        if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
+        if let Some(flag) = auth_scheme::auth_flag(ctx.auth_type) {
             args.extend_from_slice(&["--auth".into(), flag.into()]);
         }
         if let Some(ref username) = self.username {

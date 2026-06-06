@@ -1,10 +1,10 @@
 //! Profile command: look up an X user by username, display JSON.
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use crate::requirements::AuthType;
 use crate::schema;
 
 /// Profile options bundled to avoid clippy::too_many_arguments.

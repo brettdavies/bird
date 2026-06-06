@@ -3,7 +3,7 @@
 //! future tenant.
 
 #[cfg(not(feature = "embedded-xurl"))]
-use crate::requirements;
+use crate::cli::auth_scheme;
 
 use super::{ApiResponse, BirdClient, RequestContext};
 
@@ -19,7 +19,7 @@ impl BirdClient {
         #[cfg(not(feature = "embedded-xurl"))]
         {
             let mut args: Vec<String> = vec!["-X".into(), method.to_uppercase()];
-            if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
+            if let Some(flag) = auth_scheme::auth_flag(ctx.auth_type) {
                 args.extend_from_slice(&["--auth".into(), flag.into()]);
             }
             if let Some(ref username) = self.username {

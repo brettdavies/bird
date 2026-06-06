@@ -1,10 +1,10 @@
 //! Search command: query building, pagination, filtering, sorting, JSON output.
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use crate::requirements::AuthType;
 use std::collections::HashSet;
 
 /// Search options bundled to avoid clippy::too_many_arguments.

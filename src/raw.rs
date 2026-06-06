@@ -1,9 +1,9 @@
 //! Raw request layer: HTTP method + path (with param substitution), query/body, output.
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::output;
-use crate::requirements::AuthType;
 #[cfg(not(feature = "embedded-xurl"))]
 use crate::schema::resolve_path;
 use std::collections::HashMap;

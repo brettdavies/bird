@@ -1,9 +1,55 @@
 //! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
 use crate::db::BirdClient;
-use crate::requirements::{AuthType, command_names_with_auth, requirements_for_command};
 use serde::Serialize;
 use std::collections::HashMap;
+
+/// Full list of bird command names that participate in the doctor report.
+/// Replaces U13-deleted `requirements::command_names_with_auth`; the slice
+/// stays here because doctor is the only consumer.
+const COMMAND_NAMES: &[&str] = &[
+    "login",
+    "me",
+    "bookmarks",
+    "profile",
+    "search",
+    "thread",
+    "tweet",
+    "reply",
+    "like",
+    "unlike",
+    "repost",
+    "unrepost",
+    "follow",
+    "unfollow",
+    "dm",
+    "block",
+    "unblock",
+    "mute",
+    "unmute",
+    "watchlist_check",
+    "watchlist_add",
+    "watchlist_remove",
+    "watchlist_list",
+    "usage",
+    "usage_sync",
+    "get",
+    "post",
+    "put",
+    "delete",
+];
+
+/// `true` when the named command's API endpoint requires any auth scheme
+/// other than `AuthType::None`. Replaces the per-command `accepted` table
+/// in U13-deleted `requirements::requirements_for_command`. PR3's cutover
+/// redirects this query to `xurl::api::auth_matrix::supported_auth` once
+/// the subprocess path is gone.
+fn command_needs_auth(name: &str) -> bool {
+    !matches!(
+        name,
+        "usage" | "watchlist_add" | "watchlist_remove" | "watchlist_list" | "login"
+    )
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct XurlStatus {
@@ -384,7 +430,7 @@ fn build_commands_section(
         .unwrap_or_default();
     let authenticated = !credentialed.is_empty();
 
-    for &name in command_names_with_auth() {
+    for &name in COMMAND_NAMES {
         if name == "login" {
             let reason = if xurl_available {
                 None
@@ -403,11 +449,7 @@ fn build_commands_section(
             );
             continue;
         }
-        let reqs = match requirements_for_command(name) {
-            Some(r) => r,
-            None => continue,
-        };
-        let needs_auth = reqs.accepted.iter().any(|at| !matches!(at, AuthType::None));
+        let needs_auth = command_needs_auth(name);
         let accepted_schemes = command_template(name)
             .map(|(m, t)| accepted_schemes_for(m, t))
             .unwrap_or_default();

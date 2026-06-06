@@ -4,13 +4,13 @@
 //! and the layered runner entrypoint can call them without forcing every
 //! consumer to depend on the binary crate root.
 
+use crate::cli::auth_scheme;
 use crate::cli::commands;
 use crate::cli::{CacheAction, Command, OutputFlags, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::{self, OutputConfig};
-use crate::requirements;
 use crate::schema;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
@@ -438,12 +438,19 @@ pub fn command_needs_xurl(cmd: &Command, stdin_is_tty: bool, no_interactive: boo
     }
 }
 
-/// Resolve the default auth type for a command name using requirements.rs.
-/// Returns the first accepted auth type for the command.
-pub fn default_auth_type(command_name: &str) -> requirements::AuthType {
-    requirements::requirements_for_command(command_name)
-        .and_then(|r| r.accepted.first().copied())
-        .unwrap_or(requirements::AuthType::OAuth2User)
+/// Resolve the default auth type for a command name. PR3's cutover deletes
+/// this entire match alongside the subprocess transport; under embedded the
+/// per-command auth scheme is resolved by `xurl::api::auth_matrix::supported_auth`
+/// at the seam, so this helper is read only by the subprocess argv builder.
+pub fn default_auth_type(command_name: &str) -> auth_scheme::AuthType {
+    use auth_scheme::AuthType;
+    match command_name {
+        "usage" | "watchlist_add" | "watchlist_remove" | "watchlist_list" | "login" => {
+            AuthType::None
+        }
+        "usage_sync" => AuthType::Bearer,
+        _ => AuthType::OAuth2User,
+    }
 }
 
 /// `true` when the dispatched command is one that ultimately hits the X API
@@ -509,50 +516,27 @@ pub fn validate_auth_value(value: &str, cmd: &Command) -> Result<(), String> {
     }
 }
 
-/// `true` when the command's `requirements_for_command` table lists any
-/// auth scheme other than `AuthType::None`. PR3's U13 dissolves
-/// requirements.rs and shifts this query to `auth_matrix::supported_auth`;
-/// the contract surfaced to `validate_auth_value` stays identical.
+/// `true` when the command's API endpoint requires any auth scheme other
+/// than `AuthType::None`. Replaces the U13-deleted
+/// `requirements_for_command` query; the contract surfaced to
+/// `validate_auth_value` is identical. PR3's cutover redirects this query
+/// to `xurl::api::auth_matrix::supported_auth` after subprocess transport
+/// is gone.
 fn command_requires_auth(cmd: &Command) -> bool {
-    let name = match cmd {
-        Command::Me { .. } => "me",
-        Command::Get { .. } => "get",
-        Command::Post { .. } => "post",
-        Command::Put { .. } => "put",
-        Command::Delete { .. } => "delete",
-        Command::Bookmarks { .. } => "bookmarks",
-        Command::Profile { .. } => "profile",
-        Command::Search { .. } => "search",
-        Command::Thread { .. } => "thread",
-        Command::Tweet { .. } => "tweet",
-        Command::Reply { .. } => "reply",
-        Command::Like { .. } => "like",
-        Command::Unlike { .. } => "unlike",
-        Command::Repost { .. } => "repost",
-        Command::Unrepost { .. } => "unrepost",
-        Command::Follow { .. } => "follow",
-        Command::Unfollow { .. } => "unfollow",
-        Command::Dm { .. } => "dm",
-        Command::Block { .. } => "block",
-        Command::Unblock { .. } => "unblock",
-        Command::Mute { .. } => "mute",
-        Command::Unmute { .. } => "unmute",
-        Command::Usage { .. } => "usage",
+    match cmd {
+        // Pure-local + diagnostic commands: never hit the API.
         Command::Login { .. }
         | Command::Cache { .. }
         | Command::Watchlist { .. }
         | Command::Completions { .. }
         | Command::Schema { .. }
         | Command::Skill { .. }
-        | Command::Doctor { .. } => return false,
-    };
-    requirements::requirements_for_command(name)
-        .map(|reqs| {
-            reqs.accepted
-                .iter()
-                .any(|at| !matches!(at, requirements::AuthType::None))
-        })
-        .unwrap_or(false)
+        | Command::Doctor { .. }
+        | Command::Usage { .. } => false,
+        // Every remaining command hits the X API and requires some
+        // non-`None` auth scheme.
+        _ => true,
+    }
 }
 
 /// Outcome of a write-guard check (--dry-run / --force / TTY confirmation).

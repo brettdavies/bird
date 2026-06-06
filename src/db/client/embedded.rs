@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use xurl::api::{RequestOptions, RequestTarget};
 
 use super::{ApiResponse, BirdClient, RequestContext};
-use crate::requirements::AuthType;
+use crate::cli::auth_scheme::AuthType;
 use crate::xurl_client::XurlClient;
 
 /// Map bird's `AuthType` enum to xurl-rs's wire-string vocabulary

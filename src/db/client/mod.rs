@@ -7,8 +7,8 @@ mod entity;
 mod get;
 mod write;
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::requirements::AuthType;
 #[cfg(not(feature = "embedded-xurl"))]
 use crate::transport::Transport;
 #[cfg(feature = "embedded-xurl")]

@@ -65,7 +65,7 @@ pub fn execute(
         }
         #[cfg(feature = "embedded-xurl")]
         {
-            let auth = crate::requirements::AuthType::OAuth2User;
+            let auth = crate::cli::auth_scheme::AuthType::OAuth2User;
             let ctx = db::RequestContext {
                 auth_type: &auth,
                 username,

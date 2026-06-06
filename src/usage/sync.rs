@@ -1,9 +1,9 @@
 //! `/2/usage/tweets` sync: pull actual usage from X API, persist to DB, return shaped data.
 
 use super::{AppDailyUsage, ProjectCap, SyncData};
+use crate::cli::auth_scheme::AuthType;
 use crate::db::{ActualUsageDay, BirdClient, RequestContext};
 use crate::output;
-use crate::requirements::AuthType;
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
 fn parse_usage_count(v: &serde_json::Value) -> u64 {
