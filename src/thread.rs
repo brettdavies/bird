@@ -1,11 +1,11 @@
 //! Thread command: reconstruct a conversation thread from a tweet ID.
 //! Two-step fetch: get root tweet for conversation_id, then search for all replies.
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
-use crate::requirements::AuthType;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const MAX_PAGES_CAP: u32 = 25;

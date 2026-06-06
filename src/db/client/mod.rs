@@ -1,12 +1,14 @@
 //! Entity-aware transport layer over xurl with optional BirdDb cache.
 //! Handles UTC-day freshness, batch ID splitting, entity decomposition, and response merging.
 
+#[cfg(feature = "embedded-xurl")]
+mod embedded;
 mod entity;
 mod get;
 mod write;
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::requirements::AuthType;
 #[cfg(not(feature = "embedded-xurl"))]
 use crate::transport::Transport;
 #[cfg(feature = "embedded-xurl")]
@@ -144,18 +146,14 @@ pub struct BirdClient {
     /// Embedded xurl client guarded by a Mutex so `&self` methods can acquire
     /// the lock and call `&mut self` xurl methods. The lock-acquire-in-method
     /// pattern mirrors the existing `Mutex<rusqlite::Connection>` precedent in
-    /// `src/db/store/mod.rs`. PR1 ships this field unused — handler bodies
-    /// land in PR2.
+    /// `src/db/store/mod.rs`. Read through `BirdClient::with_xurl` in
+    /// `db::client::embedded`.
     #[cfg(feature = "embedded-xurl")]
-    #[allow(dead_code)]
     pub(super) xurl: Mutex<Box<dyn XurlClient + Send>>,
     pub(super) db: Option<BirdDb>,
     pub(super) cache_opts: CacheOpts,
-    /// Username for xurl -u flag (multi-user token selection). Read by the
-    /// subprocess `build_get_args`/write path; PR1 leaves it unread under
-    /// `embedded-xurl` because handler bodies stub out in PR1 and migrate in
-    /// PR2.
-    #[cfg_attr(feature = "embedded-xurl", allow(dead_code))]
+    /// Username for xurl `-u` flag (subprocess) and `RequestOptions.username`
+    /// (embedded). Multi-user token selection threads through either path.
     pub(super) username: Option<String>,
     /// Suppress informational stderr output. Stored on the struct (unlike `use_color`
     /// which is parameter-passed) because 7+ internal methods emit diagnostics and

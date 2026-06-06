@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 #[cfg(not(feature = "embedded-xurl"))]
-use crate::requirements;
+use crate::cli::auth_scheme;
 
 use super::super::store::{BirdDb, TweetRow};
 use super::entity::{compute_raw_cache_key, is_entity_endpoint};
@@ -217,7 +217,7 @@ impl BirdClient {
     #[cfg(not(feature = "embedded-xurl"))]
     fn build_get_args(&self, url: &str, ctx: &RequestContext<'_>) -> Vec<String> {
         let mut args: Vec<String> = Vec::new();
-        if let Some(flag) = requirements::auth_flag(ctx.auth_type) {
+        if let Some(flag) = auth_scheme::auth_flag(ctx.auth_type) {
             args.extend_from_slice(&["--auth".into(), flag.into()]);
         }
         if let Some(ref username) = self.username {
@@ -230,10 +230,8 @@ impl BirdClient {
     /// GET via xurl transport. Returns ApiResponse with parsed JSON.
     fn xurl_get(
         &self,
-        #[cfg(not(feature = "embedded-xurl"))] url: &str,
-        #[cfg(feature = "embedded-xurl")] _url: &str,
-        #[cfg(not(feature = "embedded-xurl"))] ctx: &RequestContext<'_>,
-        #[cfg(feature = "embedded-xurl")] _ctx: &RequestContext<'_>,
+        url: &str,
+        ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(not(feature = "embedded-xurl"))]
         {
@@ -248,7 +246,13 @@ impl BirdClient {
         }
         #[cfg(feature = "embedded-xurl")]
         {
-            Err("embedded transport stub — handler migration lands in PR2".into())
+            let json = self.xurl_send_raw_url("GET", url, "", ctx)?;
+            Ok(ApiResponse {
+                status: 200,
+                cached_body: None,
+                cache_hit: false,
+                json: Some(json),
+            })
         }
     }
 

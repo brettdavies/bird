@@ -1,10 +1,10 @@
 //! `bird watchlist check` — stream NDJSON activity records for watched users.
 
 use super::store::load_watchlist;
+use crate::cli::auth_scheme::AuthType;
 use crate::config::ResolvedConfig;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
-use crate::requirements::AuthType;
 
 /// Options for `bird watchlist check`.
 pub struct CheckOpts<'a> {

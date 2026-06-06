@@ -25,7 +25,6 @@ pub mod login;
 pub mod output;
 pub mod profile;
 pub mod raw;
-pub mod requirements;
 pub mod schema;
 pub mod schema_print;
 pub mod search;

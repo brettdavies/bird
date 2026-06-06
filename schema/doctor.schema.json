@@ -2,22 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bird.dev/schema/doctor-v1.json",
   "title": "bird doctor payload",
-  "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: xurl status, auth state, per-command availability, and entity-store health.",
+  "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: xurl status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
   "type": "object",
   "required": ["xurl", "auth", "commands"],
   "properties": {
     "xurl": {
       "type": "object",
-      "description": "xurl binary availability and version detection.",
+      "description": "xurl binary availability and version detection (subprocess) or linked-crate stand-in (embedded).",
       "required": ["available"],
       "properties": {
         "path": {
           "type": ["string", "null"],
-          "description": "Resolved filesystem path to the xurl binary, when available."
+          "description": "Resolved filesystem path to the xurl binary (subprocess only)."
         },
         "version": {
           "type": ["string", "null"],
-          "description": "Output of `xurl --version`, when callable."
+          "description": "Output of `xurl --version` (subprocess) or the embedded crate version (embedded)."
         },
         "available": {
           "type": "boolean"
@@ -26,13 +26,78 @@
     },
     "auth": {
       "type": "object",
-      "description": "Authentication state derived from `xurl whoami`.",
-      "required": ["authenticated"],
+      "description": "Per-app credential snapshot keyed by app name plus a separate `env` block for `CLIENT_ID` / `CLIENT_SECRET` / `XURL_BEARER_TOKEN` env-var presence. Every credential surface is reported as a boolean presence flag; no token material reaches the report.",
+      "required": ["active_app", "apps", "env"],
       "properties": {
-        "authenticated": { "type": "boolean" },
-        "username": {
+        "active_app": {
           "type": "string",
-          "description": "Authenticated username (omitted when not authenticated)."
+          "description": "App used when `--app NAME` is not supplied."
+        },
+        "apps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["client_id_set", "client_secret_set", "oauth2_tokens"],
+            "properties": {
+              "client_id_set": { "type": "boolean" },
+              "client_secret_set": { "type": "boolean" },
+              "default_user": {
+                "type": "string",
+                "description": "Username xurl picks when no `-u NAME` is supplied for this app."
+              },
+              "oauth2_tokens": {
+                "type": "object",
+                "description": "Per-user OAuth2 token presence map. Keys are usernames; values describe access/refresh token presence only.",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["access_token_present", "refresh_token_present"],
+                  "properties": {
+                    "access_token_present": { "type": "boolean" },
+                    "refresh_token_present": { "type": "boolean" }
+                  }
+                }
+              },
+              "unnamed_oauth2": {
+                "type": "object",
+                "required": ["access_token_present", "refresh_token_present"],
+                "properties": {
+                  "access_token_present": { "type": "boolean" },
+                  "refresh_token_present": { "type": "boolean" }
+                }
+              },
+              "oauth1": {
+                "type": "object",
+                "required": [
+                  "access_token_present",
+                  "token_secret_present",
+                  "consumer_key_present",
+                  "consumer_secret_present"
+                ],
+                "properties": {
+                  "access_token_present": { "type": "boolean" },
+                  "token_secret_present": { "type": "boolean" },
+                  "consumer_key_present": { "type": "boolean" },
+                  "consumer_secret_present": { "type": "boolean" }
+                }
+              },
+              "bearer": {
+                "type": "object",
+                "required": ["token_present"],
+                "properties": {
+                  "token_present": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "required": ["client_id_set", "client_secret_set", "bearer_token_set"],
+          "properties": {
+            "client_id_set": { "type": "boolean" },
+            "client_secret_set": { "type": "boolean" },
+            "bearer_token_set": { "type": "boolean" }
+          }
         }
       }
     },
@@ -41,12 +106,31 @@
       "description": "Per-command availability keyed by subcommand name.",
       "additionalProperties": {
         "type": "object",
-        "required": ["available"],
+        "required": [
+          "available",
+          "accepted_schemes",
+          "credentialed_schemes",
+          "reachable"
+        ],
         "properties": {
           "available": { "type": "boolean" },
           "reason": {
             "type": "string",
-            "description": "Human-readable reason a command is unavailable (e.g. \"requires OAuth1\")."
+            "description": "Human-readable reason a command is unavailable (e.g. \"not authenticated\")."
+          },
+          "accepted_schemes": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["app", "oauth1", "oauth2"] },
+            "description": "Auth schemes the X API endpoint accepts. Populated from `xurl::api::auth_matrix::supported_auth` under embedded; empty under subprocess."
+          },
+          "credentialed_schemes": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["app", "oauth1", "oauth2"] },
+            "description": "Subset of `accepted_schemes` for which the active app has a stored credential."
+          },
+          "reachable": {
+            "type": "boolean",
+            "description": "True when `accepted_schemes` intersects `credentialed_schemes` and xurl is available. Single load-bearing bit agents key on."
           }
         }
       }
@@ -64,6 +148,10 @@
         "raw_responses": { "type": "integer" },
         "healthy": { "type": "boolean" }
       }
+    },
+    "linked_xurl_version": {
+      "type": "string",
+      "description": "Version of the xurl crate linked into this bird build (embedded only). Omitted under subprocess."
     }
   },
   "additionalProperties": false

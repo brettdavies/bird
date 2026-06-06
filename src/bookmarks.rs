@@ -1,10 +1,10 @@
 //! Curated bookmarks command: GET /2/users/{id}/bookmarks with pagination, max_results=100.
 
+use crate::cli::auth_scheme::AuthType;
 use crate::cost;
 use crate::db::{BirdClient, BookmarkRow, RequestContext};
 use crate::fields;
 use crate::output;
-use crate::requirements::AuthType;
 
 /// Options bundle for `bird bookmarks` (keeps the public signature stable as
 /// flags are added).

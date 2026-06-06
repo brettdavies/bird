@@ -19,6 +19,7 @@ pub fn run_post(
     param: Vec<String>,
     query: Vec<String>,
     body: Option<String>,
+    header: Vec<String>,
     pretty: bool,
     guard: WriteGuard,
     no_interactive: bool,
@@ -52,6 +53,7 @@ pub fn run_post(
         &path,
         &params,
         &query,
+        &header,
         body.as_deref(),
         pretty,
         &auth_type,
@@ -70,6 +72,7 @@ pub fn run_put(
     param: Vec<String>,
     query: Vec<String>,
     body: Option<String>,
+    header: Vec<String>,
     pretty: bool,
     guard: WriteGuard,
     no_interactive: bool,
@@ -103,6 +106,7 @@ pub fn run_put(
         &path,
         &params,
         &query,
+        &header,
         body.as_deref(),
         pretty,
         &auth_type,
@@ -120,6 +124,7 @@ pub fn run_delete(
     path: String,
     param: Vec<String>,
     query: Vec<String>,
+    header: Vec<String>,
     pretty: bool,
     guard: WriteGuard,
     no_interactive: bool,
@@ -144,7 +149,8 @@ pub fn run_delete(
     }
     let auth_type = default_auth_type("delete");
     raw::run_raw(
-        client, out, stdout, stderr, "DELETE", &path, &params, &query, None, pretty, &auth_type,
+        client, out, stdout, stderr, "DELETE", &path, &params, &query, &header, None, pretty,
+        &auth_type,
     )
     .map_err(|e| BirdError::from_source("delete", e))?;
     Ok(())

@@ -2,26 +2,6 @@
 
 use std::collections::HashMap;
 
-/// Validate that a path parameter value contains only safe characters.
-fn validate_param_value(
-    name: &str,
-    value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if value.is_empty() {
-        return Err(format!("path parameter '{}' must not be empty", name).into());
-    }
-    if !value
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
-    {
-        return Err(format!(
-            "path parameter '{}' contains invalid characters (only alphanumeric, underscore, hyphen, dot allowed): {}",
-            name, value
-        ).into());
-    }
-    Ok(())
-}
-
 /// Validates and normalizes a username: strips leading @, checks 1-15 chars, [a-zA-Z0-9_].
 /// Returns the normalized username (without @).
 pub fn validate_username(username: &str) -> Result<&str, Box<dyn std::error::Error + Send + Sync>> {
@@ -58,7 +38,9 @@ pub fn resolve_path(
                     std::env::var(&env_key).ok()
                 });
                 let value = value.ok_or_else(|| format!("missing path parameter: {}", name))?;
-                validate_param_value(name, &value)?;
+                if value.is_empty() {
+                    return Err(format!("path parameter '{}' must not be empty", name).into());
+                }
                 out.replace_range(start..end, &value);
                 i = start + value.len();
                 continue;

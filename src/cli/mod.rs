@@ -3,9 +3,11 @@
 //! Pure data structures with no runtime behavior. Command dispatch lives in main.rs.
 
 pub mod argv;
+pub mod auth_scheme;
 pub mod clap_errors;
 pub mod commands;
 pub mod dispatch;
+pub mod parsers;
 pub mod runner;
 
 pub use runner::{run, run_argv, run_with_paths};
@@ -129,6 +131,20 @@ pub struct Cli {
     /// Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`).
     #[arg(long, global = true, value_name = "TOKEN", alias = "page")]
     pub cursor: Option<String>,
+
+    /// Active xurl app name (multi-app token store selection). Precedence:
+    /// `--app` flag wins over `BIRD_APP` env, which wins over xurl's stored
+    /// default app. `XURL_APP` is intentionally ignored; bird emits a
+    /// migration warning on first use when `XURL_APP` is set but `BIRD_APP`
+    /// is not.
+    #[arg(long, global = true, env = "BIRD_APP", value_name = "NAME")]
+    pub app: Option<String>,
+
+    /// Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`,
+    /// `none`. `none` is rejected at parse time for commands whose
+    /// `auth_matrix::supported_auth` returns a non-empty scheme list.
+    #[arg(long, global = true, value_name = "SCHEME")]
+    pub auth: Option<String>,
 }
 
 /// Confirmation + dry-run guard shared by every mutating subcommand.
@@ -180,6 +196,9 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
     },
@@ -194,6 +213,9 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]
@@ -210,6 +232,9 @@ pub enum Command {
         query: Vec<String>,
         #[arg(long, value_name = "JSON")]
         body: Option<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]
@@ -278,6 +303,9 @@ pub enum Command {
         param: Vec<String>,
         #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
         query: Vec<String>,
+        /// Custom request header in `Name: Value` form; repeatable.
+        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
+        header: Vec<String>,
         #[command(flatten)]
         common: OutputFlags,
         #[command(flatten)]
