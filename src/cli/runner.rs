@@ -19,9 +19,13 @@
 
 use crate::cli::argv::{explicit_output_from_argv, output_from_argv};
 use crate::cli::clap_errors::clap_error_to_bird;
+#[cfg(feature = "embedded-xurl")]
+use crate::cli::dispatch::command_is_api_hitting;
 #[cfg(not(feature = "embedded-xurl"))]
 use crate::cli::dispatch::command_needs_xurl;
-use crate::cli::dispatch::{GuardOutcome, ListFlags, clamp_limit, require_confirmation};
+use crate::cli::dispatch::{
+    GuardOutcome, ListFlags, clamp_limit, require_confirmation, validate_auth_value,
+};
 use crate::cli::{Cli, Command, OutputFlags, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
@@ -293,7 +297,7 @@ where
         env_username,
     };
 
-    let config = match ResolvedConfig::load_with_paths(overrides, paths.clone(), env.clone()) {
+    let mut config = match ResolvedConfig::load_with_paths(overrides, paths.clone(), env.clone()) {
         Ok(c) => c,
         Err(e) => {
             let err = BirdError::config(e);
@@ -301,6 +305,7 @@ where
             return ExitCode::from(err.exit_code());
         }
     };
+    config.app = cli.app.clone();
 
     // Resolve the xurl binary path once at startup. Commands that need xurl
     // surface the error on first transport call (or via the xurl gate below);
@@ -317,18 +322,30 @@ where
         )),
     };
 
-    // Embedded transport: construct `xurl::api::ApiClient` from env. A
-    // construction failure is captured as a stub impl that returns the
-    // original error on every call, mirroring the subprocess `from_error`
-    // shape so commands that don't reach the network (cache ops, doctor's
-    // local view) continue to work. PR1 ships this field unused — handler
-    // bodies migrate to call through `client.xurl` in PR2.
+    // Embedded transport: construct `xurl::api::ApiClient` honoring the
+    // bird-side `--app` / `BIRD_APP` resolution. The standard
+    // `ApiClient::from_env()` path resolves the app from `XURL_APP`, which
+    // bird intentionally ignores (R10/R11); the XURL_APP migration warn
+    // fires elsewhere in the runner when the user has `XURL_APP` set but
+    // not `BIRD_APP`. A construction failure (missing `CLIENT_ID`, etc.)
+    // is captured as a stub impl returning the original error on every
+    // call so non-API commands keep working.
     #[cfg(feature = "embedded-xurl")]
-    let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> =
-        match xurl::api::ApiClient::from_env() {
-            Ok(c) => Box::new(c),
-            Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
-        };
+    let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> = {
+        let mut cfg = xurl::config::Config::new();
+        if let Some(ref app) = cli.app {
+            cfg.app_name = app.clone();
+        }
+        if cfg.client_id.is_empty() {
+            Box::new(crate::xurl_client::ConstructionStub::new(
+                "CLIENT_ID not set; set CLIENT_ID + CLIENT_SECRET env vars or `xr auth app` for a stored app".into(),
+            ))
+        } else {
+            let auth = xurl::auth::Auth::new(&cfg);
+            let client = xurl::api::ApiClient::with_timeout(&cfg, auth, cli.timeout);
+            Box::new(client) as Box<dyn crate::xurl_client::XurlClient + Send>
+        }
+    };
     #[cfg(feature = "embedded-xurl")]
     let _ = xurl_timeout;
 
@@ -448,6 +465,37 @@ where
         && let Err(e) = &xurl_resolution
     {
         let err = BirdError::config(e.to_string());
+        let _ = out.print_error(stderr, &err);
+        return ExitCode::from(err.exit_code());
+    }
+
+    // R10/R11: XURL_APP migration warn. Fires only on API-hitting commands
+    // so `bird --help`, `bird completions`, `bird examples`, `bird cache`,
+    // and the watchlist local ops stay clean. Gated to the same predicate
+    // the xurl-gate uses (subprocess) or to "anything but the early
+    // diagnostic commands" (embedded).
+    #[cfg(not(feature = "embedded-xurl"))]
+    let needs_xurl_for_warn = command_needs_xurl(&cli.command, stdin_is_tty, cli.no_interactive);
+    #[cfg(feature = "embedded-xurl")]
+    let needs_xurl_for_warn = command_is_api_hitting(&cli.command);
+    if needs_xurl_for_warn
+        && cli.app.is_none()
+        && std::env::var_os("XURL_APP").is_some_and(|v| !v.is_empty())
+        && !out.suppress_diag()
+    {
+        writeln!(
+            stderr,
+            "warning: XURL_APP is set but bird does not read it; set BIRD_APP or pass --app to pin the app selection"
+        )
+        .ok();
+    }
+
+    // R12: reject `--auth none` at parse time for commands whose
+    // `auth_matrix::supported_auth` returns a non-empty scheme list.
+    if let Some(ref a) = cli.auth
+        && let Err(usage) = validate_auth_value(a, &cli.command)
+    {
+        let err = BirdError::usage("invalid-auth", usage);
         let _ = out.print_error(stderr, &err);
         return ExitCode::from(err.exit_code());
     }

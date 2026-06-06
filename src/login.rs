@@ -247,8 +247,12 @@ pub fn run_oauth2_authenticate_headless_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
     username: Option<&str>,
+    app: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let cfg = xurl::config::Config::new();
+    let mut cfg = xurl::config::Config::new();
+    if let Some(app_name) = app {
+        cfg.app_name = app_name.to_string();
+    }
     let mut auth = xurl::auth::Auth::new(&cfg);
 
     let pending_path = xurl::auth::pending::default_pending_path()
@@ -324,8 +328,12 @@ pub fn run_oauth2_authenticate_interactive_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
     username: Option<&str>,
+    app: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let cfg = xurl::config::Config::new();
+    let mut cfg = xurl::config::Config::new();
+    if let Some(app_name) = app {
+        cfg.app_name = app_name.to_string();
+    }
     let mut auth = xurl::auth::Auth::new(&cfg);
 
     let xurl_format = match out.format {

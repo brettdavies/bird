@@ -130,6 +130,20 @@ pub struct Cli {
     /// Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`).
     #[arg(long, global = true, value_name = "TOKEN", alias = "page")]
     pub cursor: Option<String>,
+
+    /// Active xurl app name (multi-app token store selection). Precedence:
+    /// `--app` flag wins over `BIRD_APP` env, which wins over xurl's stored
+    /// default app. `XURL_APP` is intentionally ignored; bird emits a
+    /// migration warning on first use when `XURL_APP` is set but `BIRD_APP`
+    /// is not.
+    #[arg(long, global = true, env = "BIRD_APP", value_name = "NAME")]
+    pub app: Option<String>,
+
+    /// Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`,
+    /// `none`. `none` is rejected at parse time for commands whose
+    /// `auth_matrix::supported_auth` returns a non-empty scheme list.
+    #[arg(long, global = true, value_name = "SCHEME")]
+    pub auth: Option<String>,
 }
 
 /// Confirmation + dry-run guard shared by every mutating subcommand.

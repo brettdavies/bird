@@ -46,6 +46,7 @@ pub fn run(
             stderr,
             headless,
             config.username.as_deref(),
+            config.app.as_deref(),
         ),
         Command::Me {
             common: OutputFlags { pretty },
@@ -445,6 +446,115 @@ pub fn default_auth_type(command_name: &str) -> requirements::AuthType {
         .unwrap_or(requirements::AuthType::OAuth2User)
 }
 
+/// `true` when the dispatched command is one that ultimately hits the X API
+/// (and therefore should receive the `XURL_APP` migration warning). Mirrors
+/// `command_needs_xurl` without the guard-resolution gating, since the warn
+/// fires before the runner figures out whether a write will actually run.
+pub fn command_is_api_hitting(cmd: &Command) -> bool {
+    match cmd {
+        Command::Cache { .. }
+        | Command::Watchlist { .. }
+        | Command::Completions { .. }
+        | Command::Schema { .. }
+        | Command::Skill { .. }
+        | Command::Doctor { .. } => false,
+        Command::Login { .. }
+        | Command::Me { .. }
+        | Command::Get { .. }
+        | Command::Bookmarks { .. }
+        | Command::Profile { .. }
+        | Command::Search { .. }
+        | Command::Thread { .. }
+        | Command::Usage { .. }
+        | Command::Delete { .. }
+        | Command::Post { .. }
+        | Command::Put { .. }
+        | Command::Tweet { .. }
+        | Command::Reply { .. }
+        | Command::Like { .. }
+        | Command::Unlike { .. }
+        | Command::Repost { .. }
+        | Command::Unrepost { .. }
+        | Command::Follow { .. }
+        | Command::Unfollow { .. }
+        | Command::Dm { .. }
+        | Command::Block { .. }
+        | Command::Unblock { .. }
+        | Command::Mute { .. }
+        | Command::Unmute { .. } => true,
+    }
+}
+
+/// Validate the `--auth` flag value against the resolved command. Rejects
+/// `none` for commands whose `auth_matrix::supported_auth(method,
+/// template)` returns a non-empty scheme list, and rejects unknown values
+/// outright. The wire vocabulary mirrors xurl's: `app`, `oauth1`, `oauth2`,
+/// `none`.
+pub fn validate_auth_value(value: &str, cmd: &Command) -> Result<(), String> {
+    let normalized = value.to_ascii_lowercase();
+    match normalized.as_str() {
+        "app" | "oauth1" | "oauth2" => Ok(()),
+        "none" => {
+            if command_requires_auth(cmd) {
+                Err(
+                    "--auth none is not accepted for this command; supported schemes: app, oauth1, oauth2".to_string()
+                )
+            } else {
+                Ok(())
+            }
+        }
+        _ => Err(format!(
+            "--auth value must be one of: app, oauth1, oauth2, none (got: {value:?})"
+        )),
+    }
+}
+
+/// `true` when the command's `requirements_for_command` table lists any
+/// auth scheme other than `AuthType::None`. PR3's U13 dissolves
+/// requirements.rs and shifts this query to `auth_matrix::supported_auth`;
+/// the contract surfaced to `validate_auth_value` stays identical.
+fn command_requires_auth(cmd: &Command) -> bool {
+    let name = match cmd {
+        Command::Me { .. } => "me",
+        Command::Get { .. } => "get",
+        Command::Post { .. } => "post",
+        Command::Put { .. } => "put",
+        Command::Delete { .. } => "delete",
+        Command::Bookmarks { .. } => "bookmarks",
+        Command::Profile { .. } => "profile",
+        Command::Search { .. } => "search",
+        Command::Thread { .. } => "thread",
+        Command::Tweet { .. } => "tweet",
+        Command::Reply { .. } => "reply",
+        Command::Like { .. } => "like",
+        Command::Unlike { .. } => "unlike",
+        Command::Repost { .. } => "repost",
+        Command::Unrepost { .. } => "unrepost",
+        Command::Follow { .. } => "follow",
+        Command::Unfollow { .. } => "unfollow",
+        Command::Dm { .. } => "dm",
+        Command::Block { .. } => "block",
+        Command::Unblock { .. } => "unblock",
+        Command::Mute { .. } => "mute",
+        Command::Unmute { .. } => "unmute",
+        Command::Usage { .. } => "usage",
+        Command::Login { .. }
+        | Command::Cache { .. }
+        | Command::Watchlist { .. }
+        | Command::Completions { .. }
+        | Command::Schema { .. }
+        | Command::Skill { .. }
+        | Command::Doctor { .. } => return false,
+    };
+    requirements::requirements_for_command(name)
+        .map(|reqs| {
+            reqs.accepted
+                .iter()
+                .any(|at| !matches!(at, requirements::AuthType::None))
+        })
+        .unwrap_or(false)
+}
+
 /// Outcome of a write-guard check (--dry-run / --force / TTY confirmation).
 pub enum GuardOutcome {
     /// The user supplied `--dry-run`; the would-be request was emitted and the
@@ -669,6 +779,77 @@ mod tests {
             quiet: true,
             raw: false,
         }
+    }
+
+    #[test]
+    fn validate_auth_accepts_app_oauth1_oauth2() {
+        let me = Command::Me {
+            common: OutputFlags::default(),
+        };
+        assert!(validate_auth_value("app", &me).is_ok());
+        assert!(validate_auth_value("oauth1", &me).is_ok());
+        assert!(validate_auth_value("oauth2", &me).is_ok());
+        // Case-insensitive normalization.
+        assert!(validate_auth_value("OAuth2", &me).is_ok());
+    }
+
+    #[test]
+    fn validate_auth_rejects_unknown_value() {
+        let me = Command::Me {
+            common: OutputFlags::default(),
+        };
+        let err = validate_auth_value("bearer", &me).expect_err("bearer is xurl-side legacy");
+        assert!(err.contains("app, oauth1, oauth2, none"));
+    }
+
+    #[test]
+    fn validate_auth_none_rejected_for_command_with_required_auth() {
+        let tweet = Command::Tweet {
+            text: "hello".into(),
+            media_id: None,
+            guard: WriteGuard::default(),
+        };
+        let err = validate_auth_value("none", &tweet).expect_err("tweet requires auth");
+        assert!(err.contains("not accepted"));
+    }
+
+    #[test]
+    fn validate_auth_none_allowed_for_local_only_command() {
+        let cache = Command::Cache {
+            action: CacheAction::Stats {
+                common: OutputFlags::default(),
+            },
+        };
+        assert!(validate_auth_value("none", &cache).is_ok());
+    }
+
+    #[test]
+    fn command_is_api_hitting_skips_diagnostic_commands() {
+        let cache = Command::Cache {
+            action: CacheAction::Stats {
+                common: OutputFlags::default(),
+            },
+        };
+        assert!(!command_is_api_hitting(&cache));
+        let doctor = Command::Doctor {
+            command: None,
+            common: OutputFlags::default(),
+        };
+        assert!(!command_is_api_hitting(&doctor));
+    }
+
+    #[test]
+    fn command_is_api_hitting_true_for_writes_and_reads() {
+        let me = Command::Me {
+            common: OutputFlags::default(),
+        };
+        assert!(command_is_api_hitting(&me));
+        let tweet = Command::Tweet {
+            text: "hi".into(),
+            media_id: None,
+            guard: WriteGuard::default(),
+        };
+        assert!(command_is_api_hitting(&tweet));
     }
 
     // U4.1: command_needs_xurl on Cache::Stats returns false.

@@ -12,6 +12,11 @@ pub struct ResolvedConfig {
     pub cache_path: PathBuf,
     pub cache_enabled: bool,
     pub cache_max_size_mb: u64,
+    /// Active xurl app name resolved from `--app` / `BIRD_APP`. Empty
+    /// `None` means "use xurl's stored default app". `XURL_APP` is not
+    /// consulted; bird emits a migration warning when `XURL_APP` is set
+    /// but `BIRD_APP` is not (R11 / R20 clause d).
+    pub app: Option<String>,
 }
 
 /// File-backed config (what we read from ~/.config/bird/config.toml).
@@ -143,6 +148,7 @@ impl ResolvedConfig {
             cache_path,
             cache_enabled,
             cache_max_size_mb: 100,
+            app: None,
         })
     }
 }
