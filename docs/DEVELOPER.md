@@ -2,17 +2,17 @@
 
 ## Architecture
 
-bird is a CLI for the X (Twitter) API. All HTTP transport and authentication is delegated to
-[xurl](https://github.com/xdevplatform/xurl) via a subprocess transport layer (`src/transport.rs`). bird owns the
-intelligence layer: entity store, caching, cost tracking, and UX.
+bird is a CLI for the X (Twitter) API. All HTTP transport and authentication is delegated to the
+[xurl-rs](https://github.com/brettdavies/xurl-rs) crate, embedded as a library at the bird/xurl boundary
+(`src/xurl_client/`). bird owns the intelligence layer: entity store, caching, cost tracking, and UX.
 
 ```text
-bird (CLI + intelligence) --> xurl (subprocess: auth + HTTP) --> X API
+bird (CLI + intelligence) --> xurl-rs (embedded library: auth + HTTP) --> X API
 ```
 
 ## Building from source
 
-**Requirements:** Rust stable (1.85+), xurl installed.
+**Requirements:** Rust stable (1.85+). xurl-rs is pulled in as a Cargo dep; the bird binary ships standalone.
 
 ```bash
 git clone https://github.com/brettdavies/bird
@@ -37,27 +37,30 @@ cargo run --release -- me --pretty
 
 ## Project layout
 
-| Path                  | Purpose                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| `src/main.rs`         | CLI definition, `main()`, command dispatch                   |
-| `src/transport.rs`    | xurl subprocess transport layer (all API calls)              |
-| `src/config.rs`       | Config load with priority: args > file > env > default       |
-| `src/doctor.rs`       | Diagnostic report: xurl status, auth, commands, store health |
-| `src/db/`             | SQLite entity store: caching, usage tracking, migrations     |
-| `src/cost.rs`         | API cost estimation                                          |
-| `src/output.rs`       | Color, formatting, ANSI sanitization                         |
-| `src/requirements.rs` | Per-command auth requirements (single source of truth)       |
-| `src/schema.rs`       | Path template resolution with param substitution             |
+| Path               | Purpose                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `src/main.rs`      | Thin binary entrypoint; delegates to `bird::cli::run_argv()`                             |
+| `src/cli/`         | clap definitions, layered runner entrypoints, dispatcher, per-command handlers           |
+| `src/xurl_client/` | `XurlClient` trait, `MockXurlClient` test double, `ConstructionStub` no-credentials stub |
+| `src/db/`          | SQLite entity store: caching, usage tracking, migrations; `client/` wraps `XurlClient`   |
+| `src/config.rs`    | Config load with priority: args > file > env > default                                   |
+| `src/doctor.rs`    | Diagnostic report: linked xurl version, per-app auth state, per-command scheme matrix    |
+| `src/cost.rs`      | API cost estimation                                                                      |
+| `src/output.rs`    | Color, formatting, ANSI sanitization, JSON envelope rendering                            |
+| `src/schema.rs`    | Username validation (`validate_username`)                                                |
+| `src/error/`       | `BirdError` enum, exit-code mapping, exhaustive `XurlError → BirdError` translation      |
 
 ## Authentication
 
-bird does not handle authentication directly. All auth flows (OAuth2 PKCE, token refresh, bearer tokens) are handled by
-xurl. bird passes the `-u <username>` flag to xurl for multi-user token selection.
+bird does not handle authentication directly. OAuth2 PKCE, token refresh, OAuth1 signing, and the token store all live
+in xurl-rs. The `-u <username>` flag flows into `RequestOptions.username` for multi-user token selection on the embedded
+client.
 
-To authenticate: `bird login` delegates to `xurl auth oauth2`.
+To authenticate: `bird login` calls `xurl::auth::Auth::oauth2_flow` directly (interactive) or
+`remote_oauth2_step1`/`step2` (headless via `--no-browser`).
 
-For environment-based auth (agents, CI), configure xurl's environment variables directly — see
-[xurl documentation](https://github.com/xdevplatform/xurl).
+For environment-based auth (agents, CI), set `CLIENT_ID` and `CLIENT_SECRET`. xurl-rs's CLI (`xr auth app`) is an
+optional convenience for persisting an app to the shared token store; the embedded client reads the same store.
 
 ## Config file
 

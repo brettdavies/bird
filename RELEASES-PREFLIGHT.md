@@ -10,9 +10,9 @@ checklist covers what CI structurally can't:
 
 - Behavioral drift against the live X (Twitter) API. CI runs unit and integration tests against mocked HTTP and stubbed
   transports, not the real endpoints, so API-contract regressions land silently until a user hits them.
-- Subprocess-transport contract correctness against a real `xr` (xurl-rs) or `xurl` (Go fallback) on a fresh machine
-  (the discovery / override / missing-binary paths are not exercised by the in-repo tests in the same way they are on
-  first run).
+- Embedded-transport reachability against a real X API on a fresh machine: env-var credentials, token-store credentials
+  via `xr auth app`, and the missing-credentials fall-through. None of these are exercised end-to-end by the in-repo
+  tests; bird mocks the bird/xurl boundary, and xurl-rs's own tests cover the HTTP layer.
 - Distribution paths that only exercise on real artifacts (cross-compile binaries, `cargo install` from a clean machine,
   `cargo-binstall` against a published GitHub Release, `brew install` once the Homebrew dispatch finishes).
 - Local state correctness on a fresh machine: bird does NOT store auth tokens itself (xurl owns the token store), but it
@@ -71,7 +71,7 @@ Only after this list is empty do you cut the release branch.
 
 bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, `search`, `thread`, `profile`,
 `watchlist`, `usage`, `cache`, write commands, `doctor`), the generic raw-HTTP commands (`get` / `post` / `put` /
-`delete`), the `completions` generator, and the subprocess transport surface that delegates to xurl.
+`delete`), the `completions` generator, and the embedded xurl-rs client surface that owns auth and HTTP.
 
 - [ ] `bird help` lists the same shortcut commands as the previous release plus any net additions or removals. Diff
   `$LAST_TAG`'s `bird help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a `###
@@ -80,14 +80,15 @@ bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, 
   `bird search --help`, `bird raw --help` — flag changes (renames, defaults, types) are user-facing and must show up in
   the changelog.
 
-### Real-world smoke (live X API, via xurl)
+### Real-world smoke (live X API, via the embedded xurl-rs client)
 
-The in-repo tests mock the HTTP layer. The following exercises only fire end-to-end against a logged-in xurl install and
-the live X API. Pick fresh targets each release.
+The in-repo tests mock the bird/xurl boundary. The following exercises only fire end-to-end against credentials
+configured in the embedded xurl-rs token store and the live X API. Pick fresh targets each release.
 
 - [ ] `bird --version` returns the new `vX.Y.Z` value (post-bump).
-- [ ] `bird doctor` exits 0 on a healthy machine, 78 on missing xurl, 78 on bad config. Spot-check `bird doctor <cmd>`
-  for at least one shortcut command (e.g. `bird doctor me`) and confirm it reports the correct auth requirement.
+- [ ] `bird doctor` exits 0 on a healthy machine, 78 on bad config, and reports the linked xurl-rs crate version under
+  the `xurl` section. Spot-check `bird doctor <cmd>` for at least one shortcut command (e.g. `bird doctor me`) and
+  confirm it reports the correct accepted / credentialed schemes.
 - [ ] `bird me --pretty`, `bird me --output json`, `bird me -q` round-trip via the entity store on a logged-in account.
   The `--pretty` form shows ANSI color and hyperlinks on a TTY.
 - [ ] `bird bookmarks` paginates and streams (does not collect into memory before printing).
@@ -99,27 +100,31 @@ the live X API. Pick fresh targets each release.
 - [ ] `bird usage --local`, `bird usage --sync` exercise the usage subsystem; both respect `--pretty`.
 - [ ] `bird cache stats --pretty` shows store path, size, tweet/user/raw counts; `bird cache clear` drops counts to
   zero.
-- [ ] Write commands round-trip via xurl passthrough: `bird tweet "..."`, `bird reply <id> "..."`, `bird like <id>`,
-  `bird unlike <id>`, `bird repost <id>`, `bird unrepost <id>`, `bird follow <user>`, `bird unfollow <user>`, `bird dm
-  <user> "..."`, `bird block`, `bird unblock`, `bird mute`, `bird unmute`. Each must reject `--cache-only` with a
-  Command error (exit code 1).
+- [ ] Write commands round-trip via the embedded `execute_embedded_write` dispatcher: `bird tweet "..."`, `bird reply
+  <id> "..."`, `bird like <id>`, `bird unlike <id>`, `bird repost <id>`, `bird unrepost <id>`, `bird follow <user>`,
+  `bird unfollow <user>`, `bird dm <user> "..."`, `bird block`, `bird unblock`, `bird mute`, `bird unmute`. Each must
+  reject `--cache-only` with a Command error (exit code 1).
 - [ ] Raw passthrough: `bird get /2/users/me -p id=123 -q expansions=author_id --pretty`, plus `bird post`, `bird put`,
-  `bird delete` against a safe endpoint (e.g. a test workspace).
+  `bird delete` against a safe endpoint (e.g. a test workspace). The `-H/--header` flag flows headers into
+  `RequestOptions.headers`.
 - [ ] Completions: `bird completions bash`, `zsh`, `fish`, `powershell`, `elvish` each produce a parseable script (`bash
   -n`, `zsh -n`, `fish --no-execute`).
-- [ ] Error paths: drive at least one auth failure (XurlError::Auth) and confirm bird exits 77 with the stderr error
-  envelope; one config failure (missing xurl, bad TOML) and confirm exit 78; one command failure (e.g. `--cache-only` on
-  a write command) and confirm exit 1.
+- [ ] Error paths: drive at least one auth failure (`XurlError::Auth`) and confirm bird exits 77 with the stderr error
+  envelope; one config failure (`XurlError::Validation`, bad TOML) and confirm exit 78; one rate-limit failure
+  (`XurlError::Api { status: 429 }`) and confirm exit 3; one command failure (e.g. `--cache-only` on a write command)
+  and confirm exit 1.
 
-### Subprocess transport contract
+### Embedded transport contract
 
-bird delegates all HTTP and auth to `xurl`. The transport contract has four observable behaviors that only verify on a
+bird embeds xurl-rs as a library. The transport contract has a small set of observable behaviors that only verify on a
 real shell.
 
-- [ ] Override resolution: `BIRD_XURL_PATH=/path/to/xr bird raw /2/users/me` uses the overridden binary.
-- [ ] Default discovery: with `BIRD_XURL_PATH` unset, bird finds `xr` (xurl-rs) first, then falls back to `xurl` (Go).
-- [ ] Missing-xurl exit: with `BIRD_XURL_PATH` pointing at a non-existent path, `bird me` exits 78 (config) with the
-  install hint surfaced on stderr.
+- [ ] App credentials via env: with `CLIENT_ID` + `CLIENT_SECRET` set in the shell, `bird login` runs through the
+  embedded OAuth2 flow.
+- [ ] App credentials via token store: with no `CLIENT_ID` in env but an app persisted via `xr auth app`, bird reads the
+  same store and `bird login` succeeds.
+- [ ] Missing credentials: with no `CLIENT_ID` and no stored app, an API-hitting command exits with the
+  `ConstructionStub` "CLIENT_ID not set" message surfaced on stderr.
 - [ ] SIGPIPE: `bird bookmarks --output jsonl | head -1` exits cleanly (no broken-pipe panic). The Unix-only
   `libc::signal(SIGPIPE, SIG_DFL)` is `#[cfg(unix)]`-gated; the pre-push hook's libc-grep is the always-on backstop.
 
@@ -142,12 +147,12 @@ commands reject `--cache-only`.
 
 - [ ] `bird search "rust" --refresh` bypasses store, refreshes store.
 - [ ] `bird search "rust" --no-cache` neither reads nor writes the store.
-- [ ] `bird search "rust" --cache-only` serves from store only and never invokes xurl. Write commands reject
+- [ ] `bird search "rust" --cache-only` serves from store only and never hits the X API. Write commands reject
   `--cache-only` with exit code 1.
 
 ### Token & file permissions
 
-bird does not store tokens itself (xurl does), but it owns the local config and cache files.
+bird does not store tokens itself (xurl-rs's token store does), but it owns the local config and cache files.
 
 - [ ] `~/.config/bird/config.toml` is created at `0644` on first watchlist or preference write.
 - [ ] `~/.config/bird/bird.db` (SQLite entity cache) is created at `0600`.
@@ -155,13 +160,18 @@ bird does not store tokens itself (xurl does), but it owns the local config and 
 
 ### Exit-code contract
 
-Three exit codes, stable across releases.
+Six exit codes, stable across releases. The 3 / 4 / 5 codes are inherited verbatim from xurl-rs's `exit_code_for_error`
+via `XurlError`-to-`BirdError` translation; 77 / 78 are bird-side overrides.
 
 - [ ] `0` on success.
-- [ ] `77` on auth failures detected via XurlError::Auth.
-- [ ] `78` on config failures (missing xurl binary, invalid `config.toml`, broken `XDG_CONFIG_HOME`).
-- [ ] `1` on everything else (Command errors, write-command-with-`--cache-only`, etc.).
-- [ ] Stderr JSON envelope on `--output json`: `{"error":..., "kind":"config"|"auth"|"command", "code":78|77|1,
+- [ ] `77` on auth failures (`XurlError::Auth`, `XurlError::TokenStore`, `XurlError::Api { status: 401 }`,
+  `XurlError::AuthMethodMismatch`).
+- [ ] `78` on config failures (`XurlError::Validation`, invalid `config.toml`, broken `XDG_CONFIG_HOME`).
+- [ ] `3` on rate-limit (`XurlError::Api { status: 429 }` or `XurlError::Http("429 …")`).
+- [ ] `4` on not-found (`XurlError::Api { status: 404 }` or `XurlError::Http("404 …")`).
+- [ ] `5` on network errors (`XurlError::Io`).
+- [ ] `1` on everything else (other API errors, write-command-with-`--cache-only`, etc.).
+- [ ] Stderr JSON envelope on `--output json`: `{"error":..., "kind":"config"|"auth"|"command", "exit_code":<N>,
   "command":..., "status":...}`. Verify shape on at least one error from each kind.
 
 ### Distribution and install paths
