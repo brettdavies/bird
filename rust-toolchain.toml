@@ -3,5 +3,8 @@
 # Trailing comment documents the commit SHA for audit.
 # Bump via reviewed PR only after a new stable has aged ≥7 days.
 [toolchain]
-channel = "1.94.1" # rustc e408947bfd200af42db322daf0fadfe7e26d3bd1, released 2026-03-25
+channel = "1.96.0" # rustc ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96, released 2026-05-25
 components = ["rustfmt", "clippy"]
+# minimal keeps rust-docs, roughly 800MB per toolchain, out of the install.
+# The components above are named explicitly, so they arrive either way.
+profile = "minimal"
