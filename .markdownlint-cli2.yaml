@@ -1,9 +1,10 @@
-# Global markdownlint-cli2 configuration
-# Canonical version: 2026.04.15
-# Symlinked to ~/.markdownlint-cli2.yaml via stow
+# Vendored from the global markdownlint-cli2 configuration
+# Canonical version: 2026.06.09
+# Canonical source: ~/.markdownlint-cli2.yaml (stow: dotfiles/stow/claude/dot-markdownlint-cli2.yaml)
 #
-# Per-repo copies should preserve the `Canonical version` line above and bump it on resync;
-# a stale calver compared to this file is the signal that the per-repo copy has drifted.
+# This repo keeps a local copy (not the stow symlink) so it can add repo-specific
+# ignores. Preserve the `Canonical version` line and bump it on resync; a stale
+# calver vs the canonical source is the signal this copy has drifted.
 #
 # Documentation: https://github.com/DavidAnson/markdownlint-cli2
 # Rules: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
@@ -80,6 +81,7 @@ ignores:
   - "target/**"  # Rust build artifacts; harmless for non-Rust projects
   - ".git/**"
   - "*.min.md"
+  - "docs/solutions/**"  # Symlink to the shared solutions-docs repo; lint upstream, not here
 
 # Fix automatically when --fix is used
 fix: true
