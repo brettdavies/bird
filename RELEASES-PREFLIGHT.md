@@ -19,31 +19,91 @@ checklist covers what CI structurally can't:
   does write `~/.config/bird/config.toml` (0644) for watchlist and preferences, and `~/.config/bird/bird.db` (0600) for
   the SQLite entity cache. Permissions and round-trip behavior need confirmation on a fresh `XDG_CONFIG_HOME`.
 
+Post-tag verification (`release.yml` → homebrew-tap → `finalize-release.yml` → crates.io publish) lives in
+[`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md). The tag push happens AFTER the release-branch cut and the
+PR-to-main merge, so verification of the tag-triggered pipeline is post-flight, not pre-flight.
+
+## Quick start: run the automated gates
+
+The generic gates run from one script. Build the release binary first, then:
+
+```bash
+cargo build --release
+scripts/release/preflight.sh all          # drift + surface + smoke + mechanics
+```
+
+The script (`scripts/release/preflight.sh`) is **project-authored** on the github-repo-setup skill's skeleton: the
+shared scaffolding (gate helpers, 1Password reads, `shred -u` tempdir cleanup, subcommand dispatch, drift + surface +
+mechanics gates) is the skeleton's. The `smoke` gate and the `seed_smoke_store` recipe are placeholders that SKIP with a
+pointer to this file; the live-API sections below are the manual recipe until those bodies are filled in with bird's
+checks. `all` runs the drift gate first, since nothing else matters while `main` holds changes `dev` never received. It
+exits non-zero if any gate fails. Sub-commands let you re-run one gate group in isolation:
+
+| Sub-command | What it runs                                                                                                                                                                 | Live API? |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `drift`     | Commits on `main` since the last release whose changes `dev` lacks, `.github/` parity, `Cargo.lock` packages `main` resolves newer (delegated to `scripts/release/drift.sh`) | no        |
+| `surface`   | LAST_TAG resolution, commit/file/breaking-marker counts                                                                                                                      | no        |
+| `smoke`     | Placeholder; SKIPs until `gate_smoke` carries bird's live-API checks (§ Real-world smoke)                                                                                    | yes       |
+| `mechanics` | Cargo.toml version, lockfile present, `bird --version` match, CHANGELOG match, toolchain quarantine, advisories, leak check, unguarded docs added to `main`, diff-B          | no        |
+| `all`       | every above                                                                                                                                                                  | yes       |
+
+Flags:
+
+- `--smoke-home PATH`: reuse an existing seeded `$SMOKE_HOME` (skip the seed)
+- `--no-cleanup`: keep the temp home after exit (useful for follow-up `bird` probes)
+- `--tag TAG`: override LAST_TAG auto-detection
+
+The script shreds every tempdir that held credentials on exit (`shred -u`, three passes before unlinking; falls back to
+`dd if=/dev/urandom + rm` if `shred` isn't on `PATH`; refuses to operate outside `/tmp` or `$HOME` as a path-typo
+guardrail).
+
 ## Establish the surface
 
 Everything below assumes you know what's changing. Run this first.
+
+Driven by `scripts/release/preflight.sh surface`.
 
 ```bash
 LAST_TAG=$(git tag --sort=-version:refname | head -n 1)
 git log "$LAST_TAG..dev" --oneline                              # commits going out
 git diff "$LAST_TAG..dev" --stat                                # file-level scope
-git diff "$LAST_TAG..dev" -- src/ openapi/                      # surface area: code + API spec
-git log "$LAST_TAG..dev" --grep '^[a-z]\+!:' --oneline          # Conventional-Commits breaking markers
+git diff "$LAST_TAG..dev" -- src/ schema/                       # surface area: code + output schemas
+git log "$LAST_TAG..dev" --grep '^[a-z]\+\(([^)]*)\)\?!:' --oneline   # Conventional-Commits breaking markers, scoped or not
 ```
+
+On a repo with no tags yet, or whose lineage is squash-only so no tag is an ancestor of `dev`, the surface is
+`origin/main..origin/dev` instead of `$LAST_TAG..dev`; `preflight.sh surface` SKIPs the tag counts in that case. bird's
+`dev` and `main` share no history, so `git diff origin/main..origin/dev` is the surface here.
 
 Every `!:` commit drives the major-version decision and gets a row in the release's `### Breaking changes` section.
 
 ## Checklist
 
+### Branch drift (main ahead of dev)
+
+Driven by `scripts/release/preflight.sh drift` (delegates to `scripts/release/drift.sh`).
+
+Security PRs, hotfixes, and config edits land on `main` first. The release branch is cut from `main` and then takes
+`dev`'s changes, so anything `main` holds that `dev` never received is reverted by the release or collides with it, and
+Dependabot raises the same fix again.
+
+- [ ] Every commit on `main` since the last release has its changes on `dev` (gate 1 lists the ones that do not, as
+      `differs` or `missing`). Backport them by PR into `dev` first, merge, and rerun.
+- [ ] `.github/` is identical on both branches (gate 2). A difference either way is a config change that only reached
+      one branch.
+- [ ] No `Cargo.lock` package resolves newer on `main` than on `dev` (gate 3). The one benign case is a version still
+      inside the local package manager's release-age window when the advisory is already patched at `dev`'s version.
+- [ ] `dev`-newer packages are the routine updates this release ships; the gate counts them and does not list them.
+
 ### Dependabot preflight
 
 Run before any other checklist work, before `Cargo.toml` is bumped, before any release branch is cut. Surfaces pending
 dependency updates so they can be merged on dev (or rejected) instead of arriving as Dependabot PRs the moment the
-release commit lands on the target branch — Cargo.lock churn triggers Dependabot's out-of-cycle re-evaluation, and at
+release commit lands on the target branch: Cargo.lock churn triggers Dependabot's out-of-cycle re-evaluation, and at
 that point the release is already tagged and they miss the cut.
 
-- [ ] Trigger the workflow: GitHub → Actions → "Dependabot Preflight" → "Run workflow" (head = `dev`). Pinned at
-  `brettdavies/.github/.github/workflows/dependabot-preflight.yml`.
+- [ ] Trigger the workflow: GitHub → Actions → "Dependabot Preflight" → "Run workflow" (head = `dev`). The caller is
+  `.github/workflows/dependabot-preflight.yml`.
 - [ ] Review the `cargo` job's `cargo outdated --workspace --depth 1` report in the run summary. For each direct dep
   with a newer compatible version, decide: merge an update PR on dev now, accept the stale version this release, or rule
   out the update with a `Cargo.toml` constraint.
@@ -64,10 +124,13 @@ bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, 
   `$LAST_TAG`'s `bird help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a `###
   Changed` (or `### Breaking changes`) bullet in the release changelog.
 - [ ] Per-command `--help` shape unchanged for stable commands. Spot-check `bird me --help`, `bird bookmarks --help`,
-  `bird search --help`, `bird raw --help` — flag changes (renames, defaults, types) are user-facing and must show up in
+  `bird search --help`, `bird raw --help`; flag changes (renames, defaults, types) are user-facing and must show up in
   the changelog.
 
 ### Real-world smoke (live X API, via the embedded xurl-rs client)
+
+Driven by `scripts/release/preflight.sh smoke` once `gate_smoke` carries these checks; until then this section is the
+manual recipe.
 
 The in-repo tests mock the bird/xurl boundary. The following exercises only fire end-to-end against credentials
 configured in the embedded xurl-rs token store and the live X API. Pick fresh targets each release.
@@ -169,13 +232,14 @@ test`.
 - [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all five targets listed in
   `RELEASES.md` § Tagging and publishing. If the workflow has changed since, dry-run with `cargo build --release
   --target <target>` for each.
-- [ ] In a clean container or fresh machine: download a prior release archive (`bird-<target>.tar.gz` or `.zip` for
+- [ ] In a clean container or fresh machine: download a **prior** release archive (`bird-<target>.tar.gz` or `.zip` for
   Windows), run `bird --version` and one read-only shortcut. Confirms the archive layout (binary + completions +
-  licenses) still works without the project's toolchain.
-- [ ] `cargo install bird --version <new>` from a clean environment resolves and runs once the crates.io publish
-  completes (post-tag check, see below).
+  licenses) still works without the project's toolchain. Install of the **newly** published artifact happens post-tag
+  in [`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md).
 
 ### Release mechanics sanity
+
+Driven by `scripts/release/preflight.sh mechanics`.
 
 These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensive to recover from. Confirm explicitly.
 
@@ -188,31 +252,41 @@ These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensi
   or revert it before tagging.
 - [ ] No unmerged dependency advisories from `cargo deny check advisories`. The full local pre-push check
   (`scripts/hooks/pre-push`) mirrors CI; run it explicitly before pushing the release branch.
-- [ ] Triple-diff verification before tag: `git diff origin/main..HEAD`, `git diff HEAD..origin/dev` (no non-doc paths),
-  `git diff origin/dev..origin/main` (sanity) — all three agree on intended scope.
-- [ ] Leak check: `git diff origin/main..HEAD --name-only | grep -E
-  '^(docs/plans|docs/brainstorms|docs/ideation|docs/reviews|docs/solutions|\.context)'` returns nothing. If cherry-picks
-  pulled in guarded paths via rename detection, resolve per `RELEASES.md` § Cherry-pick conflicts on guarded paths.
+- [ ] Triple-diff verification before tag: `git diff origin/main..HEAD`, `git diff HEAD..origin/dev` filtered by the
+  guarded set (not all of `docs/`, since `docs/CLI_DESIGN.md`, `docs/DEVELOPER.md`, and `docs/SECRETS.md` ship to
+  `main` and a wholesale exclusion would hide a missed change there), `git diff origin/dev..origin/main` (sanity): all
+  three agree on intended scope.
+- [ ] **Leak check before pushing the release branch.** No guarded path may surface in the diff vs `origin/main`. The
+  set resolves from `.github/workflows/guard-main-docs.yml` via `scripts/release/guarded-paths.sh`; never restate the
+  pattern inline. If cherry-picks pulled in guarded paths via rename detection, resolve per `RELEASES.md` § Cherry-pick
+  conflicts on guarded paths.
+
+  ```bash
+  GUARDED="$(scripts/release/guarded-paths.sh)"
+  git diff origin/main..HEAD --name-only | grep -E "$GUARDED" && echo "LEAKED: reset and redo" || echo "(clean)"
+  ```
+
+- [ ] **Every doc this release adds to `main` is meant to ship.** The leak check screens against the registered set, so
+  it cannot flag a category nobody registered yet. Enumerate the additions under `docs/` and every added markdown file
+  anywhere, and read them; an entry that should not ship gets registered in the workflow's `extra_paths` and removed
+  from the branch.
+
+  ```bash
+  git diff origin/main..HEAD --diff-filter=A --name-only | grep -E '(^docs/|\.md$)' | grep -Ev "$GUARDED" || echo "(none unguarded)"
+  ```
+
 - [ ] `CHANGELOG.md` versioned section has no `[Unreleased]` placeholder and matches the bumped `Cargo.toml` version.
 
 ### Post-tag verification
 
-Run immediately after the tag push triggers `release.yml`.
-
-- [ ] `release.yml` green end-to-end. `gh run watch <id> --exit-status` then verify with `gh run view <id> --json
-  conclusion --jq .conclusion` — the watcher exit code alone is not authoritative.
-- [ ] Homebrew-tap `update-formula` dispatch completed (check `gh run list -R brettdavies/homebrew-tap`), then
-  `finalize-release.yml` ran back here and flipped the GitHub Release `make_latest: true`.
-- [ ] `crates.io` shows the new version published. `cargo install bird --version <new>` from a clean environment
-  resolves and runs.
-- [ ] `brew update && brew install brettdavies/tap/bird` on a fresh prefix resolves the new bottle and `bird --version`
-  reports the new tag. Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly.
-- [ ] `cargo binstall bird` (without `--version`) resolves to the new tag and installs the matching prebuilt binary.
-  Confirms the GitHub Release asset layout matches binstall's expectations.
-- [ ] Backport `main` → `dev` per `RELEASES.md` § After publish, then `git push origin dev`.
+Moved to [`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md) because tagging happens **after** the release-branch cut
+and PR-to-main merge, so verification of the tag-triggered pipeline (release.yml → homebrew-tap → finalize-release →
+crates.io publish → fresh-machine install smokes) is post-flight, not pre-flight. Run `scripts/release/postflight.sh
+all` immediately after `git push origin vX.Y.Z`.
 
 ## Related docs
 
+- [`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md): runs AFTER the tag push to verify the downstream pipeline.
 - [`RELEASES.md`](./RELEASES.md): operational runbook this checklist gates.
 - [`RELEASES-RATIONALE.md`](./RELEASES-RATIONALE.md): release-flow rationale.
 - [`AGENTS.md`](./AGENTS.md): project structure, transport contract, output formats.
