@@ -43,6 +43,7 @@ readonly REPO_ROOT
 
 # Shared output helpers, gate counters, dependency checks, 1Password helper,
 # SMOKE_HOME cleanup. Same _lib.sh as postflight.sh and surface-smoke.sh.
+# shellcheck disable=SC1091  # sibling _lib.sh, always vendored alongside
 . "$(dirname "$0")/_lib.sh"
 
 # Project-specific: path to the built release binary. Adjust per project.
@@ -186,7 +187,11 @@ gate_mechanics() {
   if [[ -f Cargo.toml ]]; then
     project_version=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/^version = "(.*)"/\1/')
     gate_pass "Cargo.toml version = $project_version"
-    [[ -f Cargo.lock ]] && gate_pass "Cargo.lock present" || gate_fail "Cargo.lock" "missing"
+    if [[ -f Cargo.lock ]]; then
+      gate_pass "Cargo.lock present"
+    else
+      gate_fail "Cargo.lock" "missing"
+    fi
   elif [[ -f package.json ]]; then
     project_version=$(jaq -r .version package.json)
     gate_pass "package.json version = $project_version"
@@ -204,9 +209,11 @@ gate_mechanics() {
   if [[ -x "$BIN_PATH" && -n "$project_version" ]]; then
     local bin_version
     bin_version=$("$BIN_PATH" --version 2>/dev/null | awk '{print $NF}')
-    [[ "$bin_version" == "$project_version" ]] \
-      && gate_pass "$BIN_PATH --version = $bin_version (matches project version)" \
-      || gate_fail "$BIN_PATH --version mismatch" "binary=$bin_version project=$project_version"
+    if [[ "$bin_version" == "$project_version" ]]; then
+      gate_pass "$BIN_PATH --version = $bin_version (matches project version)"
+    else
+      gate_fail "$BIN_PATH --version mismatch" "binary=$bin_version project=$project_version"
+    fi
   else
     gate_skip "binary --version" "build the release binary first ($BIN_PATH)"
   fi
@@ -214,13 +221,17 @@ gate_mechanics() {
   if [[ -f CHANGELOG.md ]]; then
     changelog_version=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '[]## ')
     if [[ -n "$project_version" ]]; then
-      [[ "$changelog_version" == "$project_version" ]] \
-        && gate_pass "CHANGELOG top section = [$changelog_version] (matches project version)" \
-        || gate_fail "CHANGELOG mismatch" "changelog=$changelog_version project=$project_version"
+      if [[ "$changelog_version" == "$project_version" ]]; then
+        gate_pass "CHANGELOG top section = [$changelog_version] (matches project version)"
+      else
+        gate_fail "CHANGELOG mismatch" "changelog=$changelog_version project=$project_version"
+      fi
     fi
-    grep -q '\[Unreleased\]' CHANGELOG.md \
-      && gate_fail "CHANGELOG" "has [Unreleased] placeholder" \
-      || gate_pass "CHANGELOG has no [Unreleased] placeholder"
+    if grep -q '\[Unreleased\]' CHANGELOG.md; then
+      gate_fail "CHANGELOG" "has [Unreleased] placeholder"
+    else
+      gate_pass "CHANGELOG has no [Unreleased] placeholder"
+    fi
   fi
 
   # Rust: toolchain quarantine. Skip for non-Rust.
@@ -231,9 +242,11 @@ gate_mechanics() {
     if [[ -n "$release_date_match" ]]; then
       local age_days
       age_days=$((($(date +%s) - $(date -d "$release_date_match" +%s)) / 86400))
-      [[ $age_days -ge 7 ]] \
-        && gate_pass "rust-toolchain channel=$toolchain_channel (released $release_date_match, $age_days days ago — ≥7 day quarantine satisfied)" \
-        || gate_fail "rust-toolchain quarantine" "channel $toolchain_channel released $release_date_match ($age_days days ago) is inside 7-day window"
+      if [[ $age_days -ge 7 ]]; then
+        gate_pass "rust-toolchain channel=$toolchain_channel (released $release_date_match, $age_days days ago; 7-day quarantine satisfied)"
+      else
+        gate_fail "rust-toolchain quarantine" "channel $toolchain_channel released $release_date_match ($age_days days ago) is inside 7-day window"
+      fi
     else
       gate_skip "rust-toolchain quarantine" "no 'released YYYY-MM-DD' comment found in rust-toolchain.toml"
     fi

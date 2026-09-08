@@ -219,8 +219,11 @@ PR_BODY_FILE="$(mktemp -t "sync-dev-after-${VERSION}-pr-body.XXXXXX")"
 trap 'rm -f "$PR_BODY_FILE"' EXIT
 
 TAG_SHORT="$(git rev-parse --short "$TAG_SHA")"
+# Backticks below are markdown code spans in the PR body, not expansions.
+# shellcheck disable=SC2016
 SYNC_LIST="$(printf '\`%s\`, ' "${SYNC_PATHS[@]}")"
 SYNC_LIST="${SYNC_LIST%, }"
+# shellcheck disable=SC2016
 SYNC_BULLETS="$(for f in "${SYNC_PATHS[@]}"; do
   if [[ "$f" == CHANGELOG.md ]]; then
     printf -- '- `%s` (verbatim copy from `origin/main` at `%s`)\n' "$f" "$TAG_SHORT"
