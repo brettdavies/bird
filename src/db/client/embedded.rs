@@ -78,9 +78,10 @@ impl BirdClient {
             .ok_or_else(|| format!("/2/users/by/username/{username} did not return data.id").into())
     }
 
-    /// Dispatches an [`EmbeddedWriteCall`] through the embedded transport,
-    /// resolving `/me` and target-by-username as needed, then issuing the
-    /// real X API call. Returns the parsed JSON response on success.
+    /// Dispatches an [`EmbeddedWriteCall`](crate::cli::commands::writes::spec::EmbeddedWriteCall)
+    /// through the embedded transport, resolving `/me` and target-by-username as
+    /// needed, then issuing the real X API call. Returns the parsed JSON response
+    /// on success.
     pub fn execute_embedded_write(
         &self,
         call: crate::cli::commands::writes::spec::EmbeddedWriteCall,

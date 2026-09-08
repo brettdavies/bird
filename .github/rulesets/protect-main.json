@@ -29,6 +29,7 @@
         "require_code_owner_review": false,
         "require_last_push_approval": false,
         "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": true,
         "allowed_merge_methods": [
           "squash"
         ]
@@ -44,25 +45,32 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "ci / Fmt, clippy, test"
+            "context": "ci / Fmt, clippy, test",
+            "integration_id": 15368
           },
           {
-            "context": "ci / Package check"
+            "context": "ci / Package check",
+            "integration_id": 15368
           },
           {
-            "context": "ci / Security audit (bans licenses sources)"
+            "context": "ci / Security audit (bans licenses sources)",
+            "integration_id": 15368
           },
           {
-            "context": "ci / Changelog"
+            "context": "ci / Changelog",
+            "integration_id": 15368
           },
           {
-            "context": "guard-docs / check-forbidden-docs"
+            "context": "guard-docs / check-forbidden-docs",
+            "integration_id": 15368
           },
           {
-            "context": "guard-provenance / check-provenance"
+            "context": "guard-provenance / check-provenance",
+            "integration_id": 15368
           },
           {
-            "context": "guard-release / check-release-branch-name"
+            "context": "guard-release / check-release-branch-name",
+            "integration_id": 15368
           }
         ]
       }

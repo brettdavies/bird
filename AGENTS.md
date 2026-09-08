@@ -299,9 +299,10 @@ wiremock; no bird-side real-API integration suite.
 ## Releasing
 
 See [`RELEASES.md`](RELEASES.md) for the operational runbook, [`RELEASES-PREFLIGHT.md`](RELEASES-PREFLIGHT.md) for the
-pre-cut go/no-go checklist, and [`RELEASES-RATIONALE.md`](RELEASES-RATIONALE.md) for the why behind every rule. The
-short version: feature branch → PR to `dev` (squash) → cherry-pick to `release/v<version>` cut from `main` → PR to
-`main` (squash) → annotated tag push triggers `release.yml`.
+pre-cut go/no-go checklist, [`RELEASES-POSTFLIGHT.md`](RELEASES-POSTFLIGHT.md) for the post-tag verification, and
+[`RELEASES-RATIONALE.md`](RELEASES-RATIONALE.md) for the why behind every rule. The short version: feature branch → PR
+to `dev` (squash) → `dev`'s tree overlaid onto `release/v<version>` cut from `main` → PR to `main` (squash) →
+annotated tag push triggers `release.yml` → `scripts/sync-dev-after-release.sh` backports the bookkeeping to `dev`.
 
 ## Documented solutions
 
@@ -316,6 +317,7 @@ already captures known pitfalls.
 - [`RELEASES.md`](RELEASES.md) — release runbook (cut-a-release steps only).
 - [`RELEASES-RATIONALE.md`](RELEASES-RATIONALE.md) — the WHY behind release rules.
 - [`RELEASES-PREFLIGHT.md`](RELEASES-PREFLIGHT.md) — bird-specific pre-cut checklist.
+- [`RELEASES-POSTFLIGHT.md`](RELEASES-POSTFLIGHT.md): post-tag verification of the publish chain.
 - [`docs/CLI_DESIGN.md`](docs/CLI_DESIGN.md) — auth requirements, doctor, error design.
 - [`docs/DEVELOPER.md`](docs/DEVELOPER.md) — build, architecture, project layout.
 - [xurl-rs](https://github.com/brettdavies/xurl-rs) — upstream transport dependency.

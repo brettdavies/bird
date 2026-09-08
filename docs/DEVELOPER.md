@@ -99,4 +99,4 @@ dev               <-- integration branch, all feature PRs target here
 
 ## Releasing
 
-See [RELEASING.md](../RELEASING.md).
+See [RELEASES.md](../RELEASES.md).
