@@ -327,16 +327,21 @@ and MUST NOT collide with them.
 6. A crate test re-derives floors, ceilings, defaults, cursor parameter names and descriptions, time-filter parameters,
    expansion enums, and `meta` shapes from the vendored OpenAPI document and fails when the registry disagrees, so a
    spec refresh surfaces drift before release.
-7. **Page size at runtime.** With `remaining = effective limit - unique items so far` and `object budget left =
-   budget.objects[primary] - objects requested so far`, let `room = min(remaining, object budget left)`. If
-   `room < floor` the loop stops (`below_floor`, or `plan_cap` when the object budget rather than the request is
-   what ran out). Otherwise `page size = room` when `room <= ceiling`; when `room > ceiling` it is `ceiling`,
-   except that if `room - ceiling` would be positive and below the floor the page is shortened to `room - floor`,
-   so the next page lands exactly on the floor and the pages sum to `room`. Before each page, if
+7. **Page size.** One rule sizes every page, in the plan and at runtime alike: `next_page_size(room, floor, ceiling)` is
+   `room` when `room <= ceiling`; otherwise it is `ceiling`, except that when `room - ceiling` is positive and below
+   `floor` it is `room - floor`, so the following page lands exactly on the floor and the pages sum to `room` with no
+   object fetched that was not asked for. It is undefined for `room < floor`, which is the one case the caller never
+   reaches: a `limit` below the floor is refused (D5). At runtime, with `remaining = effective limit - unique items so
+   far` and `object budget left = budget.objects[primary] - objects_fetched[primary]` (unbounded when the budget bounds
+   only requests, D4.4), the loop takes `room = min(remaining, object budget left)`. The budget is debited by what a
+   page returns, not by what it asked for, and the two rules together are what make that safe: an ask never exceeds the
+   budget left, and a page never returns more than it asked for, so `objects_fetched[primary]` can never pass
+   `budget.objects[primary]`. A short page therefore costs only the objects it delivered. If `room < floor` it stops,
+   with `plan_cap` when the object budget is what ran out and `below_floor` otherwise. Before each page, if
    `requests_made == budget.requests` the loop stops with `plan_cap` instead of fetching. When the caller pins `page
-   size` (allowed in the crate and in `xr`), the pinned value
-   is sent on every page and only the request gate applies; a pinned value outside `[floor, ceiling]` is an error before
-   any request, and a pinned value is never silently clamped. `bird` derives `page size` and exposes no flag.
+   size` (allowed in the crate and in `xr`), the pinned value is sent on every page and only the request gate applies; a
+   pinned value outside `[floor, ceiling]` is an error before any request, and a pinned value is never silently clamped.
+   `bird` derives `page size` and exposes no flag.
 8. **Error classification is crate-wide.** The crate maps every response, list or not, and consumers never re-classify.
    HTTP status decides first. A 429 is `rate_limited` when the problem `type` is `rate-limit-exceeded` or
    `x-rate-limit-remaining` is 0; a 429 with problem `type` `usage-capped` is `request_failed` with that problem; any
@@ -351,7 +356,9 @@ and MUST NOT collide with them.
 2. `next_cursor` is lossless: after any stop it addresses the first page not yet delivered. After `limit_reached`,
    `exhausted`, or a bounded stop it is the last delivered page's `next_token` (absent when the API returned none).
    After a failed page it is the cursor that addressed the failed page (absent if the head page failed, in which case
-   the run is resumed by repeating it). After `depth_cap` it is absent, because pages beyond the cap hold nothing.
+   the run is resumed by repeating it). A stop that fires between pages with none in flight, which is every `timeout`
+   and every `rate_limited`, holds the same position as a bounded stop and carries the same cursor. After `depth_cap` it
+   is absent, because pages beyond the cap hold nothing.
 3. Time-ordered lists additionally report `newest_id` and `oldest_id`, the maximum and minimum id over everything
 delivered. Under `sort_order=recency` this equals the first page's `newest_id`, which is the
    value the next poll needs (`vendor/x-api-docs/posts-search-integrate-paginate.md`); under `relevancy` the maximum
@@ -380,38 +387,54 @@ delivered. Under `sort_order=recency` this equals the first page's `newest_id`, 
 
 ### D4: cost, knowable before the first request and binding on the loop
 
-1. The crate's `plan(&ListRequest) -> Plan` is pure: no I/O, no clock. It returns `effective_limit`, `depth_capped`,
-   `requests_max`, `objects_max` by resource kind, `ceiling_is_bound` (false only when an unbounded
-   expansion is present), and the default `budget` derived from those figures.
-2. **Derived page sizes.** With `L = effective limit`, `C = ceiling`, `F = floor` (`L >= F`, since a smaller
-   `limit` is refused by D5): `requests_max = ceil(L / C)`, and the pages sum to exactly `L`. Every page is `C`
-   except the last two: if `L mod C` is zero the last page is `C`, if `L mod C` is at least `F` the last page is
-   `L mod C`, and otherwise the second-to-last page is shortened to `C - (F - L mod C)` so the last page is
-   exactly `F`. `objects_max[primary] = L`. **Pinned page size `P`:** `requests_max = ceil(L / P)` and
-   `objects_max[primary] = requests_max × P`, which is the one case where a plan can exceed `L`, because the
-   caller pinned it.
-3. **Expansions.** For each requested expansion with kind `k` and fan-out `f`: `objects_max[k] += objects_max[primary] ×
-   f`. **Hydration** (`bird` only, `--hydrate authors`, valid only when the primary kind is `post`): `objects_max[user]
-   += objects_max[primary]` and `hydration.requests_max = requests_max`, because `bird` hydrates
-   each page as it arrives and every post list's ceiling is at or below the user lookup's ids ceiling, so a page
-   never needs more than one lookup; the crate's `plan_lookup(n)` gives `ceil(n / ids ceiling)` requests for `n`
-   ids (D2.2) and is what a single batched lookup uses. The estimate's request total is the sum. `bird` reports the
-   lookups under
-   `meta.hydration` (`requests`, `looked_up`, `from_cache`), so `requests_made` and `objects_fetched` keep the
-   crate's values. `bird` refuses `--expand author_id` on
-   post lists with a message naming `--hydrate`, because a cached author costs nothing and the API expansion always
+1. The crate's `plan(&ListRequest) -> Plan` is pure: no I/O, no clock. `ListRequest` names the page source, so the plan
+   is a total function of its input: a local source plans zero requests, zero objects, and no cost, and the floor and
+   budget gates do not apply to it, because both bound an API parameter a local source never sends (D7.4). It returns
+   `effective_limit`, `depth_capped`, `requests_max`, `objects_max` by resource kind, `ceiling_is_bound` (false only
+   when an unbounded expansion is present), and the default `budget`, which bounds `requests` by the allowance rule
+   every consumer shares (D4.4) and leaves objects unbounded.
+2. **Derived page sizes.** The plan is `next_page_size` (D2.7) iterated from `room = L`, the effective limit,
+   subtracting each page from `room` until it reaches zero. `requests_max` is the number of pages that yields and
+   `objects_max[primary]` is `L`, because the pages sum to `room` by construction. There is no second formula: the
+   plan is what the loop would do if every page came back full. For search (`C` 100, `F` 10) a limit of 103 yields
+   `[93, 10]` and 205 yields `[100, 95, 10]`. **Pinned page size `P`:** `requests_max = ceil(L / P)` and
+   `objects_max[primary] = requests_max × P`, the one case where a plan can exceed `L`, because the caller pinned
+   it.
+3. **Expansions.** Fan-out multiplies `L`, the effective limit, fixed before any expansion is counted, and included
+   objects accumulate in their own counter: for each requested expansion with kind `k` and fan-out `f`, `included_max[k]
+   += L × f`. `objects_max[k]` is `included_max[k]`, plus `L` when `k` is the primary kind. Fixing the multiplicand is
+   what makes the total independent of the order the expansions are added, which matters because three expansions return
+   posts from a post list and one returns users from a user list (D2.3): accumulating into `objects_max[primary]` would
+   feed the rule its own output and would inflate the counter the delivery gate reads (D2.7). **Hydration** (`bird`
+   only, `--hydrate authors`, valid only when the primary kind is `post`): `included_max[user] += L` and
+   `hydration.requests_max = requests_max`, because `bird` hydrates each page as it arrives and every post list's
+   ceiling is at or below the user lookup's ids ceiling, so a page never needs more than one lookup; the crate's
+   `plan_lookup(n)` gives `ceil(n / ids ceiling)` requests for `n` ids (D2.2) and is what a single batched lookup uses.
+   The estimate's request total is the sum. `bird` reports the lookups under `meta.hydration` (`requests`, `looked_up`,
+   `from_cache`), so `requests_made` and `objects_fetched` keep the crate's values. `bird` refuses `--expand author_id`
+   on post lists with a message naming `--hydrate`, because a cached author costs nothing and the API expansion always
    bills.
 4. **The budget is binding.** `paginate()` takes a budget and never issues a request that would take `requests_made`
-   past `budget.requests` or objects requested past `budget.objects[primary]` (D2.7). `xr` and every consumer without a
-   spend model pass the plan's default budget, so for them the estimate is the ceiling whenever `ceiling_is_bound`; an
-   unbounded kind has no object ceiling in
-   the budget. `bird` scales the plan: with `s
-   = max_spend / estimate_max_usd` (at least 1 whenever the call is not refused), `budget.objects[k] =
-   floor(objects_max[k] × s)` for every kind and `budget.requests = ceil(budget.objects[primary] / floor)`; hydration is
-   bounded separately by
-   `plan_lookup(budget.objects[primary])`, so short pages and duplicates fill toward `limit` while spend never exceeds
-   `max_spend`. A run
-   that exhausts its budget stops with `plan_cap`, `complete: false`, and a lossless `next_cursor`.
+   past `budget.requests`, and never asks for more objects than the budget has left (D2.7), which bounds
+   `objects_fetched[primary]` by `budget.objects[primary]`. `xr` and every consumer without a spend model pass the
+   plan's default budget, which bounds `requests` and nothing else. An object budget there would buy nothing and would
+   cost delivery: with no spend model to enforce there is no cap to hold the run to, and a budget equal to the plan
+   would stop the run short of `limit` the first time a page repeats an id, because `objects_fetched` counts duplicates
+   (D3.5) while `remaining` does not. Spend stays bounded by `requests_max × ceiling`, and the estimate is the ceiling
+   for a run that returns no duplicates. `bird` scales the plan: with `s = max_spend / estimate_max_usd` (at least 1
+   whenever the call is not refused, and undefined for a $0 estimate, where the scaling step is skipped and the budget
+   is the plan), `budget.objects[k] = floor(objects_max[k] × s)` for every kind and `budget.requests = ceil(objects
+   allowed / floor)`, one allowance rule for every consumer, where `objects allowed` is `budget.objects[primary]` for a
+   scaled budget and `L` for the default; hydration is bounded separately by `plan_lookup(budget.objects[primary])`, so
+   short pages and duplicates fill toward `limit` while spend never exceeds `max_spend`. After each page the loop adds
+   the page's objects by kind to `objects_fetched` and stops when any kind's `objects_fetched[k]` has passed
+   `budget.objects[k]`, not the primary kind alone. For an included kind the check is after the fact, because fan-out is
+   not something a request can bound: it stops the next page rather than the one that overran, which is what keeps a
+   fan-out larger than its documented maximum from running a budget away. The allowance assumes every page returns the
+   floor, so it is the worst case and never stops a run that is still making progress; `requests_max` (D4.2) is the best
+   case, what the run needs if every page comes back full. The two differ by a wide margin, ten to one on search and a
+   thousand to one on followers, which is why D4.9 prints both. A run that exhausts its budget stops with `plan_cap`,
+   `complete: false`, and a lossless `next_cursor`.
 5. `bird` owns a **price table** keyed by resource kind with an owned-read tier, sourced from
    `vendor/x-api-docs/getting-started-pricing.md` and carrying that file's `content_sha256` so a re-vendor that changes
    the page fails a test until the table is reviewed. Resource kinds with no listed price contribute $0 and are named in
@@ -429,8 +452,9 @@ delivered. Under `sort_order=recency` this equals the first page's `newest_id`, 
    `price[user] × hydration.looked_up`, and `cost.budget_usd`, the ceiling the run bound to. `fetched_max_usd` is the
    most the run can have cost; deduplication
    can only make the invoice lower.
-9. `--dry-run` prints the plan (and in `bird` the estimate and the budget) and makes no request. It is the confirmation
-   step for agents.
+9. `--dry-run` prints the plan (and in `bird` the estimate and the budget) and makes no request. It prints both request
+   figures, `requests_max` as the best case and `budget.requests` as the worst, so an agent planning against a rate
+   limit reads the allowance rather than the plan. It is the confirmation step for agents.
 10. `bird` does not call `/2/usage/credits` or `/2/usage/tweets` inside a list call. Balance and consumption are crate
 operations surfaced as separate commands in `xr` and `bird`
     (`vendor/x-api-docs/usage-introduction.md`); an exhausted balance surfaces as `request_failed`
@@ -438,25 +462,25 @@ operations surfaced as separate commands in `xr` and `bird`
 
 ### D5: floors, ceilings, and caps end to end
 
-| Situation                                   | Behaviour                                                                                   |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `limit` below the floor                     | Refused before any request, naming the endpoint's floor.                                    |
-| Remaining count below the floor mid-run     | Stop with `below_floor`, a lossless `next_cursor`, and `truncated`.                         |
-| `limit` above the ceiling                   | Pages of `ceiling`, then a final page per D4.2.                                             |
-| `limit` above the depth cap                 | `effective limit = depth cap`; plan reports `depth_capped: true`; every figure derives from |
-|                                             | it. The home timeline's seven-day bound is not counted; the loop simply ends early.         |
-| Run ends while `depth_capped`               | Effective limit reached, absent token, or the empty-page guard: all stop with `depth_cap`,  |
-|                                             | with no `next_cursor`.                                                                      |
-| `--max-spend` above the hard cap            | Pre-flight refusal naming the hard cap (D4.7), no request made.                             |
-| Estimate above the effective `max_spend`    | Pre-flight refusal naming the estimate and the override (D4.7), no request made.            |
-| Unbounded expansion requested in `bird`     | Pre-flight refusal (D4.7), no request made.                                                 |
-| `--expand author_id` on a post list in bird | Pre-flight refusal (81) naming `--hydrate authors`, no request made.                        |
-| `--hydrate authors` on a non-post list      | Error before any request.                                                                   |
-| Explicit `page size` outside the bounds     | Error before any request; the crate never silently clamps a value the caller pinned.        |
-| Next page would exceed the budget           | Stop with `plan_cap` and a lossless `next_cursor` (D4.4).                                   |
-| `x-rate-limit-remaining` reaches 0 mid-run  | Stop before the next page with `rate_limited` and `retry_after_seconds`, or wait (D3.9); do |
-|                                             | not spend a request on a certain 429.                                                       |
-| Two consecutive empty pages with a cursor   | Stop with `empty_pages` and the cursor, so the documented empty-page edge case cannot loop. |
+| Situation                                   | Behaviour                                                                                    |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `limit` below the floor                     | Refused before any request, naming the endpoint's floor.                                     |
+| Remaining count below the floor mid-run     | Stop with `below_floor`, a lossless `next_cursor`, and `truncated`.                          |
+| `limit` above the ceiling                   | Pages of `ceiling`, then a final page per D4.2.                                              |
+| `limit` above the depth cap                 | `effective limit = depth cap`; plan reports `depth_capped: true`; every figure derives from  |
+|                                             | it. The home timeline's seven-day bound is not counted; the loop simply ends early.          |
+| Run ends while `depth_capped`               | Effective limit reached or an absent token: both stop with `depth_cap` and no `next_cursor`. |
+| `--max-spend` above the hard cap            | Pre-flight refusal naming the hard cap (D4.7), no request made.                              |
+| Estimate above the effective `max_spend`    | Pre-flight refusal naming the estimate and the override (D4.7), no request made.             |
+| Unbounded expansion requested in `bird`     | Pre-flight refusal (D4.7), no request made.                                                  |
+| `--expand author_id` on a post list in bird | Pre-flight refusal (81) naming `--hydrate authors`, no request made.                         |
+| `--hydrate authors` on a non-post list      | Error before any request.                                                                    |
+| Explicit `page size` outside the bounds     | Error before any request; the crate never silently clamps a value the caller pinned.         |
+| Next page would exceed the budget           | Stop with `plan_cap` and a lossless `next_cursor` (D4.4).                                    |
+| `x-rate-limit-remaining` reaches 0 mid-run  | Stop before the next page with `rate_limited` and `retry_after_seconds`, or wait (D3.9); do  |
+|                                             | not spend a request on a certain 429.                                                        |
+| Two consecutive empty pages with a cursor   | Stop with `empty_pages` and the cursor, whether or not the run is `depth_capped`: the empty  |
+|                                             | pages are a data-availability artifact, not the depth cap, so the run stays resumable.       |
 
 ### D6: incremental polling is a first-class mode
 
@@ -472,15 +496,20 @@ operations surfaced as separate commands in `xr` and `bird`
 4. `--since-checkpoint` conflicts with `--cursor`, `--since-id`, `--until-id`, `--start-time`, and `--end-time`; any
    conflict is an error before any request. The caller holds no state: repeating the same command until
    `checkpoint.draining` is false drains and then polls.
-5. With no stored record, the run sends no `since_id`, returns the newest `limit` items, and on any natural stop that
-   delivered at least one item creates the record with `newest_id`. A first run that delivers nothing creates nothing.
+5. With no stored record, the run sends no `since_id` and returns the newest `limit` items. A stop that delivered at
+   least one item creates the record, and what it stores follows D6.7: a run that ends `exhausted` or `depth_cap`
+   creates it with `newest_id` alone, and any stop that returned a `next_cursor` creates it with `newest_id` and the
+   drain fields together and reports `draining: true`. The head is recorded but is not used as `since_id` until the
+   drain finishes (D6.6), so a first backlog larger than `limit` is drained rather than skipped. A first run that
+   delivers nothing creates nothing.
 6. With a stored record and no pending drain, the run sends `since_id = newest_id`. With a pending drain, the run sends
    `since_id = drain_since_id` and `pagination_token = drain_cursor` instead, and continues the backlog.
-7. The record advances (`newest_id` set to the run's `newest_id`, drain fields cleared) only when the stop is
-   `exhausted` or `depth_cap`, because only then has every reachable newer item been delivered. Any other stop that
-   returned a `next_cursor`, including `limit_reached` on a backlog larger than `limit`, stores it as
-   `drain_cursor` with the `since_id` the run used, and leaves `newest_id` unchanged. A run that delivers nothing
-   changes nothing.
+7. The record advances (`newest_id` set to the greater of the stored value and the run's `newest_id`, drain fields
+   cleared) only when the stop is `exhausted` or `depth_cap`, because only then has every reachable newer item been
+   delivered. The maximum is what keeps a drain run, whose items are older than the stored head, from moving the head
+   backwards. Any other stop that returned a `next_cursor`, including `limit_reached` on a backlog larger than `limit`,
+   stores it as `drain_cursor` with the `since_id` the run used, and leaves `newest_id` unchanged. A run that delivers
+   nothing changes nothing.
 8. The envelope's `checkpoint` object is present only on `--since-checkpoint` runs and reports `newest_id` (the stored
    value after the run), `created` (true when this run created the record), `advanced` (true when this run moved
    `newest_id`), and `draining` (true when a drain cursor is pending after the run).
@@ -503,9 +532,9 @@ the page's observation time. `id` is the entity identity the data dictionary def
 4. **`--cache-only`** supplies a page source that never fetches: it serves the stored ids for the request identity in
    stored order, up to `limit`, with entities from the entity cache, and reports a `cache` envelope field with
    `observed_from` and `observed_to`, the observation-time range of what it served. When the stored list runs out before
-   `limit`, the run stops with `cache_miss`; `next_cursor` is the stored
-   end cursor when one exists, so the caller can continue online from where the cache ends. The plan reports zero
-   requests and $0.
+   `limit`, the run stops with `cache_miss`; `next_cursor` is the stored end cursor when one exists, so the caller can
+   continue online from where the cache ends. The plan reports zero requests and $0, and the endpoint's floor does not
+   apply, so a stored list shorter than the floor is served rather than refused (D4.1).
 5. **Hydration.** `--hydrate authors` fills each post's author from the entity cache, then hands the misses to the
    crate's user lookup, which chunks them by the registry's ids ceiling; the users land in `includes.users` in the
    API's own shape. `bird` never sends `expansions=author_id` on a
@@ -580,9 +609,11 @@ and 7 are `bird` only.
                       +-----+-----+
                             |
                             v
-        +----------> GATE: requests_made == budget.requests, or object budget left < floor ?
-        |                   |  yes -> STOP plan_cap
-        |                   |  no
+        +----------> GATE: room = min(remaining, object budget left)
+        |             requests_made == budget.requests        -> STOP plan_cap
+        |             room < floor, object budget ran out  -> STOP plan_cap
+        |             room < floor, remaining ran out      -> STOP below_floor
+        |                   |  neither
         |                   v
         |            ASK page source for page (max_results = page size per D2.7, cursor, filters)
         |                   |
@@ -594,10 +625,10 @@ and 7 are `bird` only.
         |     v             |    rate_limited ?                  v                   v                  v
         | dedup by id       |    no  -> STOP request_failed   STOP request_failed  STOP timeout    STOP cache_miss
         | yield page        |    yes -> wait flag and reset_at < deadline ?
-        | yield             |             yes -> SLEEP until reset_at, record wait, re-enter GATE
+        |                   |             yes -> SLEEP until reset_at, record wait, re-enter GATE
         |     |             |             no  -> STOP rate_limited (retry_after from reset)
         |     |             v
-        |     |      empty_pages == 2 ? yes -> STOP empty_pages (depth_cap when depth_capped)
+        |     |      empty_pages == 2 ? yes -> STOP empty_pages (cursor kept, depth_capped or not)
         |     |             | no
         |     v             |
         | unique == effective_limit ? yes -> STOP limit_reached (depth_cap when depth_capped)
@@ -669,7 +700,7 @@ The example is a first `--since-checkpoint` run: no record existed, 230 posts we
       "by_kind": { "post": 1.15, "user": 0.41 },
       "owned_read": false
     },
-    "checkpoint": { "newest_id": "1204860593741553664", "created": true, "advanced": false, "draining": false }
+    "checkpoint": { "newest_id": "1204860593741553664", "created": true, "advanced": false, "draining": true }
   }
 }
 ```
@@ -715,56 +746,63 @@ $5.00 scaled onto the plan.
 Every row is a test that exists before its code is written. Layers: `crate` (unit, no network), `xr` (CLI smoke),
 `bird` (integration through the crate with a scripted page source; never the real API).
 
-| #  | Layer | Path                                 | Assertion                                                                                                                    |
-| -- | ----- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1  | crate | registry vs spec                     | bounds, defaults, cursor names and descriptions, filters, expansion enums, `meta` keys match the spec                        |
-| 2  | crate | registry vs prose evidence           | every depth cap and prose-sourced fan-out row's checksum matches its vendored file                                           |
-| 3  | crate | `plan()` below floor                 | mentions, limit 3: refused before any request, naming the floor of 5                                                         |
-| 4  | crate | `plan()` exact-count sizing          | search, limit 103: pages [93, 10]; limit 205: [100, 95, 10]; both sum exactly                                                |
-| 5  | crate | `plan()` above ceiling and depth cap | user posts `exclude=replies`, limit 1000: effective 800, `depth_capped`, 8 requests                                          |
-| 6  | crate | `plan()` pinned page size            | `P` outside bounds errors; inside bounds `requests_max = ceil(L/P)`                                                          |
-| 7  | crate | `plan()` expansions                  | `objects_max[k]` is primary times fan-out; an unbounded expansion clears `ceiling_is_bound`                                  |
-| 8  | crate | loop budget gate                     | short pages and duplicates never exceed the budget's requests or objects; stop is `plan_cap`                                 |
-| 9  | crate | loop resume after `plan_cap`         | a second run from `next_cursor` delivers the rest with no gap and no repeat                                                  |
-| 10 | crate | dedup and below-floor stop           | first occurrence wins; a remaining count under the floor stops `below_floor` with a cursor                                   |
-| 11 | crate | empty-page guard                     | two consecutive empty pages with a cursor stop `empty_pages`; one does not                                                   |
-| 12 | crate | depth cap stops                      | each natural end under `depth_capped` reports `depth_cap` with no `next_cursor`                                              |
-| 13 | crate | `next_cursor` per stop               | the lossless table in D3.2 holds for every stop reason, including head-page failure                                          |
-| 14 | crate | `newest_id` and `oldest_id`          | max and min over delivered items under recency and relevancy; absent when empty                                              |
-| 15 | crate | partial errors                       | `errors` beside `data` are collected and the loop continues                                                                  |
-| 16 | crate | rate-limit remaining 0               | the loop stops before the next fetch with `retry_after_seconds` and `reset_at`                                               |
-| 17 | crate | `--wait-for-rate-limit`              | sleeps and continues when `reset_at` precedes the deadline, else stops; `waits` recorded                                     |
-| 18 | crate | timeout                              | stops `timeout` when remaining time is below the per-request timeout; partial data delivered                                 |
-| 19 | crate | 429 classification                   | typed or remaining 0 is `rate_limited`; `usage-capped` fails; typeless with remaining is `ambiguous_429`                     |
-| 20 | crate | non-list classification              | a single lookup and a write map 429s and problems identically to the list loop                                               |
-| 21 | crate | page source decline                  | a declining source stops `cache_miss`; a source answering without a request adds 0                                           |
-| 22 | crate | `StopReason` non-exhaustive          | a downstream exhaustive match must carry a wildcard (compile-time check)                                                     |
-| 23 | xr    | flags and envelope                   | every list command accepts the D8 flags; `meta` core equals the crate's exported `ListMeta` snapshot                         |
-| 24 | xr    | `--dry-run`                          | prints requests and objects by kind; zero requests                                                                           |
-| 25 | xr    | `xr endpoints --json`, `--help` link | the registry prints; the help link names the running binary's version tag                                                    |
-| 26 | xr    | exit codes                           | 0, 75, 80 per category; 81 reserved, never emitted by xr; no collision with existing codes                                   |
-| 27 | bird  | price table checksum                 | the test fails when the pricing page body changes                                                                            |
-| 28 | bird  | owned-read conditions                | the tier applies only with the config assertion, an owned-read endpoint, and the own subject                                 |
-| 29 | bird  | unpriced kinds                       | $0 contribution and named in the estimate                                                                                    |
-| 30 | bird  | two-tier refusal                     | over hard cap, over `max_spend`, unbounded expansion, and `--expand author_id` each refuse with tier and override            |
-| 31 | bird  | defaults                             | $1.00 and $5.00 apply when configuration is absent                                                                           |
-| 32 | bird  | budget scaling                       | objects scale by `max_spend / estimate`; short pages fill to `limit` within `max_spend`                                      |
-| 33 | bird  | `--dry-run`                          | prints plan, estimate, and budget in USD; zero requests                                                                      |
-| 34 | bird  | hydration                            | cache first; misses to the crate lookup through a scripted lookup source; `hydration` reports requests and misses            |
-| 35 | bird  | `--hydrate` on a non-post list       | errors before any request                                                                                                    |
-| 36 | bird  | cost fields                          | `fetched_max_usd` from `objects_fetched` plus hydration lookups; `budget_usd` reported                                       |
-| 37 | bird  | entity cache                         | upserts from `data` and `includes` with observation time                                                                     |
-| 38 | bird  | query cache merge                    | head run replaces (stable) or merges by id (time-ordered); end cursor appends; other cursors do not touch it                 |
-| 39 | bird  | `--cache-only`                       | serves stored ids in order up to `limit`; `cache_miss` with the stored end cursor when short; $0                             |
-| 40 | bird  | atomic page writes                   | a failure injected after the entity upsert leaves no partial page in the query cache                                         |
-| 41 | bird  | checkpoint create                    | a first run with items creates the record; a first run with nothing creates nothing                                          |
-| 42 | bird  | checkpoint advance                   | advances only on `exhausted` or `depth_cap`; other stops store the drain cursor and `since_id`                               |
-| 43 | bird  | drain                                | repeated `--since-checkpoint` until `draining` is false drains a backlog larger than `limit`, then polls; no skip, no repeat |
-| 44 | bird  | flag conflicts                       | `--since-checkpoint` with `--cursor` or any time or id filter errors before any request                                      |
-| 45 | bird  | envelope parity                      | `meta` core equals the crate's exported `ListMeta` snapshot, plus `cost`, `checkpoint`, `cache`, `hydration`                 |
-| 46 | bird  | exit codes                           | 0, 75, 80, 81 per category; no collision with existing codes                                                                 |
-| 47 | bird  | versions cited                       | the version `bird`'s client-conformance doc cites equals `CONTRACT_VERSION` of the crate it builds against                   |
-| 48 | crate | lookup chunking                      | 100 ids or usernames make 1 request, 101 make 2; `plan_lookup` agrees with both lookups                                      |
+| #  | Layer | Path                                 | Assertion                                                                                                                                       |
+| -- | ----- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1  | crate | registry vs spec                     | bounds, defaults, cursor names and descriptions, filters, expansion enums, `meta` keys match the spec                                           |
+| 2  | crate | registry vs prose evidence           | every depth cap and prose-sourced fan-out row's checksum matches its vendored file                                                              |
+| 3  | crate | `plan()` below floor                 | mentions, limit 3: refused before any request, naming the floor of 5                                                                            |
+| 4  | crate | `plan()` exact-count sizing          | search, limit 103: pages [93, 10]; limit 205: [100, 95, 10]; both sum exactly                                                                   |
+| 5  | crate | `plan()` above ceiling and depth cap | user posts `exclude=replies`, limit 1000: effective 800, `depth_capped`, 8 requests                                                             |
+| 6  | crate | `plan()` pinned page size            | `P` outside bounds errors; inside bounds `requests_max = ceil(L/P)`                                                                             |
+| 7  | crate | `plan()` expansions                  | `objects_max[k]` is primary times fan-out; an unbounded expansion clears `ceiling_is_bound`                                                     |
+| 8  | crate | loop budget gate                     | a short page debits only what it returned; requests and objects stay within budget; stop `plan_cap`                                             |
+| 9  | crate | loop resume after `plan_cap`         | a second run from `next_cursor` delivers the rest with no gap and no repeat                                                                     |
+| 10 | crate | dedup and below-floor stop           | first occurrence wins; a remaining count under the floor stops `below_floor` with a cursor                                                      |
+| 11 | crate | empty-page guard                     | two consecutive empty pages with a cursor stop `empty_pages`; one does not; the guard keeps its reason and cursor under `depth_capped`          |
+| 12 | crate | depth cap stops                      | each natural end under `depth_capped` reports `depth_cap` with no `next_cursor`                                                                 |
+| 13 | crate | `next_cursor` per stop               | the lossless table in D3.2 holds for every stop reason, including head-page failure                                                             |
+| 14 | crate | `newest_id` and `oldest_id`          | max and min over delivered items under recency and relevancy; absent when empty                                                                 |
+| 15 | crate | partial errors                       | `errors` beside `data` are collected and the loop continues                                                                                     |
+| 16 | crate | rate-limit remaining 0               | the loop stops before the next fetch with `retry_after_seconds` and `reset_at`                                                                  |
+| 17 | crate | `--wait-for-rate-limit`              | sleeps and continues when `reset_at` precedes the deadline, else stops; `waits` recorded                                                        |
+| 18 | crate | timeout                              | stops `timeout` when remaining time is below the per-request timeout; partial data delivered                                                    |
+| 19 | crate | 429 classification                   | typed or remaining 0 is `rate_limited`; `usage-capped` fails; typeless with remaining is `ambiguous_429`                                        |
+| 20 | crate | non-list classification              | a single lookup and a write map 429s and problems identically to the list loop                                                                  |
+| 21 | crate | page source decline                  | a declining source stops `cache_miss`; a source answering without a request adds 0                                                              |
+| 22 | crate | `StopReason` non-exhaustive          | a downstream exhaustive match must carry a wildcard (compile-time check)                                                                        |
+| 23 | xr    | flags and envelope                   | every list command accepts the D8 flags; `meta` core equals the crate's exported `ListMeta` snapshot                                            |
+| 24 | xr    | `--dry-run`                          | prints requests and objects by kind; zero requests                                                                                              |
+| 25 | xr    | `xr endpoints --json`, `--help` link | the registry prints; the help link names the running binary's version tag                                                                       |
+| 26 | xr    | exit codes                           | 0, 75, 80, 81 per category; a below-floor limit exits 81; no collision with existing codes                                                      |
+| 27 | bird  | price table checksum                 | the test fails when the pricing page body changes                                                                                               |
+| 28 | bird  | owned-read conditions                | the tier applies only with the config assertion, an owned-read endpoint, and the own subject                                                    |
+| 29 | bird  | unpriced kinds                       | $0 contribution and named in the estimate                                                                                                       |
+| 30 | bird  | two-tier refusal                     | over hard cap, over `max_spend`, unbounded expansion, and `--expand author_id` each refuse with tier and override                               |
+| 31 | bird  | defaults                             | $1.00 and $5.00 apply when configuration is absent                                                                                              |
+| 32 | bird  | budget scaling                       | objects scale by `max_spend / estimate`; short pages fill to `limit` within `max_spend`                                                         |
+| 33 | bird  | `--dry-run`                          | prints plan, estimate, and budget in USD; zero requests                                                                                         |
+| 34 | bird  | hydration                            | cache first; misses to the crate lookup through a scripted lookup source; `hydration` reports requests and misses                               |
+| 35 | bird  | `--hydrate` on a non-post list       | errors before any request                                                                                                                       |
+| 36 | bird  | cost fields                          | `fetched_max_usd` from `objects_fetched` plus hydration lookups; `budget_usd` reported                                                          |
+| 37 | bird  | entity cache                         | upserts from `data` and `includes` with observation time                                                                                        |
+| 38 | bird  | query cache merge                    | head run replaces (stable) or merges by id (time-ordered); end cursor appends; other cursors do not touch it                                    |
+| 39 | bird  | `--cache-only`                       | serves stored ids in order up to `limit`; `cache_miss` with the stored end cursor when short; $0                                                |
+| 40 | bird  | atomic page writes                   | a failure injected after the entity upsert leaves no partial page in the query cache                                                            |
+| 41 | bird  | checkpoint create                    | a first run with items creates the record; a first run with nothing creates nothing                                                             |
+| 42 | bird  | checkpoint advance                   | advances to the greater of stored and run `newest_id` only on `exhausted` or `depth_cap`; a first run with a cursor creates the record draining |
+| 43 | bird  | drain                                | repeated `--since-checkpoint` until `draining` is false drains a backlog larger than `limit`, then polls; no skip, no repeat                    |
+| 44 | bird  | flag conflicts                       | `--since-checkpoint` with `--cursor` or any time or id filter errors before any request                                                         |
+| 45 | bird  | envelope parity                      | `meta` core equals the crate's exported `ListMeta` snapshot, plus `cost`, `checkpoint`, `cache`, `hydration`                                    |
+| 46 | bird  | exit codes                           | 0, 75, 80, 81 per category; no collision with existing codes                                                                                    |
+| 47 | bird  | versions cited                       | the version `bird`'s client-conformance doc cites equals `CONTRACT_VERSION` of the crate it builds against                                      |
+| 48 | crate | lookup chunking                      | 100 ids or usernames make 1 request, 101 make 2; `plan_lookup` agrees with both lookups                                                         |
+| 49 | crate | `plan()` sizing invariant            | every registry row, limits from floor to 3x ceiling: every page within `[floor, ceiling]`, pages sum to the limit                               |
+| 50 | crate | default budget shape                 | the default budget bounds requests only, so a duplicate never prevents `limit_reached`                                                          |
+| 51 | crate | fan-out order independence           | two post-to-post expansions give the same `objects_max` in either order; `objects_max[primary]` stays `L`                                       |
+| 52 | crate | local source plan                    | a cache-only plan reports zero requests and $0; a stored list shorter than the floor is served, not refused                                     |
+| 53 | crate | per-kind budget gate                 | an included kind past its budget stops `plan_cap` on the next page, not the primary kind alone                                                  |
+| 54 | crate | between-page cursor                  | `timeout` and `rate_limited` carry the last delivered page's `next_token`                                                                       |
+| 55 | bird  | dry-run request figures              | prints `requests_max` and `budget.requests`; followers at limit 1000 gives 1 and 1000                                                           |
 
 ## Seam
 
@@ -802,7 +840,8 @@ closed, non-exhaustive `StopReason`
   endpoint's own `--exclude` and `--sort-order` where the API accepts them; `--expand` with API expansion names.
 - `xr endpoints [--json]` prints the registry; `--help` links to the contract at the binary's version tag.
 - User lookup and usage commands as passthroughs of the crate operations.
-- Envelope as above without `cost`, `checkpoint`, `cache`, and `hydration`; exit codes 75 and 80 (81 is reserved).
+- Envelope as above without `cost`, `checkpoint`, `cache`, and `hydration`; exit codes 75, 80, and 81 (81 only for a
+  below-floor `limit`, the one pre-flight refusal the crate owns).
 
 ### xurl-rs (docs and evidence)
 
