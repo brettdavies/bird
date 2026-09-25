@@ -264,18 +264,38 @@ this repo, which idempotently flips `make_latest: true`. Run
 ### After publish: sync `dev` with the release
 
 Once `finalize-release.yml` has flipped the GitHub Release to `published`, bring the release bookkeeping (`Cargo.toml`,
-`Cargo.lock`, `CHANGELOG.md`) back to `dev` so the integration branch starts from the released baseline:
+`Cargo.lock`, `CHANGELOG.md`) and any edit made on the release branch back to `dev` so the integration branch starts
+from the released baseline. Preview it first: `--dry-run` prints what the sync would carry, creates no branch, and
+leaves the tree clean.
 
 ```bash
+scripts/sync-dev-after-release.sh v0.3.0 --dry-run
 scripts/sync-dev-after-release.sh v0.3.0
 ```
 
-The script cuts a `chore/sync-dev-after-v0.3.0` branch, writes the released version into `Cargo.toml` and the crate's
-`Cargo.lock` entry, copies `CHANGELOG.md` from `main`, and opens a PR against `dev` with the version in its title; merge
-it once CI is green. `scripts/release/postflight.sh backport` gates on that merged PR. Never merge `main` into `dev` or
-push to `dev` directly: the two branches share no history, so the merge conflicts on every file both sides touched, and
-a direct push bypasses `dev`'s required checks. Dev-only content (the engineering docs) is never part of the copy, so
-the sync cannot remove it.
+The script cuts a `chore/sync-dev-after-v0.3.0` branch, writes the released version into `Cargo.toml` in place, copies
+`CHANGELOG.md` from `main`, refreshes the crate's `Cargo.lock` entry from the synced manifest with
+`cargo update --workspace --offline`, and opens a PR against `dev` with the version in its title; merge it once CI is
+green. `scripts/release/postflight.sh backport` gates on that merged PR.
+
+Every other path `main` and `dev` disagree about is discovered, bounded by the previous release tag, the last point the
+two branches agreed:
+
+- **release-prep**: `dev`'s copy is unchanged since the previous tag, so the difference is `main`'s alone. Adopted
+  automatically.
+- **contested**: both sides moved since the previous tag. Listed and withheld. `--only PATH` (repeatable) adopts the
+  paths it names; `--include-contested` takes `main`'s copy of every one, which also deletes each file `dev` added that
+  `main` lacks.
+
+Guarded paths (the engineering docs `scripts/release/guarded-paths.sh` resolves) never enter discovery, so the sync
+cannot remove them. The lock refresh reads only the local registry cache; when the lock does not resolve against the
+synced manifest, the script exits 70 and commits nothing (`cargo fetch` fills the cache). After the commit, when the
+sync carried `CHANGELOG.md` and `git-cliff` is installed, it runs `scripts/generate-changelog.py --dry-run` and, on a
+mismatch, prints the generator's reason (a PR body edited after generation, or line wrapping only); that warning does
+not fail the sync.
+
+Never merge `main` into `dev` or push to `dev` directly: the two branches share no history, so the merge conflicts on
+every file both sides touched, and a direct push bypasses `dev`'s required checks.
 
 → Rationale: [`RELEASES-RATIONALE.md` § Release pipeline](./RELEASES-RATIONALE.md#release-pipeline).
 
