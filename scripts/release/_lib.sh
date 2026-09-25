@@ -10,7 +10,8 @@
 #     not a TTY, so output is clean in CI logs.
 #   - Gate counters (PASS_COUNT, FAIL_COUNT, SKIP_COUNT) and emitters
 #     (gate_pass, gate_fail, gate_skip).
-#   - Section header helper.
+#   - Section header helper, and a path-list renderer for gate detail
+#     (count_and_list).
 #   - Dependency checks (require_bin, have_bin).
 #   - 1Password helper (read_1p) routing through the brettdavies 1password skill.
 #   - Final summary printer (print_summary).
@@ -66,6 +67,129 @@ gate_skip() {
   SKIP_COUNT=$((SKIP_COUNT + 1))
 }
 header() { printf "\n%s== %s ==%s\n" "$C_BLD" "$1" "$C_RST"; }
+
+# Renders a newline-separated path list as gate detail: the count first, then
+# the paths. A gate that printed a bare `head -N` told the operator neither how
+# many there were nor that the list was cut, so a release deliberately
+# diverging from dev read as three stray files instead of sixteen.
+#
+# Args: $1 newline-separated list; $2 optional cap (default 20).
+count_and_list() {
+  local list=$1 cap=${2:-20} n shown remainder
+  n=$(printf '%s\n' "$list" | grep -c . || true)
+  shown=$(printf '%s\n' "$list" | grep . | head -"$cap" | tr '\n' ' ')
+  remainder=$((n - cap))
+  if [[ "$remainder" -gt 0 ]]; then
+    printf '%s file(s): %s(+%s more)' "$n" "$shown" "$remainder"
+  else
+    printf '%s file(s): %s' "$n" "$shown"
+  fi
+}
+
+# Release package ------------------------------------------------------------
+
+# Per-repo release configuration, sourced when present. preflight, postflight
+# and sync-dev are three separate entry points, so a value declared in one of
+# them is missing from the other two; this file is the one place all three read.
+# A single-package repo ships none and needs none.
+# shellcheck source=/dev/null
+[[ -f "${BASH_SOURCE[0]%/*}/release.env" ]] && . "${BASH_SOURCE[0]%/*}/release.env"
+
+# The manifest whose `[package]` version a `vX.Y.Z` tag names. A single-package
+# repo carries it at the root. A workspace root is a virtual manifest with no
+# version of its own, so the crate the tag releases is the carrier and
+# release.env names it.
+RELEASE_MANIFEST="${RELEASE_MANIFEST:-Cargo.toml}"
+
+# Auto-detects rather than trusting RELEASE_MANIFEST blindly: a root manifest
+# with a [package] table is the carrier whatever the variable says, so a
+# single-package repo cannot be misconfigured into reading the wrong file.
+release_manifest() {
+  if grep -q '^\[package\]' Cargo.toml 2>/dev/null; then
+    echo Cargo.toml
+  else
+    echo "$RELEASE_MANIFEST"
+  fi
+}
+
+# The changelog the release notes are cut from. A workspace member keeps its
+# own beside its manifest, so this is not always the repository root's.
+release_changelog() {
+  echo "${RELEASE_CHANGELOG:-CHANGELOG.md}"
+}
+
+# The `[package] version` the tag must match.
+project_version() {
+  grep -m1 '^version = ' "$(release_manifest)" | sed -E 's/^version = "(.*)"/\1/'
+}
+
+# The `[package] name` of the release package.
+project_crate() {
+  awk '
+    /^\[package\]/ { in_pkg = 1; next }
+    /^\[/          { in_pkg = 0 }
+    in_pkg && /^name = / { sub(/^name = "/, ""); sub(/".*/, ""); print; exit }
+  ' "$(release_manifest)"
+}
+
+# The newest tag on the binary's `vX.Y.Z` line. A workspace's library tags
+# (`<crate>-vX.Y.Z`) sort into the same list and would name the wrong crate, so
+# the pattern is anchored to a bare `v` followed by a digit.
+last_release_tag() {
+  git tag --list 'v[0-9]*' --sort=-version:refname | head -n 1
+}
+
+# Semver helpers -------------------------------------------------------------
+
+# Which bump the working tree claims over a baseline tag, for the release type
+# cargo-semver-checks validates against. Compares Cargo.toml's version to the
+# tag rather than guessing from commit markers: a break reaches the branch
+# whether or not its commit carried a `!` marker, so the version is the only
+# honest statement of what this release claims to be.
+#
+# Rust-only, and callers gate on Cargo.toml themselves.
+# Seconds since the epoch for a YYYY-MM-DD date, on GNU and BSD alike. GNU date
+# parses a free-form date with -d; BSD date rejects -d outright and wants -j
+# with an explicit input format. Try GNU first, since a Linux CI runner is the
+# common case, and fall back rather than probing for a version string.
+epoch_of_date() {
+  date -d "$1" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$1" +%s 2>/dev/null
+}
+
+# A script's own header comment block, rendered as help text: every line after
+# the shebang up to the first line that is not a comment, with the leading `# `
+# stripped. Reading the block's extent means a header can grow without anyone
+# remembering to widen a line range.
+#
+# awk, not `sed -n '/^[^#]/q;2,$p'`: BSD and GNU sed disagree about `q` inside a
+# range, and this form needs no flag either dialect argues over.
+print_usage_header() {
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${1:-$0}"
+}
+
+semver_release_type() {
+  local baseline="${1#v}" current
+  current=$(project_version)
+  # An unresolved version must not reach the comparison below. Empty, it
+  # differs from every baseline major and returns `major`, which is the one
+  # answer that lets cargo-semver-checks accept any break at all: the gate
+  # would report green while validating nothing. A virtual workspace root with
+  # RELEASE_MANIFEST left at its default lands exactly here.
+  if [[ -z "$current" ]]; then
+    echo "no version in $(release_manifest); set RELEASE_MANIFEST to the crate the tag releases" >&2
+    return 1
+  fi
+  local b_major="${baseline%%.*}" c_major="${current%%.*}"
+  local b_rest="${baseline#*.}" c_rest="${current#*.}"
+  local b_minor="${b_rest%%.*}" c_minor="${c_rest%%.*}"
+  if [[ "$c_major" != "$b_major" ]]; then
+    echo major
+  elif [[ "$c_minor" != "$b_minor" ]]; then
+    echo minor
+  else
+    echo patch
+  fi
+}
 
 # Dependency checks ----------------------------------------------------------
 
@@ -175,7 +299,15 @@ shred_tmpdir() {
   if command -v shred >/dev/null 2>&1; then
     find "$dir" -type f -exec shred -u {} + 2>/dev/null || true
   else
-    find "$dir" -type f -exec sh -c 'dd if=/dev/urandom of="$1" bs=1 count=$(stat -c%s "$1") conv=notrunc 2>/dev/null; rm -f "$1"' _ {} \;
+    # `wc -c`, not `stat -c%s`: the stat flag is GNU-only and BSD stat rejects
+    # it, which left `count=` empty, made dd a no-op under 2>/dev/null, and
+    # silently downgraded the overwrite to a plain delete on every BSD host.
+    find "$dir" -type f -exec sh -c '
+      for f; do
+        n=$(wc -c <"$f" | tr -d "[:space:]")
+        dd if=/dev/urandom of="$f" bs=1 count="$n" conv=notrunc 2>/dev/null
+        rm -f "$f"
+      done' _ {} +
   fi
   find "$dir" -depth -type d -exec rmdir {} + 2>/dev/null || true
 }

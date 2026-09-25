@@ -91,10 +91,13 @@ Run immediately after the tag push triggers `release.yml`.
   `releases/latest`, revert the formula bump), then land a `fix` or `revert` through the normal `dev` to `release/*` to
   `main` flow so `main` reconverges with what is live.
 - [ ] **Sync `dev` with the release** via a **merged PR to `dev` carrying the released tag in its title.**
-  `scripts/sync-dev-after-release.sh v<X.Y.Z>` cuts the branch, writes the released version into `Cargo.toml` and the
-  crate's `Cargo.lock` entry, copies `CHANGELOG.md` from `main`, and opens the PR; merge it once CI is green. Keeps the
-  next release's PREFLIGHT `diff-B` step quiet so a real missed change stands out instead of hiding in expected
-  divergence noise.
+  `scripts/sync-dev-after-release.sh v<X.Y.Z>` cuts the branch, writes the released version into `Cargo.toml`,
+  refreshes the crate's `Cargo.lock` entry offline, copies `CHANGELOG.md` from `main`, adopts the release-prep edits it
+  discovers since the previous tag, and opens the PR; merge it once CI is green. Contested paths (both branches moved
+  them) are listed and withheld: run with `--dry-run` first to see both lists without creating a branch, then name the
+  contested paths to take with `--only PATH` (see
+  [`RELEASES.md` § After publish](./RELEASES.md#after-publish-sync-dev-with-the-release)). Keeps the next release's
+  PREFLIGHT `diff-B` step quiet so a real missed change stands out instead of hiding in expected divergence noise.
 
   The gate (`scripts/release/postflight.sh backport`) is signal-agnostic about which files moved: it searches merged PRs
   to `dev` by the tag (the search index tokenizes `v0.3.0` as one word, so a bare `0.3.0` misses it) and accepts either
