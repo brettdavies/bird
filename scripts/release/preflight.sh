@@ -285,9 +285,11 @@ gate_mechanics() {
   # The leak check screens against the registered set, so it is blind to a
   # category nobody registered yet. Enumerate what the release adds to main
   # (anything under docs/, plus markdown anywhere, so a root-level glossary
-  # shows up) and put every unguarded doc in front of a human.
+  # shows up) and put every unguarded doc in front of a human. --no-renames,
+  # because rename detection reports a doc moved from one main carries as R,
+  # and the A filter then drops it.
   local added_docs
-  added_docs=$(git diff "$ship_base..HEAD" --diff-filter=A --name-only 2>/dev/null | grep -E '(^docs/|\.md$)' | grep -Ev "$guarded" || true)
+  added_docs=$(git diff --no-renames "$ship_base..HEAD" --diff-filter=A --name-only 2>/dev/null | grep -E '(^docs/|\.md$)' | grep -Ev "$guarded" || true)
   if [[ -z "$added_docs" ]]; then
     gate_pass "no unguarded docs newly added to main"
   else
