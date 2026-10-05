@@ -3,6 +3,28 @@
 # Use as a pre-push hook or run manually before pushing.
 #
 # Exit codes: 0 = all pass, 1 = failure
+#
+# Requires bash >= 4.4 (mapfile, and empty-array expansion under `set -u`). The
+# guard re-execs under Homebrew's bash when `#!/usr/bin/env bash` found an older
+# one, such as the macOS /bin/bash 3.2, and otherwise stops with the install hint.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  for b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [ -x "$b" ] && exec "$b" "$0" "$@"
+  done
+  echo "ERROR: needs bash >= 4.4 (running $BASH_VERSION); install it with: brew install bash" >&2
+  exit 1
+fi
+
+# From a linked worktree git exports GIT_DIR, which sends a tool's git calls in
+# any directory to this repository: cargo runs `git gc --auto` here after it
+# fetches a git dependency, and cargo-deny 0.19.1 through 0.19.5 reset the
+# pushed branch during the advisory fetch (fixed in 0.19.6,
+# https://github.com/EmbarkStudios/cargo-deny/pull/858). Pre-push has no
+# temporary index, and discovery from the hook's cwd (the worktree root) finds
+# the same repository.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
+
 set -euo pipefail
 
 RED='\033[0;31m'
