@@ -34,9 +34,13 @@
 #      touched that base does not already contain. A file base has moved
 #      further on its own is not drift: head's change (anchor to head) is
 #      checked against base's copy, first by three-way merge and then line by
-#      line (every added line present, every removed line gone). Lockfiles
+#      line (every added line present, every removed line gone). In a
+#      package.json, a dependency entry counts as present when base declares
+#      it in the same section at the same or a newer lower bound. Lockfiles
 #      are handled by gate 3.
-#   2. .github/ matches exactly between base and head.
+#   2. .github/ paths head carries that base does not contain. A path
+#      base holds and head does not is what the release delivers, not
+#      drift, so only the head-ahead direction fails.
 #   3. For each lockfile head carries (package-lock.json, bun.lock,
 #      Cargo.lock): every
 #      package head resolves newer than base, one line per package name so
@@ -63,7 +67,7 @@ DO_FETCH=1
 RESULT_FILE=""
 
 usage() {
-  sed -n '2,42p' "$0" | sed 's/^# \?//'
+  print_usage_header
   exit 2
 }
 
@@ -108,7 +112,11 @@ fi
 readonly JQ_BIN
 
 readonly LOCKFILE_PATTERN='(^|/)(package-lock\.json|bun\.lock|Cargo\.lock)$'
-readonly VERSION_CARRIERS='Cargo.toml package.json pyproject.toml VERSION CHANGELOG.md'
+# Overridable from release.env, which _lib.sh sourced above. A workspace names
+# each member manifest and each member changelog here: the root list covers a
+# single-package repo, and a carrier this list omits is a file whose
+# release-time edit the gate silently treats as ordinary drift.
+readonly VERSION_CARRIERS="${VERSION_CARRIERS:-Cargo.toml package.json pyproject.toml VERSION CHANGELOG.md}"
 
 # Setup ----------------------------------------------------------------------
 
@@ -205,7 +213,8 @@ blob_at() {
 }
 
 # Classifies PATH as "contained", "differs", or "missing": whether base
-# already holds everything head changed in it since the anchor. First a
+# already holds everything head changed in it since the anchor. A path base
+# deleted counts as contained when head's copy is still the anchor's. First a
 # three-way merge of head's change onto base's copy; a clean merge that leaves
 # base's copy untouched is contained. When base has also edited nearby lines
 # the merge cannot answer, so the fallback checks head's change line by line:
@@ -225,7 +234,15 @@ classify_file_at() {
   anchor_blob=""
   [[ -n "$anchor_ref" ]] && anchor_blob=$(blob_at "$anchor_ref" "$path")
   if [[ -z "$base_blob" ]]; then
-    echo missing
+    # Base deleted a path head has not touched since the anchor: head carries
+    # nothing base never received, and the deletion is base's own change for
+    # the release to deliver. Only a head-side change since the anchor is
+    # missing from base.
+    if [[ -n "$anchor_blob" && "$head_blob" == "$anchor_blob" ]]; then
+      echo contained
+    else
+      echo missing
+    fi
     return
   fi
   if [[ "$head_blob" == "$base_blob" ]]; then
@@ -246,7 +263,7 @@ classify_file_at() {
   set -e
   if [[ $status -eq 0 && "$merged" == "$(<"$tmp/base")" ]]; then
     echo contained
-  elif lines_contained "$tmp/anchor" "$tmp/head" "$tmp/base"; then
+  elif lines_contained "$tmp/anchor" "$tmp/head" "$tmp/base" "$path"; then
     echo contained
   else
     echo differs
@@ -254,18 +271,94 @@ classify_file_at() {
   rm -rf "$tmp"
 }
 
+# Lines on one side of a diff between two files, marker stripped. `+` gives the
+# lines added going from the first file to the second, `-` the lines removed.
+#
+# `git diff --no-index` rather than diff's --unchanged-line-format family:
+# those belong to GNU diffutils, and BSD diff rejects them outright. The
+# rejection printed a usage message and produced no lines, so every line-level
+# containment check silently answered "nothing changed" on a BSD host, which
+# passed gates that should have failed. git is already a hard dependency here.
+diff_side() {
+  local marker="$1" left="$2" right="$3"
+  git diff --no-index --no-color -U0 -- "$left" "$right" 2>/dev/null \
+    | grep -E "^\\${marker}" \
+    | grep -vE "^\\${marker}{3}" \
+    | cut -c2-
+  return 0
+}
+
 # Returns 0 when every content line ADDED between ANCHOR_FILE and HEAD_FILE
 # is present in BASE_FILE and every content line REMOVED is absent from it.
+# When PATH names a package.json, the three copies are first rewritten in place
+# by qualify_dependency_entries, and an added dependency entry base does not
+# hold verbatim still counts as present when dependency_covered finds base's
+# range at or past it, since a range base has bumped since still carries it.
 lines_contained() {
-  local anchor_file="$1" head_file="$2" base_file="$3" line
+  local anchor_file="$1" head_file="$2" base_file="$3" path="${4:-}" manifest=0 line
+  if [[ "${path##*/}" == package.json ]]; then
+    manifest=1
+    qualify_dependency_entries "$anchor_file" "$head_file" "$base_file"
+  fi
   while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:][:punct:]]*$ ]] && continue
-    grep -qxF -- "$line" "$base_file" || return 1
-  done < <(diff --unchanged-line-format= --old-line-format= --new-line-format='%L' "$anchor_file" "$head_file" || true)
+    grep -qxF -- "$line" "$base_file" && continue
+    [[ $manifest -eq 1 ]] && dependency_covered "$line" "$base_file" && continue
+    return 1
+  done < <(diff_side + "$anchor_file" "$head_file")
   while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:][:punct:]]*$ ]] && continue
     grep -qxF -- "$line" "$base_file" && return 1
-  done < <(diff --unchanged-line-format= --old-line-format='%L' --new-line-format= "$anchor_file" "$head_file" || true)
+  done < <(diff_side - "$anchor_file" "$head_file")
+  return 0
+}
+
+# Rewrites each entry of a package.json dependency section (dependencies,
+# devDependencies, peerDependencies, optionalDependencies) in FILE... in place
+# as "<section><TAB><name><TAB><range>". The line check then compares an entry
+# within its own section and ignores its indentation and trailing comma, so a
+# removed range that another section repeats still counts as gone. Expects one
+# entry per line, as npm and bun write the file; other lines are left as is.
+qualify_dependency_entries() {
+  # shellcheck disable=SC2016  # perl variables, not shell expansions
+  perl -i -ne '
+    if (/^\s*"(dependencies|devDependencies|peerDependencies|optionalDependencies)"\s*:\s*\{\s*$/) { $s = $1 }
+    elsif (defined $s && /^\s*\}/) { undef $s }
+    elsif (defined $s && /^\s*"([^"]+)"\s*:\s*"([^"]*)"\s*,?\s*$/) { $_ = "$s\t$1\t$2\n" }
+    print;
+    undef $s if eof;
+  ' "$@"
+}
+
+# Returns 0 when BASE_FILE covers the qualified dependency LINE: base declares
+# the same package in the same section at a range whose lower bound is the same
+# as or newer than the line's. Only a bare version or one led by ^, ~, >=, or =
+# has a lower bound here; any other range (a URL, a tag, a workspace or
+# compound range) is never covered.
+dependency_covered() {
+  local line="$1" base_file="$2" section name range want base_range
+  local entry=$'^(dependencies|devDependencies|peerDependencies|optionalDependencies)\t([^\t]+)\t(.+)$'
+  local floor='^(\^|~|>=|=)?([0-9]+(\.[0-9]+)*)$'
+  [[ "$line" =~ $entry ]] || return 1
+  section="${BASH_REMATCH[1]}" name="${BASH_REMATCH[2]}" range="${BASH_REMATCH[3]}"
+  [[ "$range" =~ $floor ]] || return 1
+  want="${BASH_REMATCH[2]}"
+  base_range=$(awk -F'\t' -v s="$section" -v n="$name" '$1 == s && $2 == n { print $3; exit }' "$base_file")
+  [[ "$base_range" =~ $floor ]] || return 1
+  version_at_least "${BASH_REMATCH[2]}" "$want"
+}
+
+# Returns 0 when dotted version A is the same as or newer than dotted version
+# B, comparing component by component as numbers (a missing component is 0).
+version_at_least() {
+  local -a a b
+  local i
+  IFS=. read -ra a <<<"$1"
+  IFS=. read -ra b <<<"$2"
+  for ((i = 0; i < ${#a[@]} || i < ${#b[@]}; i++)); do
+    ((10#${a[i]:-0} > 10#${b[i]:-0})) && return 0
+    ((10#${a[i]:-0} < 10#${b[i]:-0})) && return 1
+  done
   return 0
 }
 
@@ -301,14 +394,31 @@ gate_head_commits() {
 
 gate_github_dir() {
   header ".github/ parity"
-  local diff
-  diff=$(git diff --name-status "$BASE_REF" "$HEAD_REF" -- .github/ || true)
-  if [[ -z "$diff" ]]; then
+  local paths path verdict count
+  local -a flagged=()
+  paths=$(git diff --name-only "$BASE_REF" "$HEAD_REF" -- .github/ || true)
+  if [[ -z "$paths" ]]; then
     gate_pass ".github/ identical on $BASE_REF and $HEAD_REF"
     return
   fi
-  gate_fail ".github/ differs between $BASE_REF and $HEAD_REF" "$(printf '%s\n' "$diff" | wc -l | tr -d ' ') paths"
-  printf '%s\n' "$diff" | sed 's/^/    /'
+  count=$(printf '%s\n' "$paths" | wc -l | tr -d ' ')
+  # Only the head-ahead direction is drift. Config that reached base and not
+  # head is what the release delivers, and failing on it would turn this gate
+  # red on every release that touches a workflow. `classify_file` is gate 1's
+  # containment test: whether base already holds everything head changed.
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    # Absent on head: base-only, so head cannot be carrying anything here.
+    [[ -n "$(blob_at "$HEAD_REF" "$path")" ]] || continue
+    verdict=$(classify_file "$path")
+    [[ "$verdict" == contained ]] || flagged+=("$verdict $path")
+  done <<<"$paths"
+  if [[ ${#flagged[@]} -eq 0 ]]; then
+    gate_pass ".github/: $BASE_REF contains every change $HEAD_REF carries ($count paths the release delivers)"
+    return
+  fi
+  gate_fail ".github/ on $HEAD_REF holds changes $BASE_REF never received" "${#flagged[@]} of $count paths"
+  printf '%s\n' "${flagged[@]}" | sed 's/^/    /'
 }
 
 # Gate 3: lockfile resolution ------------------------------------------------

@@ -29,29 +29,31 @@ The generic gates run from one script. Build the release binary first, then:
 
 ```bash
 cargo build --release
-scripts/release/preflight.sh all          # drift + surface + smoke + mechanics
+scripts/release/preflight.sh all          # drift + surface + smoke + changelog-sections + semver + mechanics
 ```
 
 The script (`scripts/release/preflight.sh`) is **project-authored** on the github-repo-setup skill's skeleton: the
 shared scaffolding (gate helpers, 1Password reads, `shred -u` tempdir cleanup, subcommand dispatch, drift + surface +
-mechanics gates) is the skeleton's. The `smoke` gate and the `seed_smoke_store` recipe are placeholders that SKIP with a
-pointer to this file; the live-API sections below are the manual recipe until those bodies are filled in with bird's
-checks. `all` runs the drift gate first, since nothing else matters while `main` holds changes `dev` never received. It
-exits non-zero if any gate fails. Sub-commands let you re-run one gate group in isolation:
+changelog-sections + semver + mechanics gates) is the skeleton's. The `smoke` gate and the `seed_smoke_store` recipe are
+placeholders that SKIP with a pointer to this file; the live-API sections below are the manual recipe until those bodies
+are filled in with bird's checks. `all` runs the drift gate first, since nothing else matters while `main` holds changes
+`dev` never received. It exits non-zero if any gate fails. Sub-commands let you re-run one gate group in isolation:
 
-| Sub-command | What it runs                                                                                                                                                                 | Live API? |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `drift`     | Commits on `main` since the last release whose changes `dev` lacks, `.github/` parity, `Cargo.lock` packages `main` resolves newer (delegated to `scripts/release/drift.sh`) | no        |
-| `surface`   | LAST_TAG resolution, commit/file/breaking-marker counts                                                                                                                      | no        |
-| `smoke`     | Placeholder; SKIPs until `gate_smoke` carries bird's live-API checks (§ Real-world smoke)                                                                                    | yes       |
-| `mechanics` | Cargo.toml version, lockfile present, `bird --version` match, CHANGELOG match, toolchain quarantine, advisories, leak check, unguarded docs added to `main`, diff-B          | no        |
-| `all`       | every above                                                                                                                                                                  | yes       |
+| Sub-command          | What it runs                                                                                                                                                                 | Live API? |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `drift`              | Commits on `main` since the last release whose changes `dev` lacks, `.github/` parity, `Cargo.lock` packages `main` resolves newer (delegated to `scripts/release/drift.sh`) | no        |
+| `surface`            | LAST_TAG resolution, commit/file/breaking-marker counts                                                                                                                      | no        |
+| `smoke`              | Placeholder; SKIPs until `gate_smoke` carries bird's live-API checks (§ Real-world smoke)                                                                                    | yes       |
+| `mechanics`          | Cargo.toml version, lockfile present, `bird --version` match, CHANGELOG match, toolchain quarantine, advisories, leak check, unguarded docs added to `main`, diff-B          | no        |
+| `changelog-sections` | No PR merged into `dev` since the last release leaves its changelog entry to its title for want of a `## Changelog` section (`generate-changelog.py --audit-sections`)       | no        |
+| `semver`             | cargo-semver-checks against the release type the version bump claims over the last `v` tag                                                                                   | no        |
+| `all`                | every above                                                                                                                                                                  | yes       |
 
 Flags:
 
 - `--smoke-home PATH`: reuse an existing seeded `$SMOKE_HOME` (skip the seed)
 - `--no-cleanup`: keep the temp home after exit (useful for follow-up `bird` probes)
-- `--tag TAG`: override LAST_TAG auto-detection
+- `--tag TAG`: override LAST_TAG auto-detection (default: the newest `v[0-9]*` tag)
 
 The script shreds every tempdir that held credentials on exit (`shred -u`, three passes before unlinking; falls back to
 `dd if=/dev/urandom + rm` if `shred` isn't on `PATH`; refuses to operate outside `/tmp` or `$HOME` as a path-typo

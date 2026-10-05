@@ -262,9 +262,8 @@ changelog_paths() {
   [[ -n "$path" ]] && printf '%s\n' "$path"
   # Each member names its own under [package.metadata.changelog]; the same
   # table generate-changelog.py reads, so the two cannot disagree.
-  if have_bin cargo && have_bin jaq && [[ -f Cargo.toml ]]; then
-    cargo metadata --format-version 1 --no-deps 2>/dev/null \
-      | jaq -r '.packages[] | .metadata.changelog.changelog // empty' 2>/dev/null
+  if [[ -f Cargo.toml ]]; then
+    crate_changelog_paths
   fi
 }
 
@@ -447,13 +446,18 @@ regen_reason() {
   awk '/^(DRY RUN|error):/ { print; found = 1; exit } NF { last = $0 } END { if (!found) print last }'
 }
 
+# In a workspace the release changelog is a member's, and the generator
+# refuses the routing root a run without --crate would read; the same helper
+# the cut script calls decides the arguments, so the two compare one file.
 if _already_synced "$(release_changelog)" \
   && [[ -x scripts/generate-changelog.py ]] && command -v git-cliff >/dev/null 2>&1; then
-  if regen_err="$(scripts/generate-changelog.py --dry-run --tag "$VERSION" 2>&1 >/dev/null)"; then
-    echo "regen check: CHANGELOG.md matches what PR bodies would produce"
+  read -ra crate_args <<<"$(changelog_crate_args)"
+  regen_args=(--dry-run --tag "$VERSION" "${crate_args[@]}")
+  if regen_err="$(scripts/generate-changelog.py "${regen_args[@]}" 2>&1 >/dev/null)"; then
+    echo "regen check: $(release_changelog) matches what PR bodies would produce"
   else
-    echo "warning: regen check did not pass for $VERSION: $(regen_reason <<<"$regen_err")" >&2
-    echo "  re-run 'scripts/generate-changelog.py --dry-run --tag $VERSION' for its full output" >&2
+    echo "warning: regen check did not pass for $(release_changelog) at $VERSION: $(regen_reason <<<"$regen_err")" >&2
+    echo "  re-run 'scripts/generate-changelog.py ${regen_args[*]}' for its full output" >&2
   fi
 fi
 
