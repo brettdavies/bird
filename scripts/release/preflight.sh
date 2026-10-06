@@ -104,20 +104,65 @@ ensure_smoke_home() {
 # Generic: confirms what's actually changing since the last release on the
 # binary's tag line. Counts feed the human's gut-check on release scope and the
 # breaking-marker tally drives the major-version decision.
+#
+# The window is read on the integration branch (origin/dev, or HEAD in a repo
+# without one). Every release squash-merges into main, so its tag shares no
+# recent history with dev, and a log from the tag counts dev's whole past. When
+# the tag is not an ancestor, the window opens at the commit that synced the tag
+# back into dev instead, the boundary generate-changelog.py reads.
+
+# The commit on REF whose subject syncs TAG back, the way generate-changelog.py
+# finds it: `chore(release): sync dev after <tag>`, or `backport <tag>` from
+# older backport scripts. Only the subject counts, because a later message can
+# quote it. Empty when no commit names the tag. awk reads the whole log rather
+# than exiting at the match: an early exit leaves git log writing into a closed
+# pipe, and under pipefail the SIGPIPE ends the script on any long history.
+release_backport_commit() {
+  git log --format='%H %s' "$1" 2>/dev/null | awk -v tag="$2" '
+    !found {
+      subject = substr($0, index($0, " ") + 1)
+      split("chore(release): sync dev after |chore(release): backport ", prefixes, "|")
+      for (i = 1; i <= 2; i++) {
+        lead = prefixes[i] tag
+        rest = substr(subject, length(lead) + 1)
+        if (index(subject, lead) == 1 && (rest == "" || substr(rest, 1, 1) == " ")) {
+          print $1
+          found = 1
+          break
+        }
+      }
+    }'
+}
 
 gate_surface() {
   header "Establish surface"
-  local last_tag commits files breaking
+  local last_tag head_ref window anchor="" commits files breaking
   last_tag="${LAST_TAG:-$(last_release_tag)}"
   [[ -n "$last_tag" ]] || {
     gate_skip "LAST_TAG" "no tags in repo yet (first release); surface is everything on the branch"
     return
   }
-  commits=$(git log "$last_tag..HEAD" --oneline | wc -l)
-  files=$(git diff "$last_tag..HEAD" --name-only | wc -l)
+  head_ref=origin/dev
+  git rev-parse --verify --quiet "$head_ref" >/dev/null 2>&1 || head_ref=HEAD
+  window="$last_tag..$head_ref"
+  if ! git merge-base --is-ancestor "$last_tag" "$head_ref" 2>/dev/null; then
+    anchor=$(release_backport_commit "$head_ref" "$last_tag")
+    if [[ -z "$anchor" ]]; then
+      gate_skip "LAST_TAG" \
+        "$last_tag is no ancestor of $head_ref and no commit there syncs it back; read the surface as origin/main..$head_ref"
+      return
+    fi
+    window="$anchor..$head_ref"
+  fi
+  # Files compare trees, so they read from the tag directly, minus the guarded
+  # set: dev carries engineering docs that never ship.
+  local guarded
+  guarded=$("$(dirname "$0")/guarded-paths.sh" 2>/dev/null) || guarded='^$'
+  commits=$(git log "$window" --oneline | wc -l)
+  files=$(git diff "$last_tag" "$head_ref" --name-only | { grep -Ev "$guarded" || true; } | wc -l)
   # Scoped markers count too: `feat(api)!:` is breaking as much as `feat!:`.
-  breaking=$(git log "$last_tag..HEAD" --grep '^[a-z]\+\(([^)]*)\)\?!:' --oneline | wc -l)
-  gate_pass "LAST_TAG = $last_tag  ($commits commits, $files files, $breaking breaking)"
+  breaking=$(git log "$window" --grep '^[a-z]\+\(([^)]*)\)\?!:' --oneline | wc -l)
+  gate_pass "LAST_TAG = $last_tag  ($commits commits, $files files, $breaking breaking${anchor:+, counted from its backport ${anchor:0:12} on $head_ref})"
 }
 
 # Gate: smoke ----------------------------------------------------------------
@@ -472,9 +517,12 @@ gate_mechanics() {
   ship_base="${LAST_TAG:-origin/main}"
   git rev-parse --verify --quiet origin/main >/dev/null 2>&1 && ship_base=origin/main
 
-  # Leak check: no guarded path in what the release adds to main.
+  # Leak check: no guarded path added or modified in what the release ships to
+  # main. --diff-filter=ACMR, as in cut-release-branch.sh's check B: a release
+  # that removes a guarded doc main still carries from before the guard existed
+  # lists the removal too, and that is cleanup, not a leak.
   local leaked
-  leaked=$(git diff "$ship_base..HEAD" --name-only 2>/dev/null | grep -E "$guarded" || true)
+  leaked=$(git diff --diff-filter=ACMR "$ship_base..HEAD" --name-only 2>/dev/null | grep -E "$guarded" || true)
   if [[ -z "$leaked" ]]; then
     gate_pass "leak check (guarded paths): clean"
   else
