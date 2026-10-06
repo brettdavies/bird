@@ -379,7 +379,7 @@ done
 # discovery as that member's manifest. Refresh the members' entries from the
 # synced manifests rather than copying main's lock, which would revert
 # dependency updates dev merged after the release, and refuse to commit a lock
-# that `cargo build --locked` rejects.
+# that `cargo metadata --locked` rejects.
 if [[ -f Cargo.lock ]]; then
   if ! have_bin cargo; then
     echo "error: cargo not on PATH -- Cargo.lock cannot be synced to the manifests; nothing was committed" >&2
