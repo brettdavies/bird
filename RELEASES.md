@@ -440,7 +440,8 @@ top section of `CHANGELOG.md`.
 | `CI_RELEASE_TOKEN`     | Fine-grained PAT, Contents R+W, Pull requests R+W. Used by `release.yml` to dispatch the Homebrew formula update. | Rotated annually. 1Password vault: `secrets-dev`. |
 | `CARGO_REGISTRY_TOKEN` | crates.io API token. Required only for the first publish.                                                         | Removed after Trusted Publishing was enforced.    |
 
-`GITHUB_TOKEN` is automatic; CI (`ci.yml`) only needs `contents: read` and uses no extra secrets.
+`GITHUB_TOKEN` is automatic; CI (`ci.yml`) needs `contents: read` and `pull-requests: read`, the latter for the
+changelog check that reads a PR's files, and uses no extra secrets.
 
 ### Distribution channels
 
