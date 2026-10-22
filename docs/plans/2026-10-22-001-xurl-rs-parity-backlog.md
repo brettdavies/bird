@@ -35,6 +35,14 @@ everything else starts now.
 | E    | Stack 5 item 3 (pagination)                                                                           | Blocked: xdk-rs has no list loop yet, only per-call `pagination_token`; joins lane C's xurl-rs work |
 | F    | Stack 7                                                                                               | No for the bird-skill repo structure; its content follows the settled CLI surface                   |
 
+Plans:
+
+- Lane B: `docs/plans/2026-10-22-002-shared-ci-jobs-plan.md`.
+- Lane C: `docs/brainstorms/2026-10-22-bird-extends-xr-requirements.md` and
+  `docs/plans/2026-10-22-003-feat-bird-extends-xr-plan.md` (units U1 to U14; xurl-rs units U1 to U6 first, bird U9 to
+  U14 after the xdk-rs and xurl-rs releases that carry them; the list loop is lane E's work inside it).
+- Lane D: `docs/plans/2026-10-22-004-feat-xr-output-contract-and-post-vocabulary-plan.md` (units U1 to U9).
+
 bird ships once, after every stack lands, as the release the 2026-09-02 cutover plan targets (1.0.0). Its critical path
 runs through xurl-rs: the current xurl-rs release, which bird adopts from crates.io (stack 6 item 1); stack 3's xdk-rs
 request hook, xurl-rs command-layer surface, and the list loop; the xdk-rs release that carries them; then bird's
@@ -114,10 +122,17 @@ X-approvable CLI. bird composes `xr`'s commands instead of re-implementing them.
    from its store and record what X returned; a supported library surface in xurl-rs for `xr`'s command tree (the clap
    tree plus a `run` that takes an injected `xdk::Client` and writers); bird composing that tree with its own commands
    (cache, watchlist, schema, local usage) and installing its cache hook on the client it passes in. Revises the seam
-   doc's "flag parsing is always presentation" rule.
-2. xdk-rs: the request hook.
-3. xurl-rs: the public command-layer surface, `xr` unchanged on its own.
+   doc's "flag parsing is always presentation" rule. Written: lane C's plan.
+2. xdk-rs: the request hook, and a public form of the post-vocabulary normalizer
+   (`crates/xdk/src/api/response/vocabulary.rs`) or a public typed decode, so the user objects bird requests itself read
+   `post_count` as `xr`'s do.
+3. xurl-rs: the public command-layer surface, `xr` unchanged on its own. `xr schema --list --output json` prints one
+   `{"message"}` per row with no `status`; it prints one `ok` document like every other command.
 4. bird: compose `xr`'s tree; retire each bird verb `xr` already has. `xr usage credits` arrives this way.
+5. The seam scope policy and the pagination contract exist only as drafts in bird's `docs/designs/`, though both name
+   xurl-rs as their home; lane C's U1 moves them to xurl-rs.
+6. Moving `xr`'s list verbs onto the list loop changes `xr` for `--limit` above 100: an `xr` feature with its own
+   changelog entry.
 
 A composed `xr` command arrives with `xr`'s verbs, flags, and envelope, so this stack decides which verb renames in
 stack 5 remain. Stack 4 and the rest of stack 5 do not wait for it.
@@ -141,7 +156,8 @@ matches whether a command is composed from `xr` or bird's own.
 
 1. Wire vocabulary: send `post.fields`, read `referenced_posts`, `repost_count`, `includes.posts`; purge pre-cutover
    cache rows once.
-2. Verbs under `xr`'s names; raw HTTP verbs and `block` / `unblock` removed.
+2. Verbs under `xr`'s names; raw HTTP verbs removed. `block` and `unblock` are not removed: `xr` ships `block`,
+   `unblock`, and `blocked` (xurl-rs#165), so they arrive with stack 3's composition.
 3. The pagination and cost contract on the crate's list loop.
 
 ## Stack 6: release
