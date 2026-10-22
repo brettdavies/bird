@@ -34,10 +34,6 @@ const COMMAND_NAMES: &[&str] = &[
     "watchlist_list",
     "usage",
     "usage_sync",
-    "get",
-    "post",
-    "put",
-    "delete",
 ];
 
 /// `true` when the named command's API endpoint requires any auth scheme
@@ -199,8 +195,7 @@ fn command_template(name: &str) -> Option<(&'static str, &'static str)> {
         "dm" => ("POST", "/2/dm_conversations/with/{participant_id}/messages"),
         "usage" | "usage_sync" => ("GET", "/2/usage/tweets"),
         "watchlist_check" => ("GET", "/2/tweets/search/recent"),
-        "get" | "post" | "put" | "delete" | "login" | "watchlist_add" | "watchlist_remove"
-        | "watchlist_list" => return None,
+        "login" | "watchlist_add" | "watchlist_remove" | "watchlist_list" => return None,
         _ => return None,
     })
 }

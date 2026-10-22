@@ -1,4 +1,0 @@
-Examples:
-  bird put /2/tweets/1734567890123456789/hidden --body '{"hidden":true}'
-  bird put /2/tweets/1734567890123456789/hidden --body '{"hidden":true}' --output json
-  bird put /2/lists/84839422 --body '{"name":"Updated list"}'

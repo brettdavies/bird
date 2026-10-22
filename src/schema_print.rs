@@ -44,10 +44,6 @@ pub(crate) const SCHEMAS: &[SchemaEntry] = &[
         body: include_str!("../schema/profile.schema.json"),
     },
     SchemaEntry {
-        name: "raw-get",
-        body: include_str!("../schema/raw-get.schema.json"),
-    },
-    SchemaEntry {
         name: "search",
         body: include_str!("../schema/search.schema.json"),
     },

@@ -25,7 +25,7 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **bookmarks**: OAuth 2.0 user token only.
 - **profile**: any of bearer, OAuth 1.0a, or OAuth 2.0 user. Looks up a user by username via
   `GET /2/users/by/username/{username}`.
-- **search**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same as raw commands).
+- **search**: any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 - **thread**: any of bearer, OAuth 1.0a, or OAuth 2.0 user. Reconstructs a conversation thread via
   `GET /2/tweets/{id}` + `GET /2/tweets/search/recent?query=conversation_id:{id}`.
 - **watchlist check**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same auth as search — runs `from:<username>` search
@@ -35,7 +35,6 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **usage --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
 - **login**: N/A (runs the OAuth2 PKCE browser flow through the embedded `xdk-rs` client; `--no-browser` runs the
   headless two-step flow).
-- **get / post / put / delete** (raw): any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 
 When a command fails, the error envelope (`xr`'s: `status`, `reason`, `exit_code`, `message`) carries a `next_step`
 whenever a recovery step exists, and text mode prints the same step as a hint line under the error. A missing credential

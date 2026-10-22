@@ -10,7 +10,6 @@ use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
-use std::collections::HashMap;
 use std::io::{BufRead, IsTerminal, Write};
 
 /// Top-level dispatcher: routes a parsed `Command` to its per-command module.
@@ -45,24 +44,6 @@ pub fn run(
         Command::Me {
             common: OutputFlags { pretty },
         } => commands::reads::run_me(client, out, stdout, stderr, pretty),
-        Command::Get {
-            path,
-            param,
-            query,
-            header,
-            common: OutputFlags { pretty },
-        } => commands::reads::run_get(
-            client,
-            out,
-            stdout,
-            stderr,
-            path,
-            param,
-            query,
-            header,
-            pretty,
-            &list_flags,
-        ),
         Command::Bookmarks {
             common: OutputFlags { pretty },
         } => commands::bookmarks::run(client, out, stdout, stderr, pretty, &list_flags),
@@ -95,70 +76,6 @@ pub fn run(
             common: OutputFlags { pretty },
             max_pages,
         } => commands::thread::run(client, out, stdout, stderr, tweet_id, pretty, max_pages),
-        Command::Post {
-            path,
-            param,
-            query,
-            body,
-            header,
-            common: OutputFlags { pretty },
-            guard,
-        } => commands::raw_write::run_post(
-            client,
-            out,
-            stdout,
-            stderr,
-            path,
-            param,
-            query,
-            body,
-            header,
-            pretty,
-            guard,
-            no_interactive,
-        ),
-        Command::Put {
-            path,
-            param,
-            query,
-            body,
-            header,
-            common: OutputFlags { pretty },
-            guard,
-        } => commands::raw_write::run_put(
-            client,
-            out,
-            stdout,
-            stderr,
-            path,
-            param,
-            query,
-            body,
-            header,
-            pretty,
-            guard,
-            no_interactive,
-        ),
-        Command::Delete {
-            path,
-            param,
-            query,
-            header,
-            common: OutputFlags { pretty },
-            guard,
-        } => commands::raw_write::run_delete(
-            client,
-            out,
-            stdout,
-            stderr,
-            path,
-            param,
-            query,
-            header,
-            pretty,
-            guard,
-            no_interactive,
-        ),
         Command::Watchlist {
             action,
             common: OutputFlags { pretty },
@@ -358,17 +275,6 @@ pub fn run(
     }
 }
 
-/// Parse a `KEY=VALUE` parameter vector into a map.
-pub fn parse_param_vec(param: &[String]) -> HashMap<String, String> {
-    let mut m = HashMap::new();
-    for p in param {
-        if let Some((k, v)) = p.split_once('=') {
-            m.insert(k.to_string(), v.to_string());
-        }
-    }
-    m
-}
-
 /// `true` when the dispatched command is one that ultimately hits the X API
 /// (and therefore should receive the `XURL_APP` migration warning).
 pub fn command_is_api_hitting(cmd: &Command) -> bool {
@@ -381,15 +287,11 @@ pub fn command_is_api_hitting(cmd: &Command) -> bool {
         | Command::Doctor { .. } => false,
         Command::Login { .. }
         | Command::Me { .. }
-        | Command::Get { .. }
         | Command::Bookmarks { .. }
         | Command::Profile { .. }
         | Command::Search { .. }
         | Command::Thread { .. }
         | Command::Usage { .. }
-        | Command::Delete { .. }
-        | Command::Post { .. }
-        | Command::Put { .. }
         | Command::Tweet { .. }
         | Command::Reply { .. }
         | Command::Like { .. }
@@ -568,50 +470,6 @@ pub fn emit_dry_run(
         writeln!(stdout, "Body: {}", b)?;
     }
     writeln!(stdout, "(--dry-run; no request sent)")
-}
-
-/// Build the effective absolute URL for dry-run preview output.
-/// Mirrors the path/query handling in `raw::run_raw` without performing any
-/// transport-layer work. Returns `None` when the URL cannot be assembled, in
-/// which case callers should fall back to the raw input path.
-pub fn build_dry_run_url(
-    path: &str,
-    params: &HashMap<String, String>,
-    query: &[String],
-) -> Option<String> {
-    let resolved = substitute_path_template(path, params)?;
-    let mut url = url::Url::parse(&format!("https://api.x.com{}", resolved)).ok()?;
-    for q in query {
-        if let Some((k, v)) = q.split_once('=') {
-            url.query_pairs_mut().append_pair(k, v);
-        }
-    }
-    Some(url.to_string())
-}
-
-/// Substitute `{name}` placeholders in a path template with values from
-/// `params`. Bird does not enforce the API's substitution semantics at this
-/// layer — xurl's `RequestTarget::Template` owns the canonical substitution
-/// at request time; this helper only assembles a display string for the
-/// dry-run confirmation prompt. Returns `None` when a placeholder has no
-/// matching param.
-fn substitute_path_template(template: &str, params: &HashMap<String, String>) -> Option<String> {
-    let mut out = String::with_capacity(template.len());
-    let mut rest = template;
-    while let Some(start) = rest.find('{') {
-        out.push_str(&rest[..start]);
-        rest = &rest[start..];
-        let end = rest.find('}')?;
-        let name = &rest[1..end];
-        let value = params.get(name)?;
-        if value.is_empty() {
-            return None;
-        }
-        out.push_str(value);
-        rest = &rest[end + 1..];
-    }
-    out.push_str(rest);
-    Some(out)
 }
 
 /// Clamp a list `--limit` value to a per-command ceiling, mirroring U4 plan
@@ -841,15 +699,6 @@ mod tests {
         let err = res.err().expect("no-interactive without --force refuses");
         assert_eq!(err.error_id(), "confirmation-required");
         assert_eq!(err.exit_code(), 1);
-    }
-
-    // U4.6: build_dry_run_url returns the expected absolute URL.
-    #[test]
-    fn build_dry_run_url_assembles_absolute_url() {
-        let params: HashMap<String, String> = HashMap::new();
-        let query: Vec<String> = Vec::new();
-        let url = build_dry_run_url("/2/users/me", &params, &query);
-        assert_eq!(url.as_deref(), Some("https://api.x.com/2/users/me"));
     }
 
     // U4.7: clamp_limit ceiling + default behavior.

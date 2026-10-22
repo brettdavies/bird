@@ -128,15 +128,6 @@ No config or app creation needed.
 | `bird usage`                   | View local API usage and cost estimates |
 | `bird usage --sync`            | Refresh usage data from the X API       |
 
-### Raw API access
-
-| Command              | Description                                             |
-| -------------------- | ------------------------------------------------------- |
-| `bird get <path>`    | `GET` request; supports path templates with `-p id=123` |
-| `bird post <path>`   | `POST` request; optional `--body '{"text":"..."}'`      |
-| `bird put <path>`    | `PUT` request                                           |
-| `bird delete <path>` | `DELETE` request                                        |
-
 ### System
 
 | Command                    | Description                                                        |

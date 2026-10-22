@@ -188,59 +188,6 @@ pub enum Command {
         common: OutputFlags,
     },
 
-    /// GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123).
-    #[command(after_help = include_str!("../../examples/get.txt"))]
-    Get {
-        path: String,
-        #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
-        param: Vec<String>,
-        #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
-        query: Vec<String>,
-        /// Custom request header in `Name: Value` form; repeatable.
-        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
-        header: Vec<String>,
-        #[command(flatten)]
-        common: OutputFlags,
-    },
-
-    /// POST request to path.
-    #[command(after_help = include_str!("../../examples/post.txt"))]
-    Post {
-        path: String,
-        #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
-        param: Vec<String>,
-        #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
-        query: Vec<String>,
-        #[arg(long, value_name = "JSON")]
-        body: Option<String>,
-        /// Custom request header in `Name: Value` form; repeatable.
-        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
-        header: Vec<String>,
-        #[command(flatten)]
-        common: OutputFlags,
-        #[command(flatten)]
-        guard: WriteGuard,
-    },
-
-    /// PUT request to path.
-    #[command(after_help = include_str!("../../examples/put.txt"))]
-    Put {
-        path: String,
-        #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
-        param: Vec<String>,
-        #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
-        query: Vec<String>,
-        #[arg(long, value_name = "JSON")]
-        body: Option<String>,
-        /// Custom request header in `Name: Value` form; repeatable.
-        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
-        header: Vec<String>,
-        #[command(flatten)]
-        common: OutputFlags,
-        #[command(flatten)]
-        guard: WriteGuard,
-    },
-
     /// List bookmarks for the current user (paginated, max_results=100).
     #[command(after_help = include_str!("../../examples/bookmarks.txt"))]
     Bookmarks {
@@ -293,23 +240,6 @@ pub enum Command {
         /// Maximum number of search result pages (default: 10, max: 25).
         #[arg(long, default_value = "10")]
         max_pages: u32,
-    },
-
-    /// DELETE request to path.
-    #[command(after_help = include_str!("../../examples/delete.txt"))]
-    Delete {
-        path: String,
-        #[arg(long, short = 'p', value_name = "KEY=VALUE", num_args = 1..)]
-        param: Vec<String>,
-        #[arg(long, value_name = "KEY=VALUE", num_args = 1..)]
-        query: Vec<String>,
-        /// Custom request header in `Name: Value` form; repeatable.
-        #[arg(long, short = 'H', value_name = "NAME: VALUE", value_parser = crate::cli::parsers::parse_header_kv)]
-        header: Vec<String>,
-        #[command(flatten)]
-        common: OutputFlags,
-        #[command(flatten)]
-        guard: WriteGuard,
     },
 
     /// Monitor users: check recent activity, manage watchlist.
