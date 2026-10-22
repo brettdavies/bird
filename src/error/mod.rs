@@ -70,6 +70,18 @@ impl BirdError {
         }
     }
 
+    /// A command whose X API call was dropped by SIGTERM or SIGINT: exit code
+    /// 128 plus the signal number.
+    pub fn cancelled(name: &'static str, cancelled: crate::shutdown::Cancelled) -> Self {
+        BirdError::General {
+            error_id: "cancelled",
+            message: cancelled.to_string(),
+            command: Some(name),
+            status: None,
+            exit_code_override: Some(cancelled.exit_code()),
+        }
+    }
+
     /// Map a boxed source error to either a structured bird envelope (when
     /// the source is an `xdk::Error`) or `General` otherwise.
     /// Centralizes the auth-vs-command-error decision for dispatch closures.
@@ -89,6 +101,9 @@ impl BirdError {
     /// bird only files the result under its envelope `kind`: 77 is `auth`,
     /// 2 is `usage`, and every other code is `general`.
     fn from_xdk_error(name: &'static str, err: &xdk::Error) -> Self {
+        if let Some(cancelled) = crate::shutdown::Cancelled::find(err) {
+            return BirdError::cancelled(name, cancelled);
+        }
         let error_id = err.kind();
         let message = err.to_string();
         match err.exit_code() {
@@ -221,6 +236,27 @@ mod tests {
 
     fn mapped(err: xdk::Error) -> BirdError {
         BirdError::from_source("search", boxed(err))
+    }
+
+    #[test]
+    fn a_cancelled_call_exits_128_plus_the_signal() {
+        let term = mapped(
+            crate::shutdown::Cancelled {
+                signal: libc::SIGTERM,
+            }
+            .into(),
+        );
+        assert_eq!(term.error_id(), "cancelled");
+        assert_eq!(term.kind(), "general");
+        assert_eq!(term.exit_code(), 143);
+
+        let int = mapped(
+            crate::shutdown::Cancelled {
+                signal: libc::SIGINT,
+            }
+            .into(),
+        );
+        assert_eq!(int.exit_code(), 130);
     }
 
     #[test]

@@ -52,6 +52,7 @@ pub fn run_oauth2_authenticate_headless_embedded(
 
     let auth_url = embedded
         .block_on(async { client.auth().await?.remote_oauth2_step1(&pending_path) })
+        .unwrap_or_else(|cancelled| Err(cancelled.into()))
         .map_err(login_error)?;
 
     let state = parse_oauth2_authorize_url_state(&auth_url).unwrap_or_default();
@@ -93,6 +94,7 @@ pub fn run_oauth2_authenticate_headless_embedded(
     let user = username.unwrap_or("");
     let signed_in = embedded
         .block_on(client.remote_oauth2_step2(trimmed, user, &pending_path))
+        .unwrap_or_else(|cancelled| Err(cancelled.into()))
         .map_err(login_error)?;
 
     print_authenticated(out, stdout, &signed_in).map_err(login_error)
@@ -123,11 +125,19 @@ pub fn run_oauth2_authenticate_interactive_embedded(
     };
 
     let user = username.unwrap_or("");
-    let signed_in = match embedded.block_on(embedded.client().oauth2_flow(
+    let flow = embedded.block_on(embedded.client().oauth2_flow(
         user,
         CancellationToken::new(),
         opener,
-    )) {
+    ));
+    // `xr auth oauth2` reports a signal during the callback wait as this auth
+    // error; dropping the flow releases the callback listener.
+    let flow = flow.unwrap_or_else(|_| {
+        Err(xdk::Error::auth(
+            "Cancelled: oauth callback cancelled by signal",
+        ))
+    });
+    let signed_in = match flow {
         Ok(signed_in) => signed_in,
         Err(e) if browser_failed.load(Ordering::SeqCst) => {
             return Err(login_error(format!(

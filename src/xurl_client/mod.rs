@@ -13,6 +13,8 @@ use xdk::api::{Client, RequestOptions};
 use xdk::auth::Auth;
 use xdk::config::Config;
 
+use crate::shutdown::{Cancelled, Stop};
+
 #[cfg(test)]
 pub mod mock;
 
@@ -91,15 +93,17 @@ impl EmbeddedClient {
         &self.client
     }
 
-    /// Runs `future` to completion on this client's runtime.
-    pub fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.runtime.block_on(future)
+    /// Runs `future` to completion on this client's runtime, or drops it when
+    /// the process receives SIGTERM or SIGINT first.
+    pub fn block_on<F: Future>(&self, future: F) -> Result<F::Output, Cancelled> {
+        Stop::process().block_on(&self.runtime, future)
     }
 }
 
 impl XurlClient for EmbeddedClient {
     fn send_request(&mut self, options: &RequestOptions) -> xdk::Result<Value> {
-        self.runtime.block_on(self.client.send_request(options))
+        self.block_on(self.client.send_request(options))
+            .unwrap_or_else(|cancelled| Err(cancelled.into()))
     }
 }
 

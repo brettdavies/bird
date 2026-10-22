@@ -22,8 +22,8 @@
     },
     "exit_code": {
       "type": "integer",
-      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config). A general error exits 3 when rate limited (HTTP 429), 4 when not found (HTTP 404), 5 when the request got no HTTP response (network or filesystem failure), and 1 otherwise.",
-      "enum": [1, 2, 3, 4, 5, 77, 78]
+      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config). A general error exits 3 when rate limited (HTTP 429), 4 when not found (HTTP 404), 5 when the request got no HTTP response (network or filesystem failure), 130 or 143 when SIGINT or SIGTERM cancelled an in-flight X API call (error `cancelled`), and 1 otherwise.",
+      "enum": [1, 2, 3, 4, 5, 77, 78, 130, 143]
     },
     "meta": {
       "type": "object",

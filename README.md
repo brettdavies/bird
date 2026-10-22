@@ -204,15 +204,15 @@ default.
 {"error":"rate-limited","kind":"general","message":"...","exit_code":3,"command":"search","status":429,"meta":{}}
 ```
 
-| Field       | Type   | Description                                                                         |
-| ----------- | ------ | ----------------------------------------------------------------------------------- |
-| `error`     | string | Stable kebab-case error id; for an X API error, the reason `xr` reports             |
-| `kind`      | string | `usage`, `auth`, `config`, or `general`                                             |
-| `message`   | string | Human-readable message                                                              |
-| `exit_code` | number | 2, 77, 78; or for `general`: 1, 3 (rate limited), 4 (not found), 5 (no response)    |
-| `command`   | string | Failing subcommand, on `general` errors                                             |
-| `status`    | number | Upstream HTTP status, when the error came from an API response                      |
-| `meta`      | object | Always present; empty on errors                                                     |
+| Field       | Type   | Description                                                                                           |
+| ----------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `error`     | string | Stable kebab-case error id; for an X API error, the reason `xr` reports                               |
+| `kind`      | string | `usage`, `auth`, `config`, or `general`                                                               |
+| `message`   | string | Human-readable message                                                                                |
+| `exit_code` | number | 2, 77, 78; or for `general`: 1, 3 (rate limited), 4 (not found), 5 (no response), 130/143 (cancelled) |
+| `command`   | string | Failing subcommand, on `general` errors                                                               |
+| `status`    | number | Upstream HTTP status, when the error came from an API response                                        |
+| `meta`      | object | Always present; empty on errors                                                                       |
 
 `bird schema error-envelope` prints the JSON Schema for this envelope.
 
