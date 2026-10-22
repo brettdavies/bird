@@ -1,0 +1,15 @@
+# Per-CLI domain vocabulary for anc's p6-may-standard-names audit.
+# These verbs are the X platform's canonical actions, the raw HTTP verbs bird
+# passes through, and bird's own surface (profile, thread, watchlist, cache).
+#
+# anc reads this file when it audits this repository (`anc audit .`); for an
+# installed bird, point anc at a checkout with
+# `anc audit --command bird --repo <checkout>`.
+# https://github.com/brettdavies/agentnative-cli#configuration-anctoml
+[p6]
+domain_verbs = [
+  "me", "profile", "thread", "bookmarks",
+  "tweet", "post", "put",
+  "like", "unlike", "repost", "unrepost", "dm",
+  "watchlist", "usage", "cache",
+]
