@@ -96,7 +96,7 @@ pub struct Cli {
     )]
     pub verbose: u8,
 
-    /// Network timeout in seconds (default 30). Applies to xurl subprocesses.
+    /// Network timeout in seconds (default 30) for each X API request.
     #[arg(long, global = true, env = "BIRD_TIMEOUT", default_value_t = DEFAULT_TIMEOUT_SECS)]
     pub timeout: u64,
 

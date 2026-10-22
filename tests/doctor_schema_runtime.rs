@@ -140,6 +140,16 @@ fn doctor_runtime_keys_present_in_schema() {
         );
     }
 
+    // Embedded client status: exactly the keys `XurlStatus` can emit.
+    let xurl = schema.pointer("/properties/xurl").expect("xurl subschema");
+    let mut xurl_props = schema_property_names(xurl, "/properties/xurl");
+    xurl_props.sort();
+    assert_eq!(
+        xurl_props,
+        ["available", "reason", "version"],
+        "xurl.properties must match the fields `XurlStatus` serializes",
+    );
+
     // Per-command shape.
     let cmd = schema
         .pointer("/properties/commands/additionalProperties")
@@ -211,9 +221,9 @@ fn doctor_report_serializes_match_schema_keys() {
     );
     let report = DoctorReport {
         xurl: XurlStatus {
-            path: Some("/usr/local/bin/xurl".to_string()),
-            version: Some("2.0.0".to_string()),
-            available: true,
+            version: Some("0.2.0".to_string()),
+            available: false,
+            reason: Some("cannot start the async runtime".to_string()),
         },
         auth: AuthState {
             active_app: "default".to_string(),
@@ -244,6 +254,21 @@ fn doctor_report_serializes_match_schema_keys() {
     let obj = value.as_object().expect("top-level object");
     for key in ["xurl", "auth", "commands", "cache"] {
         assert!(obj.contains_key(key), "serialized report missing `{key}`");
+    }
+
+    // The fixture's client failed to build, so `reason` is emitted too.
+    let schema = load_schema();
+    let xurl_props = schema_property_names(
+        schema.pointer("/properties/xurl").expect("xurl subschema"),
+        "/properties/xurl",
+    );
+    let xurl_obj = obj["xurl"].as_object().expect("xurl object");
+    assert!(xurl_obj.contains_key("reason"), "xurl missing `reason`");
+    for key in xurl_obj.keys() {
+        assert!(
+            xurl_props.iter().any(|k| k == key),
+            "xurl emits `{key}`, which the schema does not declare",
+        );
     }
 
     let auth_obj = obj["auth"].as_object().expect("auth object");
@@ -299,7 +324,7 @@ fn serialized_report_omits_credential_material() {
 
     // The presence flags are surfaced as booleans; the only string fields
     // on the report are app names (`default`), usernames (`alice`), the
-    // active_app slot, and the xurl version. None of them should ever
+    // active_app slot, and the xdk-rs version. None of them should ever
     // carry credential material — this test confirms the negative path
     // by populating sentinel-named entries and asserting the sentinel
     // does not appear in the JSON output.
@@ -344,9 +369,9 @@ fn serialized_report_omits_credential_material() {
     );
     let report = DoctorReport {
         xurl: XurlStatus {
-            path: Some("/usr/local/bin/xurl".to_string()),
-            version: Some("2.0.0".to_string()),
+            version: Some("0.2.0".to_string()),
             available: true,
+            reason: None,
         },
         auth: AuthState {
             active_app: "default".to_string(),

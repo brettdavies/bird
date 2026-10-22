@@ -2,25 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bird.dev/schema/doctor-v1.json",
   "title": "bird doctor payload",
-  "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: xurl status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
+  "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: embedded X API client status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
   "type": "object",
   "required": ["xurl", "auth", "commands"],
   "properties": {
     "xurl": {
       "type": "object",
-      "description": "xurl binary availability and version detection (subprocess) or linked-crate stand-in (embedded).",
+      "description": "The embedded X API client (xdk-rs): the linked version and whether the client was built.",
       "required": ["available"],
       "properties": {
-        "path": {
-          "type": ["string", "null"],
-          "description": "Resolved filesystem path to the xurl binary (subprocess only)."
-        },
         "version": {
           "type": ["string", "null"],
-          "description": "Output of `xurl --version` (subprocess) or the embedded crate version (embedded)."
+          "description": "Version of the xdk-rs crate linked into this bird build."
         },
         "available": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Whether the embedded client was built. When false, every API command is unavailable and `reason` names the construction error."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the embedded client could not be built. Present only when `available` is false."
         }
       }
     },
@@ -43,7 +44,7 @@
               "client_secret_set": { "type": "boolean" },
               "default_user": {
                 "type": "string",
-                "description": "Username xurl picks when no `-u NAME` is supplied for this app."
+                "description": "Username the client picks when no `-u NAME` is supplied for this app."
               },
               "oauth2_tokens": {
                 "type": "object",
@@ -121,7 +122,7 @@
           "accepted_schemes": {
             "type": "array",
             "items": { "type": "string", "enum": ["app", "oauth1", "oauth2"] },
-            "description": "Auth schemes the X API endpoint accepts. Populated from `xurl::api::auth_matrix::supported_auth` under embedded; empty under subprocess."
+            "description": "Auth schemes the X API endpoint accepts, from `xdk::api::auth_matrix::supported_auth`. Empty for commands with no fixed endpoint: `login`, the raw HTTP verbs, and local watchlist edits."
           },
           "credentialed_schemes": {
             "type": "array",
@@ -130,7 +131,7 @@
           },
           "reachable": {
             "type": "boolean",
-            "description": "True when `accepted_schemes` intersects `credentialed_schemes` and xurl is available. Single load-bearing bit agents key on."
+            "description": "True when `accepted_schemes` intersects `credentialed_schemes` and the embedded client is available. Single load-bearing bit agents key on."
           }
         }
       }
@@ -151,7 +152,7 @@
     },
     "linked_xurl_version": {
       "type": "string",
-      "description": "Version of the xurl crate linked into this bird build (embedded only). Omitted under subprocess."
+      "description": "Version of the xdk-rs crate linked into this bird build."
     }
   },
   "additionalProperties": false

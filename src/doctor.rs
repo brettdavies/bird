@@ -40,10 +40,7 @@ const COMMAND_NAMES: &[&str] = &[
 ];
 
 /// `true` when the named command's API endpoint requires any auth scheme
-/// other than `AuthType::None`. Replaces the per-command `accepted` table
-/// in U13-deleted `requirements::requirements_for_command`. PR3's cutover
-/// redirects this query to `xurl::api::auth_matrix::supported_auth` once
-/// the subprocess path is gone.
+/// other than `AuthType::None`.
 fn command_needs_auth(name: &str) -> bool {
     !matches!(
         name,
@@ -51,11 +48,16 @@ fn command_needs_auth(name: &str) -> bool {
     )
 }
 
+/// The embedded X API client: the xdk-rs version linked into this build and
+/// whether the client was built.
 #[derive(Clone, Debug, Serialize)]
 pub struct XurlStatus {
-    pub path: Option<String>,
     pub version: Option<String>,
     pub available: bool,
+    /// Why the client could not be built; present only when `available` is
+    /// `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Presence-only descriptor for a single OAuth2 token entry. Mirrors xurl's
@@ -111,9 +113,8 @@ pub struct EnvCredentials {
 pub struct AuthState {
     /// Resolved active app (the one used when no `--app NAME` is supplied).
     pub active_app: String,
-    /// Per-app credential snapshots. Subprocess builds populate a single
-    /// entry for the active app from `xurl whoami`; embedded builds
-    /// enumerate every stored app via xurl's `TokenStore`.
+    /// Per-app credential snapshots, one per app in the `~/.xurl` token
+    /// store.
     pub apps: HashMap<String, AppCredentials>,
     pub env: EnvCredentials,
 }
@@ -203,15 +204,12 @@ fn command_template(name: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-fn build_xurl_status(
-    _client: &BirdClient,
-    _stderr: &mut dyn std::io::Write,
-    _quiet: bool,
-) -> XurlStatus {
+fn build_xurl_status(client: &BirdClient) -> XurlStatus {
+    let reason = client.client_unavailable_reason();
     XurlStatus {
-        path: None,
         version: Some(xdk::CRATE_VERSION.to_string()),
-        available: true,
+        available: reason.is_none(),
+        reason,
     }
 }
 
@@ -348,10 +346,14 @@ fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
 /// Command availability based on xurl + auth state. Populates the new
 /// R17b fields `accepted_schemes`, `credentialed_schemes`, and `reachable`
 /// against the resolved active app.
-fn build_commands_section(
-    xurl_available: bool,
-    auth: &AuthState,
-) -> HashMap<String, CommandStatus> {
+fn build_commands_section(xurl: &XurlStatus, auth: &AuthState) -> HashMap<String, CommandStatus> {
+    let xurl_available = xurl.available;
+    let unavailable_reason = || {
+        format!(
+            "X API client unavailable: {}",
+            xurl.reason.as_deref().unwrap_or("unknown error")
+        )
+    };
     let mut cmds = HashMap::new();
     let active = auth.apps.get(&auth.active_app);
     let credentialed: Vec<String> = active
@@ -364,7 +366,7 @@ fn build_commands_section(
             let reason = if xurl_available {
                 None
             } else {
-                Some(xurl_unavailable_reason())
+                Some(unavailable_reason())
             };
             cmds.insert(
                 name.to_string(),
@@ -398,7 +400,7 @@ fn build_commands_section(
             true
         };
         let reason = if !xurl_available {
-            Some(xurl_unavailable_reason())
+            Some(unavailable_reason())
         } else if needs_auth && !authenticated {
             Some("not authenticated. Run `bird login`.".into())
         } else {
@@ -418,20 +420,11 @@ fn build_commands_section(
     cmds
 }
 
-fn xurl_unavailable_reason() -> String {
-    "embedded xurl client unavailable; check CLIENT_ID/CLIENT_SECRET env".into()
-}
-
 /// Build full or scoped report.
-pub(crate) fn report(
-    client: &BirdClient,
-    stderr: &mut dyn std::io::Write,
-    scope: Option<&str>,
-    quiet: bool,
-) -> DoctorReport {
-    let xurl = build_xurl_status(client, stderr, quiet);
+pub(crate) fn report(client: &BirdClient, scope: Option<&str>) -> DoctorReport {
+    let xurl = build_xurl_status(client);
     let auth = build_auth_state(client);
-    let mut commands = build_commands_section(xurl.available, &auth);
+    let mut commands = build_commands_section(&xurl, &auth);
     if let Some(cmd) = scope
         && let Some(status) = commands.remove(cmd)
     {
@@ -484,11 +477,8 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     use crate::output;
     let mut out = String::new();
 
-    out.push_str(&format!("{}\n", output::section("Xurl", use_color)));
+    out.push_str(&format!("{}\n", output::section("X API client", use_color)));
     if report.xurl.available {
-        if let Some(ref path) = report.xurl.path {
-            out.push_str(&format!("  path: {}\n", output::muted(path, use_color)));
-        }
         if let Some(ref version) = report.xurl.version {
             out.push_str(&format!(
                 "  version: {}\n",
@@ -502,9 +492,11 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     } else {
         out.push_str(&format!(
             "  status: {}\n",
-            output::error("not found", use_color)
+            output::error("unavailable", use_color)
         ));
-        out.push_str(&format!("  {}\n", xurl_unavailable_reason()));
+        if let Some(ref reason) = report.xurl.reason {
+            out.push_str(&format!("  {reason}\n"));
+        }
     }
     if let Some(ref linked) = report.linked_xurl_version {
         out.push_str(&format!(
@@ -682,14 +674,12 @@ pub fn run_doctor(
     client: &BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
-    stderr: &mut dyn std::io::Write,
     pretty: bool,
     scope: Option<&str>,
     use_emoji: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let use_color = cfg.use_color;
-    let quiet = cfg.suppress_diag();
-    let r = report(client, stderr, scope, quiet);
+    let r = report(client, scope);
     if pretty {
         writeln!(stdout, "{}", format_pretty(&r, use_color, use_emoji))?;
     } else {
@@ -724,7 +714,7 @@ mod tests {
     #[test]
     fn doctor_report_has_commands() {
         let client = no_cache_client();
-        let r = report(&client, &mut std::io::sink(), None, false);
+        let r = report(&client, None);
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -733,15 +723,62 @@ mod tests {
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
         let client = no_cache_client();
-        let r = report(&client, &mut std::io::sink(), Some("me"), false);
+        let r = report(&client, Some("me"));
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
+    }
+
+    /// A client that failed to build reports itself unavailable, names the
+    /// construction error, and marks every API command unavailable with it.
+    #[test]
+    fn doctor_reports_a_client_that_failed_to_build() {
+        let client = BirdClient::new(
+            Box::new(crate::xurl_client::ConstructionStub::new(
+                "cannot start the async runtime".into(),
+            )),
+            Path::new("/dev/null"),
+            CacheOpts {
+                no_store: true,
+                refresh: false,
+                cache_only: false,
+            },
+            100,
+            None,
+            false,
+            std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),
+        );
+        let r = report(&client, None);
+        assert!(!r.xurl.available);
+        assert_eq!(
+            r.xurl.reason.as_deref(),
+            Some("cannot start the async runtime")
+        );
+        let me = &r.commands["me"];
+        assert!(!me.available);
+        assert!(
+            me.reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("cannot start the async runtime")),
+            "command reason must name the construction error: {:?}",
+            me.reason,
+        );
+    }
+
+    #[test]
+    fn doctor_report_built_client_is_available_without_reason() {
+        let client = no_cache_client();
+        let r = report(&client, None);
+        assert!(r.xurl.available);
+        assert!(r.xurl.reason.is_none());
+        let json = serde_json::to_value(&r).expect("serialize");
+        assert!(json["xurl"].get("reason").is_none());
+        assert!(json["xurl"].get("path").is_none());
     }
 
     #[test]
     fn doctor_report_json_serializable() {
         let client = no_cache_client();
-        let r = report(&client, &mut std::io::sink(), None, false);
+        let r = report(&client, None);
         let json = serde_json::to_string(&r).expect("test");
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));

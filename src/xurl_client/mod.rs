@@ -22,6 +22,11 @@ pub trait XurlClient {
     /// requests skip xdk's typed-response vocabulary normalization, so the
     /// keys match the field parameters bird put on the request.
     fn send_request(&mut self, options: &RequestOptions) -> xdk::Result<Value>;
+
+    /// Why the client cannot send anything, or `None` when it can.
+    fn unavailable_reason(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// An `xdk::api::Client` plus the current-thread runtime that drives its
@@ -93,5 +98,9 @@ impl XurlClient for ConstructionStub {
             "X API client unavailable: {}",
             self.error
         )))
+    }
+
+    fn unavailable_reason(&self) -> Option<&str> {
+        Some(&self.error)
     }
 }

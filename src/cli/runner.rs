@@ -346,7 +346,7 @@ where
         let scope = command.as_deref();
         let pretty = *pretty;
         let use_emoji = use_color && pretty;
-        match doctor::run_doctor(&client, &out, stdout, stderr, pretty, scope, use_emoji) {
+        match doctor::run_doctor(&client, &out, stdout, pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
