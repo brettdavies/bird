@@ -48,28 +48,35 @@ Lands before any product work: every later PR runs under these hooks and checks.
    `Breaking changes`, `Deprecated`, and `Removed` headings (brettdavies/dotfiles#288). Then re-vendor the PR template,
    `generate-changelog.py`, `cliff.toml`, and the release-doc templates into bird and xurl-rs.
 2. **Canonical drift.** Re-vendor `.github/pull_request_template.md` and `cliff.toml` (drifted), and vendor
-   `scripts/check-workflow-concurrency.sh`, `scripts/hooks/core-env-guard.sh`, `scripts/hooks/_lib.sh`, and
-   `scripts/release/release.env`.
+   `scripts/check-workflow-concurrency.sh`, `scripts/hooks/core-env-guard.sh`, `scripts/hooks/_lib.sh`,
+   `scripts/release/release.env`, and `scripts/release/surface-smoke.sh`.
 3. **Hooks.** Adopt the template `pre-commit` (staged-file fmt, clippy, markdownlint, shellcheck) and the template
    `pre-push` (push-range scoping from stdin, bash re-exec, git-env isolation). Decide whether bird's R20
-   writer-injection step stays a local extension or becomes the shared output-discipline check (item 5).
+   writer-injection step stays a local extension or becomes the shared output-discipline check (item 5). Add the
+   `shfmt -i 2 -ci -bn` gate for shell scripts and a test that asserts the hook and the CI workflow run the same gates.
 4. **Completions.** Regenerate `completions/` (every file is stale against the binary) in the same PR that adds a
    freshness check, so CI holds it.
 5. **CI jobs bird lacks, via shared workflows.** xurl-rs runs these in-repo: change scope (`cargo-inputs.sh`), workflow
    concurrency check, rustdoc build with `-D warnings`, completions freshness, MSRV, output discipline (`lint-stdio`),
    and the anc audit. For each: use the shared `rust-ci.yml` input if one exists, otherwise add the job to
    `brettdavies/.github` so xurl-rs can drop its copy too. Also adopt the `pull_request`-only trigger with
-   `concurrency: cancel-in-progress`.
-6. **`deny.toml`.** xurl-rs's shape: the seven release triples as `targets`, `all-features = true`, and an explicit
+   `concurrency: cancel-in-progress`, and pass `advisories_blocking: true`: without it the shared workflow's advisories
+   row soft-fails and a run with a live advisory still passes.
+6. **Changelog bump check.** xurl-rs's `changelog-bump.yml` fails a PR whose CLI surface grows while its `## Changelog`
+   names no minor-or-higher section (`scripts/check-surface-bump.sh`). Adopt it through a shared workflow, with a bird
+   surface comparison.
+7. **`deny.toml`.** xurl-rs's shape: the seven release triples as `targets`, `all-features = true`, and an explicit
    `skip` list with reasons.
-7. **Release caller.** `linux_musl_required: true` (both musl rows build clean on #124 and #125) and `attest: true` with
-   `attestations: write`; the Homebrew tap verifies attestations before pinning, so this pairs with a tap change.
 8. **Rulesets (live settings).** Protect-dev requires status checks as xurl-rs's does; protect-main requires
    `ci / Security audit (advisories)`; the committed `protect-main.json` matches the live
    `require_extra_approval_for_unattributed_changes: true`.
 9. **Repo files.** `CLAUDE.md` loader (`@AGENTS.md`), `CONTRIBUTING.md`, `SECURITY.md`, `CONCEPTS.md` (registered in
-   `guard-main-docs` `extra_paths`), `.anc.toml` with `[p6] domain_verbs`, and the issue forms (`bug-report.yml`,
-   `feature-request.yml`, `skill-bundle.yml`).
+   `guard-main-docs` `extra_paths`), `.anc.toml` with `[p6] domain_verbs`, the issue forms (`bug-report.yml`,
+   `feature-request.yml`, `skill-bundle.yml`), and the `oauth` repository topic.
+10. **Small parity items.** `build-examples.yml` pins `dtolnay/rust-toolchain` to `master` where xurl-rs pins `stable`;
+    `Cargo.toml` lacks the template's `[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]` (check it against
+    the Windows archive format); xurl-rs's `tests/env_mutation_guard.rs` guards against tests that set environment
+    variables.
 
 ## Stack 2: agent-native compliance
 
@@ -79,7 +86,9 @@ From `anc audit` 0.6.0: 63 pass, 2 warn, 2 fail, badge eligible.
 2. `p6-must-sigterm` (fail): a SIGTERM handler for the long-running paths, cancelling the xdk call in flight.
 3. `p4-should-structured-enum` (warn): the auditor looks for `src/error.rs`; bird has `src/error/mod.rs`. Fix in anc or
    record an opt-out.
-4. `p6-may-standard-names` (warn): closed by `.anc.toml` domain verbs (stack 1.9) or by verb parity (stack 4).
+4. `p6-may-standard-names` (warn): closed by `.anc.toml` domain verbs (stack 1.9) or by verb parity (stack 5).
+5. `skill_install` reads `$HOME` from the process (`src/skill_install/mod.rs`); route it through the runner's injected
+   environment, as `xr` does with xdk's `EnvOverrides::home`, so tests never install into the real home directory.
 
 ## Stack 3: bird extends xr in-process (design first)
 
@@ -93,7 +102,7 @@ X-approvable CLI. bird composes `xr`'s commands instead of re-implementing them.
    doc's "flag parsing is always presentation" rule.
 2. xdk-rs: the request hook.
 3. xurl-rs: the public command-layer surface, `xr` unchanged on its own.
-4. bird: compose `xr`'s tree; retire each bird verb `xr` already has.
+4. bird: compose `xr`'s tree; retire each bird verb `xr` already has. `xr usage credits` arrives this way.
 
 This stack decides how much of stacks 4 and 5 remains: a composed `xr` command arrives with `xr`'s verbs, flags, and
 envelope. Write the design before starting either.
@@ -119,21 +128,41 @@ What remains after stack 3 for bird's own commands.
 2. Verbs under `xr`'s names; raw HTTP verbs and `block` / `unblock` removed.
 3. The pagination and cost contract on the crate's list loop.
 
-## Stack 6: release and external surfaces
+## Stack 6: release
 
-1. **xdk-rs release first.** bird pins a xurl-rs `dev` commit for xdk-rs (serde-saphyr, xurl-rs#348) under `version =
-   "0.2.0"`, but `cargo publish` resolves the crates.io `xdk-rs 0.2.0`, which still links `serde_yaml` and lacks
-   `xdk::store::locate_store`. Cut an xdk-rs release with both, move bird onto it from crates.io, and collapse
+v0.2.0 is the last release; `dev` carries 228 commits past it, among them the embedded-transport cutover and breaking
+exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on `dev` today `drift` fails, and
+`mechanics` fails only its leak check, which the release branch's overlay resolves.
+
+1. **xdk-rs release first.** bird pins a xurl-rs `dev` commit for xdk-rs (serde-saphyr, xurl-rs#348) under
+   `version = "0.2.0"`, but the release workflow's `cargo publish -p bird` resolves the crates.io `xdk-rs 0.2.0`, which
+   still links `serde_yaml` and lacks `xdk::store::locate_store`, so `cargo install bird` would carry
+   RUSTSEC-2024-0449. Cut an xdk-rs release with both, move bird onto it from crates.io, and collapse
    `ResolvedPaths::token_store` from `Option` to xdk's resolved default path. Decide then whether bird adopts the
    directory store layout as `xr` does (`adopt_directory_layout`) or keeps opening a single-file `~/.xurl` in place.
-2. Version and cut (`RELEASES.md`); the release carries every breaking change above.
-3. Homebrew tap: drop the `xdevplatform/tap/xurl` caveat from the bird formula.
-4. bird-skill: replace the subprocess transport, `BIRD_XURL_PATH`, and `xurl.available` guidance.
-5. agentnative-site: rescore bird and add the README badge.
+2. **Backport `main` to `dev`.** `main` carries `c2f7789` (`.github/workflows/dependabot-preflight.yml`) and 16 newer
+   `Cargo.lock` entries `dev` never received (`preflight.sh drift`).
+3. **Release caller.** `linux_musl_required: true` (both musl rows build clean on #124 and #125), and `attest: true`
+   with `attestations: write`.
+4. **Homebrew formula.** Convert bird's formula to install the release's prebuilt archives, as xurl-rs's does: the tap
+   verifies each archive against its attestation before pinning its checksum (needs item 3), and the formula no longer
+   builds `aws-lc-sys` from source inside Homebrew. The tap's open prebuilt-archive PRs (brettdavies/homebrew-tap#153,
+   #157, #158) cover that path. The `xdevplatform/tap/xurl` caveat, which the tap's update workflow never rewrites, is
+   replaced by brettdavies/homebrew-tap#123, which reaches the tap's `main` with bird's version bump.
+5. **Runbooks.** Compare `RELEASES.md`, `RELEASES-PREFLIGHT.md`, `RELEASES-POSTFLIGHT.md`, and `RELEASES-RATIONALE.md`
+   against the template and xurl-rs; confirm the `docs/designs/` documents `mechanics` lists as unguarded are meant to
+   ship to `main`.
+6. **Version and cut** (`RELEASES.md`): the version reflects the breaking changes (0.3.0 at least; the cutover plan
+   targets 1.0.0 with stack 5), then the live `preflight.sh smoke`, the tag, and `postflight.sh`.
+
+## Stack 7: external surfaces
+
+1. bird-skill: replace the subprocess transport, `BIRD_XURL_PATH`, and `xurl.available` guidance, and re-validate it
+   against `schema/doctor.schema.json`. The repo also lacks what xurl-rs-skill carries: `VERSION`, `bin/check-update`,
+   `AGENTS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `cliff.toml`, `getting-started.md`, `tests/run.sh`,
+   shellcheck in CI, the evals, and `templates/tests/`.
+2. agentnative-site: rescore bird and add the README badge.
 
 ## Local housekeeping
 
 - This clone's `core.hooksPath` is `.git/hooks`, which holds no hooks; `AGENTS.md` documents `scripts/hooks`.
-- Worktrees `bird-release-token-ref` (`docs/release-token-uuid-ref`, merged as #120) and `bird-rustls`
-  (`fix/rustls-advisories`, superseded by #123) can be removed.
-- `docs/research/2026-09-02-catch-up-triage.md` is untracked; it is the source of several rows above.
