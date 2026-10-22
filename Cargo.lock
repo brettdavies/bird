@@ -155,6 +155,7 @@ dependencies = [
  "predicates",
  "rusqlite",
  "rusqlite_migration",
+ "schemars",
  "serde",
  "serde_json",
  "sha2",

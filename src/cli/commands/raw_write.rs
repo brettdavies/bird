@@ -41,7 +41,7 @@ pub fn run_post(
         stderr,
         None,
     )? {
-        GuardOutcome::DryRun => return Ok(()),
+        GuardOutcome::DryRun | GuardOutcome::Declined => return Ok(()),
         GuardOutcome::Proceed => {}
     }
     let auth_type = AuthType::OAuth2User;
@@ -94,7 +94,7 @@ pub fn run_put(
         stderr,
         None,
     )? {
-        GuardOutcome::DryRun => return Ok(()),
+        GuardOutcome::DryRun | GuardOutcome::Declined => return Ok(()),
         GuardOutcome::Proceed => {}
     }
     let auth_type = AuthType::OAuth2User;
@@ -145,7 +145,7 @@ pub fn run_delete(
         stderr,
         None,
     )? {
-        GuardOutcome::DryRun => return Ok(()),
+        GuardOutcome::DryRun | GuardOutcome::Declined => return Ok(()),
         GuardOutcome::Proceed => {}
     }
     let auth_type = AuthType::OAuth2User;

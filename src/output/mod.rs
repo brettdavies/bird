@@ -1,7 +1,11 @@
 //! Terminal output: color mode, output format, success/error envelopes, and styled helpers.
 
+pub mod envelope;
+pub mod hints;
+
 use crate::error::BirdError;
 use clap::ValueEnum;
+use hints::HintContext;
 use owo_colors::OwoColorize;
 use std::io::IsTerminal;
 
@@ -106,54 +110,51 @@ impl OutputConfig {
 
     /// Write a `BirdError` to `stderr` in the encoding selected by `self.format`.
     ///
-    /// JSON modes emit the four-key anc envelope:
-    /// `{"error", "kind", "message", "exit_code"}` (with optional `command`,
-    /// `status` extras). Text mode renders a colored prefix per variant.
-    /// `BirdError::print` is the fatal-only sibling that targets the process
-    /// stderr directly when no `OutputConfig` is available yet.
+    /// Structured modes emit `xr`'s error envelope,
+    /// `{"status":"error","reason","exit_code","message","next_step",...}`,
+    /// with the recovery step `hints::for_error` chooses from `ctx`. Text mode
+    /// renders a colored prefix, the message, and the same step as a hint
+    /// line. `BirdError::print` is the fatal-only sibling that targets the
+    /// process stderr directly when no `OutputConfig` is available yet.
     pub fn print_error(
         &self,
         stderr: &mut dyn std::io::Write,
         err: &BirdError,
+        ctx: &HintContext,
     ) -> std::io::Result<()> {
+        let hint = hints::for_error(err, ctx);
         if self.format.is_json() {
-            let mut json = serde_json::json!({
-                "error": err.error_id(),
-                "kind": err.kind(),
-                "message": sanitize_for_stderr(err.message(), 1000),
-                "exit_code": err.exit_code(),
-                "meta": {},
-            });
-            if let Some(cmd) = err.command() {
-                json["command"] = serde_json::Value::String(cmd.to_string());
-            }
-            if let Some(status) = err.status() {
-                json["status"] = serde_json::json!(status);
-            }
-            let line = serde_json::to_string(&json).unwrap_or_else(|_| {
-                String::from(
-                    r#"{"error":"serialization-failed","kind":"general","message":"failed to serialize error envelope","exit_code":1}"#,
-                )
-            });
-            writeln!(stderr, "{}", line)
+            let mut body = err.body(sanitize_for_stderr(err.message(), 1000));
+            body.next_step = hint.map(|h| h.next_step);
+            self.write_structured(stderr, &body.into_value())
         } else {
-            let prefix = match err {
-                BirdError::Usage { .. } => "usage error: ".to_string(),
-                BirdError::Auth { .. } => "auth failed: ".to_string(),
-                BirdError::Config { .. } => "config failed: ".to_string(),
-                BirdError::General {
-                    command: Some(name),
-                    ..
-                } => format!("{} failed: ", name),
-                BirdError::General { command: None, .. } => "error: ".to_string(),
-            };
             writeln!(
                 stderr,
                 "{}{}",
-                error(&prefix, self.use_color),
+                error(&err.text_prefix(), self.use_color),
                 err.message()
-            )
+            )?;
+            for line in hint.iter().flat_map(|h| &h.text_lines) {
+                writeln!(stderr, "{line}")?;
+            }
+            Ok(())
         }
+    }
+
+    /// Renders `value` in the active structured format: `json` indented,
+    /// compact under `--raw`; `jsonl` and `ndjson` always on one line.
+    pub fn write_structured(
+        &self,
+        w: &mut dyn std::io::Write,
+        value: &serde_json::Value,
+    ) -> std::io::Result<()> {
+        let body = if self.format == OutputFormat::Json && !self.raw {
+            serde_json::to_string_pretty(value)
+        } else {
+            serde_json::to_string(value)
+        }
+        .map_err(std::io::Error::other)?;
+        writeln!(w, "{body}")
     }
 
     /// Write a diagnostic line to `stderr`, honoring the quiet gate. Returns
@@ -471,75 +472,131 @@ mod method_tests {
         assert_eq!(String::from_utf8(buf).unwrap(), "diag\n");
     }
 
-    #[test]
-    fn print_error_json_writes_envelope() {
-        let cfg = json_cfg();
+    fn error_doc(cfg: &OutputConfig, err: &BirdError, ctx: &HintContext) -> serde_json::Value {
         let mut buf = Vec::new();
-        let err = BirdError::config("missing");
-        cfg.print_error(&mut buf, &err).unwrap();
-        let s = String::from_utf8(buf).unwrap();
-        let val: serde_json::Value =
-            serde_json::from_str(s.trim()).expect("error envelope is JSON");
-        let obj = val.as_object().expect("envelope is object");
-        assert!(
-            obj.contains_key("error") && obj.contains_key("kind"),
-            "envelope carries error id and kind: {:?}",
-            obj.keys().collect::<Vec<_>>()
-        );
-        assert_eq!(obj["kind"], "config");
+        cfg.print_error(&mut buf, err, ctx).unwrap();
+        serde_json::from_slice(&buf).expect("error envelope is JSON")
     }
 
-    /// Every exit code and kind the stderr envelope can carry is one the
-    /// published `error-envelope` schema admits.
     #[test]
-    fn print_error_json_exit_codes_and_kinds_match_schema() {
+    fn print_error_json_writes_xr_envelope() {
+        let doc = error_doc(
+            &json_cfg(),
+            &BirdError::config("missing"),
+            &HintContext::default(),
+        );
+        assert_eq!(doc["status"], "error");
+        assert_eq!(doc["reason"], "config-error");
+        assert_eq!(doc["exit_code"], 78);
+        assert_eq!(doc["message"], "missing");
+        for retired in ["error", "kind", "meta"] {
+            assert!(doc.get(retired).is_none(), "{retired} must be gone: {doc}");
+        }
+    }
+
+    #[test]
+    fn print_error_json_is_indented_and_compact_under_raw() {
+        let err = BirdError::config("missing");
+        let mut pretty = Vec::new();
+        json_cfg()
+            .print_error(&mut pretty, &err, &HintContext::default())
+            .unwrap();
+        assert!(String::from_utf8(pretty).unwrap().lines().count() > 1);
+
+        let raw = OutputConfig {
+            raw: true,
+            ..json_cfg()
+        };
+        let mut compact = Vec::new();
+        raw.print_error(&mut compact, &err, &HintContext::default())
+            .unwrap();
+        assert_eq!(String::from_utf8(compact).unwrap().lines().count(), 1);
+    }
+
+    #[test]
+    fn a_usage_error_points_at_the_commands_help() {
+        let ctx = HintContext {
+            help: "bird thread --help".into(),
+            ..HintContext::default()
+        };
+        let doc = error_doc(
+            &json_cfg(),
+            &BirdError::usage(envelope::Reason::InvalidArgs, "bad flag"),
+            &ctx,
+        );
+        assert_eq!(doc["next_step"]["action"], "show-help");
+        assert_eq!(doc["next_step"]["command"], "bird thread --help");
+    }
+
+    #[test]
+    fn a_refused_confirmation_carries_the_forced_invocation() {
+        let ctx = HintContext {
+            invocation: vec!["bird".into(), "like".into(), "1".into()],
+            ..HintContext::default()
+        };
+        let doc = error_doc(&json_cfg(), &BirdError::confirmation_required("like"), &ctx);
+        assert_eq!(doc["reason"], "confirmation-required");
+        assert_eq!(doc["exit_code"], 1);
+        assert_eq!(doc["command"], "like");
+        assert_eq!(doc["next_step"]["action"], "confirm");
+        assert_eq!(doc["next_step"]["template"], "bird like 1 --force");
+    }
+
+    #[test]
+    fn a_library_error_takes_xdks_step_and_docs() {
+        let err = BirdError::from_source("thread", Box::new(xdk::Error::api(503, "Unavailable")));
+        let doc = error_doc(&json_cfg(), &err, &HintContext::default());
+        assert_eq!(doc["reason"], "server-error");
+        assert_eq!(doc["next_step"]["action"], "retry");
+        assert_eq!(
+            doc["next_step"]["docs"],
+            "https://docs.x.com/x-api/fundamentals/response-codes-and-errors"
+        );
+    }
+
+    #[test]
+    fn text_mode_prints_the_hint_line_after_the_error() {
+        let ctx = HintContext {
+            help: "bird thread --help".into(),
+            ..HintContext::default()
+        };
+        let mut buf = Vec::new();
+        text_cfg()
+            .print_error(
+                &mut buf,
+                &BirdError::usage(envelope::Reason::InvalidArgs, "bad flag"),
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(buf).unwrap(),
+            "usage error: bad flag\nTry 'bird thread --help'.\n"
+        );
+    }
+
+    /// Every error envelope the emitter writes uses only keys the published
+    /// `error-envelope` schema declares; the schema closes the object.
+    #[test]
+    fn print_error_json_keys_are_declared_by_the_schema() {
         let schema: serde_json::Value =
-            serde_json::from_str(include_str!("../schema/error-envelope.schema.json"))
+            serde_json::from_str(include_str!("../../schema/error-envelope.schema.json"))
                 .expect("error-envelope schema is JSON");
-        let allowed = |field: &str| -> Vec<serde_json::Value> {
-            schema["properties"][field]["enum"]
-                .as_array()
-                .unwrap_or_else(|| panic!("schema {field}.enum missing"))
-                .clone()
-        };
-        let exit_codes = allowed("exit_code");
-        let kinds = allowed("kind");
-
-        let general = |exit_code_override: Option<u8>, status: Option<u16>| BirdError::General {
-            error_id: "command-error",
-            message: "m".into(),
-            command: Some("search"),
-            status,
-            exit_code_override,
-        };
+        let declared = schema["properties"]
+            .as_object()
+            .expect("schema declares properties");
         let errors = [
-            BirdError::usage("invalid-value", "m"),
-            BirdError::Auth {
-                error_id: "auth-error",
-                message: "m".into(),
-            },
+            BirdError::usage(envelope::Reason::InvalidArgs, "m"),
+            BirdError::unknown_command("tweeet", Some("tweet".into()), "m"),
+            BirdError::confirmation_required("like"),
             BirdError::config("m"),
-            general(None, Some(500)),
-            general(Some(3), Some(429)),
-            general(Some(4), Some(404)),
-            general(Some(5), None),
+            BirdError::from_source("search", Box::new(xdk::Error::api(429, "slow down"))),
+            BirdError::from_source("search", Box::new(xdk::Error::http("reset"))),
         ];
-
-        let cfg = json_cfg();
         for err in &errors {
-            let mut buf = Vec::new();
-            cfg.print_error(&mut buf, err).unwrap();
-            let val: serde_json::Value = serde_json::from_slice(&buf).expect("envelope is JSON");
-            assert!(
-                exit_codes.contains(&val["exit_code"]),
-                "exit_code {} is not in the schema enum {exit_codes:?}",
-                val["exit_code"],
-            );
-            assert!(
-                kinds.contains(&val["kind"]),
-                "kind {} is not in the schema enum {kinds:?}",
-                val["kind"],
-            );
+            let doc = error_doc(&json_cfg(), err, &HintContext::default());
+            for key in doc.as_object().unwrap().keys() {
+                assert!(declared.contains_key(key), "{key} undeclared: {doc}");
+            }
         }
     }
 
@@ -595,7 +652,8 @@ mod method_tests {
         };
         let mut buf = Vec::new();
         let err = BirdError::config("missing");
-        cfg.print_error(&mut buf, &err).unwrap();
+        cfg.print_error(&mut buf, &err, &HintContext::default())
+            .unwrap();
         let s = String::from_utf8(buf).unwrap();
         assert!(
             s.contains('\x1b'),
@@ -605,7 +663,9 @@ mod method_tests {
         // The same call with color disabled must be plain.
         let plain = text_cfg();
         let mut plain_buf = Vec::new();
-        plain.print_error(&mut plain_buf, &err).unwrap();
+        plain
+            .print_error(&mut plain_buf, &err, &HintContext::default())
+            .unwrap();
         let plain_s = String::from_utf8(plain_buf).unwrap();
         assert!(
             !plain_s.contains('\x1b'),

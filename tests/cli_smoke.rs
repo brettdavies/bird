@@ -113,7 +113,7 @@ fn login_headless_refuses_an_app_without_client_credentials() {
         );
         assert_eq!(exit, 2, "{flag}: stderr {stderr:?}");
         let envelope = common::stderr_envelope(&stderr);
-        assert_eq!(envelope["error"], "client-credentials-missing", "{flag}");
+        assert_eq!(envelope["reason"], "client-credentials-missing", "{flag}");
         let store = env.paths.token_store.as_deref().expect("test: named store");
         let pending = xdk::auth::pending::pending_path_for_store(store);
         assert!(!pending.exists(), "{flag}: wrote {}", pending.display());
@@ -149,6 +149,63 @@ fn doctor_reads_the_injected_token_store() {
     assert_eq!(apps, ["fixture-app"]);
     assert_eq!(report["auth"]["apps"]["fixture-app"]["client_id_set"], true);
     assert_eq!(report["auth"]["env"]["client_id_set"], false);
+}
+
+/// An app with client credentials and no token: a user-context command fails
+/// offline with `auth-required` and a `sign-in` step naming `bird login`,
+/// chosen from the store the run loaded.
+#[test]
+fn a_missing_token_points_at_bird_login() {
+    let env = common::TestEnv::new();
+    let store_path = env
+        .paths
+        .token_store
+        .as_deref()
+        .and_then(|path| path.to_str())
+        .expect("test: named utf-8 store path");
+    xdk::store::TokenStore::new_with_path(store_path)
+        .add_app("fixture-app", "fixture-client-id", "fixture-client-secret")
+        .expect("test: seed the token store");
+
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &["bird", "--app", "fixture-app", "me", "--output", "json"],
+        &env,
+    );
+    assert_eq!(exit, 77, "stderr {stderr:?}");
+    let envelope = common::stderr_envelope(&stderr);
+    assert_eq!(envelope["reason"], "auth-required");
+    assert_eq!(envelope["next_step"]["action"], "sign-in");
+    assert_eq!(envelope["next_step"]["command"], "bird login --no-browser");
+
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &["bird", "--app", "fixture-app", "me", "--output", "text"],
+        &env,
+    );
+    assert_eq!(exit, 77);
+    assert!(
+        stderr.contains("Sign in first. Run: bird login"),
+        "text hint, got {stderr:?}"
+    );
+}
+
+#[test]
+fn cache_only_miss_is_a_cache_miss() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "--cache-only",
+            "profile",
+            "jack",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 1, "stderr {stderr:?}");
+    let envelope = common::stderr_envelope(&stderr);
+    assert_eq!(envelope["reason"], "cache-miss");
+    assert_eq!(envelope["next_step"]["action"], "fix-input");
 }
 
 // --- Content-asserting migrations from cli_smoke_subprocess.rs (Plan 2 U11) -
@@ -351,16 +408,17 @@ fn quiet_short_flag_accepted() {
 // --- Write-op guards (--force / --yes / --dry-run) ------------------------
 
 #[test]
-fn delete_without_force_or_tty_is_usage_error() {
+fn delete_without_force_or_tty_requires_confirmation() {
     let env = common::TestEnv::new();
     let (exit, _stdout, stderr) = common::run_in_process(
         &["bird", "delete", "/2/tweets/123", "--output", "json"],
         &env,
     );
-    assert_eq!(exit, 2);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["error"], "requires-confirmation");
-    assert_eq!(json["kind"], "usage");
+    assert_eq!(exit, 1);
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["status"], "error");
+    assert_eq!(json["reason"], "confirmation-required");
+    assert_eq!(json["next_step"]["action"], "confirm");
 }
 
 #[test]
@@ -425,10 +483,10 @@ fn output_json_config_error_schema() {
         &env,
     );
     assert_eq!(exit, 78);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["status"], "error");
+    assert_eq!(json["reason"], "config-error");
     assert_eq!(json["exit_code"], 78);
-    assert!(json["error"].as_str().is_some());
     assert!(json.get("command").is_none());
 }
 
@@ -474,8 +532,8 @@ fn non_tty_defaults_to_json_errors() {
     let (exit, _stdout, stderr) =
         common::run_in_process(&["bird", "--username", "'; DROP TABLE", "doctor"], &env);
     assert_eq!(exit, 78);
-    let json: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(json["kind"], "config");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "config-error");
 }
 
 // --- `--examples` block ---------------------------------------------------

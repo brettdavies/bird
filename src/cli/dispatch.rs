@@ -458,14 +458,17 @@ pub enum GuardOutcome {
     /// Confirmation satisfied (via `--force`/`--yes` or interactive `y`);
     /// the command should proceed.
     Proceed,
+    /// The prompt was answered no; the command ends successfully with
+    /// nothing done and nothing more printed, as `xr` does.
+    Declined,
 }
 
 /// Apply the `--force` / `--yes` / `--dry-run` policy for a mutating command.
 ///
 /// Order of evaluation: `--dry-run` short-circuits (prints the would-be effect
 /// and returns `GuardOutcome::DryRun`). Otherwise, when neither `--force` nor
-/// `--yes` is set, we either prompt on a TTY or return a `requires-confirmation`
-/// usage error.
+/// `--yes` is set, we either prompt on a TTY or return a `confirmation-required`
+/// error (exit 1). A prompt answered no returns `GuardOutcome::Declined`.
 ///
 /// `stdout` receives the dry-run envelope or human "Would …" line when
 /// `guard.dry_run` is set. `prompt_writer` receives the confirmation prompt
@@ -506,22 +509,10 @@ pub fn require_confirmation(
     if answer_reader.is_none() {
         let stdin_tty = std::io::stdin().is_terminal();
         if !stdin_tty || no_interactive {
-            return Err(BirdError::usage(
-                "requires-confirmation",
-                format!(
-                    "destructive operation '{}' requires --force, --yes, or interactive confirmation",
-                    verb
-                ),
-            ));
+            return Err(BirdError::confirmation_required(verb));
         }
     } else if no_interactive {
-        return Err(BirdError::usage(
-            "requires-confirmation",
-            format!(
-                "destructive operation '{}' requires --force, --yes, or interactive confirmation",
-                verb
-            ),
-        ));
+        return Err(BirdError::confirmation_required(verb));
     }
     let _ = write!(
         prompt_writer,
@@ -538,21 +529,13 @@ pub fn require_confirmation(
     };
     let line = match read_result {
         Ok(s) => s,
-        Err(_) => {
-            return Err(BirdError::usage(
-                "requires-confirmation",
-                "failed to read confirmation from stdin".to_string(),
-            ));
-        }
+        Err(_) => return Err(BirdError::confirmation_required(verb)),
     };
     let trimmed = line.trim();
     if trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes") {
         Ok(GuardOutcome::Proceed)
     } else {
-        Err(BirdError::usage(
-            "user-aborted",
-            "aborted by user (confirmation declined)".to_string(),
-        ))
+        Ok(GuardOutcome::Declined)
     }
 }
 
@@ -781,9 +764,8 @@ mod tests {
         );
     }
 
-    // U4.3b: require_confirmation with "n" closure returns user-aborted usage error.
     #[test]
-    fn require_confirmation_no_returns_user_aborted() {
+    fn require_confirmation_no_returns_declined() {
         let out = cfg();
         let guard = WriteGuard {
             force: false,
@@ -803,12 +785,8 @@ mod tests {
             &mut buf,
             Some(Box::new(|| Ok("n\n".to_string()))),
         );
-        match res {
-            Err(BirdError::Usage { error_id, .. }) => {
-                assert_eq!(error_id, "user-aborted");
-            }
-            _ => panic!("expected user-aborted usage error"),
-        }
+        assert!(matches!(res, Ok(GuardOutcome::Declined)));
+        assert!(stdout.is_empty(), "a declined prompt prints nothing");
     }
 
     // U4.4: require_confirmation with --dry-run returns DryRun without invoking the reader.
@@ -838,7 +816,6 @@ mod tests {
         assert!(matches!(res, Ok(GuardOutcome::DryRun)));
     }
 
-    // U4.5: require_confirmation with --no-interactive returns requires-confirmation usage error.
     #[test]
     fn require_confirmation_no_interactive_errors() {
         let out = cfg();
@@ -860,12 +837,9 @@ mod tests {
             &mut buf,
             None,
         );
-        match res {
-            Err(BirdError::Usage { error_id, .. }) => {
-                assert_eq!(error_id, "requires-confirmation");
-            }
-            _ => panic!("expected requires-confirmation usage error"),
-        }
+        let err = res.err().expect("no-interactive without --force refuses");
+        assert_eq!(err.error_id(), "confirmation-required");
+        assert_eq!(err.exit_code(), 1);
     }
 
     // U4.6: build_dry_run_url returns the expected absolute URL.

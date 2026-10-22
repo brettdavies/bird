@@ -26,6 +26,8 @@ use crate::cli::dispatch::{
 use crate::cli::{Cli, Command, OutputFlags, SkillAction, WatchlistCommand};
 use crate::config::{ArgOverrides, EnvOverrides, ResolvedConfig, ResolvedPaths};
 use crate::error::BirdError;
+use crate::output::envelope::Reason;
+use crate::output::hints::HintContext;
 use crate::output::{OutputConfig, OutputFormat};
 use crate::{db, doctor, output, schema, schema_print, skill_install, watchlist};
 use clap::Parser;
@@ -66,6 +68,35 @@ fn print_examples(out: &OutputConfig, stdout: &mut dyn Write) -> ExitCode {
         let _ = write!(stdout, "{}", TOP_LEVEL_EXAMPLES);
     }
     ExitCode::SUCCESS
+}
+
+/// `bird <command path> --help` for the deepest subcommand `argv` names.
+///
+/// Words before the first subcommand are skipped (values of global flags);
+/// after it, the first word that is not a nested subcommand ends the path.
+fn invoked_help(argv: &[String]) -> String {
+    use clap::CommandFactory;
+    let mut cmd = Cli::command();
+    let mut path = vec!["bird".to_string()];
+    for arg in argv.iter().skip(1) {
+        if arg == "--" {
+            break;
+        }
+        if arg.starts_with('-') {
+            continue;
+        }
+        match cmd.find_subcommand(arg) {
+            Some(sub) => {
+                path.push(sub.get_name().to_string());
+                let next = sub.clone();
+                cmd = next;
+            }
+            None if path.len() == 1 => continue,
+            None => break,
+        }
+    }
+    path.push("--help".to_string());
+    path.join(" ")
 }
 
 /// Binary entrypoint. Reads `std::env::args_os`, locks std stdout/stderr, and
@@ -144,7 +175,12 @@ where
         .map(|s| s.to_string_lossy().into_owned())
         .collect();
     let argv_output = output_from_argv(&argv);
-    let explicit_output = explicit_output_from_argv(&argv);
+    let mut hint_ctx = HintContext {
+        snapshot: None,
+        invocation: argv.clone(),
+        help: invoked_help(&argv),
+        structured: argv_output.is_json(),
+    };
 
     // `--examples` is a global help-style flag: print the curated examples block
     // and exit zero, even when no subcommand is supplied. Must short-circuit
@@ -168,31 +204,31 @@ where
         Ok(c) => c,
         Err(e) => match clap_error_to_bird(&e) {
             None => {
-                // Help/version display: only when the user EXPLICITLY requested JSON
-                // (via `--json`, `--jsonl`, or `--output {json,jsonl}`) do we wrap the
-                // help/version text in a success envelope. Auto-detected pipe mode
-                // keeps the plain clap output so naive `bird --help | grep` still works.
-                let wrap_in_envelope = explicit_output.is_some_and(|f| f.is_json());
-                if wrap_in_envelope {
-                    let body = e.to_string();
-                    let kind = match e.kind() {
-                        clap::error::ErrorKind::DisplayVersion => "version",
-                        _ => "help",
-                    };
-                    let data = serde_json::json!({
-                        kind: body.trim(),
-                    });
-                    let meta = serde_json::json!({"format": "text"});
-                    match output::success_envelope_string(&data, &meta) {
-                        Ok(line) => {
-                            let _ = writeln!(stdout, "{}", line);
-                        }
-                        Err(_) => {
-                            let _ = e.print();
-                        }
+                // Help and version print plain unless JSON was asked for by
+                // flag, where they take the ok envelope so a JSON caller (and
+                // anc's `--help --output json` probe) still reads one document.
+                let explicit = explicit_output_from_argv(&argv).filter(|f| f.is_json());
+                match explicit {
+                    Some(format) => {
+                        let key = match e.kind() {
+                            clap::error::ErrorKind::DisplayVersion => "version",
+                            _ => "help",
+                        };
+                        let cfg = OutputConfig {
+                            format,
+                            use_color: false,
+                            quiet: false,
+                            raw: argv.iter().any(|a| a == "--raw"),
+                        };
+                        let doc = output::envelope::Envelope::Ok {
+                            payload: serde_json::json!({"data": { key: e.render().to_string().trim() }}),
+                        };
+                        let value = serde_json::to_value(doc).unwrap_or_default();
+                        let _ = cfg.write_structured(stdout, &value);
                     }
-                } else {
-                    let _ = e.print();
+                    None => {
+                        let _ = write!(stdout, "{}", e.render());
+                    }
                 }
                 return ExitCode::SUCCESS;
             }
@@ -204,7 +240,7 @@ where
                     quiet: false,
                     raw: false,
                 };
-                let _ = cfg.print_error(stderr, &bird_err);
+                let _ = cfg.print_error(stderr, &bird_err, &hint_ctx);
                 return ExitCode::from(bird_err.exit_code());
             }
         },
@@ -228,6 +264,7 @@ where
         quiet: cli.quiet,
         raw,
     };
+    hint_ctx.structured = out.format.is_json();
 
     // --- Meta-commands: need nothing beyond parsed args ---
     if let Command::Completions { shell } = &cli.command {
@@ -255,7 +292,7 @@ where
         return match schema_print::run(name.as_deref(), *list, &out, stdout) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
-                let _ = out.print_error(stderr, &err);
+                let _ = out.print_error(stderr, &err, &hint_ctx);
                 ExitCode::from(err.exit_code())
             }
         };
@@ -268,7 +305,7 @@ where
             Ok(clean) => Some(clean.to_string()),
             Err(e) => {
                 let err = BirdError::config(format!("--username: {}", e));
-                let _ = out.print_error(stderr, &err);
+                let _ = out.print_error(stderr, &err, &hint_ctx);
                 return ExitCode::from(err.exit_code());
             }
         },
@@ -302,7 +339,7 @@ where
         Ok(c) => c,
         Err(e) => {
             let err = BirdError::config(e);
-            let _ = out.print_error(stderr, &err);
+            let _ = out.print_error(stderr, &err, &hint_ctx);
             return ExitCode::from(err.exit_code());
         }
     };
@@ -320,6 +357,19 @@ where
             config.token_store.as_deref(),
             config.app.as_deref(),
         );
+        // Taken before `auth` moves into the client: a credential failure's
+        // recovery step is chosen from the store this run loaded. The
+        // snapshot holds presence flags and names, never a secret.
+        hint_ctx.snapshot = Some(xdk::store::snapshot::StoreSnapshot::new(
+            &auth.token_store,
+            config.app.as_deref().unwrap_or_default(),
+            config
+                .xdk_env
+                .client_id
+                .as_deref()
+                .is_some_and(|value| !value.is_empty()),
+        ));
+        hint_ctx.structured = out.format.is_json();
         match crate::xurl_client::EmbeddedClient::new(&cfg, auth, cli.timeout) {
             Ok(client) => Box::new(client),
             Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
@@ -362,7 +412,7 @@ where
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
-                let _ = out.print_error(stderr, &err);
+                let _ = out.print_error(stderr, &err, &hint_ctx);
                 return ExitCode::from(err.exit_code());
             }
         }
@@ -394,7 +444,7 @@ where
                     stderr,
                     None,
                 ) {
-                    Ok(GuardOutcome::DryRun) => Ok(()),
+                    Ok(GuardOutcome::DryRun | GuardOutcome::Declined) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {
                         watchlist::run_watchlist_remove(&config, &out, stderr, username)
                             .map_err(BirdError::config)
@@ -420,7 +470,7 @@ where
         return match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                let _ = out.print_error(stderr, &e);
+                let _ = out.print_error(stderr, &e, &hint_ctx);
                 ExitCode::from(e.exit_code())
             }
         };
@@ -447,8 +497,8 @@ where
     if let Some(ref a) = cli.auth
         && let Err(usage) = validate_auth_value(a, &cli.command)
     {
-        let err = BirdError::usage("invalid-auth", usage);
-        let _ = out.print_error(stderr, &err);
+        let err = BirdError::usage(Reason::AuthMethodMismatch, usage);
+        let _ = out.print_error(stderr, &err, &hint_ctx);
         return ExitCode::from(err.exit_code());
     }
 
@@ -470,7 +520,7 @@ where
     ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            let _ = out.print_error(stderr, &e);
+            let _ = out.print_error(stderr, &e, &hint_ctx);
             ExitCode::from(e.exit_code())
         }
     }

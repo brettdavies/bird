@@ -1,27 +1,27 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_bird_global_optspecs
-	string join \n u/username= o/output= json jsonl color= plain no-color q/quiet v/verbose timeout= no-interactive raw examples refresh no-cache cache-only limit= cursor= h/help V/version
+    string join \n u/username= o/output= json jsonl color= plain no-color q/quiet v/verbose timeout= no-interactive raw examples refresh no-cache cache-only limit= cursor= app= auth= h/help V/version
 end
 
 function __fish_bird_needs_command
-	# Figure out if the current invocation already has a command.
-	set -l cmd (commandline -opc)
-	set -e cmd[1]
-	argparse -s (__fish_bird_global_optspecs) -- $cmd 2>/dev/null
-	or return
-	if set -q argv[1]
-		# Also print the command, so this can be used to figure out what it is.
-		echo $argv[1]
-		return 1
-	end
-	return 0
+    # Figure out if the current invocation already has a command.
+    set -l cmd (commandline -opc)
+    set -e cmd[1]
+    argparse -s (__fish_bird_global_optspecs) -- $cmd 2>/dev/null
+    or return
+    if set -q argv[1]
+        # Also print the command, so this can be used to figure out what it is.
+        echo $argv[1]
+        return 1
+    end
+    return 0
 end
 
 function __fish_bird_using_subcommand
-	set -l cmd (__fish_bird_needs_command)
-	test -z "$cmd"
-	and return 1
-	contains -- $cmd[1] $argv
+    set -l cmd (__fish_bird_needs_command)
+    test -z "$cmd"
+    and return 1
+    contains -- $cmd[1] $argv
 end
 
 complete -c bird -n "__fish_bird_needs_command" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
@@ -32,9 +32,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_needs_command" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_needs_command" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_needs_command" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_needs_command" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_needs_command" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_needs_command" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_needs_command" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_needs_command" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_needs_command" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_needs_command" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -42,7 +44,7 @@ complete -c bird -n "__fish_bird_needs_command" -l no-color -d 'Deprecated alias
 complete -c bird -n "__fish_bird_needs_command" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_needs_command" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_needs_command" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_needs_command" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_needs_command" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_needs_command" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_needs_command" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_needs_command" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -88,9 +90,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand login" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand login" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l no-browser -d 'Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched'
 complete -c bird -n "__fish_bird_using_subcommand login" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand login" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -99,7 +103,7 @@ complete -c bird -n "__fish_bird_using_subcommand login" -l no-color -d 'Depreca
 complete -c bird -n "__fish_bird_using_subcommand login" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand login" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand login" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand login" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand login" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand login" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand login" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand login" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -113,9 +117,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand me" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand me" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand me" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -124,7 +130,7 @@ complete -c bird -n "__fish_bird_using_subcommand me" -l no-color -d 'Deprecated
 complete -c bird -n "__fish_bird_using_subcommand me" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand me" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand me" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand me" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand me" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand me" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand me" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand me" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -132,6 +138,7 @@ complete -c bird -n "__fish_bird_using_subcommand me" -l cache-only -d 'Only ser
 complete -c bird -n "__fish_bird_using_subcommand me" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand get" -s p -l param -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l query -r
+complete -c bird -n "__fish_bird_using_subcommand get" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -140,9 +147,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand get" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand get" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand get" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand get" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand get" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand get" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand get" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand get" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -151,7 +160,7 @@ complete -c bird -n "__fish_bird_using_subcommand get" -l no-color -d 'Deprecate
 complete -c bird -n "__fish_bird_using_subcommand get" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand get" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand get" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand get" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand get" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand get" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand get" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand get" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -160,6 +169,7 @@ complete -c bird -n "__fish_bird_using_subcommand get" -s h -l help -d 'Print he
 complete -c bird -n "__fish_bird_using_subcommand post" -s p -l param -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l query -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l body -r
+complete -c bird -n "__fish_bird_using_subcommand post" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -168,9 +178,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand post" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand post" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand post" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand post" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand post" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand post" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand post" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand post" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
@@ -181,7 +193,7 @@ complete -c bird -n "__fish_bird_using_subcommand post" -l no-color -d 'Deprecat
 complete -c bird -n "__fish_bird_using_subcommand post" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand post" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand post" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand post" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand post" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand post" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand post" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -190,6 +202,7 @@ complete -c bird -n "__fish_bird_using_subcommand post" -s h -l help -d 'Print h
 complete -c bird -n "__fish_bird_using_subcommand put" -s p -l param -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l query -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l body -r
+complete -c bird -n "__fish_bird_using_subcommand put" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -198,9 +211,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand put" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand put" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand put" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand put" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand put" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand put" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand put" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand put" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
@@ -211,7 +226,7 @@ complete -c bird -n "__fish_bird_using_subcommand put" -l no-color -d 'Deprecate
 complete -c bird -n "__fish_bird_using_subcommand put" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand put" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand put" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand put" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand put" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand put" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand put" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -225,9 +240,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -236,7 +253,7 @@ complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l no-color -d 'Dep
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -249,9 +266,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand profile" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand profile" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand profile" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand profile" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand profile" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -260,7 +279,7 @@ complete -c bird -n "__fish_bird_using_subcommand profile" -l no-color -d 'Depre
 complete -c bird -n "__fish_bird_using_subcommand profile" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand profile" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand profile" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand profile" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -278,9 +297,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand search" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand search" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand search" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -289,7 +310,7 @@ complete -c bird -n "__fish_bird_using_subcommand search" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand search" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand search" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand search" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand search" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand search" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand search" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand search" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand search" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -304,9 +325,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand thread" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand thread" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -315,7 +338,7 @@ complete -c bird -n "__fish_bird_using_subcommand thread" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand thread" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand thread" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand thread" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand thread" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -323,6 +346,7 @@ complete -c bird -n "__fish_bird_using_subcommand thread" -l cache-only -d 'Only
 complete -c bird -n "__fish_bird_using_subcommand thread" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand delete" -s p -l param -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l query -r
+complete -c bird -n "__fish_bird_using_subcommand delete" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -331,9 +355,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand delete" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand delete" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand delete" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand delete" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand delete" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand delete" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
@@ -344,7 +370,7 @@ complete -c bird -n "__fish_bird_using_subcommand delete" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand delete" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand delete" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand delete" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand delete" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -358,9 +384,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -369,7 +397,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -388,9 +416,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -398,7 +428,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -411,9 +441,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -421,7 +453,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -434,9 +466,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l json -d 'Shorthand for `--output json`'
@@ -446,7 +480,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -460,9 +494,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -470,7 +506,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -490,9 +526,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand usage" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand usage" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand usage" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand usage" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand usage" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand usage" -l local -d 'Show only local estimates (skip API)'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l json -d 'Shorthand for `--output json`'
@@ -502,7 +540,7 @@ complete -c bird -n "__fish_bird_using_subcommand usage" -l no-color -d 'Depreca
 complete -c bird -n "__fish_bird_using_subcommand usage" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand usage" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand usage" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand usage" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand usage" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -517,9 +555,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand tweet" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l json -d 'Shorthand for `--output json`'
@@ -529,7 +569,7 @@ complete -c bird -n "__fish_bird_using_subcommand tweet" -l no-color -d 'Depreca
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand tweet" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -543,9 +583,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand reply" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand reply" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l json -d 'Shorthand for `--output json`'
@@ -555,7 +597,7 @@ complete -c bird -n "__fish_bird_using_subcommand reply" -l no-color -d 'Depreca
 complete -c bird -n "__fish_bird_using_subcommand reply" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand reply" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand reply" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand reply" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -569,9 +611,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand like" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand like" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand like" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand like" -l json -d 'Shorthand for `--output json`'
@@ -581,7 +625,7 @@ complete -c bird -n "__fish_bird_using_subcommand like" -l no-color -d 'Deprecat
 complete -c bird -n "__fish_bird_using_subcommand like" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand like" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand like" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand like" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand like" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand like" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand like" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand like" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -595,9 +639,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand unlike" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l json -d 'Shorthand for `--output json`'
@@ -607,7 +653,7 @@ complete -c bird -n "__fish_bird_using_subcommand unlike" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand unlike" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -621,9 +667,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand repost" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand repost" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l json -d 'Shorthand for `--output json`'
@@ -633,7 +681,7 @@ complete -c bird -n "__fish_bird_using_subcommand repost" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand repost" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand repost" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand repost" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand repost" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -647,9 +695,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand unrepost" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l json -d 'Shorthand for `--output json`'
@@ -659,7 +709,7 @@ complete -c bird -n "__fish_bird_using_subcommand unrepost" -l no-color -d 'Depr
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand unrepost" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -672,9 +722,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand follow" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand follow" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand follow" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand follow" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand follow" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l json -d 'Shorthand for `--output json`'
@@ -684,7 +736,7 @@ complete -c bird -n "__fish_bird_using_subcommand follow" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand follow" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand follow" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand follow" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand follow" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -697,9 +749,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand unfollow" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l json -d 'Shorthand for `--output json`'
@@ -709,7 +763,7 @@ complete -c bird -n "__fish_bird_using_subcommand unfollow" -l no-color -d 'Depr
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand unfollow" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -722,9 +776,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand dm" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand dm" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand dm" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand dm" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand dm" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l json -d 'Shorthand for `--output json`'
@@ -734,7 +790,7 @@ complete -c bird -n "__fish_bird_using_subcommand dm" -l no-color -d 'Deprecated
 complete -c bird -n "__fish_bird_using_subcommand dm" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand dm" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand dm" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand dm" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -747,9 +803,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand block" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand block" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand block" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand block" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand block" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand block" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand block" -l json -d 'Shorthand for `--output json`'
@@ -759,7 +817,7 @@ complete -c bird -n "__fish_bird_using_subcommand block" -l no-color -d 'Depreca
 complete -c bird -n "__fish_bird_using_subcommand block" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand block" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand block" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand block" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand block" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand block" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand block" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand block" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -772,9 +830,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand unblock" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l json -d 'Shorthand for `--output json`'
@@ -784,7 +844,7 @@ complete -c bird -n "__fish_bird_using_subcommand unblock" -l no-color -d 'Depre
 complete -c bird -n "__fish_bird_using_subcommand unblock" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand unblock" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -797,9 +857,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand mute" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand mute" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand mute" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand mute" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand mute" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l json -d 'Shorthand for `--output json`'
@@ -809,7 +871,7 @@ complete -c bird -n "__fish_bird_using_subcommand mute" -l no-color -d 'Deprecat
 complete -c bird -n "__fish_bird_using_subcommand mute" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand mute" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand mute" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand mute" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -822,9 +884,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand unmute" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l json -d 'Shorthand for `--output json`'
@@ -834,7 +898,7 @@ complete -c bird -n "__fish_bird_using_subcommand unmute" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand unmute" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand unmute" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -848,9 +912,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -859,7 +925,7 @@ complete -c bird -n "__fish_bird_using_subcommand doctor" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand doctor" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -873,9 +939,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -883,7 +951,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -900,9 +968,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l json -d 'Shorthand for `--output json`'
@@ -912,7 +982,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -926,9 +996,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -937,7 +1009,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -954,9 +1026,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand completions" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand completions" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -964,7 +1038,7 @@ complete -c bird -n "__fish_bird_using_subcommand completions" -l no-color -d 'D
 complete -c bird -n "__fish_bird_using_subcommand completions" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand completions" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand completions" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand completions" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -978,9 +1052,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -988,7 +1064,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -1005,9 +1081,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l all -d 'Install into every supported host in one invocation'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l dry-run -d 'Print the planned clone command without spawning git'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l json -d 'Shorthand for `--output json`'
@@ -1017,7 +1095,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -1031,9 +1109,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l all -d 'Update every supported host in one invocation'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l dry-run -d 'Print the planned operation without touching the filesystem'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l json -d 'Shorthand for `--output json`'
@@ -1043,7 +1123,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l no-cache -d 'Disable entity store entirely (no read, no write)'
@@ -1060,9 +1140,11 @@ ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
 complete -c bird -n "__fish_bird_using_subcommand schema" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
 always\t'Always emit colors'
 never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand schema" -l timeout -d 'Network timeout in seconds (default 30). Applies to xurl subprocesses' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l list -d 'List all available schema names instead of printing a schema'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -1071,7 +1153,7 @@ complete -c bird -n "__fish_bird_using_subcommand schema" -l no-color -d 'Deprec
 complete -c bird -n "__fish_bird_using_subcommand schema" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
 complete -c bird -n "__fish_bird_using_subcommand schema" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand schema" -l raw -d 'Emit pipe-safe, undecorated text. Ignored in JSON modes'
+complete -c bird -n "__fish_bird_using_subcommand schema" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l examples -d 'Print curated examples block and exit'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l refresh -d 'Bypass store read, still write response to store'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l no-cache -d 'Disable entity store entirely (no read, no write)'

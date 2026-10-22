@@ -190,7 +190,10 @@ fn client_credentials_missing(auth: &Auth, app_explicit: bool) -> Option<BirdErr
         ),
         None => "no app carries client credentials. Register one with `xr auth app`, or set CLIENT_ID and CLIENT_SECRET.".to_string(),
     };
-    Some(BirdError::usage("client-credentials-missing", message))
+    Some(BirdError::usage(
+        crate::output::envelope::Reason::ClientCredentialsMissing,
+        message,
+    ))
 }
 
 /// Maps a sign-in failure onto bird's envelope, an `xdk::Error` keeping

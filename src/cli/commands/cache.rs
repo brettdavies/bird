@@ -34,7 +34,7 @@ pub fn run(
                 stderr,
                 None,
             )? {
-                GuardOutcome::DryRun => return Ok(()),
+                GuardOutcome::DryRun | GuardOutcome::Declined => return Ok(()),
                 GuardOutcome::Proceed => {}
             }
             match client.db_clear() {

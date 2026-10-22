@@ -197,22 +197,26 @@ use.
 Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stderr. When stderr is not a TTY, JSON is the
 default.
 
+The envelope is the one `xr` prints, so one parser reads both tools:
+
 ```json
-{"error":"config-error","kind":"config","message":"...","exit_code":78,"meta":{}}
-{"error":"auth-required","kind":"auth","message":"...","exit_code":77,"meta":{}}
-{"error":"forbidden","kind":"general","message":"...","exit_code":1,"command":"me","status":403,"meta":{}}
-{"error":"rate-limited","kind":"general","message":"...","exit_code":3,"command":"search","status":429,"meta":{}}
+{"status":"error","reason":"config-error","exit_code":78,"message":"..."}
+{"status":"error","reason":"auth-required","exit_code":77,"message":"...","next_step":{"action":"sign-in","command":"bird login --no-browser"}}
+{"status":"error","reason":"forbidden","exit_code":1,"message":"..."}
+{"status":"error","reason":"rate-limited","exit_code":3,"message":"...","next_step":{"action":"wait-and-retry","docs":"https://docs.x.com/resources/fundamentals/rate-limits"},"retry_after_secs":42,"retry_at":"2026-10-22T21:00:00Z"}
 ```
 
-| Field       | Type   | Description                                                                                           |
-| ----------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| `error`     | string | Stable kebab-case error id; for an X API error, the reason `xr` reports                               |
-| `kind`      | string | `usage`, `auth`, `config`, or `general`                                                               |
-| `message`   | string | Human-readable message                                                                                |
-| `exit_code` | number | 2, 77, 78; or for `general`: 1, 3 (rate limited), 4 (not found), 5 (no response), 130/143 (cancelled) |
-| `command`   | string | Failing subcommand, on `general` errors                                                               |
-| `status`    | number | Upstream HTTP status, when the error came from an API response                                        |
-| `meta`      | object | Always present; empty on errors                                                                       |
+| Field       | Type   | Description                                                                              |
+| ----------- | ------ | ---------------------------------------------------------------------------------------- |
+| `status`    | string | `error`                                                                                  |
+| `reason`    | string | Stable kebab-case reason; for an X API error, the reason `xr` reports                    |
+| `exit_code` | number | 1, 2 (usage), 3 (rate limit), 4 (404), 5 (no response), 77, 78, 130/143 (cancelled)      |
+| `message`   | string | Human-readable message                                                                   |
+| `next_step` | object | The recovery step, when one exists: `action`, then `command` or `template`, and `docs`   |
+| `command`   | string | The offending value: an unknown command word, or the command that needs `--force`        |
+
+A rate limit with a known reset adds `retry_after_secs` and `retry_at`; an auth-scheme mismatch adds the endpoint,
+the schemes it accepts, and the active app. `--output json` is indented; `--raw` prints it on one line.
 
 `bird schema error-envelope` prints the JSON Schema for this envelope.
 

@@ -45,7 +45,7 @@ pub fn execute(
         &mut std::io::stderr().lock(),
         None,
     )?;
-    if matches!(outcome, GuardOutcome::DryRun) {
+    if matches!(outcome, GuardOutcome::DryRun | GuardOutcome::Declined) {
         return Ok(());
     }
     let verb = spec.verb;
@@ -578,23 +578,21 @@ mod tests {
             false,
             None,
         ) {
-            Err(BirdError::General {
-                command, message, ..
-            }) => {
-                assert_eq!(command, Some("like"));
+            Err(err) => {
+                assert_eq!(err.text_prefix(), "like failed: ");
                 assert!(
-                    message.contains("--cache-only"),
-                    "expected cache-only refusal, got: {message}"
+                    err.message().contains("--cache-only"),
+                    "expected cache-only refusal, got: {}",
+                    err.message()
                 );
             }
-            Err(_) => panic!("expected General error with cache-only refusal"),
             Ok(()) => panic!("expected cache-only refusal, got Ok"),
         }
     }
 
     /// `--no-interactive` without `--force`/`--yes` returns the
-    /// requires-confirmation usage error from the guard layer, before
-    /// xurl_write runs.
+    /// confirmation-required error from the guard layer, before xurl_write
+    /// runs.
     #[test]
     fn execute_no_interactive_without_force_errors() {
         let client = test_client();
@@ -614,11 +612,8 @@ mod tests {
             true,
             None,
         ) {
-            Err(BirdError::Usage { error_id, .. }) => {
-                assert_eq!(error_id, "requires-confirmation");
-            }
-            Err(_) => panic!("expected requires-confirmation usage error"),
-            Ok(()) => panic!("expected requires-confirmation error, got Ok"),
+            Err(err) => assert_eq!(err.error_id(), "confirmation-required"),
+            Ok(()) => panic!("expected confirmation-required error, got Ok"),
         }
     }
 

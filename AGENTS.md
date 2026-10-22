@@ -30,8 +30,8 @@ bird follow jack
 bird dm jack "ping"
 
 # Write-op guards: --dry-run prints the would-be request without sending;
-# --force / --yes bypass confirmation; without either, no-TTY callers get exit 2
-# (`requires-confirmation`) instead of hanging on stdin.
+# --force / --yes bypass confirmation; without either, no-TTY callers get exit 1
+# (`confirmation-required`) instead of hanging on stdin.
 bird delete /2/tweets/1234567890 --dry-run
 bird like 1234567890 --force
 
@@ -92,7 +92,7 @@ bird without arguments.
 | `-v`, `--verbose`                   | `BIRD_VERBOSE`          | Repeatable: `-v` info, `-vv` debug, `-vvv` trace.                            |
 | `--timeout <secs>`                  | `BIRD_TIMEOUT`          | Network timeout threaded into `xdk::api::Client::with_timeout` (default 30). |
 | `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                   |
-| `--raw`                             |                         | Emit pipe-safe undecorated text. Ignored in JSON modes.                      |
+| `--raw`                             |                         | Emit unstyled, compact output: pipe-safe text, and `json` on one line.       |
 | `--examples`                        |                         | Print the curated examples block and exit zero.                              |
 | `--refresh`                         |                         | Bypass the entity store read; still write the response.                      |
 | `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                       |
@@ -143,10 +143,11 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   credentialed schemes, cache health).
 - `src/cli/auth_scheme.rs` — `AuthType` enum (`OAuth2User`, `OAuth1`, `Bearer`, `None`); bird's request-time scheme
   identifier rendered to xdk's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
-- `src/output.rs` — `OutputConfig`, color helpers, ANSI sanitization for stderr envelopes, `print_*` methods that take
-  an injected `&mut dyn Write`.
-- `src/error/` — `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation: xdk's reason and exit code,
-  filed under bird's envelope kind.
+- `src/output/` — `OutputConfig`, color helpers, ANSI sanitization, and the one emitter per envelope (`print_ok`,
+  `print_dry_run`, `print_error`) taking an injected `&mut dyn Write`; `envelope.rs` holds `xr`'s envelope types and
+  `hints.rs` the recovery-step chooser.
+- `src/error/` — `BirdError`: the envelope reason and exit code of every failure, an `xdk::Error`'s taken from its
+  `kind` and `exit_code`.
 - `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
   `ResolvedPaths::token_store` and `EnvOverrides::xdk` carry the xdk-rs token store and environment: when a store is
@@ -175,9 +176,9 @@ does. Token storage, refresh, and OAuth1 signing all live in xdk-rs.
 
 ## Output formats
 
-`OutputConfig` (`src/output.rs`) drives three formats, selected by `--output text|json|jsonl|ndjson` (default `text` on
-a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--pretty` enables formatted text output with
-ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
+`OutputConfig` (`src/output/mod.rs`) drives three formats, selected by `--output text|json|jsonl|ndjson` (default `text`
+on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--pretty` enables formatted text output
+with ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
 informational stderr diagnostics. `--plain` and `--no-color` survive as hidden aliases for `--color never`.
 
 Stdout success envelope on `--output json`:
@@ -186,14 +187,22 @@ Stdout success envelope on `--output json`:
 {"data": ..., "meta": ...}
 ```
 
-Stderr error envelope on `--output json`:
+Stderr error envelope under a structured output mode, the one `xr` prints:
 
 ```json
-{"error": "...", "kind": "usage|auth|config|general", "exit_code": 2|77|78|1|3|4|5|130|143, "message": "...", "meta": {}}
+{"status": "error", "reason": "rate-limited", "exit_code": 3, "message": "...",
+ "next_step": {"action": "wait-and-retry", "docs": "https://docs.x.com/resources/fundamentals/rate-limits"},
+ "retry_after_secs": 42, "retry_at": "2026-10-22T21:00:00Z"}
 ```
 
-`command` names the failing subcommand on `kind: "general"` errors; `status` is present only when the upstream HTTP
-status is known. The envelope's exit-code key is `exit_code` (matches the anc canonical form).
+`reason` is `xdk::Error::kind` for an X API or library failure and `xr`'s spelling for bird's own refusals, plus bird's
+`config-error`, `cache-miss`, and `cancelled`. `next_step` appears when a recovery step exists: its `action` is xdk-rs's
+`NextAction`, with a `command` safe to run verbatim, a `template` to finish first, or `docs`. A credential failure's
+step comes from the token store the run loaded (`sign-in` with `bird login`, `select-app`, `register-app`,
+`inspect-store`). Optional fields follow `xr`'s envelope: `command` (the offending value), `suggestion`, the
+auth-mismatch fields, and `retry_after_secs` / `retry_at` on a rate limit with a known reset. Text mode prints the same
+step as a hint line. `--output json` is indented; `--raw`, `jsonl`, and `ndjson` print one line. Help and version print
+plain text, or an ok envelope carrying `data.help` / `data.version` when JSON is asked for by flag.
 
 ## JSON Schema documents
 
@@ -213,30 +222,32 @@ The entity store sits in front of every read command. Three modes:
 
 - `--refresh` — bypass the store for the read, then write the fresh response back.
 - `--no-cache` — neither read from nor write to the store.
-- `--cache-only` — read from the store only; never send an API request. Errors with `kind: "general"` (exit_code 1) if
-  the entry is missing. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only` with the same error.
+- `--cache-only` — read from the store only; never send an API request. Errors with `reason: "cache-miss"` (exit_code 1)
+  if the entry is missing. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only`.
 
 ## Exit codes
 
-| Code | Meaning                                                                                       |
-| ---- | --------------------------------------------------------------------------------------------- |
-| 0    | Success                                                                                       |
-| 1    | Command error: an API status with no code of its own (400, 403, 5xx), or any other failure    |
-| 2    | Usage: `requires-confirmation` write op without `--force`/`--yes`, or an auth-scheme mismatch |
-| 3    | Rate limited (HTTP 429)                                                                       |
-| 4    | Not found (HTTP 404)                                                                          |
-| 5    | Network or filesystem failure: the request never got an HTTP response                         |
-| 77   | Auth error: missing or refused credential (HTTP 401), or a token store that cannot be read    |
-| 78   | Config error (`EX_CONFIG`): bird's own config file or paths                                   |
-| 130  | Cancelled: SIGINT arrived while an X API call was in flight (`error: "cancelled"`)            |
-| 143  | Cancelled: SIGTERM arrived while an X API call was in flight (`error: "cancelled"`)           |
+| Code | Meaning                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                     |
+| 1    | Command error: an API status with no code of its own (400, 403, 5xx), a refused value, or a |
+|      | `confirmation-required` write op without `--force`/`--yes`                                  |
+| 2    | Usage: `invalid-args`, `unknown-command`, or an auth-scheme mismatch                        |
+| 3    | Rate limited (HTTP 429)                                                                     |
+| 4    | Not found (HTTP 404)                                                                        |
+| 5    | Network or filesystem failure: the request never got an HTTP response                       |
+| 77   | Auth error: missing or refused credential (HTTP 401), or a token store that cannot be read  |
+| 78   | Config error (`EX_CONFIG`): bird's own config file or paths                                 |
+| 130  | Cancelled: SIGINT arrived while an X API call was in flight (`reason: "cancelled"`)         |
+| 143  | Cancelled: SIGTERM arrived while an X API call was in flight (`reason: "cancelled"`)        |
 
 Every code xdk-rs classifies (1, 2 for an auth-scheme mismatch, 3, 4, 5, 77) is `xdk::Error::exit_code`, and the
-envelope's `error` id is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD
+envelope's `reason` is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD
 `sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix your config" from "API blew
-up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of hanging. SIGTERM or SIGINT
-during an X API call drops the call and reports `cancelled` with 128 plus the signal number; with no call in flight the
-signal takes its default action and the process stops with no envelope.
+up." A write without `--force` under `--no-interactive` exits 1 with `confirmation-required`, as `xr`'s does, instead of
+hanging; a prompt answered no exits 0 having done nothing. SIGTERM or SIGINT during an X API call drops the call and
+reports `cancelled` with 128 plus the signal number; with no call in flight the signal takes its default action and the
+process stops with no envelope.
 
 ## Token and file permissions
 
@@ -273,7 +284,7 @@ bird skill install --all                    # install into every supported host
 bird skill update claude_code               # remove destination + re-clone
 ```
 
-Without `<host>` or `--all`, `bird skill install` returns exit 2 (`requires-confirmation`-style `missing-host` envelope)
+Without `<host>` or `--all`, `bird skill install` returns exit 2 (a `missing-host` envelope)
 and lists the supported hosts. Output under `--output json` is the install/update envelope (`action`, `host`,
 `install_dir`, `command_preview`, `destination_status`, `status`, `exit_code`, optional `reason`).
 

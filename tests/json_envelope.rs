@@ -1,21 +1,14 @@
-//! Library-style integration tests for the anc JSON error envelope and
+//! Library-style integration tests for the JSON error envelope and the
 //! `--json` / `--jsonl` aliases.
 //!
-//! The envelope shape is `{"error", "kind", "message", "exit_code"}` per
-//! KTD-1 of the anc 100% push plan. Clap parse failures route through the
-//! same formatter via `Cli::try_parse()`. Plan 2 U11 migrated these tests
-//! from the subprocess harness onto [`common::run_in_process`] now that the
-//! runner's writer-injection captures stderr content.
+//! The envelope is `xr`'s: `{"status":"error","reason","exit_code","message"}`
+//! plus a `next_step` when a recovery step exists. Clap parse failures route
+//! through the same formatter via `Cli::try_parse()`.
 
 mod common;
 
 fn parse_envelope(stderr: &str) -> serde_json::Value {
-    serde_json::from_str(stderr.trim()).unwrap_or_else(|e| {
-        panic!(
-            "stderr did not parse as JSON envelope: {} stderr={:?}",
-            e, stderr
-        )
-    })
+    common::stderr_envelope(stderr)
 }
 
 #[test]
@@ -25,10 +18,12 @@ fn bad_flag_under_output_json_emits_envelope() {
         common::run_in_process(&["bird", "--output", "json", "--bogus-flag"], &env);
     assert_eq!(exit, 2, "usage errors exit 2");
     let envv = parse_envelope(&stderr);
-    assert_eq!(envv["kind"], "usage", "kind should be usage");
+    assert_eq!(envv["status"], "error");
+    assert_eq!(envv["reason"], "invalid-args");
     assert_eq!(envv["exit_code"], 2, "exit_code field should be 2");
-    assert!(envv["error"].as_str().is_some(), "error field present");
     assert!(envv["message"].as_str().is_some(), "message field present");
+    assert_eq!(envv["next_step"]["action"], "show-help");
+    assert_eq!(envv["next_step"]["command"], "bird --help");
 }
 
 #[test]
@@ -37,7 +32,7 @@ fn bad_flag_under_json_alias_emits_envelope() {
     let (exit, _stdout, stderr) = common::run_in_process(&["bird", "--json", "--bogus-flag"], &env);
     assert_eq!(exit, 2);
     let envv = parse_envelope(&stderr);
-    assert_eq!(envv["kind"], "usage");
+    assert_eq!(envv["reason"], "invalid-args");
     assert_eq!(envv["exit_code"], 2);
 }
 
@@ -48,7 +43,7 @@ fn bad_flag_under_jsonl_alias_emits_envelope() {
         common::run_in_process(&["bird", "--jsonl", "--bogus-flag"], &env);
     assert_eq!(exit, 2);
     let envv = parse_envelope(&stderr);
-    assert_eq!(envv["kind"], "usage");
+    assert_eq!(envv["reason"], "invalid-args");
     assert_eq!(envv["exit_code"], 2);
 }
 
@@ -68,9 +63,8 @@ fn config_error_emits_envelope() {
     );
     assert_eq!(exit, 78, "config errors exit 78");
     let envv = parse_envelope(&stderr);
-    assert_eq!(envv["kind"], "config");
+    assert_eq!(envv["reason"], "config-error");
     assert_eq!(envv["exit_code"], 78);
-    assert!(envv["error"].as_str().is_some());
     assert!(envv["message"].as_str().is_some());
 }
 
@@ -82,15 +76,28 @@ fn missing_required_argument_emits_envelope() {
         common::run_in_process(&["bird", "--output", "json", "profile"], &env);
     assert_eq!(exit, 2);
     let envv = parse_envelope(&stderr);
-    assert_eq!(envv["kind"], "usage");
+    assert_eq!(envv["reason"], "invalid-args");
     assert_eq!(envv["exit_code"], 2);
+    assert_eq!(envv["next_step"]["command"], "bird profile --help");
+}
+
+#[test]
+fn unknown_command_echoes_the_word_and_suggests() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "thred", "1"], &env);
+    assert_eq!(exit, 2);
+    let envv = parse_envelope(&stderr);
+    assert_eq!(envv["reason"], "unknown-command");
+    assert_eq!(envv["command"], "thred");
+    assert_eq!(envv["suggestion"], "thread");
+    assert_eq!(envv["next_step"]["action"], "show-help");
 }
 
 #[test]
 fn json_alias_matches_output_json_for_help() {
-    // Both `--json --help` and `--output json --help` route through the runner's
-    // explicit-JSON wrap branch: each emits an envelope-shaped help payload on
-    // stdout. The captured stdout must be identical between the two.
+    // Help is plain text under every output mode, so `--json --help` and
+    // `--output json --help` print the same bytes.
     let env_alias = common::TestEnv::new();
     let (exit_alias, stdout_alias, _) =
         common::run_in_process(&["bird", "--json", "--help"], &env_alias);
@@ -105,9 +112,7 @@ fn json_alias_matches_output_json_for_help() {
         stdout_alias, stdout_long,
         "--json --help must produce the same stdout as --output json --help"
     );
-    // And the captured envelope must carry a `data` key with help text.
-    let val: serde_json::Value = serde_json::from_str(stdout_alias.trim()).unwrap();
-    assert!(val.get("data").is_some());
+    assert!(stdout_alias.contains("Usage: bird"));
 }
 
 #[test]
@@ -180,10 +185,10 @@ fn envelope_error_id_is_kebab_case_for_unknown_arg() {
     let (_exit, _stdout, stderr) =
         common::run_in_process(&["bird", "--output", "json", "--bogus-flag"], &env);
     let envv = parse_envelope(&stderr);
-    let id = envv["error"].as_str().expect("test: error id is string");
+    let id = envv["reason"].as_str().expect("test: reason is string");
     assert!(
         id.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
-        "error id should be kebab-case: {}",
+        "reason should be kebab-case: {}",
         id
     );
 }
