@@ -74,6 +74,10 @@ predicates = "3"
 pkg-url = "{ repo }/releases/download/v{ version }/bird-{ target }.tar.gz"
 pkg-fmt = "tgz"
 
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/bird-{ target }.zip"
+pkg-fmt = "zip"
+
 [profile.release]
 strip = true
 lto = true
