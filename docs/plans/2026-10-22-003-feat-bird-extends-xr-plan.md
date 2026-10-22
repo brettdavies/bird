@@ -6,6 +6,7 @@ origin: docs/brainstorms/2026-10-22-bird-extends-xr-requirements.md
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-brainstorm
 execution: code
+superseded_by: docs/plans/2026-10-22-005-feat-bird-1-0-0-remaining-work-plan.md
 ---
 
 # bird extends xr in-process - Plan
