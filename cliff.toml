@@ -7,9 +7,9 @@
 #   2. The script's Python post-processor fetches each PR body from the
 #      GitHub API, extracts its `## Changelog` section (a workspace member's
 #      own `## Changelog (<crate>)`) -> `### Breaking changes / Added /
-#      Changed / Deprecated / Fixed / Documentation` subsections, and rewrites
-#      the skeleton bullets with the richer PR-body content. Author + PR links
-#      remain.
+#      Changed / Deprecated / Removed / Fixed / Documentation` subsections, and
+#      rewrites the skeleton bullets with the richer PR-body content. Author +
+#      PR links remain.
 #
 # The PR body is the source of truth. If a bullet is wrong, edit the PR
 # body on GitHub (PR bodies stay editable after merge) and re-run
@@ -50,9 +50,6 @@ split_commits = false
 # Only unprefixed `vX.Y.Z` tags mark releases; anchored so a tag such as
 # `sdk-v1.0.0` or `v1.0.0-rc1` is not a release boundary.
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
-# The v0.1.0 and v0.1.1 sections in CHANGELOG.md are hand-kept: their commits
-# are not reconstructible from history, so neither tag is a release boundary.
-ignore_tags = "v0\\.1\\.[01]"
 sort_commits = "oldest"
 
 commit_parsers = [

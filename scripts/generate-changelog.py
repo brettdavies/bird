@@ -54,7 +54,8 @@ Pipeline:
        (prepended onto CHANGELOG.md, or created if missing).
     2. PR numbers in that section are fetched from GitHub; each PR body's
        ## Changelog section is parsed for ### Breaking changes / ### Added /
-       ### Changed / ### Deprecated / ### Fixed / ### Documentation bullets.
+       ### Changed / ### Deprecated / ### Removed / ### Fixed /
+       ### Documentation bullets.
     3. The version section in CHANGELOG.md is rewritten with the aggregated,
        attributed bullets and a Full Changelog compare link.
 
@@ -80,7 +81,15 @@ from pathlib import Path
 # Emitted in this order; any other `###` heading a PR body uses follows them.
 # "Breaking changes" is also the git-cliff group for `type!:` commits in
 # cliff.toml, so the skeleton and the PR-body pass agree on the label.
-CATEGORIES = ["Breaking changes", "Added", "Changed", "Deprecated", "Fixed", "Documentation"]
+CATEGORIES = [
+    "Breaking changes",
+    "Added",
+    "Changed",
+    "Deprecated",
+    "Removed",
+    "Fixed",
+    "Documentation",
+]
 
 
 def fail(msg: str) -> None:
