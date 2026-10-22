@@ -2,7 +2,7 @@
 //!
 //! Variants map to distinct kinds and exit codes per the anc envelope contract:
 //! - `Usage` -> kind "usage", exit 2 (clap parse failures, bad flag, bad input)
-//! - `Auth` -> kind "auth", exit 77 (xurl auth failures)
+//! - `Auth` -> kind "auth", exit 77 (missing or refused credentials)
 //! - `Config` -> kind "config", exit 78 (missing config, invalid setup)
 //! - `General` -> kind "general", exit 1 (command execution, network, API)
 
@@ -36,10 +36,8 @@ pub enum BirdError {
         /// Optional HTTP status from upstream API; included when > 0.
         status: Option<u16>,
         /// Optional override that bypasses the default `General → 1`
-        /// exit-code rule. Used to inherit xurl's `EXIT_RATE_LIMITED (3)`,
-        /// `EXIT_NOT_FOUND (4)`, and `EXIT_NETWORK_ERROR (5)` mappings
-        /// (KTD-4), and to pass through xurl's `EnvelopeAlreadyEmitted`
-        /// exit code unchanged.
+        /// exit-code rule. Carries xdk's `EXIT_RATE_LIMITED (3)`,
+        /// `EXIT_NOT_FOUND (4)`, and `EXIT_NETWORK_ERROR (5)` (KTD-4).
         exit_code_override: Option<u8>,
     },
 }
@@ -63,148 +61,62 @@ impl BirdError {
 
     /// Construct a `General` variant from a command name and source error.
     pub fn general(name: &'static str, source: Box<dyn std::error::Error + Send + Sync>) -> Self {
-        let status = source
-            .downcast_ref::<xurl::error::XurlError>()
-            .and_then(|x| match x {
-                xurl::error::XurlError::Api { status, .. } if *status > 0 => Some(*status),
-                _ => None,
-            });
         BirdError::General {
             error_id: "command-error",
             message: source.to_string(),
             command: Some(name),
-            status,
+            status: source.downcast_ref::<xdk::Error>().and_then(api_status),
             exit_code_override: None,
         }
     }
 
     /// Map a boxed source error to either a structured bird envelope (when
-    /// the source is a `xurl::error::XurlError`) or `General` otherwise.
+    /// the source is an `xdk::Error`) or `General` otherwise.
     /// Centralizes the auth-vs-command-error decision for dispatch closures.
     pub fn from_source(
         name: &'static str,
         source: Box<dyn std::error::Error + Send + Sync>,
     ) -> Self {
-        if let Some(xurl_err) = source.downcast_ref::<xurl::error::XurlError>() {
-            return BirdError::from_xurl_error(name, xurl_err);
+        if let Some(err) = source.downcast_ref::<xdk::Error>() {
+            return BirdError::from_xdk_error(name, err);
         }
         BirdError::general(name, source)
     }
 
-    /// Translate a `xurl::error::XurlError` into the bird envelope per KTD-4.
-    /// Bird inherits xurl's `exit_code_for_error` for codes 3 / 4 / 5; overrides
-    /// `Validation → 78` (config) and `AuthMethodMismatch → 77` (avoiding clap's
-    /// `EX_USAGE = 2` collision); maps everything else through the variant the
-    /// envelope already documents.
+    /// Translate an `xdk::Error` into the bird envelope per KTD-4.
     ///
-    /// The match is exhaustive: rustc fails the build when xurl-rs ships a new
-    /// `XurlError` variant, forcing the consumer to decide where it lands
-    /// before the upgrade ships.
-    fn from_xurl_error(name: &'static str, err: &xurl::error::XurlError) -> Self {
-        use xurl::error::XurlError;
-
+    /// bird overrides two of xdk's classifications: `Validation` is a config
+    /// error (78, where xdk exits 1), and `AuthMethodMismatch` is an auth
+    /// error (77, where xdk's 2 collides with clap's usage exit). Every other
+    /// error takes xdk's own `exit_code()`: 77 for a missing or refused
+    /// credential, 3 for a rate limit, 4 for not found, 5 for a transport or
+    /// I/O failure, 1 otherwise. `xdk::Error` is `#[non_exhaustive]`, so a
+    /// variant xdk adds arrives already classified.
+    fn from_xdk_error(name: &'static str, err: &xdk::Error) -> Self {
+        let message = err.to_string();
         match err {
-            // Validation overrides xurl's exit 1 → bird's 78 (config).
-            XurlError::Validation(_) => BirdError::Config {
+            xdk::Error::Validation(_) => BirdError::Config {
                 error_id: "config-error",
-                message: err.to_string(),
+                message,
             },
-
-            // Auth + tokenstore + 401 → 77.
-            XurlError::Auth(_) | XurlError::TokenStore(_) => BirdError::Auth {
-                error_id: "auth-error",
-                message: err.to_string(),
-            },
-            XurlError::Api { status: 401, .. } => BirdError::Auth {
-                error_id: "auth-error",
-                message: err.to_string(),
-            },
-            // AuthMethodMismatch overrides xurl's 2 → bird's 77 to avoid the
-            // clap usage-error code collision.
-            XurlError::AuthMethodMismatch { .. } => BirdError::Auth {
+            xdk::Error::AuthMethodMismatch(_) => BirdError::Auth {
                 error_id: "auth-method-mismatch",
-                message: err.to_string(),
+                message,
             },
-
-            // Api rate-limit / not-found / network — inherit xurl's 3 / 4 / 5.
-            XurlError::Api { status: 429, .. } => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: Some(429),
-                exit_code_override: Some(3),
-            },
-            XurlError::Api { status: 404, .. } => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: Some(404),
-                exit_code_override: Some(4),
-            },
-            XurlError::Io(_) => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: None,
-                exit_code_override: Some(5),
-            },
-
-            // Http (string-typed transport errors) — pattern-match on the
-            // substring xurl itself scans for so bird picks up the same
-            // inferred codes.
-            XurlError::Http(msg) if msg.contains("401") || msg.contains("Unauthorized") => {
-                BirdError::Auth {
+            _ => match err.exit_code() {
+                xdk::error::EXIT_AUTH_REQUIRED => BirdError::Auth {
                     error_id: "auth-error",
-                    message: err.to_string(),
-                }
-            }
-            XurlError::Http(msg) if msg.contains("429") => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: None,
-                exit_code_override: Some(3),
-            },
-            XurlError::Http(msg) if msg.contains("404") => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: None,
-                exit_code_override: Some(4),
-            },
-
-            // EnvelopeAlreadyEmitted carries its own structured exit code
-            // because the call site already printed the canonical envelope.
-            // Honor that exit code; bird's renderer short-circuits on the
-            // sentinel kind below.
-            XurlError::EnvelopeAlreadyEmitted { exit_code } => BirdError::General {
-                error_id: "envelope-already-emitted",
-                message: String::new(),
-                command: Some(name),
-                status: None,
-                exit_code_override: Some((*exit_code).clamp(0, i32::from(u8::MAX)) as u8),
-            },
-
-            // Other Api status codes + structural errors fall through to
-            // exit 1 (general).
-            XurlError::Api { status, .. } => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: Some(*status),
-                exit_code_override: None,
-            },
-            XurlError::Http(_)
-            | XurlError::InvalidMethod(_)
-            | XurlError::InvalidUrl(_)
-            | XurlError::InvalidPathParam { .. }
-            | XurlError::Internal(_)
-            | XurlError::Json(_) => BirdError::General {
-                error_id: "command-error",
-                message: err.to_string(),
-                command: Some(name),
-                status: None,
-                exit_code_override: None,
+                    message,
+                },
+                code => BirdError::General {
+                    error_id: "command-error",
+                    message,
+                    command: Some(name),
+                    status: api_status(err),
+                    exit_code_override: u8::try_from(code)
+                        .ok()
+                        .filter(|&c| i32::from(c) != xdk::error::EXIT_GENERAL_ERROR),
+                },
             },
         }
     }
@@ -296,6 +208,14 @@ impl BirdError {
     }
 }
 
+/// The upstream HTTP status an `xdk::Error::Api` carries.
+fn api_status(err: &xdk::Error) -> Option<u16> {
+    match err {
+        xdk::Error::Api { status, .. } if *status > 0 => Some(*status),
+        _ => None,
+    }
+}
+
 // Plan 1 R19: compile-time guard that BirdError stays `Send + Sync`. Plan 2's
 // writer-injection requires every public type that may cross thread/async
 // boundaries to be `Send + Sync`; this assertion catches a future field that
@@ -308,9 +228,9 @@ const _: fn() = || {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xurl::error::XurlError;
+    use xdk::error::AuthMismatch;
 
-    fn boxed(err: XurlError) -> Box<dyn std::error::Error + Send + Sync> {
+    fn boxed(err: xdk::Error) -> Box<dyn std::error::Error + Send + Sync> {
         Box::new(err)
     }
 
@@ -318,9 +238,9 @@ mod tests {
     fn exit_codes_match_envelope_kinds() {
         assert_eq!(BirdError::usage("u", "m").exit_code(), 2);
         assert_eq!(BirdError::config("m").exit_code(), 78);
-        let general = BirdError::from_source("test", boxed(XurlError::Internal("boom".into())));
+        let general = BirdError::from_source("test", boxed(xdk::Error::Internal("boom".into())));
         assert_eq!(general.exit_code(), 1);
-        let auth = BirdError::from_source("test", boxed(XurlError::Auth("x".into())));
+        let auth = BirdError::from_source("test", boxed(xdk::Error::auth("x")));
         assert_eq!(auth.exit_code(), 77);
     }
 
@@ -328,176 +248,156 @@ mod tests {
     fn kind_strings_match_envelope() {
         assert_eq!(BirdError::usage("u", "m").kind(), "usage");
         assert_eq!(BirdError::config("m").kind(), "config");
-        let auth = BirdError::from_source("test", boxed(XurlError::Auth("x".into())));
+        let auth = BirdError::from_source("test", boxed(xdk::Error::auth("x")));
         assert_eq!(auth.kind(), "auth");
-        let general = BirdError::from_source("test", boxed(XurlError::Internal("boom".into())));
+        let general = BirdError::from_source("test", boxed(xdk::Error::Internal("boom".into())));
         assert_eq!(general.kind(), "general");
     }
 
-    /// Validation overrides xurl's exit 1 → bird's 78 (config error).
+    /// Validation overrides xdk's exit 1 → bird's 78 (config error).
     #[test]
-    fn xurl_validation_maps_to_config_78() {
-        let mapped =
-            BirdError::from_source("raw", boxed(XurlError::Validation("missing field".into())));
+    fn xdk_validation_maps_to_config_78() {
+        let mapped = BirdError::from_source("raw", boxed(xdk::Error::validation("missing field")));
         assert_eq!(mapped.exit_code(), 78);
         assert_eq!(mapped.kind(), "config");
     }
 
     #[test]
-    fn xurl_auth_maps_to_auth_77() {
-        let mapped = BirdError::from_source("me", boxed(XurlError::Auth("token expired".into())));
+    fn xdk_auth_maps_to_auth_77() {
+        let mapped = BirdError::from_source("me", boxed(xdk::Error::auth("token expired")));
+        assert_eq!(mapped.exit_code(), 77);
+        assert_eq!(mapped.kind(), "auth");
+        assert_eq!(mapped.error_id(), "auth-error");
+    }
+
+    #[test]
+    fn xdk_token_store_maps_to_auth_77() {
+        let mapped = BirdError::from_source("me", boxed(xdk::Error::token_store("read failed")));
         assert_eq!(mapped.exit_code(), 77);
         assert_eq!(mapped.kind(), "auth");
     }
 
+    /// AuthMethodMismatch overrides xdk's 2 → bird's 77.
     #[test]
-    fn xurl_token_store_maps_to_auth_77() {
-        let mapped =
-            BirdError::from_source("me", boxed(XurlError::TokenStore("read failed".into())));
-        assert_eq!(mapped.exit_code(), 77);
-        assert_eq!(mapped.kind(), "auth");
-    }
-
-    /// AuthMethodMismatch overrides xurl's 2 → bird's 77.
-    #[test]
-    fn xurl_auth_method_mismatch_maps_to_auth_77_not_2() {
-        let mapped = BirdError::from_source(
-            "tweet",
-            boxed(XurlError::AuthMethodMismatch {
-                endpoint: "/2/users/{id}/likes".into(),
-                rendered_url: Some("/2/users/12345/likes".into()),
-                method: "POST".into(),
-                requested: Some("oauth1".into()),
-                supported: vec!["oauth2".into()],
-                available_in_app: None,
-                app: Some("default".into()),
-                other_apps_with_creds: None,
-            }),
-        );
+    fn xdk_auth_method_mismatch_maps_to_auth_77_not_2() {
+        let mismatch = AuthMismatch {
+            endpoint: "/2/users/{id}/likes".into(),
+            rendered_url: Some("/2/users/12345/likes".into()),
+            method: "POST".into(),
+            requested: Some("oauth1".into()),
+            supported: vec!["oauth2".into()],
+            available_in_app: None,
+            app: Some("default".into()),
+            other_apps_with_creds: None,
+        };
+        let mapped = BirdError::from_source("post", boxed(mismatch.into()));
         assert_eq!(mapped.exit_code(), 77);
         assert_eq!(mapped.kind(), "auth");
         assert_eq!(mapped.error_id(), "auth-method-mismatch");
     }
 
     #[test]
-    fn xurl_api_401_maps_to_auth_77() {
-        let mapped = BirdError::from_source(
-            "me",
-            boxed(XurlError::Api {
-                status: 401,
-                body: "Unauthorized".into(),
-            }),
-        );
+    fn xdk_api_401_maps_to_auth_77() {
+        let mapped = BirdError::from_source("me", boxed(xdk::Error::api(401, "Unauthorized")));
         assert_eq!(mapped.exit_code(), 77);
         assert_eq!(mapped.kind(), "auth");
     }
 
-    /// 429 inherits xurl's `EXIT_RATE_LIMITED = 3` via `exit_code_override`.
+    /// 429 inherits xdk's `EXIT_RATE_LIMITED = 3` via `exit_code_override`.
     /// The contract is the load-bearing signal agents key on for back-off.
     #[test]
-    fn xurl_api_429_maps_to_general_3() {
+    fn xdk_api_429_maps_to_general_3() {
         let mapped = BirdError::from_source(
             "bookmarks",
-            boxed(XurlError::Api {
-                status: 429,
-                body: "Too Many Requests".into(),
-            }),
+            boxed(xdk::Error::api(429, "Too Many Requests")),
         );
         assert_eq!(mapped.exit_code(), 3);
         assert_eq!(mapped.kind(), "general");
         assert_eq!(mapped.status(), Some(429));
     }
 
-    /// 404 inherits xurl's `EXIT_NOT_FOUND = 4`.
+    /// 404 inherits xdk's `EXIT_NOT_FOUND = 4`.
     #[test]
-    fn xurl_api_404_maps_to_general_4() {
-        let mapped = BirdError::from_source(
-            "profile",
-            boxed(XurlError::Api {
-                status: 404,
-                body: "Not Found".into(),
-            }),
-        );
+    fn xdk_api_404_maps_to_general_4() {
+        let mapped = BirdError::from_source("profile", boxed(xdk::Error::api(404, "Not Found")));
         assert_eq!(mapped.exit_code(), 4);
         assert_eq!(mapped.kind(), "general");
         assert_eq!(mapped.status(), Some(404));
     }
 
-    /// `Io` inherits xurl's `EXIT_NETWORK_ERROR = 5`.
+    /// Transport and filesystem failures inherit xdk's `EXIT_NETWORK_ERROR = 5`.
     #[test]
-    fn xurl_io_maps_to_general_5() {
-        let mapped = BirdError::from_source("search", boxed(XurlError::Io("ECONNRESET".into())));
-        assert_eq!(mapped.exit_code(), 5);
-        assert_eq!(mapped.kind(), "general");
+    fn xdk_transport_and_io_map_to_general_5() {
+        for err in [
+            xdk::Error::http("connection reset"),
+            xdk::Error::io("ECONNRESET"),
+        ] {
+            let label = format!("{err:?}");
+            let mapped = BirdError::from_source("search", boxed(err));
+            assert_eq!(mapped.exit_code(), 5, "{label} must map to exit 5");
+            assert_eq!(mapped.kind(), "general");
+            assert_eq!(mapped.status(), None);
+        }
     }
 
-    /// Other API status codes (e.g. 422, 500) inherit xurl's
+    /// A transport failure carries no status; its message quotes the request
+    /// URL, so a status-like number in it must not pick the exit code.
+    #[test]
+    fn xdk_transport_message_digits_do_not_pick_the_exit_code() {
+        let mapped = BirdError::from_source(
+            "profile",
+            boxed(xdk::Error::http(
+                "error sending request for url (https://api.x.com/2/users/404)",
+            )),
+        );
+        assert_eq!(mapped.exit_code(), 5);
+        assert_eq!(mapped.status(), None);
+    }
+
+    /// Other API status codes (e.g. 422, 500) inherit xdk's
     /// `EXIT_GENERAL_ERROR = 1` and preserve the status field on the envelope.
     #[test]
-    fn xurl_api_other_status_maps_to_general_1() {
-        let mapped = BirdError::from_source(
-            "tweet",
-            boxed(XurlError::Api {
-                status: 422,
-                body: "Unprocessable Entity".into(),
-            }),
-        );
+    fn xdk_api_other_status_maps_to_general_1() {
+        let mapped =
+            BirdError::from_source("post", boxed(xdk::Error::api(422, "Unprocessable Entity")));
         assert_eq!(mapped.exit_code(), 1);
         assert_eq!(mapped.kind(), "general");
         assert_eq!(mapped.status(), Some(422));
     }
 
+    /// `Internal`, `InvalidUrl`, `InvalidPathParam`, `Json`, `InvalidMethod`,
+    /// and `ProcessingTimeout` all surface as `EXIT_GENERAL_ERROR = 1` with
+    /// the command name preserved.
     #[test]
-    fn xurl_http_substring_401_maps_to_auth_77() {
-        let mapped =
-            BirdError::from_source("me", boxed(XurlError::Http("401 Unauthorized".into())));
-        assert_eq!(mapped.exit_code(), 77);
-    }
-
-    #[test]
-    fn xurl_http_substring_429_maps_to_general_3() {
-        let mapped = BirdError::from_source("me", boxed(XurlError::Http("429 throttled".into())));
-        assert_eq!(mapped.exit_code(), 3);
-    }
-
-    #[test]
-    fn xurl_http_substring_404_maps_to_general_4() {
-        let mapped = BirdError::from_source("me", boxed(XurlError::Http("404 missing".into())));
-        assert_eq!(mapped.exit_code(), 4);
-    }
-
-    /// `Internal`, `InvalidUrl`, `InvalidPathParam`, `Json`,
-    /// `InvalidMethod`, and unclassified `Http` all surface as
-    /// `EXIT_GENERAL_ERROR = 1` with the command name preserved.
-    #[test]
-    fn xurl_structural_errors_map_to_general_1() {
-        let cases: Vec<XurlError> = vec![
-            XurlError::Internal("invariant violated".into()),
-            XurlError::InvalidUrl("ftp://bad".into()),
-            XurlError::InvalidPathParam {
+    fn xdk_structural_errors_map_to_general_1() {
+        let cases = vec![
+            xdk::Error::Internal("invariant violated".into()),
+            xdk::Error::invalid_url("ftp://bad"),
+            xdk::Error::InvalidPathParam {
                 name: "id".into(),
                 value: "/escape".into(),
             },
-            XurlError::Json("unexpected token".into()),
-            XurlError::InvalidMethod("GLOMP".into()),
-            XurlError::Http("connection reset".into()),
+            xdk::Error::json("unexpected token"),
+            xdk::Error::InvalidMethod("GLOMP".into()),
+            xdk::Error::ProcessingTimeout {
+                media_id: "1".into(),
+                waited: std::time::Duration::from_secs(60),
+            },
         ];
         for err in cases {
             let label = format!("{err:?}");
             let mapped = BirdError::from_source("raw", boxed(err));
             assert_eq!(mapped.exit_code(), 1, "{label} must map to exit 1");
             assert_eq!(mapped.kind(), "general", "{label} must surface as general");
+            assert_eq!(mapped.command(), Some("raw"));
         }
     }
 
-    /// `EnvelopeAlreadyEmitted` carries its own exit code because the call
-    /// site already printed the canonical envelope; bird honors it.
+    /// A source that is not an `xdk::Error` is a general error with no status.
     #[test]
-    fn xurl_envelope_already_emitted_passes_through_exit_code() {
-        let mapped = BirdError::from_source(
-            "raw",
-            boxed(XurlError::EnvelopeAlreadyEmitted { exit_code: 7 }),
-        );
-        assert_eq!(mapped.exit_code(), 7);
+    fn non_xdk_source_maps_to_general_1() {
+        let mapped = BirdError::from_source("cache", "disk full".into());
+        assert_eq!(mapped.exit_code(), 1);
+        assert_eq!(mapped.status(), None);
     }
 }

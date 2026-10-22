@@ -124,7 +124,7 @@ pub struct CommandStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
     /// Auth schemes the endpoint accepts (`"app"`, `"oauth1"`, `"oauth2"`),
-    /// resolved against `xurl::api::auth_matrix::supported_auth(method,
+    /// resolved against `xdk::api::auth_matrix::supported_auth(method,
     /// template)` under embedded.
     pub accepted_schemes: Vec<String>,
     /// Subset of `accepted_schemes` for which the active app has a stored
@@ -156,13 +156,13 @@ pub struct DoctorReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<CacheStatus>,
     /// Version of the xurl crate linked into this bird build, populated
-    /// from `xurl::CRATE_VERSION`.
+    /// from `xdk::CRATE_VERSION`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_xurl_version: Option<String>,
 }
 
 /// Map a bird command name to the `(method, path_template)` pair used to
-/// query `xurl::api::auth_matrix::supported_auth`. Templates use xurl's
+/// query `xdk::api::auth_matrix::supported_auth`. Templates use xdk's
 /// substitution vocabulary (`{id}`, `{username}`, `{participant_id}`,
 /// `{source_user_id}`, `{target_user_id}`, `{source_tweet_id}`) verbatim.
 /// `None` for commands that do not hit the X API (local-only watchlist
@@ -210,7 +210,7 @@ fn build_xurl_status(
 ) -> XurlStatus {
     XurlStatus {
         path: None,
-        version: Some(xurl::CRATE_VERSION.to_string()),
+        version: Some(xdk::CRATE_VERSION.to_string()),
         available: true,
     }
 }
@@ -232,8 +232,8 @@ fn build_env_credentials() -> EnvCredentials {
 /// and reporting presence-only flags for every credential type. The active
 /// app is the one xurl's runner would pick when no `--app NAME` is supplied.
 fn build_auth_state(_client: &BirdClient) -> AuthState {
-    let cfg = xurl::config::Config::new();
-    let auth = xurl::auth::Auth::new(&cfg);
+    let cfg = xdk::config::Config::new();
+    let auth = xdk::auth::Auth::new(&cfg);
     let store = auth.token_store();
     let active_app = store.get_default_app().to_string();
 
@@ -279,7 +279,7 @@ fn build_auth_state(_client: &BirdClient) -> AuthState {
 /// presence descriptor. `token.oauth2` is `Some` when
 /// `token_type == TokenType::Oauth2`; for any other discriminator the
 /// payload is absent and every presence flag stays `false`.
-fn oauth2_presence(token: &xurl::store::types::Token) -> OAuth2TokenPresence {
+fn oauth2_presence(token: &xdk::store::Token) -> OAuth2TokenPresence {
     let payload = token.oauth2.as_ref();
     OAuth2TokenPresence {
         access_token_present: payload.is_some_and(|p| !p.access_token.is_empty()),
@@ -287,7 +287,7 @@ fn oauth2_presence(token: &xurl::store::types::Token) -> OAuth2TokenPresence {
     }
 }
 
-fn oauth1_presence(token: &xurl::store::types::Token) -> OAuth1TokenPresence {
+fn oauth1_presence(token: &xdk::store::Token) -> OAuth1TokenPresence {
     let payload = token.oauth1.as_ref();
     OAuth1TokenPresence {
         access_token_present: payload.is_some_and(|p| !p.access_token.is_empty()),
@@ -297,7 +297,7 @@ fn oauth1_presence(token: &xurl::store::types::Token) -> OAuth1TokenPresence {
     }
 }
 
-fn bearer_presence(token: &xurl::store::types::Token) -> BearerTokenPresence {
+fn bearer_presence(token: &xdk::store::Token) -> BearerTokenPresence {
     BearerTokenPresence {
         token_present: token.bearer.as_ref().is_some_and(|s| !s.is_empty()),
     }
@@ -324,7 +324,7 @@ fn credentialed_for_app(app: &AppCredentials, env: &EnvCredentials) -> Vec<Strin
 
 /// Resolve accepted_schemes for a single command via xurl's `auth_matrix`.
 fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
-    use xurl::api::auth_matrix::{WireScheme, supported_auth};
+    use xdk::api::auth_matrix::{WireScheme, supported_auth};
     let Some(schemes) = supported_auth(method, template) else {
         return Vec::new();
     };
@@ -469,7 +469,7 @@ pub(crate) fn report(
         None => None,
     };
 
-    let linked_xurl_version = Some(xurl::CRATE_VERSION.to_string());
+    let linked_xurl_version = Some(xdk::CRATE_VERSION.to_string());
 
     DoctorReport {
         xurl,

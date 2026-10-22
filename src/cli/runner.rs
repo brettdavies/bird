@@ -296,26 +296,21 @@ where
     };
     config.app = cli.app.clone();
 
-    // Construct `xurl::api::ApiClient` honoring the bird-side `--app` /
-    // `BIRD_APP` resolution. The standard `ApiClient::from_env()` path resolves
-    // the app from `XURL_APP`, which bird intentionally ignores (R10/R11); the
-    // XURL_APP migration warn fires elsewhere in the runner when the user has
-    // `XURL_APP` set but not `BIRD_APP`. A construction failure (missing
-    // `CLIENT_ID`, etc.) is captured as a stub impl returning the original
-    // error on every call so non-API commands keep working.
+    // Construct the xdk-rs client honoring the bird-side `--app` / `BIRD_APP`
+    // resolution. `xdk::api::Client::from_env()` resolves the app from
+    // `XURL_APP`, which bird intentionally ignores (R10/R11); the XURL_APP
+    // migration warn fires elsewhere in the runner when the user has
+    // `XURL_APP` set but not `BIRD_APP`. A construction failure is captured as
+    // a stub impl returning the original error on every call so non-API
+    // commands keep working.
     let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> = {
-        let mut cfg = xurl::config::Config::new();
+        let mut cfg = xdk::config::Config::new();
         if let Some(ref app) = cli.app {
             cfg.app_name = app.clone();
         }
-        if cfg.client_id.is_empty() {
-            Box::new(crate::xurl_client::ConstructionStub::new(
-                "CLIENT_ID not set; set CLIENT_ID + CLIENT_SECRET env vars or `xr auth app` for a stored app".into(),
-            ))
-        } else {
-            let auth = xurl::auth::Auth::new(&cfg);
-            let client = xurl::api::ApiClient::with_timeout(&cfg, auth, cli.timeout);
-            Box::new(client) as Box<dyn crate::xurl_client::XurlClient + Send>
+        match crate::xurl_client::EmbeddedClient::from_config(&cfg, cli.timeout) {
+            Ok(client) => Box::new(client),
+            Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
         }
     };
 

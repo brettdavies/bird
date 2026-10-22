@@ -51,16 +51,17 @@ rusqlite_migration = "2.4"
 toml_edit = "0.25"
 tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["now"] }
-which = "8"
 libc = "0.2"
-semver = "1"
 thiserror = "2"
+tokio = { version = "1", features = ["rt", "net", "time"] }
+tokio-util = "0.7"
+open = "5"
 
-[dependencies.xurl]
-package = "xurl-rs"
-version = "2.0.0"
+[dependencies.xdk]
+package = "xdk-rs"
+version = "0.2.0"
 git = "https://github.com/brettdavies/xurl-rs"
-rev = "ed992a031fbbd53c88c19825ca3b6a9e0e5dc03e" # xurl-rs/dev post v2.0.0 (CRATE_VERSION + missing_docs)
+rev = "f6cec235571075a20c242a5d5dbd839f27bf6926" # xurl-rs dev after xdk-rs 0.2.0: serde-saphyr in place of serde_yaml (brettdavies/xurl-rs#348)
 
 [build-dependencies]
 serde_json = "1"

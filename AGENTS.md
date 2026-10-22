@@ -74,43 +74,43 @@ bird skill install --dry-run
 bird skill update                           # refresh installed bundle
 ```
 
-Bare `bird` (no arguments) prints help and exits 2. Run `bird --examples` for the curated examples block, or `bird <sub>
---help` for per-subcommand examples.
+Bare `bird` (no arguments) prints help and exits 2. Run `bird --examples` for the curated examples block, or
+`bird <sub> --help` for per-subcommand examples.
 
 ## Global flags and environment variables
 
 Every subcommand inherits these global flags. Each binds to a `BIRD_*` env var so non-interactive callers can configure
 bird without arguments.
 
-| Flag                                | Env var                 | Purpose                                                                          |
-| ----------------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| `--output {text,json,jsonl,ndjson}` | `BIRD_OUTPUT`           | Output format. Defaults to `text` on TTY, `json` when stderr is non-TTY.         |
-| `--json`                            | `BIRD_JSON=1`           | Shorthand for `--output json`.                                                   |
-| `--jsonl`                           | `BIRD_JSONL=1`          | Shorthand for `--output jsonl`.                                                  |
-| `--color {auto,always,never}`       | `BIRD_COLOR`            | Color mode. `NO_COLOR=1` forces `never`.                                         |
-| `-q`, `--quiet`                     | `BIRD_QUIET=1`          | Suppress informational stderr; keep fatal errors.                                |
-| `-v`, `--verbose`                   | `BIRD_VERBOSE`          | Repeatable: `-v` info, `-vv` debug, `-vvv` trace.                                |
-| `--timeout <secs>`                  | `BIRD_TIMEOUT`          | Network timeout threaded into `xurl::api::ApiClient::with_timeout` (default 30). |
-| `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                       |
-| `--raw`                             |                         | Emit pipe-safe undecorated text. Ignored in JSON modes.                          |
-| `--examples`                        |                         | Print the curated examples block and exit zero.                                  |
-| `--refresh`                         |                         | Bypass the entity store read; still write the response.                          |
-| `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                           |
-| `--cache-only`                      |                         | Serve from the local store only; never hit the API.                              |
-| `--limit <N>`                       |                         | Cap for list-style commands (default 100, ceiling 1000).                         |
-| `--cursor <TOKEN>`                  |                         | Pagination cursor (alias `--page`); responses surface `meta.next_cursor`.        |
-| `-u`, `--username <name>`           | `X_API_USERNAME`        | Multi-user token selection threaded into the embedded request options.           |
+| Flag                                | Env var                 | Purpose                                                                      |
+| ----------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `--output {text,json,jsonl,ndjson}` | `BIRD_OUTPUT`           | Output format. Defaults to `text` on TTY, `json` when stderr is non-TTY.     |
+| `--json`                            | `BIRD_JSON=1`           | Shorthand for `--output json`.                                               |
+| `--jsonl`                           | `BIRD_JSONL=1`          | Shorthand for `--output jsonl`.                                              |
+| `--color {auto,always,never}`       | `BIRD_COLOR`            | Color mode. `NO_COLOR=1` forces `never`.                                     |
+| `-q`, `--quiet`                     | `BIRD_QUIET=1`          | Suppress informational stderr; keep fatal errors.                            |
+| `-v`, `--verbose`                   | `BIRD_VERBOSE`          | Repeatable: `-v` info, `-vv` debug, `-vvv` trace.                            |
+| `--timeout <secs>`                  | `BIRD_TIMEOUT`          | Network timeout threaded into `xdk::api::Client::with_timeout` (default 30). |
+| `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                   |
+| `--raw`                             |                         | Emit pipe-safe undecorated text. Ignored in JSON modes.                      |
+| `--examples`                        |                         | Print the curated examples block and exit zero.                              |
+| `--refresh`                         |                         | Bypass the entity store read; still write the response.                      |
+| `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                       |
+| `--cache-only`                      |                         | Serve from the local store only; never hit the API.                          |
+| `--limit <N>`                       |                         | Cap for list-style commands (default 100, ceiling 1000).                     |
+| `--cursor <TOKEN>`                  |                         | Pagination cursor (alias `--page`); responses surface `meta.next_cursor`.    |
+| `-u`, `--username <name>`           | `X_API_USERNAME`        | Multi-user token selection threaded into the embedded request options.       |
 
 Additional env vars without flag pairs:
 
-- `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI (`xr auth
-  app`).
+- `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI
+  (`xr auth app`).
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
 
 ```text
-bird (CLI + entity store + intelligence) --> xurl-rs (embedded library: auth + HTTP) --> X API
+bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
 ```
 
 - `src/main.rs` — thin binary entrypoint (≤30 LOC): SIGPIPE restore, tracing init, delegates to `bird::cli::run_argv()`.
@@ -118,9 +118,9 @@ bird (CLI + entity store + intelligence) --> xurl-rs (embedded library: auth + H
   only, not a public crate API.
 - `src/cli/mod.rs` — clap derive definitions (`Cli`, `Command`, `CacheAction`, `WatchlistCommand`, `SkillAction`,
   `SchemaArgs`).
-- `src/cli/runner.rs` — layered entrypoints: `run_argv()`, `run(args, &mut stdout, &mut stderr)`, `run_with_paths(args,
-  &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with TempDir-backed `ResolvedPaths` and
-  `Vec<u8>` writers.
+- `src/cli/runner.rs` — layered entrypoints: `run_argv()`, `run(args, &mut stdout, &mut stderr)`,
+  `run_with_paths(args, &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with TempDir-backed
+  `ResolvedPaths` and `Vec<u8>` writers.
 - `src/cli/dispatch.rs` — `fn run` top-level match plus shared dispatcher helpers (`command_is_api_hitting`,
   `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `validate_auth_value`, etc.).
 - `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
@@ -128,22 +128,23 @@ bird (CLI + entity store + intelligence) --> xurl-rs (embedded library: auth + H
 - `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me, Get), `bookmarks.rs`, `profile.rs`,
   `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
   pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 xurl-write verbs share a single `execute` helper).
-- `src/xurl_client/` — bird's seam over the embedded `xurl-rs` library. `mod.rs` declares the `XurlClient` trait (one
-  method per typed xurl shortcut bird uses plus a generic `send_request`), `mock.rs` is the `MockXurlClient` test
-  double, `ConstructionStub` is the no-credentials fallback.
+- `src/xurl_client/` — bird's seam over the embedded `xdk-rs` library. `mod.rs` declares the `XurlClient` trait (one
+  generic `send_request`; bird renders every request itself) and `EmbeddedClient` (an `xdk::api::Client` plus the
+  current-thread tokio runtime that blocks on its async calls); `mock.rs` is the `MockXurlClient` test double;
+  `ConstructionStub` reports a client that failed to build.
 - `src/db/` — SQLite entity store: `store/` (per-entity table modules + migrations; `Connection` wrapped in
   `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware client wrapping `XurlClient`, split into
   per-shape request modules including the `embedded` seam), `usage.rs` (per-call cost ledger).
 - `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist/`, `src/usage/` —
   per-command handlers; streaming where the endpoint paginates.
-- `src/doctor.rs` — diagnostic report (linked xurl crate version, per-app auth state, per-command accepted vs.
+- `src/doctor.rs` — diagnostic report (linked xdk-rs crate version, per-app auth state, per-command accepted vs.
   credentialed schemes, cache health).
 - `src/cli/auth_scheme.rs` — `AuthType` enum (`OAuth2User`, `OAuth1`, `Bearer`, `None`); bird's request-time scheme
-  identifier rendered to xurl's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
+  identifier rendered to xdk's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
 - `src/output.rs` — `OutputConfig`, color helpers, ANSI sanitization for stderr envelopes, `print_*` methods that take
   an injected `&mut dyn Write`.
-- `src/error.rs` — `BirdError` enum, exit-code mapping, exhaustive `xurl::error::XurlError → BirdError` translation for
-  the 77 / 78 / 1 / 3 / 4 / 5 contract.
+- `src/error/` — `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation for the 77 / 78 / 1 / 3 / 4 /
+  5 contract (bird's two overrides on top of `xdk::Error::exit_code`).
 - `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
 - `src/schema.rs` — input validation (`validate_username` strips `@`, enforces X charset).
@@ -154,14 +155,17 @@ bird (CLI + entity store + intelligence) --> xurl-rs (embedded library: auth + H
 
 ## Transport dependency
 
-bird does **not** implement HTTP or OAuth itself. It embeds the [`xurl-rs`](https://github.com/brettdavies/xurl-rs)
-crate as a library; every API call goes through `xurl::api::ApiClient` constructed once per CLI invocation. App
-credentials come from `CLIENT_ID` / `CLIENT_SECRET` env vars or a stored app written by the optional `xr auth app`
-command (xurl-rs's CLI shares the token store with the embedded client).
+bird does **not** implement HTTP or OAuth itself. It embeds [`xdk-rs`](https://github.com/brettdavies/xurl-rs)
+(`use xdk::`), the X API library published from the xurl-rs repository; every API call goes through one
+`xdk::api::Client` constructed per CLI invocation. xdk-rs is async on tokio and bird is synchronous, so `EmbeddedClient`
+owns a current-thread runtime and blocks on each call. App credentials come from `CLIENT_ID` / `CLIENT_SECRET` env vars
+or a stored app written by the optional `xr auth app` command (xurl-rs's `xr` CLI shares the `~/.xurl` token store with
+the embedded client).
 
-`bird login` calls `xurl::auth::Auth::oauth2_flow` directly; bird never owns tokens. `bird login --no-browser` (alias
-`--headless`) drives `remote_oauth2_step1` / `remote_oauth2_step2` so agents and headless machines get the authorization
-URL on stdout and feed the redirect URL back on stdin. Token storage, refresh, and OAuth1 signing all live in xurl-rs.
+`bird login` calls `xdk::api::Client::oauth2_flow` with its own browser opener; bird never owns tokens.
+`bird login --no-browser` (alias `--headless`) drives `remote_oauth2_step1` / `remote_oauth2_step2` so agents and
+headless machines get the authorization URL on stdout and feed the redirect URL back on stdin. Token storage, refresh,
+and OAuth1 signing all live in xdk-rs.
 
 ## Output formats
 
@@ -208,13 +212,16 @@ The entity store sits in front of every read command. Three modes:
 
 ## Exit codes
 
-| Code | Meaning                                                                         |
-| ---- | ------------------------------------------------------------------------------- |
-| 0    | Success                                                                         |
-| 2    | `requires-confirmation`: no-TTY caller hit a write op without `--force`/`--yes` |
-| 77   | Auth error (`XurlError::Auth` detected — HTTP 401/403)                          |
-| 78   | Config error (`EX_CONFIG`): missing xurl, invalid config, bad path              |
-| 1    | Command error: API, network, I/O; default for everything else                   |
+| Code | Meaning                                                                                       |
+| ---- | --------------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                       |
+| 1    | Command error: an API status with no code of its own (400, 403, 5xx), or any other failure    |
+| 2    | `requires-confirmation`: no-TTY caller hit a write op without `--force`/`--yes`               |
+| 3    | Rate limited (HTTP 429)                                                                       |
+| 4    | Not found (HTTP 404)                                                                          |
+| 5    | Network or filesystem failure: the request never got an HTTP response                         |
+| 77   | Auth error: missing or refused credential (HTTP 401), or a scheme the endpoint does not take  |
+| 78   | Config error (`EX_CONFIG`): invalid config, bad path, or a request xdk-rs rejects as invalid  |
 
 The 77/78 split follows the BSD `sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix
 your config" from "API blew up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of
@@ -231,11 +238,11 @@ Permission enforcement lives in `src/config.rs` behind `#[cfg(unix)]` (`std::os:
 
 ## Agent-skill bundle
 
-The skill bundle lives in a dedicated repo: [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill). `bird
-skill install <host>` runs a hardened `git clone --depth 1` of that repo into the host's canonical skills directory;
-`bird skill update <host>` removes the destination and re-clones. The supported hosts and their target paths are the
-single source of truth in `src/skill_install/skill.json`; `build.rs` codegens the `SkillHost` enum, `KNOWN_HOSTS`, and
-the `resolve_host` / `host_envelope_str` lookup at build time.
+The skill bundle lives in a dedicated repo: [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill).
+`bird skill install <host>` runs a hardened `git clone --depth 1` of that repo into the host's canonical skills
+directory; `bird skill update <host>` removes the destination and re-clones. The supported hosts and their target paths
+are the single source of truth in `src/skill_install/skill.json`; `build.rs` codegens the `SkillHost` enum,
+`KNOWN_HOSTS`, and the `resolve_host` / `host_envelope_str` lookup at build time.
 
 | Host          | Destination                      |
 | ------------- | -------------------------------- |
@@ -281,8 +288,8 @@ rustdoc-as-warnings, Windows cross-clippy. Set `git config core.hooksPath script
 
 ## Testing
 
-- Unit tests inline in each module. Exit-code coverage for the full `xurl::error::XurlError → BirdError` mapping (78 /
-  77 / 1 / 3 / 4 / 5) lives in `src/error/mod.rs::tests`.
+- Unit tests inline in each module. Exit-code coverage for the `xdk::Error → BirdError` mapping (78 / 77 / 1 / 3 / 4 /
+  5) lives in `src/error/mod.rs::tests`.
 - CLI smoke tests in `tests/cli_smoke.rs` exercise the clap surface, exit codes, and JSON envelope shape via the
   in-process `run_with_paths` entry point.
 - `tests/json_envelope.rs`, `tests/envelope_consistency.rs`, `tests/schema_parity.rs` lock the JSON envelope shape and
@@ -293,7 +300,7 @@ rustdoc-as-warnings, Windows cross-clippy. Set `git config core.hooksPath script
 - `tests/diag_quiet_lazy_eval_test.rs` regression-locks the R24 zero-allocation `if !quiet` diag guard via a
   `PanicOnWrite` writer backed by `ConstructionStub`.
 
-Bird tests only the bird/xurl boundary via `MockXurlClient`; xurl-rs owns the X API HTTP shapes upstream. No bird-side
+Bird tests only the bird/xdk boundary via `MockXurlClient`; xdk-rs owns the X API HTTP shapes upstream. No bird-side
 wiremock; no bird-side real-API integration suite.
 
 ## Releasing
@@ -301,15 +308,15 @@ wiremock; no bird-side real-API integration suite.
 See [`RELEASES.md`](RELEASES.md) for the operational runbook, [`RELEASES-PREFLIGHT.md`](RELEASES-PREFLIGHT.md) for the
 pre-cut go/no-go checklist, [`RELEASES-POSTFLIGHT.md`](RELEASES-POSTFLIGHT.md) for the post-tag verification, and
 [`RELEASES-RATIONALE.md`](RELEASES-RATIONALE.md) for the why behind every rule. The short version: feature branch → PR
-to `dev` (squash) → `dev`'s tree overlaid onto `release/v<version>` cut from `main` → PR to `main` (squash) →
-annotated tag push triggers `release.yml` → `scripts/sync-dev-after-release.sh` backports the bookkeeping to `dev`.
+to `dev` (squash) → `dev`'s tree overlaid onto `release/v<version>` cut from `main` → PR to `main` (squash) → annotated
+tag push triggers `release.yml` → `scripts/sync-dev-after-release.sh` backports the bookkeeping to `dev`.
 
 ## Documented solutions
 
 `docs/solutions/` is a symlink to `~/dev/solutions-docs/`, a shared, searchable archive of past solutions and best
-practices organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Search with `qmd query
-"<topic>" --collection solutions` before implementing or debugging in a documented area; the corpus crosses repos and
-already captures known pitfalls.
+practices organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Search with
+`qmd query "<topic>" --collection solutions` before implementing or debugging in a documented area; the corpus crosses
+repos and already captures known pitfalls.
 
 ## References
 
@@ -320,4 +327,5 @@ already captures known pitfalls.
 - [`RELEASES-POSTFLIGHT.md`](RELEASES-POSTFLIGHT.md): post-tag verification of the publish chain.
 - [`docs/CLI_DESIGN.md`](docs/CLI_DESIGN.md) — auth requirements, doctor, error design.
 - [`docs/DEVELOPER.md`](docs/DEVELOPER.md) — build, architecture, project layout.
-- [xurl-rs](https://github.com/brettdavies/xurl-rs) — upstream transport dependency.
+- [xurl-rs](https://github.com/brettdavies/xurl-rs) — home of `xdk-rs`, the upstream transport dependency, and the `xr`
+  CLI.
