@@ -259,11 +259,18 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
 - KTD6. **bird's cache moves behind the hook, and the hook replaces bird's test seam.** `BirdClient`'s read and write
   logic (`src/db/client/`) becomes bird's hook with today's rules unchanged: fresh-entity answers by id or username,
   stored-response answers under `--cache-only`, and entity, stored-response, and ledger writes from the observation. The
-  batch-ID partition has no caller left and is removed. `XurlClient` and `MockXurlClient` retire for a scripted hook
-  that answers every request. Governs R18, R20, R37.
-- KTD7. **bird reads a declined request as xdk's declined error and renders it with bird's `cache-miss` reason.** Its
-  exit code is the one xdk-rs gives the declined error; bird's `cache-miss` exits 1 today, and moves to xdk's code if
-  that differs, as every other code bird reports comes from `xdk::Error::exit_code`.
+  batch-ID partition has no caller left and is removed. `XurlClient` and `MockXurlClient` retire: bird's hook is a cache
+  policy over an inner responder, which proceeds in production and answers from a script in tests (bodies and error
+  statuses alike); when the inner responder answers, bird runs its own observation path, since xdk observes only sent
+  requests. Observations are filed by the request's endpoint template, not its path prefix, so a timeline, mentions,
+  liked-posts, or bookmarks page stores posts. Under `--cache-only` bird always installs a hook, and when no store is
+  usable (`--no-cache`, caching disabled, or a store that fails to open) that hook declines every request. Governs R18,
+  R20, R37.
+- KTD7. **bird's hook declines with bird's own reason.** A decline carries a reason the caller chooses, a message, and
+  an optional recovery step (Request 1), so a composed command under `--cache-only` prints `reason: cache-miss` through
+  `xr`'s renderer, and bird's own commands print it through the same emitter (Request 3). Its exit code is the one
+  xdk-rs gives the declined error; bird's `cache-miss` exits 1 today, and moves to xdk's code if that differs, as every
+  other code bird reports comes from `xdk::Error::exit_code`.
 - KTD8. **bird relies on one hook consultation before every JSON request and one observation after its final attempt**
   (Request 1), and keys its cache on the rendered URL in the hook's view, as `compute_raw_cache_key` in
   `src/db/client/entity.rs` does today.
@@ -440,7 +447,9 @@ pub trait RequestHook: Send + Sync + 'static {
     fn before<'a>(&'a self, request: &'a HookRequest) -> BoxFuture<'a, HookDecision>;
     fn after<'a>(&'a self, request: &'a HookRequest, outcome: HookOutcome<'a>) -> BoxFuture<'a, ()>;
 }
-#[non_exhaustive] pub enum HookDecision { Proceed, Answer(serde_json::Value), Decline(String) }
+#[non_exhaustive] pub enum HookDecision { Proceed, Answer { status: u16, body: serde_json::Value }, Decline(Declined) }
+#[non_exhaustive] pub struct Declined { pub reason: String, pub message: String,
+                                         pub next_action: Option<NextAction>, pub command: Option<String> }
 #[non_exhaustive] pub struct HookRequest {
     pub method: String,               // as sent
     pub url: String,                  // fully rendered, query included
@@ -454,16 +463,18 @@ impl ClientBuilder {
     pub fn request_hook(self, hook: impl RequestHook) -> Self;
     pub fn from_store(config: &Config, auth: Auth) -> Self;  // a builder for store-backed clients too
 }
-// xdk::Error::Declined { message }: a stable kind() and exit_code() of the team's choosing
+// xdk::Error::Declined(Declined): kind() is the caller's reason; exit_code() is of the team's choosing
 ```
 
 Behavior bird depends on:
 
 - `before` runs once per logical request on the JSON path, before credentials are resolved; `after` runs once after the
   final attempt, after any rate-limit wait and retry, for every request that was sent.
-- `Answer` returns the body through the same decode a real response takes; nothing is sent and no credential is read.
-  Answers are not limited by method: the hook's policy decides.
-- `Decline` returns `Error::Declined` and sends nothing.
+- `Answer` returns the body through the same decode a real response with that status takes, so a non-2xx answer is xdk's
+  error for that status; nothing is sent and no credential is read. Answers are not limited by method: the hook's policy
+  decides.
+- `Decline` returns `Error::Declined` carrying the caller's reason, message, and recovery step, and sends nothing;
+  `xr`'s renderer prints them as the envelope's `reason`, `message`, and `next_step`.
 - `send_saving_identity`, every shortcut, and every page of a paginated call reach the hook. A multipart upload consults
   `before` for a decline (an answer there is a validation error) and is observed by `after`. Streaming requests never
   reach the hook.
@@ -473,7 +484,9 @@ Acceptance bird tests:
 
 - bird's whole test suite runs on a hook that answers every request, with no socket opened.
 - An answered `read_post` decodes into the same `Post` the same body sent by X would.
-- A declined request fails with the declined kind and exit code, and `xr`'s renderer prints it.
+- A declined request fails with the declined exit code, and `xr`'s renderer prints it; a decline with reason
+  `cache-miss` makes a composed `user` print `reason: cache-miss`.
+- A hook that answers status 404 makes the call fail with xdk's API error for status 404.
 - A 429 waited out and retried produces one `before` and one `after`, carrying the second response.
 
 ### Request 3. `xr`'s command layer as a supported library
@@ -493,7 +506,8 @@ pub mod compose {                                   // public, documented, semve
                                                pub factory: &'a dyn ClientFactory }
     pub async fn run(command: ApiCommand, globals: &GlobalArgs, session: Session<'_>) -> i32;
     pub fn schema_documents() -> impl Iterator<Item = (&'static str, serde_json::Value)>;
-    pub mod output { /* OutputConfig and the ok, error, and dry-run envelope emitters, with Reason and NextStep */ }
+    pub mod output { /* OutputConfig and the ok, error, and dry-run envelope emitters, with Reason and NextStep;
+                        the error emitter also takes a reason the caller defines beside Reason's closed set */ }
 }
 ```
 
@@ -513,6 +527,7 @@ Acceptance bird tests:
 - `bird like 123 --output json` and `xr like 123 --output json` on the same scripted hook print the same bytes and exit
   code.
 - A factory error renders as `xr` renders a client build failure.
+- A bird error with reason `config-error` and exit 78 renders through the library's error emitter.
 
 ### Request 5. Points for xurl-rs's crate-line canon
 
@@ -749,10 +764,13 @@ together.
 - **Approach:**
   1. Implement bird's hook from `BirdClient`'s read path with today's rules (KTD6), honoring `--refresh` and
      `--no-cache`.
-  2. Under `--cache-only`, answer from the store or decline, writes included (R20, R37).
-  3. Write entities, stored responses, and the ledger from the observation.
+  2. Under `--cache-only`, answer from the store or decline, writes included (R20, R37). With no usable store
+     (`--no-cache`, caching disabled, or a failed open), still install a hook, and it declines every request.
+  3. Write entities (filed by the request's endpoint template), stored responses, and the ledger from the observation;
+     when the inner responder answers, run the same observation path.
   4. Build the client through the store-backed builder with bird's user agent and the hook (KTD5).
-  5. Replace `MockXurlClient` with a scripted hook that answers every request and records what it saw.
+  5. Replace `MockXurlClient` with a scripted inner responder under the cache policy that answers bodies and error
+     statuses and records what it saw.
 - **Execution note:** keep the existing cache tests' assertions, swap only the harness, and see them pass before
   deleting `BirdClient`'s transport code.
 - **Patterns to follow:** `src/db/client/get.rs` freshness rules; `src/db/client/entity.rs` cache keys.
@@ -765,7 +783,11 @@ together.
   - Covers AE10. A search request under `--cache-only` declines whatever the store holds.
   - `--cache-only` on a write declines before any request.
   - A 404 observation writes nothing and logs nothing billable.
-  - A store that cannot open leaves the hook out and requests proceed.
+  - A store that cannot open leaves the cache out and requests proceed; under `--cache-only` every read and write
+    declines before it is sent.
+  - `bird --no-cache --cache-only like <id>` declines before any request.
+  - A composed `timeline` page stores its posts in the posts table and writes no user row per post.
+  - A scripted 404 decodes as xdk's 404 error, and its observation writes nothing.
 - **Verification:** bird's full suite passes on the scripted hook, and no bird test opens a socket.
 
 ### U10. `bird rank`
