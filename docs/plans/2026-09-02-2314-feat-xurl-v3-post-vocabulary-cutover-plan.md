@@ -4,9 +4,13 @@ type: feat
 date: 2026-09-02
 topic: xurl-v3-post-vocabulary-cutover
 artifact_contract: ce-unified-plan/v1
-artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
+status: superseded
+superseded_by:
+  - docs/plans/2026-10-22-004-feat-xr-output-contract-and-post-vocabulary-plan.md
+  - docs/plans/2026-10-22-003-feat-bird-extends-xr-plan.md
+  - docs/plans/2026-10-22-001-xurl-rs-parity-backlog.md
 ---
 
 # xurl v3 Post-Vocabulary Cutover - Plan
