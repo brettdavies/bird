@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bird skill install",
+  "description": "The envelope `bird skill install` prints, on success, under --dry-run, and on error.",
+  "type": "object",
+  "required": [
+    "action",
+    "status"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "`skill-install` or `skill-update`."
+    },
+    "host": {
+      "type": "string",
+      "description": "Agent host the verb targeted."
+    },
+    "install_dir": {
+      "type": "string",
+      "description": "Directory the bundle installs into."
+    },
+    "command_preview": {
+      "type": "string",
+      "description": "The clone command, without its hardening flags."
+    },
+    "destination_status": {
+      "type": "string",
+      "enum": [
+        "absent",
+        "empty-dir",
+        "non-empty-dir",
+        "file"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "dry_run",
+        "error"
+      ]
+    },
+    "would_succeed": {
+      "type": "boolean"
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Kebab-case reason on an error."
+    },
+    "message": {
+      "type": "string"
+    },
+    "known_hosts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_step": {
+      "type": "object",
+      "description": "What the caller should do next, as in the error envelope.",
+      "additionalProperties": true
+    },
+    "installations": {
+      "type": "array",
+      "description": "One envelope per host under `--all`.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bird watchlist list",
+  "description": "The ok document `bird watchlist list` prints under --output json.",
+  "type": "object",
+  "required": [
+    "status",
+    "data",
+    "meta"
+  ],
+  "properties": {
+    "status": {
+      "const": "ok"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Watched usernames."
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "next_cursor": {
+          "type": "string",
+          "description": "Offset to pass back as --cursor; absent on the last page."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

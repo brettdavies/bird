@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bird cache stats",
+  "description": "The ok document `bird cache stats` prints under --output json. With no store it carries only `healthy: false`.",
+  "type": "object",
+  "required": [
+    "status",
+    "healthy"
+  ],
+  "properties": {
+    "status": {
+      "const": "ok"
+    },
+    "path": {
+      "type": "string"
+    },
+    "size_mb": {
+      "type": "number"
+    },
+    "max_size_mb": {
+      "type": "integer"
+    },
+    "tweets": {
+      "type": "integer"
+    },
+    "users": {
+      "type": "integer"
+    },
+    "raw_responses": {
+      "type": "integer"
+    },
+    "healthy": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

@@ -2097,7 +2097,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__schema)
-            opts="-u -o -q -v -h --list --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --list --all --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

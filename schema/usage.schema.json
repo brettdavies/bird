@@ -1,48 +1,73 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/usage-v1.json",
-  "title": "bird usage payload",
-  "description": "Shape of the data payload returned by `bird usage` under --output json. Reports API usage counts and cost estimates over a time window.",
+  "title": "bird usage",
+  "description": "The ok document `bird usage` prints under --output json: API usage counts and cost estimates over a window.",
   "type": "object",
+  "required": [
+    "status",
+    "since",
+    "until",
+    "summary",
+    "daily",
+    "top_endpoints",
+    "sync_status"
+  ],
   "properties": {
+    "status": {
+      "const": "ok"
+    },
     "since": {
       "type": "string",
-      "description": "Start date of the reporting window (YYYY-MM-DD)."
+      "description": "Start of the window (YYYY-MM-DD)."
     },
     "until": {
       "type": "string",
-      "description": "End date of the reporting window (YYYY-MM-DD)."
+      "description": "End of the window (YYYY-MM-DD)."
     },
-    "requests": {
-      "type": "integer",
-      "description": "Total API requests issued in the window."
-    },
-    "tweets_read": {
-      "type": "integer",
-      "description": "Tweet objects consumed (counts toward read quota)."
-    },
-    "estimated_cost_usd": {
-      "type": "number",
-      "description": "Rough cost estimate using bird's local pricing table."
-    },
-    "by_command": {
+    "summary": {
       "type": "object",
-      "description": "Per-subcommand breakdown keyed by command name.",
-      "additionalProperties": {
+      "additionalProperties": true
+    },
+    "daily": {
+      "type": "array",
+      "items": {
         "type": "object",
-        "properties": {
-          "requests": { "type": "integer" },
-          "tweets": { "type": "integer" },
-          "cost_usd": { "type": "number" }
-        },
         "additionalProperties": true
       }
     },
-    "source": {
+    "top_endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "comparison": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "cap": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "per_app": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "sync_status": {
       "type": "string",
-      "description": "Where the numbers came from (\"local\" for offline cache estimate, \"api\" for upstream metering).",
-      "enum": ["local", "api", "mixed"]
+      "enum": [
+        "success",
+        "failed",
+        "skipped"
+      ]
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

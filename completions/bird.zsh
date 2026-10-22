@@ -1724,7 +1724,8 @@ never\:"Never emit colors"))' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--list[List all available schema names instead of printing a schema]' \
+'(--all)--list[List every schema name and title instead of printing a schema]' \
+'--all[Print every schema in one object keyed by name]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1741,7 +1742,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-'::name -- Schema name to print. Omit to print the universal success envelope:_default' \
+'::name -- Command whose output schema to print, or `envelope`:_default' \
 && ret=0
 ;;
 (help)
@@ -1989,7 +1990,7 @@ _bird_commands() {
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
 'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
-'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
+'schema:Print the JSON Schema of a command'\''s output, or of the envelope' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird commands' commands "$@"
@@ -2109,7 +2110,7 @@ _bird__subcmd__help_commands() {
 'cache:Manage the HTTP response cache' \
 'completions:Generate shell completions' \
 'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
-'schema:Print a JSON Schema document for one of bird'\''s output shapes' \
+'schema:Print the JSON Schema of a command'\''s output, or of the envelope' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird help commands' commands "$@"

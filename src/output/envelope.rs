@@ -445,26 +445,21 @@ where
     Value::deserialize(deserializer).map(Some)
 }
 
-/// The JSON Schema (draft 2020-12) of the error envelope, as committed in
-/// `schema/error-envelope.schema.json`.
+/// The JSON Schema (draft 2020-12) of every envelope bird prints, as
+/// committed in `schema/envelope.schema.json` and printed by
+/// `bird schema envelope`.
 #[must_use]
-pub fn error_envelope_schema() -> Value {
-    let mut schema = serde_json::to_value(schemars::schema_for!(ErrorBody))
+pub fn envelope_schema() -> Value {
+    let mut schema = serde_json::to_value(schemars::schema_for!(Envelope))
         .unwrap_or_else(|_| serde_json::json!({}));
     if let Some(obj) = schema.as_object_mut() {
-        obj.insert("title".into(), Value::String("bird error envelope".into()));
+        obj.insert("title".into(), Value::String("bird envelope".into()));
         obj.insert(
             "description".into(),
             Value::String(
-                "Written to stderr when bird exits non-zero under a structured output mode.".into(),
+                "Every structured document bird assembles: `ok` and `dry_run` on stdout, `error` on stderr. Agents branch on `status`.".into(),
             ),
         );
-        if let Some(props) = obj.get_mut("properties").and_then(Value::as_object_mut) {
-            props.insert("status".into(), serde_json::json!({"const": "error"}));
-        }
-        if let Some(required) = obj.get_mut("required").and_then(Value::as_array_mut) {
-            required.insert(0, Value::String("status".into()));
-        }
     }
     schema
 }
@@ -545,23 +540,23 @@ mod tests {
     }
 
     #[test]
-    fn committed_error_envelope_schema_matches_the_types() {
-        let generated = serde_json::to_string_pretty(&error_envelope_schema()).unwrap() + "\n";
-        let committed = include_str!("../../schema/error-envelope.schema.json");
+    fn committed_envelope_schema_matches_the_types() {
+        let generated = serde_json::to_string_pretty(&envelope_schema()).unwrap() + "\n";
+        let committed = include_str!("../../schema/envelope.schema.json");
         assert_eq!(
             committed, generated,
-            "schema/error-envelope.schema.json is stale; regenerate it with \
-             `cargo test --lib bless_error_envelope_schema -- --ignored`"
+            "schema/envelope.schema.json is stale; regenerate it with \
+             `cargo test --lib bless_envelope_schema -- --ignored`"
         );
     }
 
     #[test]
-    #[ignore = "writes schema/error-envelope.schema.json; run on purpose"]
-    fn bless_error_envelope_schema() {
-        let generated = serde_json::to_string_pretty(&error_envelope_schema()).unwrap() + "\n";
+    #[ignore = "writes schema/envelope.schema.json; run on purpose"]
+    fn bless_envelope_schema() {
+        let generated = serde_json::to_string_pretty(&envelope_schema()).unwrap() + "\n";
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("schema")
-            .join("error-envelope.schema.json");
+            .join("envelope.schema.json");
         std::fs::write(path, generated).unwrap();
     }
 }

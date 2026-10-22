@@ -78,7 +78,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
             [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
             [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)')
-            [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print a JSON Schema document for one of bird''s output shapes')
+            [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print the JSON Schema of a command''s output, or of the envelope')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -1312,7 +1312,8 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--app', '--app', [CompletionResultType]::ParameterName, 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl''s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not')
             [CompletionResult]::new('--auth', '--auth', [CompletionResultType]::ParameterName, 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list')
-            [CompletionResult]::new('--list', '--list', [CompletionResultType]::ParameterName, 'List all available schema names instead of printing a schema')
+            [CompletionResult]::new('--list', '--list', [CompletionResultType]::ParameterName, 'List every schema name and title instead of printing a schema')
+            [CompletionResult]::new('--all', '--all', [CompletionResultType]::ParameterName, 'Print every schema in one object keyed by name')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
             [CompletionResult]::new('--plain', '--plain', [CompletionResultType]::ParameterName, 'Deprecated alias for `--color never` (plain output, no color)')
@@ -1361,7 +1362,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('cache', 'cache', [CompletionResultType]::ParameterValue, 'Manage the HTTP response cache')
             [CompletionResult]::new('completions', 'completions', [CompletionResultType]::ParameterValue, 'Generate shell completions')
             [CompletionResult]::new('skill', 'skill', [CompletionResultType]::ParameterValue, 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)')
-            [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print a JSON Schema document for one of bird''s output shapes')
+            [CompletionResult]::new('schema', 'schema', [CompletionResultType]::ParameterValue, 'Print the JSON Schema of a command''s output, or of the envelope')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }

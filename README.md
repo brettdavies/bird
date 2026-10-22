@@ -218,7 +218,7 @@ The envelope is the one `xr` prints, so one parser reads both tools:
 A rate limit with a known reset adds `retry_after_secs` and `retry_at`; an auth-scheme mismatch adds the endpoint,
 the schemes it accepts, and the active app. `--output json` is indented; `--raw` prints it on one line.
 
-`bird schema error-envelope` prints the JSON Schema for this envelope.
+`bird schema envelope` prints the JSON Schema for this envelope and the success and dry-run ones.
 
 ---
 

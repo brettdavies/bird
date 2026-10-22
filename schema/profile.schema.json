@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/profile-v1.json",
   "title": "bird profile payload",
   "description": "Shape of the data payload returned by `bird profile <username>` under --output json. Wraps a single user object resolved via GET /2/users/by/username/{username}.",
   "type": "object",

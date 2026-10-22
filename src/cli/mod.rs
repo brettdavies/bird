@@ -493,18 +493,21 @@ pub enum Command {
         action: SkillAction,
     },
 
-    /// Print a JSON Schema document for one of bird's output shapes.
+    /// Print the JSON Schema of a command's output, or of the envelope.
     #[command(after_help = "Examples:
-  bird schema
+  bird schema envelope
   bird schema --list
-  bird schema bookmarks
-  bird schema bookmarks --output json")]
+  bird schema thread
+  bird schema --all --output json")]
     Schema {
-        /// Schema name to print. Omit to print the universal success envelope.
+        /// Command whose output schema to print, or `envelope`.
         name: Option<String>,
-        /// List all available schema names instead of printing a schema.
-        #[arg(long)]
+        /// List every schema name and title instead of printing a schema.
+        #[arg(long, conflicts_with = "all")]
         list: bool,
+        /// Print every schema in one object keyed by name.
+        #[arg(long)]
+        all: bool,
     },
 }
 

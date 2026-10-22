@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/search-v1.json",
   "title": "bird search payload",
   "description": "Shape of the data payload returned by `bird search <query>` under --output json. Wraps recent-search results from GET /2/tweets/search/recent after bird's transformation (sort, min-likes filtering, page aggregation).",
   "type": "object",
