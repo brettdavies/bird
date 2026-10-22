@@ -113,9 +113,59 @@ harmless: the release PR merges into `main`, so `--from-dev-prs`, which reads `d
 
 ### Why internal-tooling commits don't appear in `## Changelog`
 
-`chore(cliff): ...`, `chore(ci): ...`, and similar internal-tooling commits don't appear in the PR body's `##
-Changelog`. They are not user-facing. They belong in commit history and in the Files Modified section of the PR body,
-not in the source-of-truth release notes.
+`chore(cliff): ...`, `chore(ci): ...`, and similar internal-tooling commits don't appear in the PR body's
+`## Changelog`. They are not user-facing. They belong in commit history and in the Files Modified section of the PR
+body, not in the source-of-truth release notes.
+
+## Versioning
+
+### Why the contract is the machine surface, not the source
+
+SemVer's first rule is that software using it "MUST declare a public API". A CLI's public API is what a caller types and
+what a program reads back, not its source. [clig.dev](https://clig.dev/#future-proofing) lists "Subcommands, arguments,
+flags, configuration files, environment variables" as interfaces a CLI commits to, and says "Changing output for humans
+is usually OK" as long as scripts are steered to `--plain` or `--json`. That is bird's split between text and structured
+output: text is for a person and may improve release to release, while the JSON envelope's `error`, `kind`, and
+`exit_code` are what an agent branches on. bird's library target is `#[doc(hidden)]` test infrastructure, so its Rust
+API is no part of the contract.
+
+### Why a patch carries nothing new
+
+SemVer reserves a patch for "only backward compatible bug fixes", and states: "A bug fix is defined as an internal
+change that fixes incorrect behavior." It makes the minor mandatory for "new, backward compatible functionality" and for
+anything "marked as deprecated". A new command, field, or error id is new functionality whatever its size, so it cannot
+ride in a patch.
+
+### Why restoring the documented contract is a patch
+
+A fix can change an exit code or a JSON key and still be a patch, because the value it replaces was the incorrect
+behavior: exit `0` for a failed command, or a key the published schema does not declare. HashiCorp's
+[provider versioning guidance](https://developer.hashicorp.com/terraform/plugin/best-practices/versioning), written for
+tools that wrap a remote API, lists "Fixing attributes to match behavior with the remote API" as a patch. SemVer's FAQ
+leaves the harder case to judgment: when a large audience depends on the incorrect behavior, a major can be the kinder
+release even though the fix is strictly a patch.
+
+### Why X's churn lands as minors
+
+X changes its API often, mostly additively, and without version numbers. HashiCorp draws the same line for providers:
+adding a new resource or data source, aliasing an existing one, and marking an attribute as deprecated are minors, while
+renaming or removing an attribute is a major. Reading both spellings of a renamed field keeps an upstream rename from
+becoming a break for bird's callers, so majors stay reserved for this project's own deliberate breaks. As clig.dev puts
+it, "if you're putting out a major version bump every month, it's meaningless."
+
+### Why a closed set can grow in a minor
+
+The error envelope's `error` id and `kind` are closed so an agent can branch on them without parsing prose. Growth stays
+backward compatible only when a consumer treats an unrecognized value as its default branch, which is the same contract
+`#[non_exhaustive]` gives a Rust enum. Removing or renaming a member breaks a consumer that matched on it, so that
+remains a major.
+
+### Why the changelog section decides the version
+
+The person who wrote the change classifies it once, when the PR is reviewed, and the release reads that classification
+instead of re-deriving it from commit subjects. The preflight's `surface` gate, which diffs `src/` and `schema/` against
+the last tag, puts a mis-filed break in front of whoever cuts the release. An addition filed under a patch section is
+the mistake review misses most easily, because nothing in the diff reads as wrong.
 
 ## Triple-diff verification
 
@@ -177,10 +227,10 @@ prior squash, it's a false positive (no action). Otherwise cherry-pick the commi
 
 `scripts/generate-changelog.py` (vendored from the `github-repo-setup` skill, with the repo-local `cliff.toml`) is the
 only sanctioned way to update `CHANGELOG.md`. On an overlay-built release branch it runs as `--from-dev-prs`: the PRs
-merged into `dev` since the previous release are the entries, and each PR's body supplies its `## Changelog → ###
-Breaking changes / Added / Changed / Deprecated / Fixed / Documentation` subsections (with author and PR-link
-attribution). On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from the branch's
-commits, then expands the same way.
+merged into `dev` since the previous release are the entries, and each PR's body supplies its
+`## Changelog → ### Breaking changes / Added / Changed / Deprecated / Fixed / Documentation` subsections (with author
+and PR-link attribution). On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from the
+branch's commits, then expands the same way.
 
 If a PR's body offers no changelog section at all, its title becomes a bullet under the group `cliff.toml` gives the
 same commit (`type!:` under Breaking changes, `feat` under Added, `fix` under Fixed, `docs` under Documentation,
@@ -197,10 +247,10 @@ reconstructible from history, so `cliff.toml` lists both tags under `ignore_tags
 sections. The generator prepends or rewrites only the section for the version being cut.
 
 On a PR to `main`, the `ci / Changelog` required check fails when a published crate's manifest changed and the changelog
-beside it did not (a member that keeps none is held to the root's); `publish = false` crates are exempt. `preflight.sh
-mechanics` checks that the release changelog opens on the release version with no `[Unreleased]` placeholder. The
-release workflow cuts the GitHub Release body from the section whose heading names the tag's version, and falls back to
-generated notes, with a warning, when there is none.
+beside it did not (a member that keeps none is held to the root's); `publish = false` crates are exempt.
+`preflight.sh mechanics` checks that the release changelog opens on the release version with no `[Unreleased]`
+placeholder. The release workflow cuts the GitHub Release body from the section whose heading names the tag's version,
+and falls back to generated notes, with a warning, when there is none.
 
 ### Why `cliff.toml` skips chore/style/test/ci/build
 
@@ -278,9 +328,9 @@ pressure.
 The shared release workflow builds seven targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`,
 `x86_64-pc-windows-msvc`. bird does not set `linux_musl_required`, so the two musl rows soft-fail: a musl build failure
-omits those two archives from the release instead of blocking it. `aws-lc-sys`, under reqwest's rustls backend,
-compiles C for every target, so `release-matrix-check.yml` builds all seven on every pull request that changes
-`Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml`, and on every `release/**` push.
+omits those two archives from the release instead of blocking it. `aws-lc-sys`, under reqwest's rustls backend, compiles
+C for every target, so `release-matrix-check.yml` builds all seven on every pull request that changes `Cargo.toml`,
+`Cargo.lock`, or `rust-toolchain.toml`, and on every `release/**` push.
 
 The Windows row is `x86_64-pc-windows-msvc`, the shared workflow's only Windows target. CI also runs a separate
 `ci / Windows check` job on every PR (not just at release) so MSVC build failures surface immediately, not at tag time.

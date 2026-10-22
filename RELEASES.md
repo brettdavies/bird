@@ -58,10 +58,10 @@ The standard feature → PR → squash-merge flow remains required for everythin
 ## PR body
 
 Every PR (feature, fix, docs, release) uses `.github/pull_request_template.md` verbatim. Six required sections, in
-template order, no inventions: `## Summary`, `## Changelog`, `## Type of Change`, `## Related Issues/Stories`, `##
-Testing`, `## Files Modified`. The template's other sections (`## Key Features`, `## Benefits`, `## Breaking Changes`,
-`## Deployment Notes`, `## Screenshots/Recordings`, `## Checklist`, `## Additional Context`) are optional: fill `##
-Breaking Changes` on a major, delete the rest when they do not apply.
+template order, no inventions: `## Summary`, `## Changelog`, `## Type of Change`, `## Related Issues/Stories`,
+`## Testing`, `## Files Modified`. The template's other sections (`## Key Features`, `## Benefits`,
+`## Breaking Changes`, `## Deployment Notes`, `## Screenshots/Recordings`, `## Checklist`, `## Additional Context`) are
+optional: fill `## Breaking Changes` on a major, delete the rest when they do not apply.
 
 - **No explainer prose anywhere in the body.** User-facing substance only.
 - **Summary describes the net diff only**: what merged `main` looks like vs the base branch. Not commit history,
@@ -82,6 +82,72 @@ Breaking Changes` on a major, delete the rest when they do not apply.
 - **No hard line wraps**: one logical line per paragraph or bullet.
 
 → Rationale: [`RELEASES-RATIONALE.md` § PR body conventions](./RELEASES-RATIONALE.md#pr-body-conventions).
+
+## Versioning
+
+bird follows [SemVer 2.0.0](https://semver.org/). A release's version comes from its changelog: each merged PR's
+`## Changelog` section classifies its change, and the release takes the highest bump any of its PRs calls for.
+
+### What the contract is
+
+bird's public API is its machine contract:
+
+- **Invocation:** command names and aliases, flags, positional forms, and every environment variable `bird --help`
+  lists.
+- **Exit codes:** the table in [`AGENTS.md`](./AGENTS.md#exit-codes).
+- **Structured output:** every shape `--output json|jsonl|ndjson` prints, meaning the success envelope and the
+  per-command documents `bird schema` prints from `schema/`, and the error envelope in
+  `schema/error-envelope.schema.json`, including its `error` id and `kind` sets.
+- **Stored state:** the `~/.config/bird/config.toml` format.
+
+Text-mode output, help text, colors, `--verbose` diagnostics, and raw-mode response bodies (X's bytes, passed through)
+are not contract, and neither is the layout of `bird.db`, a cache bird migrates forward itself. The one text-mode
+exception is the plain `bird --version` line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable
+output reads a structured format. The token store belongs to xdk-rs.
+
+### The three bumps
+
+- **Patch:** only fixes. Behavior brought back to the documented contract or to how the X API behaves, even when an exit
+  code or a JSON key changes as a result. Documentation, text-mode changes, and dependency or security updates that
+  leave the contract alone. Nothing new.
+- **Minor:** anything new that breaks nothing. A command, flag, environment variable, output field, output format, or
+  error id; a deprecation; an MSRV bump.
+- **Major:** anything in the contract removed, renamed, or retyped, or its documented meaning changed.
+
+A minor can carry fixes, and a major can carry both. A new xdk-rs requirement moves bird's version only by what it
+changes in bird's own contract.
+
+### X API changes
+
+X ships additive API changes often and does not version them.
+
+- X adds an endpoint or a field: bird adds a command or a field, a minor.
+- X renames or drops something the contract names: read both spellings and keep emitting the contract's name. When the
+  contract's own name has to change, add the new name in a minor, deprecate the old one, and remove it in a major that
+  batches removals.
+- X changes behavior in a way that makes bird wrong: the fix is a patch.
+
+### Closed sets
+
+The error envelope's `error` id and `kind` are closed sets an agent branches on. A new member ships in a minor, and a
+consumer treats a value it does not recognize as its default branch. Removing or renaming a member is a major.
+
+### The changelog section decides
+
+- `### Breaking changes`, `### Removed`: major.
+- `### Added`, `### Deprecated`: minor.
+- `### Changed`, `### Fixed`, `### Documentation`: patch.
+
+`### Changed` holds a visible change outside the contract, or a change back to conformance with it. A change to the
+contract belongs under `### Added`, `### Deprecated`, `### Removed`, or `### Breaking changes`. An MSRV bump is a minor
+wherever it is filed. The section is checked when the PR is reviewed, and a maintainer-tooling PR carries no entry.
+
+At release time, list the entries with `scripts/generate-changelog.py --from-dev-prs --tag <tag> --dry-run` and set the
+version from the highest section present. The script emits the sections in the PR template's order
+(`### Breaking changes`, `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Documentation`)
+and any other heading after them.
+
+→ Rationale: [`RELEASES-RATIONALE.md` § Versioning](./RELEASES-RATIONALE.md#versioning).
 
 ## Releasing dev to main
 
@@ -237,9 +303,9 @@ git cherry-pick --continue --no-edit
 ```
 
 Repeat per conflicting commit. After all picks land, run `git ls-files docs/plans/ docs/brainstorms/`. If anything
-remains, drop it with the same two-step pattern and commit as `chore(release): drop stray plan spikes from cherry-pick
-rename detection` before the leak check. Rename detection occasionally re-adds a path under the rename target's new
-name; the post-pick `ls-files` check catches that.
+remains, drop it with the same two-step pattern and commit as
+`chore(release): drop stray plan spikes from cherry-pick rename detection` before the leak check. Rename detection
+occasionally re-adds a path under the rename target's new name; the post-pick `ls-files` check catches that.
 
 ## Tagging and publishing
 
@@ -287,9 +353,9 @@ The script cuts a `chore/sync-dev-after-v0.3.0` branch, writes the released vers
 its title; merge it once CI is green. `scripts/release/postflight.sh backport` gates on that merged PR. A `dev` already
 in sync exits 0 with nothing committed.
 
-Once the manifest is synced, the script refreshes the crate's `Cargo.lock` entry with `cargo update --workspace
---offline`, against the local registry cache, and exits 70 with nothing committed if the lock still fails `cargo
-metadata --locked` (`cargo fetch` fills the cache), or 69 when cargo is not on `PATH`.
+Once the manifest is synced, the script refreshes the crate's `Cargo.lock` entry with
+`cargo update --workspace --offline`, against the local registry cache, and exits 70 with nothing committed if the lock
+still fails `cargo metadata --locked` (`cargo fetch` fills the cache), or 69 when cargo is not on `PATH`.
 
 Every other path `main` and `dev` disagree about is discovered, bounded by the previous release tag, the last point the
 two branches agreed:
@@ -391,10 +457,10 @@ drift the next regeneration overwrites.
 
 Two rulesets are committed under `.github/rulesets/` and applied to the repo via the GitHub API:
 
-- `protect-main.json` (required signatures, linear history, squash-only merges via PR, required status checks (`ci /
-  Fmt, clippy, test`, `ci / Package check`, `ci / Security audit (bans licenses sources)`, `ci / Changelog`, `guard-docs
-  / check-forbidden-docs`, `guard-provenance / check-provenance`, `guard-release / check-release-branch-name`),
-  creation/deletion blocked, non-fast-forward blocked).
+- `protect-main.json` (required signatures, linear history, squash-only merges via PR, required status checks
+  (`ci / Fmt, clippy, test`, `ci / Package check`, `ci / Security audit (bans licenses sources)`, `ci / Changelog`,
+  `guard-docs / check-forbidden-docs`, `guard-provenance / check-provenance`,
+  `guard-release / check-release-branch-name`), creation/deletion blocked, non-fast-forward blocked).
 - `protect-dev.json` (required signatures, deletion blocked, non-fast-forward blocked). PR-only norm is convention +
   `guard-release-branch` on the main side.
 
