@@ -8,12 +8,12 @@
   "properties": {
     "error": {
       "type": "string",
-      "description": "Stable kebab-case machine identifier (e.g. \"auth-error\", \"unknown-schema\", \"invalid-value\").",
+      "description": "Stable kebab-case machine identifier. An X API error carries the reason xdk-rs classifies it with, the same one `xr` reports (e.g. \"auth-required\", \"rate-limited\", \"network-error\"); bird's own errors carry ids such as \"config-error\", \"unknown-schema\", \"invalid-value\".",
       "pattern": "^[a-z][a-z0-9-]*$"
     },
     "kind": {
       "type": "string",
-      "description": "Error category, mapped 1:1 to exit code.",
+      "description": "Error category. `usage` exits 2, `auth` 77, `config` 78; `general` exits 1, 3, 4, or 5 (see `exit_code`).",
       "enum": ["usage", "auth", "config", "general"]
     },
     "message": {
@@ -22,8 +22,8 @@
     },
     "exit_code": {
       "type": "integer",
-      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config), 1 (general).",
-      "enum": [1, 2, 77, 78]
+      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config). A general error exits 3 when rate limited (HTTP 429), 4 when not found (HTTP 404), 5 when the request got no HTTP response (network or filesystem failure), and 1 otherwise.",
+      "enum": [1, 2, 3, 4, 5, 77, 78]
     },
     "meta": {
       "type": "object",
