@@ -145,10 +145,10 @@ pub fn run_bookmarks(
                     write!(out, "{}", serde_json::to_string(item)?)?;
                 }
                 emitted += 1;
-                if let Some(tweet_id) = item.get("id").and_then(|v| v.as_str()) {
+                if let Some(post_id) = item.get("id").and_then(|v| v.as_str()) {
                     bookmark_rows.push(BookmarkRow {
                         username: me_username.clone(),
-                        tweet_id: tweet_id.to_string(),
+                        post_id: post_id.to_string(),
                         position,
                         refreshed_at: crate::db::unix_now(),
                     });

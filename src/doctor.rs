@@ -144,6 +144,9 @@ pub struct CacheStatus {
     pub users: u64,
     pub raw_responses: u64,
     pub healthy: bool,
+    /// The store's schema version; absent when the store could not be read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -447,6 +450,7 @@ pub(crate) fn report(
                 users: stats.user_count,
                 raw_responses: stats.raw_response_count,
                 healthy: stats.healthy(),
+                schema_version: Some(stats.schema_version),
             })
         }
         Some(Err(_)) => Some(CacheStatus {
@@ -458,6 +462,7 @@ pub(crate) fn report(
             users: 0,
             raw_responses: 0,
             healthy: false,
+            schema_version: None,
         }),
         None => None,
     };

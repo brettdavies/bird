@@ -1,11 +1,11 @@
-//! Tweet row, single + batch lookup, freshness, and partition.
+//! Post row, single + batch lookup, freshness, and partition.
 
 use rusqlite::params;
 
 use super::BirdDb;
 
 #[derive(Debug, Clone)]
-pub struct TweetRow {
+pub struct PostRow {
     pub id: String,
     pub author_id: Option<String>,
     pub conversation_id: Option<String>,
@@ -15,10 +15,10 @@ pub struct TweetRow {
 
 impl BirdDb {
     #[cfg(test)]
-    pub fn upsert_tweet(&self, tweet: &TweetRow) -> Result<(), rusqlite::Error> {
+    pub fn upsert_tweet(&self, tweet: &PostRow) -> Result<(), rusqlite::Error> {
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
-            "INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
+            "INSERT INTO posts (id, author_id, conversation_id, raw_json, last_refreshed_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(id) DO UPDATE SET
                  author_id = excluded.author_id,
@@ -36,14 +36,14 @@ impl BirdDb {
         Ok(())
     }
 
-    pub fn get_tweet(&self, id: &str) -> Result<Option<TweetRow>, rusqlite::Error> {
+    pub fn get_tweet(&self, id: &str) -> Result<Option<PostRow>, rusqlite::Error> {
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
             "SELECT id, author_id, conversation_id, raw_json, last_refreshed_at
-             FROM tweets WHERE id = ?1",
+             FROM posts WHERE id = ?1",
         )?;
         let result = stmt.query_row(params![id], |row| {
-            Ok(TweetRow {
+            Ok(PostRow {
                 id: row.get(0)?,
                 author_id: row.get(1)?,
                 conversation_id: row.get(2)?,
@@ -68,11 +68,11 @@ impl BirdDb {
     }
 
     /// Partition a list of tweet IDs into (from_store, ids_to_fetch).
-    /// `from_store` contains fresh TweetRows; `ids_to_fetch` contains stale or missing IDs.
+    /// `from_store` contains fresh PostRows; `ids_to_fetch` contains stale or missing IDs.
     pub fn partition_ids(
         &self,
         ids: &[&str],
-    ) -> Result<(Vec<TweetRow>, Vec<String>), rusqlite::Error> {
+    ) -> Result<(Vec<PostRow>, Vec<String>), rusqlite::Error> {
         if ids.is_empty() {
             return Ok((vec![], vec![]));
         }
@@ -82,15 +82,15 @@ impl BirdDb {
             .join(",");
         let sql = format!(
             "SELECT id, author_id, conversation_id, raw_json, last_refreshed_at
-             FROM tweets WHERE id IN ({})",
+             FROM posts WHERE id IN ({})",
             placeholders
         );
         let conn = self.conn();
         let mut stmt = conn.prepare(&sql)?;
         let params = rusqlite::params_from_iter(ids.iter());
-        let rows: Vec<TweetRow> = stmt
+        let rows: Vec<PostRow> = stmt
             .query_map(params, |row| {
-                Ok(TweetRow {
+                Ok(PostRow {
                     id: row.get(0)?,
                     author_id: row.get(1)?,
                     conversation_id: row.get(2)?,
@@ -101,7 +101,7 @@ impl BirdDb {
             .collect::<Result<Vec<_>, _>>()?;
 
         let now = chrono::Utc::now();
-        let from_store: Vec<TweetRow> = rows
+        let from_store: Vec<PostRow> = rows
             .into_iter()
             .filter(|row| !Self::is_stale(row.last_refreshed_at, now))
             .collect();
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn upsert_tweet_and_get() {
         let db = in_memory_db();
-        let tweet = TweetRow {
+        let tweet = PostRow {
             id: "123".into(),
             author_id: Some("456".into()),
             conversation_id: Some("789".into()),
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn upsert_tweet_updates_on_conflict() {
         let db = in_memory_db();
-        let tweet1 = TweetRow {
+        let tweet1 = PostRow {
             id: "123".into(),
             author_id: Some("456".into()),
             conversation_id: None,
@@ -157,7 +157,7 @@ mod tests {
         };
         db.upsert_tweet(&tweet1).expect("test");
 
-        let tweet2 = TweetRow {
+        let tweet2 = PostRow {
             id: "123".into(),
             author_id: Some("456".into()),
             conversation_id: None,
@@ -229,7 +229,7 @@ mod tests {
     fn partition_ids_mixed() {
         let db = in_memory_db();
 
-        let fresh = TweetRow {
+        let fresh = PostRow {
             id: "fresh1".into(),
             author_id: None,
             conversation_id: None,
@@ -238,7 +238,7 @@ mod tests {
         };
         db.upsert_tweet(&fresh).expect("test");
 
-        let stale = TweetRow {
+        let stale = PostRow {
             id: "stale1".into(),
             author_id: None,
             conversation_id: None,

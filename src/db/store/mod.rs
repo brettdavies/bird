@@ -12,13 +12,13 @@ use std::sync::{Arc, Mutex};
 pub mod bookmarks;
 pub mod entities;
 pub mod maintenance;
+pub mod posts;
 pub mod raw;
-pub mod tweets;
 pub mod users;
 
 pub use bookmarks::BookmarkRow;
 pub use maintenance::StoreStats;
-pub use tweets::TweetRow;
+pub use posts::PostRow;
 pub use users::UserRow;
 
 // -- Schema migrations --
@@ -94,6 +94,30 @@ fn migrations() -> Migrations<'static> {
         ),
         // Migration 3: rename account_username → username in bookmarks (xurl alignment)
         M::up("ALTER TABLE bookmarks RENAME COLUMN account_username TO username;"),
+        // Migration 4: X's post vocabulary. Renames the tweet-named table,
+        // columns, and indexes, rewrites stored usage object types, and
+        // drops every cached entity and response, which carry the legacy
+        // vocabulary; usage history and bookmark positions are kept.
+        M::up(
+            "ALTER TABLE tweets RENAME TO posts;
+            DROP INDEX idx_tweets_conversation_id;
+            DROP INDEX idx_tweets_last_refreshed_at;
+            CREATE INDEX idx_posts_conversation_id ON posts(conversation_id);
+            CREATE INDEX idx_posts_last_refreshed_at ON posts(last_refreshed_at);
+
+            ALTER TABLE bookmarks RENAME COLUMN tweet_id TO post_id;
+            DROP INDEX idx_bookmarks_tweet_id;
+            CREATE INDEX idx_bookmarks_post_id ON bookmarks(post_id);
+
+            ALTER TABLE usage_actual RENAME COLUMN tweet_count TO post_count;
+
+            UPDATE usage SET object_type = 'post' WHERE object_type = 'tweet';
+            UPDATE usage SET object_type = 'posts' WHERE object_type = 'tweets';
+
+            DELETE FROM posts;
+            DELETE FROM users;
+            DELETE FROM raw_responses;",
+        ),
     ])
 }
 
@@ -315,7 +339,9 @@ impl BirdDb {
             tx.execute_batch(
                 "INSERT OR IGNORE INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
                    SELECT timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username FROM old_cache.usage;
-                 INSERT OR IGNORE INTO usage_actual SELECT * FROM old_cache.usage_actual;"
+                 INSERT OR IGNORE INTO usage_actual SELECT * FROM old_cache.usage_actual;
+                 UPDATE usage SET object_type = 'post' WHERE object_type = 'tweet';
+                 UPDATE usage SET object_type = 'posts' WHERE object_type = 'tweets';"
             )?;
             tx.execute(
                 "INSERT OR IGNORE INTO migrations_meta (key, value) VALUES ('cache_usage_migrated', datetime('now'))",
@@ -382,13 +408,162 @@ mod tests {
         migrations().validate().expect("test");
     }
 
+    fn count(conn: &Connection, sql: &str) -> i64 {
+        conn.query_row(sql, [], |r| r.get(0)).expect("test")
+    }
+
+    /// A store bird 0.2.0 wrote: every migration through M3, a row in every
+    /// table, in the legacy vocabulary.
+    fn seed_v3_store(path: &Path) {
+        let mut conn = Connection::open(path).expect("test");
+        migrations().to_version(&mut conn, 3).expect("test");
+        conn.execute_batch(
+            r#"INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
+                 VALUES ('1', '9', '1', '{"id":"1","referenced_tweets":[{"type":"quoted","id":"2"}]}', 1);
+               INSERT INTO users (id, username, raw_json, last_refreshed_at)
+                 VALUES ('9', 'jack', '{"id":"9"}', 1);
+               INSERT INTO bookmarks (username, tweet_id, position, refreshed_at)
+                 VALUES ('jack', '1', 0, 1);
+               INSERT INTO raw_responses (key, url, status_code, body, body_size, created_at)
+                 VALUES ('k', 'https://api.x.com/2/tweets/1', 200, x'7b7d', 2, 1);
+               INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit)
+                 VALUES (1, 20260101, '/2/tweets/:id', 'GET', 'tweet', 1, 0.005, 0),
+                        (2, 20260101, '/2/tweets/search/recent', 'GET', 'tweets', 2, 0.01, 0),
+                        (3, 20260101, '/2/users/me', 'GET', 'user', 1, 0.01, 0);
+               INSERT INTO usage_actual (date, tweet_count, synced_at) VALUES ('2026-01-01', 7, 1);"#,
+        )
+        .expect("test");
+    }
+
+    #[test]
+    fn m4_moves_a_v3_store_to_the_post_vocabulary_and_purges_entities() {
+        let tmpdir = tempfile::tempdir().expect("test");
+        let path = tmpdir.path().join("bird.db");
+        seed_v3_store(&path);
+
+        let db = BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true)
+            .expect("test: open migrates");
+        let conn = db.conn();
+        assert_eq!(count(&conn, "PRAGMA user_version"), 4);
+        assert_eq!(count(&conn, "SELECT count(*) FROM posts"), 0);
+        assert_eq!(count(&conn, "SELECT count(*) FROM users"), 0);
+        assert_eq!(count(&conn, "SELECT count(*) FROM raw_responses"), 0);
+        assert_eq!(count(&conn, "SELECT count(*) FROM usage"), 3);
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM usage WHERE object_type = 'post'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM usage WHERE object_type = 'posts'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM usage WHERE object_type = 'user'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(&conn, "SELECT count(*) FROM bookmarks WHERE post_id = '1'"),
+            1
+        );
+        assert_eq!(count(&conn, "SELECT post_count FROM usage_actual"), 7);
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%tweet%' OR name LIKE '%tweet%'"
+            ),
+            0,
+            "no tweet-named table, column, or index survives"
+        );
+    }
+
+    #[test]
+    fn m4_runs_once() {
+        let tmpdir = tempfile::tempdir().expect("test");
+        let path = tmpdir.path().join("bird.db");
+        seed_v3_store(&path);
+        drop(BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true).expect("test"));
+        {
+            let conn = Connection::open(&path).expect("test");
+            conn.execute_batch(
+                "INSERT INTO posts (id, raw_json, last_refreshed_at) VALUES ('5', '{}', 1);",
+            )
+            .expect("test");
+        }
+        let db = BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true)
+            .expect("test: reopen");
+        assert_eq!(count(&db.conn(), "SELECT count(*) FROM posts"), 1);
+    }
+
+    #[test]
+    fn a_fresh_store_has_no_tweet_identifiers() {
+        let db = in_memory_db();
+        let conn = db.conn();
+        assert_eq!(count(&conn, "PRAGMA user_version"), 4);
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%tweet%' OR name LIKE '%tweet%'"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn the_cache_db_import_lands_post_spellings() {
+        let tmpdir = tempfile::tempdir().expect("test");
+        let cache = tmpdir.path().join("cache.db");
+        {
+            let conn = Connection::open(&cache).expect("test");
+            conn.execute_batch(
+                "CREATE TABLE usage (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL,
+                     date_ymd INTEGER NOT NULL, endpoint TEXT NOT NULL, method TEXT NOT NULL,
+                     object_type TEXT, object_count INTEGER NOT NULL DEFAULT 0,
+                     estimated_cost REAL NOT NULL DEFAULT 0.0, cache_hit INTEGER NOT NULL DEFAULT 0,
+                     username TEXT);
+                 CREATE TABLE usage_actual (date TEXT PRIMARY KEY, tweet_count INTEGER NOT NULL,
+                     synced_at INTEGER NOT NULL);
+                 INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count)
+                     VALUES (1, 20250101, '/2/tweets/:id', 'GET', 'tweet', 1);
+                 INSERT INTO usage_actual VALUES ('2025-01-01', 3, 1);",
+            )
+            .expect("test");
+        }
+        let db = in_memory_db();
+        db.migrate_usage_from_cache(&cache);
+        let conn = db.conn();
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM usage WHERE object_type = 'post'"
+            ),
+            1
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT count(*) FROM usage WHERE object_type = 'tweet'"
+            ),
+            0
+        );
+        assert_eq!(count(&conn, "SELECT post_count FROM usage_actual"), 3);
+    }
+
     #[test]
     fn anti_tamper_rejects_views() {
         let mut conn = Connection::open_in_memory().expect("test");
         conn.execute_batch("PRAGMA journal_mode = WAL;")
             .expect("test");
         migrations().to_latest(&mut conn).expect("test");
-        conn.execute_batch("CREATE VIEW evil AS SELECT * FROM tweets")
+        conn.execute_batch("CREATE VIEW evil AS SELECT * FROM posts")
             .expect("test");
 
         let tmpdir = tempfile::tempdir().expect("test");
@@ -400,7 +575,7 @@ mod tests {
                 .expect("test");
             migrations().to_latest(&mut disk_conn).expect("test");
             disk_conn
-                .execute_batch("CREATE VIEW evil AS SELECT * FROM tweets")
+                .execute_batch("CREATE VIEW evil AS SELECT * FROM posts")
                 .expect("test");
         }
         let result = BirdDb::open(&db_path, 100, Arc::new(Mutex::new(std::io::sink())), true);

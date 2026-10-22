@@ -3,7 +3,7 @@
 
 use sha2::{Digest, Sha256};
 
-use super::super::store::{TweetRow, UserRow};
+use super::super::store::{PostRow, UserRow};
 use super::BirdClient;
 
 // -- Entity classification --
@@ -29,16 +29,16 @@ pub(super) fn is_entity_endpoint(parsed: &url::Url) -> Option<EntityType> {
     }
 }
 
-/// Extract TweetRows from a JSON data value (array or single object).
-pub(super) fn extract_tweets(data: &serde_json::Value, tweets: &mut Vec<TweetRow>) {
+/// Extract PostRows from a JSON data value (array or single object).
+pub(super) fn extract_tweets(data: &serde_json::Value, tweets: &mut Vec<PostRow>) {
     if let Some(arr) = data.as_array() {
         for item in arr {
-            if let Some(tweet) = TweetRow::from_api_json(item) {
+            if let Some(tweet) = PostRow::from_api_json(item) {
                 tweets.push(tweet);
             }
         }
     } else if data.is_object()
-        && let Some(tweet) = TweetRow::from_api_json(data)
+        && let Some(tweet) = PostRow::from_api_json(data)
     {
         tweets.push(tweet);
     }

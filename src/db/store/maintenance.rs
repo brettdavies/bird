@@ -15,6 +15,8 @@ pub struct StoreStats {
     pub raw_response_count: u64,
     pub total_size_bytes: u64,
     pub max_size_bytes: u64,
+    /// The store's schema version: the last migration applied.
+    pub schema_version: i64,
 }
 
 impl StoreStats {
@@ -36,12 +38,13 @@ impl BirdDb {
     /// Uses (page_count - freelist_count) * page_size for accurate live data size.
     pub fn stats(&self) -> Result<StoreStats, rusqlite::Error> {
         let conn = self.conn();
-        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
+        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
         let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let bookmark_count: i64 =
             conn.query_row("SELECT count(*) FROM bookmarks", [], |r| r.get(0))?;
         let raw_response_count: i64 =
             conn.query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
+        let schema_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         drop(conn);
 
         let total_size = self.live_size_bytes()?;
@@ -53,6 +56,7 @@ impl BirdDb {
             raw_response_count: raw_response_count as u64,
             total_size_bytes: total_size,
             max_size_bytes: self.max_bytes,
+            schema_version,
         })
     }
 
@@ -69,12 +73,12 @@ impl BirdDb {
     /// Clear all entity data + raw_responses (preserves usage tables).
     pub fn clear(&self) -> Result<u64, rusqlite::Error> {
         let conn = self.conn();
-        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM tweets", [], |r| r.get(0))?;
+        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
         let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let raw_count: i64 =
             conn.query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
         conn.execute_batch(
-            "DELETE FROM tweets;
+            "DELETE FROM posts;
              DELETE FROM users;
              DELETE FROM bookmarks;
              DELETE FROM raw_responses;",
@@ -107,8 +111,8 @@ impl BirdDb {
                 break;
             }
             let deleted = self.conn().execute(
-                "DELETE FROM tweets WHERE id IN (
-                    SELECT id FROM tweets ORDER BY last_refreshed_at ASC LIMIT 100
+                "DELETE FROM posts WHERE id IN (
+                    SELECT id FROM posts ORDER BY last_refreshed_at ASC LIMIT 100
                 )",
                 [],
             )?;
@@ -145,14 +149,14 @@ impl BirdDb {
 #[cfg(test)]
 mod tests {
     use super::super::in_memory_db;
-    use super::super::tweets::TweetRow;
+    use super::super::posts::PostRow;
     use super::super::users::UserRow;
     use crate::db::unix_now;
 
     #[test]
     fn stats_reports_counts() {
         let db = in_memory_db();
-        db.upsert_tweet(&TweetRow {
+        db.upsert_tweet(&PostRow {
             id: "t1".into(),
             author_id: None,
             conversation_id: None,
@@ -176,7 +180,7 @@ mod tests {
     #[test]
     fn clear_preserves_usage() {
         let db = in_memory_db();
-        db.upsert_tweet(&TweetRow {
+        db.upsert_tweet(&PostRow {
             id: "t1".into(),
             author_id: None,
             conversation_id: None,
