@@ -1,0 +1,15 @@
+name: Shellcheck probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    uses: brettdavies/.github/.github/workflows/lint-basics.yml@feat/lint-basics-shellcheck
+    with:
+      markdownlint: false
+      shellcheck: true
