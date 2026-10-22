@@ -23,16 +23,18 @@ owner: brettdavies
 ## Execution
 
 A stack that changes a contract across repositories gets a plan before code; the rest is coded directly. The lanes run
-in parallel. The xurl-rs team is cutting a release, so work that needs xurl-rs code (lane C's PRs, lane E) waits for it;
-everything else starts now.
+in parallel. bird writes no code in xurl-rs: what bird needs from xdk-rs and xurl-rs goes to the xurl-rs team as a
+request (a local handoff in xurl-rs's `.context/handoffs/`), and bird adapts to what they ship. bird work that needs
+new xdk-rs or xurl-rs code (lane C's bird units, lane E) waits for the release that carries it; everything else starts
+now.
 
 | Lane | Work                                                                                                  | Plan first?                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | A    | Stack 1 (bird side); Stack 2; Stack 6 items 2 to 5                                                    | No: stacked PRs                                                                                     |
-| B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github`                      | Short plan: jobs, inputs; xurl-rs adopts them after its release                                     |
-| C    | Stack 3                                                                                               | Design now; its xdk-rs and xurl-rs PRs open after the xurl-rs team's release                        |
+| B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github`                      | Short plan: jobs, inputs; xurl-rs's adoption is a request to the xurl-rs team                       |
+| C    | Stack 3                                                                                               | Design; the xdk-rs and xurl-rs work is a request to the xurl-rs team, who ship on their schedule    |
 | D    | Stack 4; stack 5 items 1-2 (bird's own wire vocabulary and store, raw HTTP and block/unblock removal) | One plan now; renames of verbs `xr` will supply wait for lane C                                     |
-| E    | Stack 5 item 3 (pagination)                                                                           | Blocked: xdk-rs has no list loop yet, only per-call `pagination_token`; joins lane C's xurl-rs work |
+| E    | Stack 5 item 3 (pagination)                                                                           | Blocked: xdk-rs has no list loop yet, only per-call `pagination_token`; part of lane C's requests   |
 | F    | Stack 7                                                                                               | No for the bird-skill repo structure; its content follows the settled CLI surface                   |
 
 Plans:
@@ -69,7 +71,8 @@ Lands before any product work: every later PR runs under these hooks and checks.
 1. **Changelog categories upstream.** `Removed` sits between Deprecated and Fixed in `generate-changelog.py`'s
    `CATEGORIES`, with a section-order test (brettdavies/agent-skills `b4318aa`). The canonical PR template gains the
    `Breaking changes`, `Deprecated`, and `Removed` headings (brettdavies/dotfiles#288). Then re-vendor the PR template,
-   `generate-changelog.py`, `cliff.toml`, and the release-doc templates into bird and xurl-rs.
+   `generate-changelog.py`, `cliff.toml`, and the release-doc templates into bird; xurl-rs's re-vendor is a request to
+   the xurl-rs team.
 2. **Canonical drift.** Re-vendor `.github/pull_request_template.md` and `cliff.toml` (drifted), and vendor
    `scripts/check-workflow-concurrency.sh`, `scripts/hooks/core-env-guard.sh`, `scripts/hooks/_lib.sh`,
    `scripts/release/release.env`, and `scripts/release/surface-smoke.sh`.
@@ -133,6 +136,11 @@ X-approvable CLI. bird composes `xr`'s commands instead of re-implementing them.
    xurl-rs as their home; lane C's U1 moves them to xurl-rs.
 6. Moving `xr`'s list verbs onto the list loop changes `xr` for `--limit` above 100: an `xr` feature with its own
    changelog entry.
+7. Product decisions: `bird spend` holds the local cost ledger (`usage` is `xr`'s); bird composes `xr`'s `auth` family
+   and `bird login` is removed; the query cache (pagination contract D7.2) ships in 1.0.0, so `--cache-only` replays
+   stored lists; `search --sort likes --min-likes` becomes `bird rank <query> [--by ...] [--min-likes N]`, which fetches
+   through the composed search and ranks after the last page (at $0 under `--cache-only`). Checkpoints (D6), author
+   hydration (D7.5), the other extra envelope fields, vendored prose evidence, and the version constants follow 1.0.0.
 
 A composed `xr` command arrives with `xr`'s verbs, flags, and envelope, so this stack decides which verb renames in
 stack 5 remain. Stack 4 and the rest of stack 5 do not wait for it.
@@ -194,6 +202,18 @@ exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on
    against `schema/doctor.schema.json`. The repo also lacks what xurl-rs-skill carries: `VERSION`, `bin/check-update`,
    `AGENTS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `cliff.toml`, `getting-started.md`, `tests/run.sh`,
    shellcheck in CI, the evals, and `templates/tests/`.
+   Structure landed in bird-skill #13 to #23: re-vendored canonical files, the write-op gate's `--force` and temp-file
+   fixes, `tests/run.sh` with a stub `bird`, `ci.yml` with `shellcheck` and `scripts-tests`, `bin/check-update`, evals
+   02 to 04, `getting-started.md`, `CONTRIBUTING.md`, `AGENTS.md`. `SECURITY.md` (#24) sends every report, skill
+   scripts included, to bird's private vulnerability reporting. `VERSION` and `CHANGELOG.md` arrive with bird-skill's
+   first tagged release (its release branch writes them). `templates/tests/` is not added: it holds agentnative-skill's
+   CLI-authoring test templates, which bird-skill has no counterpart for. Its `contract` check (a harness against a
+   released bird binary, as xurl-rs-skill's) follows bird 1.0.0.
+   The content pass, after stacks 3 to 5, covers: the subprocess-era transport passages (SKILL.md,
+   `references/xr-bridge.md`, `agent-flags.md`, `escalation.md`, `error-envelope.md`, `templates/watchlist-monitor.md`,
+   eval 01); exit codes 3, 4, 5 and a 429 at exit 3; the envelope kinds and stack 4's envelope, which the write-op gate
+   parses; the verbs bird retires; `references/skill-install.md`'s `--force`; eval 01's call-count criterion; and
+   `src/skill_install/skill.json`'s `update` described as a `git pull` where `bird skill update` re-clones.
 2. agentnative-site: rescore bird and add the README badge.
 
 ## Local housekeeping
