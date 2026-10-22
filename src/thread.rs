@@ -71,7 +71,7 @@ pub fn run_thread(
         .collect();
 
     let output = serde_json::json!({
-        "thread": thread_array,
+        "data": thread_array,
         "meta": {
             "conversation_id": conversation_id,
             "tweet_count": thread_array.len(),
@@ -81,11 +81,7 @@ pub fn run_thread(
         }
     });
 
-    if opts.pretty {
-        writeln!(stdout, "{}", serde_json::to_string_pretty(&output)?)?;
-    } else {
-        writeln!(stdout, "{}", serde_json::to_string(&output)?)?;
-    }
+    cfg.print_ok_pretty(stdout, output, opts.pretty)?;
 
     if !quiet {
         writeln!(

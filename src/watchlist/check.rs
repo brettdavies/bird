@@ -44,6 +44,9 @@ pub fn run_watchlist_check(
             )
             .ok();
         }
+        if cfg.format == crate::output::OutputFormat::Json {
+            cfg.print_ok(stdout, serde_json::json!({ "data": [], "meta": {} }))?;
+        }
         return Ok(());
     }
 
@@ -66,6 +69,10 @@ pub fn run_watchlist_check(
         .take(cap.max(1))
         .collect();
     let total = bounded.len();
+    // `--output json` prints one ok document; every other mode streams one
+    // activity object per line as each user is checked.
+    let one_document = cfg.format == crate::output::OutputFormat::Json;
+    let mut collected: Vec<serde_json::Value> = Vec::new();
     for (i, (_, username)) in bounded.iter().enumerate() {
         if !quiet {
             writeln!(
@@ -102,6 +109,10 @@ pub fn run_watchlist_check(
             }
         };
 
+        if one_document {
+            collected.push(serde_json::to_value(&activity)?);
+            continue;
+        }
         if pretty {
             serde_json::to_writer_pretty(&mut writer, &activity)?;
         } else {
@@ -109,6 +120,10 @@ pub fn run_watchlist_check(
         }
         writeln!(writer)?;
         writer.flush()?;
+    }
+    if one_document {
+        let payload = serde_json::json!({ "data": collected, "meta": {} });
+        cfg.print_ok_pretty(&mut writer, payload, pretty)?;
     }
     writer.flush()?;
     Ok(())

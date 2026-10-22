@@ -9,7 +9,7 @@ use crate::cli::{Command, OutputFlags, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
 use crate::db;
 use crate::error::BirdError;
-use crate::output::{self, OutputConfig};
+use crate::output::OutputConfig;
 use std::collections::HashMap;
 use std::io::{BufRead, IsTerminal, Write};
 
@@ -489,7 +489,7 @@ pub fn require_confirmation(
     answer_reader: Option<Box<dyn FnOnce() -> std::io::Result<String>>>,
 ) -> Result<GuardOutcome, BirdError> {
     if guard.dry_run {
-        emit_dry_run(verb, method, target, body, out, stdout).map_err(|e| {
+        emit_dry_run(verb, method, target, body, !guard.force, out, stdout).map_err(|e| {
             BirdError::general(
                 "dry-run",
                 Box::<dyn std::error::Error + Send + Sync>::from(e),
@@ -545,22 +545,23 @@ pub fn emit_dry_run(
     method: &str,
     target: &str,
     body: Option<&serde_json::Value>,
+    confirmation_required: bool,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> std::io::Result<()> {
     if out.format.is_json() {
-        let mut would = serde_json::json!({
+        let mut ctx = serde_json::json!({
+            "command": verb,
             "method": method,
             "url": target,
         });
         if let Some(b) = body {
-            would["body"] = b.clone();
+            ctx["body"] = b.clone();
         }
-        let data = serde_json::json!({"dry_run": true, "would": would, "verb": verb});
-        let meta = serde_json::json!({});
-        if let Ok(line) = output::success_envelope_string(&data, &meta) {
-            return writeln!(stdout, "{}", line);
+        if confirmation_required {
+            ctx["confirmation_required"] = serde_json::Value::Bool(true);
         }
+        return out.print_dry_run(stdout, true, 0, ctx);
     }
     writeln!(stdout, "Would {}: {} {}", verb, method, target)?;
     if let Some(b) = body {

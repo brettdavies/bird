@@ -46,33 +46,40 @@ pub fn run_watchlist_list(
         None
     };
 
-    // `watchlist list` writes a single bounded JSON document — no buffering
-    // needed. Per U4, BufWriter adoption stays bounded to the streaming
-    // handler (`run_watchlist_check`); per-call list output writes directly
-    // to the injected writer.
-    if next_cursor.is_some() {
-        let payload = serde_json::json!({
-            "data": window,
-            "meta": { "next_cursor": next_cursor },
-        });
-        if pretty {
-            writeln!(stdout, "{}", serde_json::to_string_pretty(&payload)?)?;
-        } else {
-            writeln!(stdout, "{}", serde_json::to_string(&payload)?)?;
-        }
-    } else if pretty {
-        writeln!(stdout, "{}", serde_json::to_string_pretty(&window)?)?;
-    } else {
-        writeln!(stdout, "{}", serde_json::to_string(&window)?)?;
+    // `watchlist list` writes a single bounded JSON document, so it needs no
+    // buffering; only the streaming handler (`run_watchlist_check`) buffers.
+    let mut meta = serde_json::Map::new();
+    if let Some(cursor) = next_cursor {
+        meta.insert("next_cursor".into(), serde_json::Value::String(cursor));
     }
+    let payload = serde_json::json!({ "data": window, "meta": meta });
+    cfg.print_ok_pretty(stdout, payload, pretty)?;
     Ok(())
 }
 
+/// Report a watchlist change: an ok message on stdout under JSON, a line on
+/// stderr in text mode unless quiet.
+fn report(
+    cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
+    stderr: &mut dyn std::io::Write,
+    message: &str,
+) -> std::io::Result<()> {
+    if cfg.format.is_json() {
+        cfg.print_ok_message(stdout, message)
+    } else {
+        if !cfg.suppress_diag() {
+            writeln!(stderr, "{message}").ok();
+        }
+        Ok(())
+    }
+}
+
 /// `bird watchlist add <username>` — add a user to the watchlist (idempotent).
-/// Silent on success; no stdout writer.
 pub fn run_watchlist_add(
     config: &ResolvedConfig,
     cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -80,30 +87,31 @@ pub fn run_watchlist_add(
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     store::add_to_watchlist(&config_path, clean, stderr, quiet)?;
-    if !quiet {
-        writeln!(stderr, "Added @{} to watchlist.", clean).ok();
-    }
+    report(
+        cfg,
+        stdout,
+        stderr,
+        &format!("Added @{} to watchlist.", clean),
+    )?;
     Ok(())
 }
 
 /// `bird watchlist remove <username>` — remove a user from the watchlist (idempotent).
-/// Silent on success; no stdout writer.
 pub fn run_watchlist_remove(
     config: &ResolvedConfig,
     cfg: &crate::output::OutputConfig,
+    stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,
     username: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let quiet = cfg.suppress_diag();
     let clean = schema::validate_username(username)?;
     let config_path = config.config_dir.join("config.toml");
     let removed = store::remove_from_watchlist(&config_path, clean)?;
-    if !quiet {
-        if removed {
-            writeln!(stderr, "Removed @{} from watchlist.", clean).ok();
-        } else {
-            writeln!(stderr, "@{} was not in the watchlist.", clean).ok();
-        }
-    }
+    let message = if removed {
+        format!("Removed @{} from watchlist.", clean)
+    } else {
+        format!("@{} was not in the watchlist.", clean)
+    };
+    report(cfg, stdout, stderr, &message)?;
     Ok(())
 }

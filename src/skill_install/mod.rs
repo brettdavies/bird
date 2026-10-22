@@ -50,6 +50,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::output::envelope::NextStep;
 use crate::output::{OutputConfig, OutputFormat};
 
 // `SkillHost`, `KNOWN_HOSTS`, `resolve_host`, and `host_envelope_str` are
@@ -230,6 +231,30 @@ pub struct InstallEnvelope {
     pub exit_code: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<&'static str>,
+    /// What the caller should do next, when a recovery step exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_step: Option<NextStep>,
+}
+
+impl InstallEnvelope {
+    /// Sets the recovery step for this envelope's reason, as `xr`'s skill
+    /// envelopes map them: a destination that already holds files is
+    /// `skill update`'s to replace, a failed clone is tried again, and the
+    /// rest are the machine's state, which no bird command changes.
+    fn with_next_step(mut self) -> Self {
+        let host = self.host;
+        self.next_step = self.reason.and_then(|reason| match reason {
+            "destination-not-empty" => {
+                Some(NextStep::run_command(format!("bird skill update {host}")))
+            }
+            "git-clone-failed" => Some(NextStep::retry(None)),
+            "home-not-set" | "destination-is-file" | "git-not-found" => {
+                Some(NextStep::fix_input(None))
+            }
+            _ => None,
+        });
+        self
+    }
 }
 
 /// Multi-host envelope for `--all` invocations.
@@ -254,6 +279,10 @@ pub fn compute_install_envelope(
     dry_run: bool,
     home: Option<&str>,
 ) -> InstallEnvelope {
+    install_envelope(host, dry_run, home).with_next_step()
+}
+
+fn install_envelope(host: SkillHost, dry_run: bool, home: Option<&str>) -> InstallEnvelope {
     let (url, dest_template) = resolve_host(host);
     let host_str = host_envelope_str(host);
 
@@ -271,6 +300,7 @@ pub fn compute_install_envelope(
                 would_succeed: if dry_run { Some(false) } else { None },
                 exit_code: Some(1),
                 reason: Some(InstallError::MissingHome.reason()),
+                next_step: None,
             };
         }
         Err(_) => unreachable!("expand_tilde_with only emits MissingHome"),
@@ -297,6 +327,7 @@ pub fn compute_install_envelope(
                 would_succeed: if dry_run { Some(false) } else { None },
                 exit_code: Some(1),
                 reason: Some(e.reason()),
+                next_step: None,
             };
         }
         Err(_) => unreachable!("check_destination only emits DestIsFile / DestNotEmpty"),
@@ -315,6 +346,7 @@ pub fn compute_install_envelope(
             would_succeed: Some(true),
             exit_code: Some(0),
             reason: None,
+            next_step: None,
         };
     }
 
@@ -330,6 +362,7 @@ pub fn compute_install_envelope(
             would_succeed: None,
             exit_code: Some(0),
             reason: None,
+            next_step: None,
         },
         Err(InstallError::GitCloneFailed { code }) => InstallEnvelope {
             action: ACTION_INSTALL,
@@ -341,6 +374,7 @@ pub fn compute_install_envelope(
             would_succeed: None,
             exit_code: Some(code),
             reason: Some(InstallError::GitCloneFailed { code }.reason()),
+            next_step: None,
         },
         Err(InstallError::GitNotFound) => InstallEnvelope {
             action: ACTION_INSTALL,
@@ -352,6 +386,7 @@ pub fn compute_install_envelope(
             would_succeed: None,
             exit_code: Some(1),
             reason: Some(InstallError::GitNotFound.reason()),
+            next_step: None,
         },
         Err(_) => unreachable!("spawn_git_clone only emits GitCloneFailed / GitNotFound"),
     }
@@ -498,6 +533,7 @@ fn emit_missing_host_envelope(out: &OutputConfig, stdout: &mut dyn Write) -> i32
             "exit_code": 2,
             "message": "missing target host; pass <host> or --all",
             "known_hosts": KNOWN_HOSTS,
+            "next_step": NextStep::show_help("bird skill install --help".to_string()),
         });
         let _ = writeln!(stdout, "{}", render_structured(&json, &out.format));
     } else {
@@ -619,6 +655,7 @@ fn render_update_error(host: &str, install_dir: &str, dry_run: bool, reason: &st
         "would_succeed": if dry_run { Some(false) } else { None },
         "exit_code": 1,
         "reason": reason,
+        "next_step": NextStep::fix_input(None),
     });
     serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{\"status\":\"error\"}".to_string())
 }

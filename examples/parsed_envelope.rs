@@ -1,11 +1,11 @@
 //! Capture and parse a JSON success envelope from an in-process invocation.
 //!
 //! Runs `bird --examples --json` against an injected `ResolvedPaths`,
-//! captures stdout, and parses the standard `{"data": ..., "meta": ...}`
-//! envelope with `serde_json`. The same envelope shape holds for any
-//! JSON-emitting command (`bird cache stats --output json`, `bird doctor
-//! --output json`, etc.); this example uses `--examples` because it is
-//! network-free.
+//! captures stdout, and parses the ok envelope
+//! `{"status": "ok", "data": [...], "meta": {...}}` with `serde_json`. Every
+//! result bird assembles carries `status` (`bird cache stats --output json`,
+//! `bird doctor --output json`, etc.); this example uses `--examples` because
+//! it is network-free.
 //!
 //! Run with: `cargo run --example parsed_envelope`
 //!
@@ -46,6 +46,10 @@ fn main() -> ExitCode {
         }
     };
 
+    if envelope.get("status").and_then(|s| s.as_str()) != Some("ok") {
+        eprintln!("example: expected status ok, got {}", envelope);
+        return ExitCode::FAILURE;
+    }
     let data = envelope.get("data").and_then(|v| v.as_array());
     let count = envelope
         .get("meta")

@@ -689,7 +689,7 @@ pub fn run_doctor(
     if pretty {
         writeln!(stdout, "{}", format_pretty(&r, use_color, use_emoji))?;
     } else {
-        writeln!(stdout, "{}", serde_json::to_string(&r)?)?;
+        cfg.print_ok(stdout, serde_json::to_value(&r)?)?;
     }
     Ok(())
 }

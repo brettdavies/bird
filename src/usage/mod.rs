@@ -72,7 +72,7 @@ pub fn run_usage(
             writeln!(stderr, "[usage] {}", msg).ok();
         }
         if !pretty {
-            writeln!(out, "{}", serde_json::to_string(&empty_report(since_ymd))?)?;
+            cfg.print_ok(&mut out, serde_json::to_value(empty_report(since_ymd))?)?;
         }
         out.flush()?;
         return Ok(());
@@ -160,7 +160,7 @@ pub fn run_usage(
     if pretty {
         pretty::print_usage_pretty(&mut out, &report)?;
     } else {
-        writeln!(out, "{}", serde_json::to_string(&report)?)?;
+        cfg.print_ok(&mut out, serde_json::to_value(&report)?)?;
     }
     out.flush()?;
     Ok(())

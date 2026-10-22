@@ -181,11 +181,18 @@ on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--p
 with ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
 informational stderr diagnostics. `--plain` and `--no-color` survive as hidden aliases for `--color never`.
 
-Stdout success envelope on `--output json`:
+Stdout success document on `--output json`, the ok envelope `xr` prints for a result it assembles. A list carries
+`data` and `meta`; a single record puts its fields beside `status`; a message-shaped result is `message`:
 
 ```json
-{"data": ..., "meta": ...}
+{"status": "ok", "data": [...], "meta": {...}}
+{"status": "ok", "path": "...", "size_mb": 1.2, "healthy": true}
+{"status": "ok", "message": "Added @jack to watchlist."}
 ```
+
+Under `--dry-run` a write prints `{"status": "dry_run", "would_succeed": true, "exit_code": 0, "command", "method",
+"url"}`, with `body` when the request has one and `confirmation_required: true` without `--force`. The reads that print
+X's response body (`me`, `profile`, `bookmarks`, `search`, `get`) keep that body as their document.
 
 Stderr error envelope under a structured output mode, the one `xr` prints:
 
