@@ -36,7 +36,7 @@ pub fn run_raw(
     // path params and runs the `auth_matrix` lookup against the template
     // (rather than against an already-rendered URL bird produces). The
     // bird-side entity-store decomposition that `client.get` performs is
-    // intentionally skipped here — `bird raw` is the escape hatch, and the
+    // intentionally skipped here — this path returns X's body as sent, and the
     // typed handlers own the decomposition path.
     let query_pairs: Vec<(String, String)> = query
         .iter()

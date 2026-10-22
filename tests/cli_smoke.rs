@@ -412,12 +412,10 @@ fn quiet_short_flag_accepted() {
 // --- Write-op guards (--force / --yes / --dry-run) ------------------------
 
 #[test]
-fn delete_without_force_or_tty_requires_confirmation() {
+fn a_write_without_force_or_tty_requires_confirmation() {
     let env = common::TestEnv::new();
-    let (exit, _stdout, stderr) = common::run_in_process(
-        &["bird", "delete", "/2/tweets/123", "--output", "json"],
-        &env,
-    );
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "like", "123", "--output", "json"], &env);
     assert_eq!(exit, 1);
     let json = common::stderr_envelope(&stderr);
     assert_eq!(json["status"], "error");
@@ -426,17 +424,10 @@ fn delete_without_force_or_tty_requires_confirmation() {
 }
 
 #[test]
-fn delete_dry_run_emits_envelope_and_skips_request() {
+fn a_write_dry_run_emits_envelope_and_skips_request() {
     let env = common::TestEnv::new();
     let (exit, stdout, _stderr) = common::run_in_process(
-        &[
-            "bird",
-            "delete",
-            "/2/tweets/123",
-            "--dry-run",
-            "--output",
-            "json",
-        ],
+        &["bird", "like", "123", "--dry-run", "--output", "json"],
         &env,
     );
     assert_eq!(exit, 0);
@@ -444,9 +435,37 @@ fn delete_dry_run_emits_envelope_and_skips_request() {
     assert_eq!(json["status"], "dry_run");
     assert_eq!(json["would_succeed"], true);
     assert_eq!(json["exit_code"], 0);
-    assert_eq!(json["command"], "delete");
-    assert_eq!(json["method"], "DELETE");
+    assert_eq!(json["command"], "like");
+    assert_eq!(json["method"], "POST");
     assert_eq!(json["confirmation_required"], true);
+}
+
+/// The raw HTTP verbs are gone: each is an unknown command before any request.
+#[test]
+fn raw_http_verbs_are_unknown_commands() {
+    let env = common::TestEnv::new();
+    let runs: &[&[&str]] = &[
+        &["bird", "get", "/2/users/me", "--output", "json"],
+        &["bird", "put", "/x", "--output", "json"],
+        &[
+            "bird",
+            "post",
+            "/2/tweets",
+            "--body",
+            "{}",
+            "--output",
+            "json",
+        ],
+        &["bird", "delete", "1585341984679469056", "--output", "json"],
+    ];
+    for argv in runs {
+        let (exit, stdout, stderr) = common::run_in_process(argv, &env);
+        assert_eq!(exit, 2, "{argv:?}");
+        assert!(stdout.is_empty(), "{argv:?}: {stdout:?}");
+        let json = common::stderr_envelope(&stderr);
+        assert_eq!(json["reason"], "unknown-command", "{argv:?}");
+        assert_eq!(json["command"], argv[1], "{argv:?}");
+    }
 }
 
 #[test]
@@ -605,14 +624,10 @@ fn every_subcommand_help_has_example() {
     let subcommands = [
         "login",
         "me",
-        "get",
-        "post",
-        "put",
         "bookmarks",
         "profile",
         "search",
         "thread",
-        "delete",
         "watchlist",
         "usage",
         "tweet",

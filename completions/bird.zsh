@@ -138,149 +138,6 @@ never\:"Never emit colors"))' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
 ;;
-(get)
-_arguments "${_arguments_options[@]}" : \
-'*-p+[]:KEY=VALUE:_default' \
-'*--param=[]:KEY=VALUE:_default' \
-'*--query=[]:KEY=VALUE:_default' \
-'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
-always\:"Always emit colors"
-never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
-'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
-'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--pretty[Pretty-print human-readable output]' \
-'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
-'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
-'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
-'--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
-'--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':path:_default' \
-&& ret=0
-;;
-(post)
-_arguments "${_arguments_options[@]}" : \
-'*-p+[]:KEY=VALUE:_default' \
-'*--param=[]:KEY=VALUE:_default' \
-'*--query=[]:KEY=VALUE:_default' \
-'--body=[]:JSON:_default' \
-'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
-always\:"Always emit colors"
-never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
-'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
-'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--pretty[Pretty-print human-readable output]' \
-'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
-'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
-'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
-'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
-'--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
-'--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':path:_default' \
-&& ret=0
-;;
-(put)
-_arguments "${_arguments_options[@]}" : \
-'*-p+[]:KEY=VALUE:_default' \
-'*--param=[]:KEY=VALUE:_default' \
-'*--query=[]:KEY=VALUE:_default' \
-'--body=[]:JSON:_default' \
-'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
-always\:"Always emit colors"
-never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
-'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
-'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--pretty[Pretty-print human-readable output]' \
-'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
-'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
-'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
-'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
-'--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
-'--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':path:_default' \
-&& ret=0
-;;
 (bookmarks)
 _arguments "${_arguments_options[@]}" : \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
@@ -441,54 +298,6 @@ never\:"Never emit colors"))' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID (root tweet or any reply in the thread):_default' \
-&& ret=0
-;;
-(delete)
-_arguments "${_arguments_options[@]}" : \
-'*-p+[]:KEY=VALUE:_default' \
-'*--param=[]:KEY=VALUE:_default' \
-'*--query=[]:KEY=VALUE:_default' \
-'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--output=[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
-json\:"Machine-readable JSON envelope, no color"
-jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
-ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
-'--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
-always\:"Always emit colors"
-never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
-'--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
-'--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--pretty[Pretty-print human-readable output]' \
-'-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
-'(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
-'(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
-'-q[Suppress informational stderr output (keep only fatal errors)]' \
-'--quiet[Suppress informational stderr output (keep only fatal errors)]' \
-'*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'*--verbose[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
-'--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
-'--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
-'--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':path:_default' \
 && ret=0
 ;;
 (watchlist)
@@ -1765,18 +1574,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(get)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(post)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(put)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (bookmarks)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1790,10 +1587,6 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (thread)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(delete)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1963,14 +1756,10 @@ _bird_commands() {
     local commands; commands=(
 'login:Authenticate via xurl (OAuth2 PKCE browser flow)' \
 'me:Show current user (GET /2/users/me)' \
-'get:GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)' \
-'post:POST request to path' \
-'put:PUT request to path' \
 'bookmarks:List bookmarks for the current user (paginated, max_results=100)' \
 'profile:Look up a user profile by username' \
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
 'thread:Reconstruct a conversation thread from a tweet' \
-'delete:DELETE request to path' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
 'usage:View API usage and costs' \
 'tweet:Post a tweet (via xurl)' \
@@ -2053,11 +1842,6 @@ _bird__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'bird completions commands' commands "$@"
 }
-(( $+functions[_bird__subcmd__delete_commands] )) ||
-_bird__subcmd__delete_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird delete commands' commands "$@"
-}
 (( $+functions[_bird__subcmd__dm_commands] )) ||
 _bird__subcmd__dm_commands() {
     local commands; commands=()
@@ -2073,24 +1857,15 @@ _bird__subcmd__follow_commands() {
     local commands; commands=()
     _describe -t commands 'bird follow commands' commands "$@"
 }
-(( $+functions[_bird__subcmd__get_commands] )) ||
-_bird__subcmd__get_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird get commands' commands "$@"
-}
 (( $+functions[_bird__subcmd__help_commands] )) ||
 _bird__subcmd__help_commands() {
     local commands; commands=(
 'login:Authenticate via xurl (OAuth2 PKCE browser flow)' \
 'me:Show current user (GET /2/users/me)' \
-'get:GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)' \
-'post:POST request to path' \
-'put:PUT request to path' \
 'bookmarks:List bookmarks for the current user (paginated, max_results=100)' \
 'profile:Look up a user profile by username' \
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
 'thread:Reconstruct a conversation thread from a tweet' \
-'delete:DELETE request to path' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
 'usage:View API usage and costs' \
 'tweet:Post a tweet (via xurl)' \
@@ -2148,11 +1923,6 @@ _bird__subcmd__help__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'bird help completions commands' commands "$@"
 }
-(( $+functions[_bird__subcmd__help__subcmd__delete_commands] )) ||
-_bird__subcmd__help__subcmd__delete_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird help delete commands' commands "$@"
-}
 (( $+functions[_bird__subcmd__help__subcmd__dm_commands] )) ||
 _bird__subcmd__help__subcmd__dm_commands() {
     local commands; commands=()
@@ -2167,11 +1937,6 @@ _bird__subcmd__help__subcmd__doctor_commands() {
 _bird__subcmd__help__subcmd__follow_commands() {
     local commands; commands=()
     _describe -t commands 'bird help follow commands' commands "$@"
-}
-(( $+functions[_bird__subcmd__help__subcmd__get_commands] )) ||
-_bird__subcmd__help__subcmd__get_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird help get commands' commands "$@"
 }
 (( $+functions[_bird__subcmd__help__subcmd__help_commands] )) ||
 _bird__subcmd__help__subcmd__help_commands() {
@@ -2198,20 +1963,10 @@ _bird__subcmd__help__subcmd__mute_commands() {
     local commands; commands=()
     _describe -t commands 'bird help mute commands' commands "$@"
 }
-(( $+functions[_bird__subcmd__help__subcmd__post_commands] )) ||
-_bird__subcmd__help__subcmd__post_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird help post commands' commands "$@"
-}
 (( $+functions[_bird__subcmd__help__subcmd__profile_commands] )) ||
 _bird__subcmd__help__subcmd__profile_commands() {
     local commands; commands=()
     _describe -t commands 'bird help profile commands' commands "$@"
-}
-(( $+functions[_bird__subcmd__help__subcmd__put_commands] )) ||
-_bird__subcmd__help__subcmd__put_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird help put commands' commands "$@"
 }
 (( $+functions[_bird__subcmd__help__subcmd__reply_commands] )) ||
 _bird__subcmd__help__subcmd__reply_commands() {
@@ -2341,20 +2096,10 @@ _bird__subcmd__mute_commands() {
     local commands; commands=()
     _describe -t commands 'bird mute commands' commands "$@"
 }
-(( $+functions[_bird__subcmd__post_commands] )) ||
-_bird__subcmd__post_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird post commands' commands "$@"
-}
 (( $+functions[_bird__subcmd__profile_commands] )) ||
 _bird__subcmd__profile_commands() {
     local commands; commands=()
     _describe -t commands 'bird profile commands' commands "$@"
-}
-(( $+functions[_bird__subcmd__put_commands] )) ||
-_bird__subcmd__put_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird put commands' commands "$@"
 }
 (( $+functions[_bird__subcmd__reply_commands] )) ||
 _bird__subcmd__reply_commands() {

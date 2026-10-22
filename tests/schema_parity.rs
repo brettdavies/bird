@@ -20,7 +20,6 @@ const EMBEDDED: &[(&str, &str)] = &[
     ("doctor", include_str!("../schema/doctor.schema.json")),
     ("envelope", include_str!("../schema/envelope.schema.json")),
     ("profile", include_str!("../schema/profile.schema.json")),
-    ("raw-get", include_str!("../schema/raw-get.schema.json")),
     ("search", include_str!("../schema/search.schema.json")),
     (
         "skill-install",

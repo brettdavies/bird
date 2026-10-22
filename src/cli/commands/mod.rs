@@ -8,7 +8,6 @@ pub mod bookmarks;
 pub mod cache;
 pub mod login;
 pub mod profile;
-pub mod raw_write;
 pub mod reads;
 pub mod search;
 pub mod thread;

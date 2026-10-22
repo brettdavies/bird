@@ -32,7 +32,7 @@ bird dm jack "ping"
 # Write-op guards: --dry-run prints the would-be request without sending;
 # --force / --yes bypass confirmation; without either, no-TTY callers get exit 1
 # (`confirmation-required`) instead of hanging on stdin.
-bird delete /2/tweets/1234567890 --dry-run
+bird like 1234567890 --dry-run
 bird like 1234567890 --force
 
 # Pagination — global --limit and --cursor on list-style commands
@@ -52,21 +52,16 @@ bird usage --local
 bird cache stats --pretty
 bird cache clear
 
-# Raw API access (path templates with -p; query params with -q)
-bird get /2/users/me -p id=123 -q expansions=author_id --pretty
-bird post /2/tweets --body '{"text":"hi"}'
-
 # JSON Schema documents: the envelope and each command's output
 bird schema envelope
 bird schema thread
 bird schema --list           # every name and title
 bird schema --all --output json
 
-# Self-diagnostics, shell completions, raw API passthrough
+# Self-diagnostics and shell completions
 bird doctor
 bird doctor me
 bird completions zsh
-bird raw /2/users/me
 
 # Agent-skill bundle: install bird's SKILL.md to a host's skills directory
 bird skill install                          # default host: claude-code
@@ -127,8 +122,8 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `validate_auth_value`, etc.).
 - `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
 - `src/cli/clap_errors.rs` — clap → `BirdError` mapping for `try_parse_from`.
-- `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me, Get), `bookmarks.rs`, `profile.rs`,
-  `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
+- `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me), `bookmarks.rs`, `profile.rs`,
+  `search.rs`, `thread.rs`, `watchlist.rs` (Fetch only — Add/Remove/List are
   pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 write verbs share a single `execute` helper).
 - `src/xurl_client/` — bird's seam over the embedded `xdk-rs` library. `mod.rs` declares the `XurlClient` trait (one
   generic `send_request`; bird renders every request itself) and `EmbeddedClient` (an `xdk::api::Client` plus the
@@ -215,7 +210,7 @@ plain text, or an ok envelope carrying `data.help` / `data.version` when JSON is
 
 `bird schema` takes `xr schema`'s forms and prints JSON Schema 2020-12 documents: `envelope` (every `ok`, `dry_run`,
 and `error` document, generated from the envelope types) and one per command, named by the command: `bookmarks`,
-`cache-stats`, `doctor`, `profile`, `raw-get`, `search`, `skill-install`, `skill-update`, `thread`, `usage`,
+`cache-stats`, `doctor`, `profile`, `search`, `skill-install`, `skill-update`, `thread`, `usage`,
 `watchlist-fetch`, `watchlist-list`. A schema prints as itself, never wrapped. The documents carry no `$id`.
 
 ```bash

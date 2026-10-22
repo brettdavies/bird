@@ -1,7 +1,6 @@
-//! `bird me` and `bird get` — raw GET reads via `raw::run_raw`.
+//! `bird me` — the authenticated user, read through `raw::run_raw`.
 
 use crate::cli::auth_scheme::AuthType;
-use crate::cli::dispatch::{ListFlags, clamp_limit, parse_param_vec};
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
@@ -32,36 +31,5 @@ pub fn run_me(
         &auth_type,
     )
     .map_err(|e| BirdError::from_source("me", e))?;
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn run_get(
-    client: &mut db::BirdClient,
-    out: &OutputConfig,
-    stdout: &mut dyn std::io::Write,
-    stderr: &mut dyn std::io::Write,
-    path: String,
-    param: Vec<String>,
-    query: Vec<String>,
-    header: Vec<String>,
-    pretty: bool,
-    list_flags: &ListFlags,
-) -> Result<(), BirdError> {
-    let params = parse_param_vec(&param);
-    let mut query = query;
-    if let Some(ref tok) = list_flags.cursor {
-        query.push(format!("pagination_token={}", tok));
-    }
-    if let Some(n) = list_flags.limit {
-        let (clamped, _) = clamp_limit(Some(n), 100, 1000);
-        query.push(format!("max_results={}", clamped));
-    }
-    let auth_type = AuthType::OAuth2User;
-    raw::run_raw(
-        client, out, stdout, stderr, "GET", &path, &params, &query, &header, None, pretty,
-        &auth_type,
-    )
-    .map_err(|e| BirdError::from_source("get", e))?;
     Ok(())
 }

@@ -53,14 +53,10 @@ complete -c bird -n "__fish_bird_needs_command" -s h -l help -d 'Print help (see
 complete -c bird -n "__fish_bird_needs_command" -s V -l version -d 'Print version'
 complete -c bird -n "__fish_bird_needs_command" -f -a "login" -d 'Authenticate via xurl (OAuth2 PKCE browser flow)'
 complete -c bird -n "__fish_bird_needs_command" -f -a "me" -d 'Show current user (GET /2/users/me)'
-complete -c bird -n "__fish_bird_needs_command" -f -a "get" -d 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)'
-complete -c bird -n "__fish_bird_needs_command" -f -a "post" -d 'POST request to path'
-complete -c bird -n "__fish_bird_needs_command" -f -a "put" -d 'PUT request to path'
 complete -c bird -n "__fish_bird_needs_command" -f -a "bookmarks" -d 'List bookmarks for the current user (paginated, max_results=100)'
 complete -c bird -n "__fish_bird_needs_command" -f -a "profile" -d 'Look up a user profile by username'
 complete -c bird -n "__fish_bird_needs_command" -f -a "search" -d 'Search recent tweets (GET /2/tweets/search/recent)'
 complete -c bird -n "__fish_bird_needs_command" -f -a "thread" -d 'Reconstruct a conversation thread from a tweet'
-complete -c bird -n "__fish_bird_needs_command" -f -a "delete" -d 'DELETE request to path'
 complete -c bird -n "__fish_bird_needs_command" -f -a "watchlist" -d 'Monitor users: check recent activity, manage watchlist'
 complete -c bird -n "__fish_bird_needs_command" -f -a "usage" -d 'View API usage and costs'
 complete -c bird -n "__fish_bird_needs_command" -f -a "tweet" -d 'Post a tweet (via xurl)'
@@ -136,102 +132,6 @@ complete -c bird -n "__fish_bird_using_subcommand me" -l refresh -d 'Bypass stor
 complete -c bird -n "__fish_bird_using_subcommand me" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand me" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand me" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand get" -s p -l param -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l query -r
-complete -c bird -n "__fish_bird_using_subcommand get" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
-json\t'Machine-readable JSON envelope, no color'
-jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
-ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
-complete -c bird -n "__fish_bird_using_subcommand get" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
-always\t'Always emit colors'
-never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand get" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand get" -l pretty -d 'Pretty-print human-readable output'
-complete -c bird -n "__fish_bird_using_subcommand get" -l json -d 'Shorthand for `--output json`'
-complete -c bird -n "__fish_bird_using_subcommand get" -l jsonl -d 'Shorthand for `--output jsonl`'
-complete -c bird -n "__fish_bird_using_subcommand get" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
-complete -c bird -n "__fish_bird_using_subcommand get" -l no-color -d 'Deprecated alias for `--color never`'
-complete -c bird -n "__fish_bird_using_subcommand get" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
-complete -c bird -n "__fish_bird_using_subcommand get" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
-complete -c bird -n "__fish_bird_using_subcommand get" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand get" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
-complete -c bird -n "__fish_bird_using_subcommand get" -l examples -d 'Print curated examples block and exit'
-complete -c bird -n "__fish_bird_using_subcommand get" -l refresh -d 'Bypass store read, still write response to store'
-complete -c bird -n "__fish_bird_using_subcommand get" -l no-cache -d 'Disable entity store entirely (no read, no write)'
-complete -c bird -n "__fish_bird_using_subcommand get" -l cache-only -d 'Only serve from local store; never make API requests'
-complete -c bird -n "__fish_bird_using_subcommand get" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand post" -s p -l param -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l query -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l body -r
-complete -c bird -n "__fish_bird_using_subcommand post" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
-json\t'Machine-readable JSON envelope, no color'
-jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
-ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
-complete -c bird -n "__fish_bird_using_subcommand post" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
-always\t'Always emit colors'
-never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand post" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand post" -l pretty -d 'Pretty-print human-readable output'
-complete -c bird -n "__fish_bird_using_subcommand post" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
-complete -c bird -n "__fish_bird_using_subcommand post" -l json -d 'Shorthand for `--output json`'
-complete -c bird -n "__fish_bird_using_subcommand post" -l jsonl -d 'Shorthand for `--output jsonl`'
-complete -c bird -n "__fish_bird_using_subcommand post" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l no-color -d 'Deprecated alias for `--color never`'
-complete -c bird -n "__fish_bird_using_subcommand post" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
-complete -c bird -n "__fish_bird_using_subcommand post" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
-complete -c bird -n "__fish_bird_using_subcommand post" -l examples -d 'Print curated examples block and exit'
-complete -c bird -n "__fish_bird_using_subcommand post" -l refresh -d 'Bypass store read, still write response to store'
-complete -c bird -n "__fish_bird_using_subcommand post" -l no-cache -d 'Disable entity store entirely (no read, no write)'
-complete -c bird -n "__fish_bird_using_subcommand post" -l cache-only -d 'Only serve from local store; never make API requests'
-complete -c bird -n "__fish_bird_using_subcommand post" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand put" -s p -l param -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l query -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l body -r
-complete -c bird -n "__fish_bird_using_subcommand put" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
-json\t'Machine-readable JSON envelope, no color'
-jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
-ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
-complete -c bird -n "__fish_bird_using_subcommand put" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
-always\t'Always emit colors'
-never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand put" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand put" -l pretty -d 'Pretty-print human-readable output'
-complete -c bird -n "__fish_bird_using_subcommand put" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
-complete -c bird -n "__fish_bird_using_subcommand put" -l json -d 'Shorthand for `--output json`'
-complete -c bird -n "__fish_bird_using_subcommand put" -l jsonl -d 'Shorthand for `--output jsonl`'
-complete -c bird -n "__fish_bird_using_subcommand put" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l no-color -d 'Deprecated alias for `--color never`'
-complete -c bird -n "__fish_bird_using_subcommand put" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
-complete -c bird -n "__fish_bird_using_subcommand put" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
-complete -c bird -n "__fish_bird_using_subcommand put" -l examples -d 'Print curated examples block and exit'
-complete -c bird -n "__fish_bird_using_subcommand put" -l refresh -d 'Bypass store read, still write response to store'
-complete -c bird -n "__fish_bird_using_subcommand put" -l no-cache -d 'Disable entity store entirely (no read, no write)'
-complete -c bird -n "__fish_bird_using_subcommand put" -l cache-only -d 'Only serve from local store; never make API requests'
-complete -c bird -n "__fish_bird_using_subcommand put" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -344,38 +244,6 @@ complete -c bird -n "__fish_bird_using_subcommand thread" -l refresh -d 'Bypass 
 complete -c bird -n "__fish_bird_using_subcommand thread" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand thread" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand delete" -s p -l param -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l query -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -s H -l header -d 'Custom request header in `Name: Value` form; repeatable' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
-json\t'Machine-readable JSON envelope, no color'
-jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
-ndjson\t'Newline-delimited JSON, accepted as an alias for jsonl'"
-complete -c bird -n "__fish_bird_using_subcommand delete" -l color -d 'Color mode: auto (default), always, never' -r -f -a "auto\t'Auto-detect: color when stderr is a TTY and `NO_COLOR` is unset'
-always\t'Always emit colors'
-never\t'Never emit colors'"
-complete -c bird -n "__fish_bird_using_subcommand delete" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand delete" -l pretty -d 'Pretty-print human-readable output'
-complete -c bird -n "__fish_bird_using_subcommand delete" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l json -d 'Shorthand for `--output json`'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l jsonl -d 'Shorthand for `--output jsonl`'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l no-color -d 'Deprecated alias for `--color never`'
-complete -c bird -n "__fish_bird_using_subcommand delete" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -s v -l verbose -d 'Increase verbosity (repeatable: -v info, -vv debug, -vvv trace)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l no-interactive -d 'Disable interactive prompts (refuse anything that would block on stdin)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l raw -d 'Emit unstyled, compact output: pipe-safe text, and `json` on one line'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l examples -d 'Print curated examples block and exit'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l refresh -d 'Bypass store read, still write response to store'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l no-cache -d 'Disable entity store entirely (no read, no write)'
-complete -c bird -n "__fish_bird_using_subcommand delete" -l cache-only -d 'Only serve from local store; never make API requests'
-complete -c bird -n "__fish_bird_using_subcommand delete" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
@@ -1160,37 +1028,33 @@ complete -c bird -n "__fish_bird_using_subcommand schema" -l refresh -d 'Bypass 
 complete -c bird -n "__fish_bird_using_subcommand schema" -l no-cache -d 'Disable entity store entirely (no read, no write)'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l cache-only -d 'Only serve from local store; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand schema" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "login" -d 'Authenticate via xurl (OAuth2 PKCE browser flow)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "me" -d 'Show current user (GET /2/users/me)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "get" -d 'GET request to path (e.g. /2/users/me or /2/users/{id}/bookmarks with -p id=123)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "post" -d 'POST request to path'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "put" -d 'PUT request to path'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "bookmarks" -d 'List bookmarks for the current user (paginated, max_results=100)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "profile" -d 'Look up a user profile by username'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "search" -d 'Search recent tweets (GET /2/tweets/search/recent)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "thread" -d 'Reconstruct a conversation thread from a tweet'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "delete" -d 'DELETE request to path'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "watchlist" -d 'Monitor users: check recent activity, manage watchlist'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "usage" -d 'View API usage and costs'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "tweet" -d 'Post a tweet (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "reply" -d 'Reply to a tweet (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "like" -d 'Like a tweet (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unlike" -d 'Unlike a tweet (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "repost" -d 'Repost (retweet) a tweet (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unrepost" -d 'Undo a repost (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "follow" -d 'Follow a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unfollow" -d 'Unfollow a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "dm" -d 'Send a direct message (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "block" -d 'Block a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unblock" -d 'Unblock a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "mute" -d 'Mute a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unmute" -d 'Unmute a user (via xurl)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "doctor" -d 'Show what is available: xurl status, commands, and entity store health'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "cache" -d 'Manage the HTTP response cache'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "completions" -d 'Generate shell completions'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "schema" -d 'Print the JSON Schema of a command\'s output, or of the envelope'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "login" -d 'Authenticate via xurl (OAuth2 PKCE browser flow)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "me" -d 'Show current user (GET /2/users/me)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "bookmarks" -d 'List bookmarks for the current user (paginated, max_results=100)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "profile" -d 'Look up a user profile by username'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "search" -d 'Search recent tweets (GET /2/tweets/search/recent)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "thread" -d 'Reconstruct a conversation thread from a tweet'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "watchlist" -d 'Monitor users: check recent activity, manage watchlist'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "usage" -d 'View API usage and costs'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "tweet" -d 'Post a tweet (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "reply" -d 'Reply to a tweet (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "like" -d 'Like a tweet (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unlike" -d 'Unlike a tweet (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "repost" -d 'Repost (retweet) a tweet (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unrepost" -d 'Undo a repost (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "follow" -d 'Follow a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unfollow" -d 'Unfollow a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "dm" -d 'Send a direct message (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "block" -d 'Block a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unblock" -d 'Unblock a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "mute" -d 'Mute a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "unmute" -d 'Unmute a user (via xurl)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "doctor" -d 'Show what is available: xurl status, commands, and entity store health'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "cache" -d 'Manage the HTTP response cache'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "completions" -d 'Generate shell completions'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "schema" -d 'Print the JSON Schema of a command\'s output, or of the envelope'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "fetch" -d 'Fetch recent activity for all watched users'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "add" -d 'Add a user to the watchlist'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "remove" -d 'Remove a user from the watchlist'
