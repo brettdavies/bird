@@ -191,7 +191,7 @@ impl BirdClient {
                 self.log_api_call(url, "GET", resp.json.as_ref(), true, ctx.username);
                 return Ok(resp);
             }
-            return Err("entity not in local store; run without --cache-only to fetch".into());
+            return Err(Box::new(crate::error::CacheMiss));
         }
 
         let response = self.xurl_get(url, ctx)?;
@@ -262,7 +262,7 @@ impl BirdClient {
         // cache_only: return what we have
         if self.cache_opts.cache_only {
             if from_store.is_empty() {
-                return Err("entity not in local store; run without --cache-only to fetch".into());
+                return Err(Box::new(crate::error::CacheMiss));
             }
             let response = build_store_response(&from_store)?;
             self.log_api_call(url, "GET", response.json.as_ref(), true, ctx.username);

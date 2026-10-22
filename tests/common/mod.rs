@@ -94,14 +94,27 @@ impl std::io::BufRead for PanicOnRead {
     fn consume(&mut self, _amt: usize) {}
 }
 
-/// The JSON envelope on the last `{`-led line of `stderr`.
+/// The last JSON document in `stderr`, indented or on one line.
 pub fn stderr_envelope(stderr: &str) -> serde_json::Value {
-    let line = stderr
-        .lines()
-        .rev()
-        .find(|line| line.trim_start().starts_with('{'))
-        .unwrap_or_else(|| panic!("test: no JSON envelope on stderr: {stderr:?}"));
-    serde_json::from_str(line).expect("test: stderr envelope is JSON")
+    last_json_document(stderr)
+        .unwrap_or_else(|| panic!("test: no JSON envelope on stderr: {stderr:?}"))
+}
+
+/// The last JSON document that starts at the beginning of a line of `text`.
+pub fn last_json_document(text: &str) -> Option<serde_json::Value> {
+    let starts = text
+        .match_indices('\n')
+        .map(|(i, _)| i + 1)
+        .chain(std::iter::once(0))
+        .filter(|&i| text[i..].starts_with('{'));
+    let mut starts: Vec<usize> = starts.collect();
+    starts.sort_unstable();
+    starts.into_iter().rev().find_map(|i| {
+        serde_json::Deserializer::from_str(&text[i..])
+            .into_iter::<serde_json::Value>()
+            .next()
+            .and_then(Result::ok)
+    })
 }
 
 /// Extract the inner exit-status byte from an [`ExitCode`].

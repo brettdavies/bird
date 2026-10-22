@@ -104,7 +104,7 @@ pub struct Cli {
     #[arg(long, global = true, env = "BIRD_NO_INTERACTIVE")]
     pub no_interactive: bool,
 
-    /// Emit pipe-safe, undecorated text. Ignored in JSON modes.
+    /// Emit unstyled, compact output: pipe-safe text, and `json` on one line.
     #[arg(long, global = true)]
     pub raw: bool,
 

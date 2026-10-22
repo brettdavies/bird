@@ -1,43 +1,242 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/error-envelope-v1.json",
-  "title": "bird error envelope",
-  "description": "Universal error-response shape emitted on stderr when bird exits non-zero under --output json. Matches the anc (agent-native-cli) envelope contract.",
-  "type": "object",
-  "required": ["error", "kind", "message", "exit_code"],
-  "properties": {
-    "error": {
-      "type": "string",
-      "description": "Stable kebab-case machine identifier. An X API error carries the reason xdk-rs classifies it with, the same one `xr` reports (e.g. \"auth-required\", \"rate-limited\", \"network-error\"); bird's own errors carry ids such as \"config-error\", \"unknown-schema\", \"invalid-value\".",
-      "pattern": "^[a-z][a-z0-9-]*$"
+  "$defs": {
+    "Action": {
+      "description": "What the caller should do next; `xr`'s closed set, spelled as xdk-rs\nspells `NextAction`.\n\nxdk-rs 0.2.0 on crates.io declares eight of these thirteen actions, so\nbird declares the full set and converts xdk's by its wire spelling\n([`Action::from_xdk`]); an action xdk-rs adds later converts the same way.",
+      "oneOf": [
+        {
+          "const": "register-app",
+          "description": "No app carries client credentials; register one.",
+          "type": "string"
+        },
+        {
+          "const": "sign-in",
+          "description": "The target app has credentials and no token; sign in.",
+          "type": "string"
+        },
+        {
+          "const": "select-app",
+          "description": "Another app is the one to use; rerun naming it.",
+          "type": "string"
+        },
+        {
+          "const": "inspect-store",
+          "description": "The store could not be read or parsed; look at the file.",
+          "type": "string"
+        },
+        {
+          "const": "enroll-app",
+          "description": "X refused the app; enroll it in the developer portal.",
+          "type": "string"
+        },
+        {
+          "const": "show-help",
+          "description": "The invocation was not one the tool takes; read the help it names.",
+          "type": "string"
+        },
+        {
+          "const": "resume-wait",
+          "description": "Media was still processing when the wait's deadline passed.",
+          "type": "string"
+        },
+        {
+          "const": "wait-and-retry",
+          "description": "X rate limited the request and said when the window resets.",
+          "type": "string"
+        },
+        {
+          "const": "retry",
+          "description": "Nothing is wrong with the request; send it again.",
+          "type": "string"
+        },
+        {
+          "const": "fix-input",
+          "description": "The input, or the local state the command read, is what failed.",
+          "type": "string"
+        },
+        {
+          "const": "report-issue",
+          "description": "The tool or the library is at fault; report it.",
+          "type": "string"
+        },
+        {
+          "const": "confirm",
+          "description": "The command acts on something and ran without its confirmation.",
+          "type": "string"
+        },
+        {
+          "const": "run-command",
+          "description": "One other command repairs this; run it.",
+          "type": "string"
+        }
+      ]
     },
-    "kind": {
-      "type": "string",
-      "description": "Error category. `usage` exits 2, `auth` 77, `config` 78; `general` exits 1, 3, 4, or 5 (see `exit_code`).",
-      "enum": ["usage", "auth", "config", "general"]
-    },
-    "message": {
-      "type": "string",
-      "description": "Human-readable error message. Control characters sanitized to '?' to prevent terminal escape injection from upstream API bodies."
-    },
-    "exit_code": {
-      "type": "integer",
-      "description": "Process exit code. 2 (usage), 77 (auth), 78 (config). A general error exits 3 when rate limited (HTTP 429), 4 when not found (HTTP 404), 5 when the request got no HTTP response (network or filesystem failure), 130 or 143 when SIGINT or SIGTERM cancelled an in-flight X API call (error `cancelled`), and 1 otherwise.",
-      "enum": [1, 2, 3, 4, 5, 77, 78, 130, 143]
-    },
-    "meta": {
-      "type": "object",
-      "description": "Always-present metadata object (possibly empty) for parity with the success envelope.",
-      "additionalProperties": true
-    },
-    "command": {
-      "type": "string",
-      "description": "Subcommand name that triggered the error, when known."
-    },
-    "status": {
-      "type": "integer",
-      "description": "Upstream HTTP status code, when the error originated from an API response."
+    "NextStep": {
+      "additionalProperties": false,
+      "description": "What the caller should do next, when a recovery step exists.\n\nAt most one of `command` and `template` is present: a command runs\nverbatim from a non-TTY caller, a template holds placeholders the caller\nfills or, under `confirm`, the invocation that acts once it runs.",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/Action",
+          "description": "The action to take."
+        },
+        "command": {
+          "description": "A runnable invocation, when one exists.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "docs": {
+          "description": "Documentation URL, when a recipe exists.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "A placeholder invocation, when the caller must supply values.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
     }
   },
-  "additionalProperties": false
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Written to stderr when bird exits non-zero under a structured output mode.",
+  "properties": {
+    "app": {
+      "description": "The active app name.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "available_in_app": {
+      "description": "Auth schemes available for the active app.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "command": {
+      "description": "The offending value, echoed verbatim: the unknown word, or the\ncommand that needs confirmation.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "endpoint": {
+      "description": "Endpoint template the request targeted.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "exit_code": {
+      "description": "Process exit code.",
+      "format": "int32",
+      "type": "integer"
+    },
+    "message": {
+      "description": "Human-readable message, control characters sanitized.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "method": {
+      "description": "HTTP method the request would have used.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_step": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NextStep"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "What the caller should do next, when a recovery step exists."
+    },
+    "other_apps_with_creds": {
+      "description": "Other apps holding credentials, when the active one holds none.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "reason": {
+      "description": "Typed kebab-case kind; agents pattern-match on this. A newer release\ncan add a reason, so treat one you do not recognize as your default\nbranch.",
+      "type": "string"
+    },
+    "rendered_url": {
+      "description": "Endpoint path with path parameters substituted.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requested": {
+      "description": "Auth scheme the caller asked for; `null` when auto-detect ran."
+    },
+    "retry_after_secs": {
+      "description": "Seconds until the rate limit resets, zero once it has.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "retry_at": {
+      "description": "The same reset as an RFC 3339 UTC timestamp.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "const": "error"
+    },
+    "suggestion": {
+      "description": "The nearest real command, when one is close.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "supported": {
+      "description": "Auth schemes the endpoint accepts.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "reason",
+    "exit_code"
+  ],
+  "title": "bird error envelope",
+  "type": "object"
 }

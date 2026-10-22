@@ -37,14 +37,21 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
   headless two-step flow).
 - **get / post / put / delete** (raw): any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 
-When a command fails because auth is missing or the wrong type, the CLI prints:
+When a command fails, the error envelope (`xr`'s: `status`, `reason`, `exit_code`, `message`) carries a `next_step`
+whenever a recovery step exists, and text mode prints the same step as a hint line under the error. A missing credential
+picks its step from the token store the run loaded:
 
-1. A one-line summary, e.g. `me failed: no valid auth for this command.`
-2. A **requirements block**: for each auth type that the command supports, what the user must do:
-   - **OAuth 2.0 (user):** Run `bird login` or set `X_API_ACCESS_TOKEN` (and optionally `X_API_REFRESH_TOKEN`).
-   - **OAuth 1.0a** (when supported): Set `X_API_CONSUMER_KEY`, `X_API_CONSUMER_SECRET`, `X_API_OAUTH1_ACCESS_TOKEN`,
-     `X_API_OAUTH1_ACCESS_TOKEN_SECRET`.
-   - **Bearer** (when supported): Set `X_API_BEARER_TOKEN`.
+1. The store could not be read: `inspect-store`, run `bird doctor`.
+2. Another app is signed in: `select-app`, the same invocation with `--app <name>`.
+3. The active app has client credentials and no token: `sign-in`, run `bird login` (`bird login --no-browser` under
+   structured output).
+4. Another app has client credentials: `select-app`, sign in against it.
+5. No app has any: `register-app`, a template for `xr auth apps add`.
+
+Every other step comes from xdk-rs (`xdk::Error::next_action` and `docs_url`): `wait-and-retry` on a rate limit that
+named its reset, `retry` on a 5xx or a dropped connection, `fix-input` on a refused value, `enroll-app` when X refuses
+the app, `report-issue` for a fault in the library. A usage error points at the command's `--help`, and a write refused
+for want of `--force` carries the forced invocation as a `confirm` template.
 
 The same requirement definitions drive **doctor** availability and reason strings (e.g. “run bird login or set … Or set
 OAuth 1.0a env”), so execution, error messages, and doctor stay consistent.

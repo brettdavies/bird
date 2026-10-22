@@ -157,7 +157,7 @@ pub fn run(
         None => {
             let available = names().join(", ");
             Err(BirdError::usage(
-                "unknown-schema",
+                crate::output::envelope::Reason::UnknownSchema,
                 format!("unknown schema '{}'; available: {}", target, available),
             ))
         }
@@ -209,11 +209,6 @@ mod tests {
                 entry.name
             );
             assert!(
-                parsed.get("$id").is_some(),
-                "schema {} missing $id",
-                entry.name
-            );
-            assert!(
                 parsed.get("title").is_some(),
                 "schema {} missing title",
                 entry.name
@@ -236,10 +231,9 @@ mod tests {
         for entry in SCHEMAS {
             let parsed: serde_json::Value =
                 serde_json::from_str(entry.body).expect("parses as JSON");
-            let id = parsed
-                .get("$id")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default();
+            let Some(id) = parsed.get("$id").and_then(|v| v.as_str()) else {
+                continue;
+            };
             let expected = format!("https://bird.dev/schema/{}-v1.json", entry.name);
             assert_eq!(
                 id, expected,
@@ -267,7 +261,6 @@ mod tests {
         let err = run(Some("does-not-exist"), false, &out_text(), &mut stdout)
             .expect_err("unknown schema must error");
         assert_eq!(err.error_id(), "unknown-schema");
-        assert_eq!(err.kind(), "usage");
         assert_eq!(err.exit_code(), 2);
     }
 
