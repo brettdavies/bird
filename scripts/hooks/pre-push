@@ -8,9 +8,9 @@
 #
 # Every shared check comes from scripts/hooks/_lib.sh, which both hooks source.
 # The two hooks differ in scope, not in what a check means: pre-push passes the
-# tracked set, pre-commit passes the staged set. The R20 guard and the Windows
-# steps stay inline because pre-commit has no use for them and each carries a
-# bird-specific pattern. tests/hook_ci_parity.rs holds every step here against
+# tracked set, pre-commit passes the staged set. The output-discipline and
+# Windows steps stay inline because pre-commit has no use for them and each
+# carries a bird-specific rule. tests/hook_ci_parity.rs holds every step here against
 # the CI job that runs the same check.
 #
 # Scoped by what the push changes: the Rust battery runs only when a pushed
@@ -157,21 +157,11 @@ if ! $scope_all; then
   note "scope: $(grep -cv '^$' <<<"$changed") changed path(s) in this push"
 fi
 
-# R20: every call site that emits user-visible output uses an injected
-# &mut dyn Write writer or an OutputConfig::print_* method, never the bare
-# println! family. src/main.rs (the binary shim) and src/error/fatal.rs (the
-# fatal-error chokepoint) are the only permitted survivors. The pattern and
-# globs are the ones .github/workflows/guard-r20.yml runs.
-check_r20() {
-  have rg || skip "r20" "install via \`brew install ripgrep\`" || return
-  local forbidden
-  forbidden=$(rg -n '\b(println|eprintln|print|eprint|out_println|out_print|diag)!' \
-    --glob 'src/**/*.rs' \
-    --glob '!src/main.rs' \
-    --glob '!src/error/fatal.rs' || true)
-  [ -z "$forbidden" ] && return 0
-  printf '%s\n' "$forbidden" >&2
-  return 1
+# Output discipline: the writer-injection rule in scripts/lint-stdio.sh, the
+# script CI's `Output discipline` job runs.
+check_output_discipline() {
+  have rg || skip "output discipline" "install via \`brew install ripgrep\`" || return
+  bash scripts/lint-stdio.sh
 }
 
 # Windows cross-check (fast): no unconditional use of unix-only libc APIs.
@@ -223,7 +213,7 @@ if code_touched; then
   step "msrv${msrv:+ ($msrv)}" "cargo +${msrv:-MSRV} check" check_msrv || fail=1
   step "doc" "cargo doc --no-deps (RUSTDOCFLAGS=-D warnings)" check_doc || fail=1
   step "deny" "cargo deny check" check_deny || fail=1
-  step "r20" "forbidden output macro in src/; use an injected writer or OutputConfig method" check_r20 || fail=1
+  step "output discipline" "scripts/lint-stdio.sh" check_output_discipline || fail=1
   step "windows compat (libc grep)" "unix-only libc API outside #[cfg(unix)]" check_windows_libc || fail=1
   step "windows clippy (cross-target)" "cargo clippy --target x86_64-pc-windows-gnu -- -D warnings" \
     check_windows_clippy || fail=1

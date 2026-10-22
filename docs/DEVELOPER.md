@@ -87,10 +87,10 @@ git config core.hooksPath scripts/hooks
 core-env guard.
 
 **`pre-push`** mirrors CI: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`, `cargo test`, MSRV
-verification, rustdoc-as-warnings, `cargo deny check`, the R20 output guard, and the Windows libc grep and cross-clippy,
-when the push reaches a cargo input; shellcheck, shfmt, actionlint, and the guards always. `tests/hook_ci_parity.rs`
-fails when a pre-push step has no named CI counterpart. Direct pushes to `main` are blocked server-side by the
-`protect-main` ruleset; the local hook focuses on catching CI failures before push.
+verification, rustdoc-as-warnings, `cargo deny check`, the output-discipline check (`scripts/lint-stdio.sh`), and the
+Windows libc grep and cross-clippy, when the push reaches a cargo input; shellcheck, shfmt, actionlint, and the guards
+always. `tests/hook_ci_parity.rs` fails when a pre-push step has no named CI counterpart. Direct pushes to `main` are
+blocked server-side by the `protect-main` ruleset; the local hook focuses on catching CI failures before push.
 
 ## Branching workflow
 
