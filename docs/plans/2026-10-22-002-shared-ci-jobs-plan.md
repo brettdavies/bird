@@ -14,12 +14,12 @@ execution: code
 - **Objective:** a bird pull request is held to the same checks as a xurl-rs pull request (doc build, MSRV, completions
   freshness, output discipline, workflow concurrency, agent-native audit, documentation-only scoping, and the changelog
   bump rule), and every one of those checks has one definition that both repositories call.
-- **Means:** opt-in inputs on `rust-ci.yml` and two new reusable workflows in `brettdavies/.github`, each running a
-  script from the consumer's checkout (KTD1, KTD2).
+- **Means:** opt-in inputs on `rust-ci.yml` and `lint-basics.yml` and two new reusable workflows in
+  `brettdavies/.github`, each running a script from the consumer's checkout (KTD1, KTD2).
 - **Authority:** the parity backlog's Rules (`docs/plans/2026-10-22-001-xurl-rs-parity-backlog.md`), then this plan,
   then the code.
 - **Stop conditions:** merging a `brettdavies/.github` PR waits for the user's approval, because it changes shared CI
-  inputs. No xurl-rs PR opens until the xurl-rs release has shipped.
+  inputs. bird's side writes no code in xurl-rs: its adoption of the shared jobs is a request to the xurl-rs team (U10).
 - **Execution profile:** the `.github` PRs and bird's consumer PRs are opened together; bird's PRs stay drafts that call
   the shared workflow at the `.github` branch ref until that PR merges, then move to `@main`.
 
@@ -30,8 +30,9 @@ execution: code
 ### Summary
 
 Seven jobs and one PR-body check that xurl-rs runs in its own `ci.yml` and `changelog-bump.yml` move into
-`brettdavies/.github`. bird turns them on through its thin callers. xurl-rs swaps its in-repo copies for the same
-callers once its release ships.
+`brettdavies/.github`. bird turns them on through its thin callers, and the xurl-rs team is asked to swap its in-repo
+copies for the same callers. `lint-basics.yml` gains a shellcheck job for the repositories with shell scripts and no
+Rust.
 
 ### Problem Frame
 
@@ -51,6 +52,8 @@ these, but as in-repo jobs, so copying them into bird would leave two definition
   required checks.
 - R4. A pull request whose CLI or schema surface grows fails unless its `## Changelog` block has a bullet under
   `### Added`, `### Deprecated`, or `### Breaking changes`.
+- R9. `lint-basics.yml` offers a shellcheck job, off unless its caller turns it on, for repositories `rust-ci.yml` never
+  reaches (bird-skill and xurl-rs-skill each run an in-repo copy).
 
 **bird**
 
@@ -62,20 +65,19 @@ these, but as in-repo jobs, so copying them into bird would leave two definition
 
 **xurl-rs**
 
-- R8. After its release ships, xurl-rs calls the shared jobs in place of its in-repo copies, keeping its repo-specific
-  jobs (`semver`, `consumer`, `features`, `parity`, `feature-powerset`) in-repo.
+- R8. The xurl-rs team receives a request, with the exact caller inputs, to call the shared jobs in place of its in-repo
+  copies, keeping its repo-specific jobs (`semver`, `consumer`, `features`, `parity`, `feature-powerset`) in-repo.
 
 ### Scope Boundaries
 
-- Outside this plan: bird's hooks (lane A1 adopts the template `pre-commit` and `pre-push`), the ruleset changes (lane
-  A1 prepares them from U11's check names), and the `.anc.toml` and stack 2 work that clears bird's two anc failures.
+- Outside this plan: the template hooks themselves and the ruleset JSON (lane A1 landed both in stack 1), and the stack
+  2 work that clears bird's two anc failures. This plan changes the hook only where it mirrors a moved check.
 
 #### Deferred to Follow-Up Work
 
-- bird calling `lint-basics.yml` (actionlint and markdownlint), which xurl-rs already calls; it needs no new shared
-  work.
 - Making `cargo-inputs.sh` and `check-surface-bump.sh` canonical templates in `github-repo-setup`, once both
   repositories run per-repo copies that agree on an interface.
+- bird-skill and xurl-rs-skill calling U12's shellcheck job in place of their in-repo copies.
 
 ---
 
@@ -102,8 +104,12 @@ these, but as in-repo jobs, so copying them into bird would leave two definition
   PR body, so it needs the `edited` trigger, which a CI run does not have. The caller owns the triggers (`opened`,
   `edited`, `synchronize`, `reopened`; `branches-ignore: [main]`) and the concurrency group.
 - KTD5. **bird's R20 guard becomes bird's `scripts/lint-stdio.sh`.** The rule is unchanged. The script passes `src` to
-  `rg` explicitly, because with no path and a non-terminal stdin `rg` searches stdin: in a pre-push hook, whose stdin is
-  git's ref list, the current inline step reads the refs and passes without looking at `src/`.
+  `rg` explicitly, because with no path and a non-terminal stdin `rg` searches stdin: inside a pre-push hook, whose
+  stdin is git's ref pipe, a pathless call reads the pipe and passes without looking at `src/`.
+- KTD8. **The hook and CI share one classifier and one mirror table.** The pre-push hook scopes its Rust battery with
+  `scripts/cargo-inputs.sh`, the script `rust-change-scope.yml` runs, so a push and its PR skip on the same changes.
+  `tests/hook_ci_parity.rs` maps the msrv, doc, output-discipline, and concurrency steps to their opt-in `rust-ci.yml`
+  jobs, fails when `ci.yml` does not set the input, and fails when the hook scopes with anything else.
 - KTD6. **The anc job audits the source tree and the release binary together** (`anc audit . --bin <bin>` after
   `cargo build --release --locked --bin <bin>`), so source rows such as `code-unwrap` count. Inputs: `anc_version`
   (empty means off; the pin makes an anc release reach a consumer only through a PR that bumps it), `anc_bin`,
@@ -142,6 +148,7 @@ flowchart TB
 | `rust-ci.yml`             | `anc_version`, `anc_bin`, `anc_score_floor`, `anc_blocking_tiers`, `release_size_ceiling_bytes` | string empty, string empty, number 0, string `must`, number 0       | Agent-native audit                   |
 | `rust-change-scope.yml`   | `script`                                                                                        | string, `scripts/cargo-inputs.sh`                                   | Change scope (output `rust`)         |
 | `rust-changelog-bump.yml` | `script`, `surface_paths`                                                                       | string `scripts/check-surface-bump.sh`, string `completions schema` | Surface growth needs a minor section |
+| `lint-basics.yml`         | `shellcheck`, `shellcheck-files`, `shellcheck-severity`                                         | bool false, string `*.sh scripts/hooks/*`, string `warning`         | shellcheck                           |
 
 ### Assumptions
 
@@ -149,17 +156,15 @@ flowchart TB
   xurl-rs's script already carries the `tomllib` shim for 3.10.
 - bird's MSRV (`rust-version = "1.94"`) compiles the tree with `--all-features --locked`; the pre-push hook runs the
   same check when the toolchain is installed.
-- No Rust source in bird names a markdown file in a string literal today, so every markdown path except the manifest's
-  `readme` is documentation only for bird's classifier.
+- No Rust source in bird names a markdown file in a string literal today, so every markdown path except `README.md` is
+  documentation only for bird's classifier.
 
 ### Risks & Dependencies
 
 - bird's anc gate is red until stack 2 clears `code-unwrap` and `p6-must-sigterm`, so U9 lands after stack 2.
 - Turning on the shared jobs in xurl-rs renames its required checks (`Doc build` becomes `ci / Doc build`). Its rulesets
   must change in the same window, which is a live-settings change for the user to approve.
-- Lane A1 edits bird's `ci.yml` (trigger, concurrency, `advisories_blocking`) and vendors
-  `scripts/check-workflow-concurrency.sh`. bird's consumer PRs rebase onto stack 1 when it merges; the vendored script
-  is byte-identical in both.
+- Requiring U11's contexts before U5 to U8 merge would block every bird merge on checks that never report.
 
 ---
 
@@ -214,7 +219,8 @@ flowchart TB
 - **Dependencies:** U1.
 - **Files:** `.github/workflows/ci.yml`, `scripts/lint-stdio.sh` (new), `scripts/check-workflow-concurrency.sh`
   (vendored verbatim from `github-repo-setup`), `.github/workflows/guard-r20.yml` (removed).
-- **Approach:** KTD5. The pre-push R20 step moves to calling `scripts/lint-stdio.sh` when lane A1's hook adoption lands.
+- **Approach:** KTD5, KTD8. The pre-push hook's `output discipline` step calls `scripts/lint-stdio.sh`, and
+  `tests/hook_ci_parity.rs` maps the hook's msrv, doc, output-discipline, and concurrency steps to their opt-in jobs.
 - **Test scenarios:** the script passes on `dev`; an added `eprintln!` in `src/cli/` fails with its file and line;
   `src/error/fatal.rs` stays exempt.
 - **Verification:** the draft PR's runs.
@@ -233,9 +239,11 @@ flowchart TB
 - **Goal:** R3, R5.
 - **Dependencies:** U3, U6 (stacked).
 - **Files:** `scripts/cargo-inputs.sh` (new), `.github/workflows/ci.yml`.
-- **Approach:** a markdown path is documentation only unless a tracked `.rs` file names it in a string literal or a
-  tracked `Cargo.toml` names it as `readme`; every other path is a cargo input. The `ci` job takes `needs: scope`,
-  `if: ${{ !cancelled() }}`, and `docs_only` from the scope output.
+- **Approach:** a markdown path is documentation only unless a tracked `.rs` file names it in a string literal or it is
+  a README, which cargo packages; `.context/`, the license texts, and the `.github` files no test reads are
+  documentation too, and every other path is a cargo input. The `ci` job takes `needs: scope`,
+  `if: ${{ !cancelled() }}`, and `docs_only` from the scope output. The pre-push hook scopes with the same script
+  (KTD8).
 - **Test scenarios:** `printf 'docs/x.md\n' | bash scripts/cargo-inputs.sh` prints nothing; `README.md`, `src/main.rs`,
   and `.github/workflows/ci.yml` each print themselves.
 - **Verification:** the scope job's runs on a docs-only and a code commit.
@@ -259,16 +267,55 @@ flowchart TB
   2 leaves.
 - **Verification:** `ci / Agent-native audit` green.
 
-### U10. xurl-rs adopts the shared jobs (after its release ships)
+### U10. Request to the xurl-rs team: call the shared jobs
 
 - **Goal:** R8.
-- **Dependencies:** U1 to U4 merged; the xurl-rs release shipped.
-- **Files (xurl-rs):** `.github/workflows/ci.yml`, `.github/workflows/changelog-bump.yml`, `.github/rulesets/*.json`.
-- **Approach:** its `scope` job becomes a `rust-change-scope.yml` call on its own `scripts/cargo-inputs.sh`; `docs`
-  (with `docs_rs_package: xdk-rs`), `completions`, `msrv`, `lint-stdio`, the concurrency step, and `anc` (with its size
-  ceiling) become `rust-ci.yml` inputs; `changelog-bump.yml` becomes a caller. Required contexts in both rulesets are
-  renamed in the same window, with the user's approval.
-- **Verification:** xurl-rs CI green on the adoption PR with each moved check reporting under its new name.
+- **Dependencies:** U1 to U4 merged.
+- **Approach:** bird writes no code in xurl-rs; this is the request, sent once U1 to U4 are on `main`. xurl-rs keeps its
+  scripts (`scripts/cargo-inputs.sh`, `scripts/lint-stdio.sh`, `scripts/generate-completions.sh`,
+  `scripts/check-workflow-concurrency.sh`, `scripts/check-surface-bump.sh`) and its repo-specific jobs, and its `ci.yml`
+  drops the `scope`, `lint-stdio`, `docs`, `completions`, `msrv`, and `anc` jobs for this caller:
+
+  ```yaml
+  jobs:
+    scope:
+      uses: brettdavies/.github/.github/workflows/rust-change-scope.yml@main
+    ci:
+      needs: scope
+      if: ${{ !cancelled() }}
+      uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+      with:
+        advisories_blocking: true
+        docs_only: ${{ needs.scope.outputs.rust == 'false' }}
+        docs: true
+        docs_rs_package: xdk-rs
+        msrv: true
+        completions: true
+        lint_stdio: true
+        workflow_concurrency: true
+        anc_version: "0.6.0"
+        anc_bin: xr
+        anc_score_floor: 98
+        release_size_ceiling_bytes: 9600000
+  ```
+
+  Its `changelog-bump.yml` keeps its triggers and concurrency group and replaces its `surface` job with
+  `uses: brettdavies/.github/.github/workflows/rust-changelog-bump.yml@main` under a `changelog-bump` job key. The
+  required contexts in both rulesets move to the prefixed names (`Doc build` becomes `ci / Doc build`, `Change scope`
+  becomes `scope / Change scope`, `Surface growth needs a minor section` becomes
+  `changelog-bump / Surface growth needs a minor section`), a live-settings change for the user to approve.
+- **Verification:** xurl-rs CI green with each moved check reporting under its new name; the xurl-rs team owns it.
+
+### U12. Opt-in shellcheck job in `lint-basics.yml`
+
+- **Goal:** R9.
+- **Files:** `.github/workflows/lint-basics.yml` (in `brettdavies/.github`).
+- **Approach:** `shellcheck: true` lints the tracked files `shellcheck-files` names (git pathspecs) at
+  `shellcheck-severity`; a pathspec set that matches nothing fails, so a renamed directory cannot pass with nothing
+  checked. xurl-rs-skill's caller would pass `shellcheck-files: 'scripts/*.sh tests/*.sh fixtures/bin/xr'` and
+  `shellcheck-severity: style`.
+- **Test scenarios:** a bird probe with the defaults passes over bird's tracked scripts; a seeded SC2164 fails it.
+- **Verification:** both probe runs linked from the PR.
 
 ### U11. Required-check names for the rulesets
 
@@ -285,23 +332,24 @@ flowchart TB
 
 | Check                  | Command or evidence                                                                                              | Applies to |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- |
-| Workflow lint          | `actionlint` and `bash scripts/check-workflow-concurrency.sh` in `brettdavies/.github`                           | U1 to U4   |
-| Shared jobs work       | a bird draft PR calling each workflow at the `.github` branch ref, green, plus the negative runs each unit names | U1 to U8   |
+| Workflow lint          | `actionlint` and `bash scripts/check-workflow-concurrency.sh` in `brettdavies/.github`                           | U1-U4, U12 |
+| Shared jobs work       | a bird draft PR calling each workflow at the `.github` branch ref, green, plus the negative runs each unit names | U1-U8, U12 |
 | bird scripts           | `shellcheck --severity=warning` and `shfmt -i 2 -ci -bn -d` on every new script                                  | U5, U7, U8 |
 | bird gates             | `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all`, `cargo deny check`   | U5 to U9   |
 | No consumer regression | the `.github` PR's own lint run, and a consumer run with no new input showing unchanged job verdicts             | U1, U2     |
 
 ## Definition of Done
 
-- U1 to U4 are open as `.github` PRs with green lint and linked evidence runs, and merged once the user approves.
+- U1 to U4 and U12 are open as `.github` PRs with green lint and linked evidence runs, and merged once the user
+  approves.
 - U5 to U8 are merged in bird, calling `@main`; U9 is merged after stack 2.
 - `guard-r20.yml` is gone and the R20 rule runs only through `scripts/lint-stdio.sh`.
-- U10 is open as a xurl-rs PR after its release, with the ruleset rename ready for approval.
+- U10 has gone to the xurl-rs team as a request.
 - No experimental workflow edits or scratch branches remain in either repository.
 
 ## Open Questions
 
 - Whether xurl-rs's anc gate moves from its binary-only audit (`--command target/release/xr`, floor 98) to KTD6's
-  source-and-binary audit; its floor is re-measured at U10 either way.
+  source-and-binary audit; the shared job runs the latter, so its floor of 98 is re-measured on adoption.
 - Whether `ci / Agent-native audit` becomes a required check on bird's `main`, given that an anc release can only reach
   it through a pin bump.
