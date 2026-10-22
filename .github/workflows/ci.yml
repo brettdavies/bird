@@ -1,32 +1,59 @@
-# Source repo CI wrapper — calls the centralized reusable workflow.
-# Copy to .github/workflows/ci.yml in the tool repo.
+# Source repo CI wrapper: calls the centralized reusable workflows.
 #
-# The reusable workflow runs: fmt, clippy, test, cargo-deny audit, package check,
-# Windows dep check, and changelog verification (on PRs to main).
-# No secrets required — only needs contents: read and pull-requests: read.
+# rust-ci.yml runs fmt, clippy, test, cargo-deny check, package check, Windows
+# check, shellcheck, and changelog verification (on PRs to main).
+# lint-basics.yml runs actionlint and markdownlint.
+# No secrets required: only contents: read and pull-requests: read.
 #
-# Push trigger is scoped to main/dev only — feature branches get CI via
-# pull_request. This prevents duplicate runs when a branch push and PR
-# creation fire seconds apart. tags-ignore prevents CI on release tag pushes
-# (the release workflow handles those). paths-ignore skips doc-only pushes.
-# paths-ignore is NOT applied to pull_request to avoid blocking required
-# status checks when a PR only touches ignored paths.
+# pull_request only: merges to main and dev are squash merges, so the merge
+# commit's tree equals the PR head this workflow already verified, and a push
+# run would re-check an identical tree for no new signal. The compensating
+# local gate is the hook pair at scripts/hooks/, which mirrors these jobs
+# before the push leaves the machine.
 name: CI
 
 on:
-  push:
-    branches: [main, dev]
-    tags-ignore: ['**']
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE-*'
-      - 'docs/**'
   pull_request:
 
 permissions:
   contents: read
   pull-requests: read
 
+# The group key leads with a literal token naming this workflow. A key built
+# only from context (`${{ github.workflow }}`) is one the reusables called below
+# also produce, because `github.workflow` resolves to this caller's name inside
+# a called workflow; both then land in one group and a reusable's queue cancels
+# this run. The reusables carry their own `rust-ci-` and `lint-basics-` tokens.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   ci:
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+    with:
+      # An advisory turns this run red rather than leaving it green with one
+      # failed job, so the run's colour matches what a human scanning the
+      # Actions tab should act on.
+      advisories_blocking: true
+
+  # The planning archives (docs/plans, docs/brainstorms) never ship to main and
+  # carry long lines and unaligned tables the rules reject; every document that
+  # ships is linted. CHANGELOG.md is generated and wraps where the generator
+  # wraps.
+  # .claude/ is a gitignored symlink, absent from this checkout.
+  lint:
+    uses: brettdavies/.github/.github/workflows/lint-basics.yml@main
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      markdownlint-globs: |
+        **/*.md
+        !CHANGELOG.md
+        !.claude/**
+        !docs/plans/**
+        !docs/brainstorms/**
