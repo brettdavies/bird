@@ -35,12 +35,12 @@ pub(super) fn sync_actual_usage(
         if !quiet {
             let body = response.body();
             if body.contains("429") || body.contains("Too Many") {
-                writeln!(stderr, "[usage] Rate limited. Showing local data only.").ok();
+                writeln!(stderr, "[spend] Rate limited. Showing local data only.").ok();
             } else {
                 let msg = output::sanitize_for_stderr(&body, 200);
                 writeln!(
                     stderr,
-                    "[usage] Sync failed: {}. Showing local data only.",
+                    "[spend] Sync failed: {}. Showing local data only.",
                     msg
                 )
                 .ok();
@@ -102,7 +102,7 @@ pub(super) fn sync_actual_usage(
             if !quiet {
                 writeln!(
                     stderr,
-                    "[usage] Cache database unavailable for storing actuals. Showing local data only."
+                    "[spend] Cache database unavailable for storing actuals. Showing local data only."
                 )
                 .ok();
             }
@@ -137,7 +137,7 @@ pub(super) fn sync_actual_usage(
     if !quiet {
         writeln!(
             stderr,
-            "[usage] synced {} days of actual usage from X API",
+            "[spend] synced {} days of actual usage from X API",
             results.len()
         )
         .ok();

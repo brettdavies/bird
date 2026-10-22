@@ -1,0 +1,5 @@
+Examples:
+  bird spend                                        # last 30 days from the local ledger (text)
+  bird spend --output json                          # paired JSON
+  bird spend --since 2026-05-01 --pretty
+  bird spend --sync                                 # also fetch X's actual usage

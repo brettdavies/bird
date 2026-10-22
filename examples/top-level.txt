@@ -14,7 +14,7 @@ Examples:
   bird dm jack "great work today"               # direct message
   bird watchlist add jack                       # manage watchlist
   bird watchlist fetch                          # check watched users
-  bird usage --since 2026-05-01                 # API cost breakdown
+  bird spend --since 2026-05-01                 # estimated API cost
   bird doctor                                   # diagnose environment
   bird cache stats                              # store health (text)
   bird cache stats --output json                # store health (paired JSON)

@@ -1,9 +1,10 @@
-//! `bird usage` — view API usage and costs.
+//! `bird spend` — the local ledger of estimated API cost, with X's actual
+//! figures beside it under `--sync`.
 
 use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
-use crate::usage;
+use crate::spend;
 
 pub fn run(
     client: &mut db::BirdClient,
@@ -11,10 +12,10 @@ pub fn run(
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,
     since: Option<String>,
-    local: bool,
+    sync: bool,
     pretty: bool,
 ) -> Result<(), BirdError> {
-    usage::run_usage(client, out, stdout, stderr, since.as_deref(), local, pretty)
-        .map_err(|e| BirdError::from_source("usage", e))?;
+    spend::run_spend(client, out, stdout, stderr, since.as_deref(), !sync, pretty)
+        .map_err(|e| BirdError::from_source("spend", e))?;
     Ok(())
 }

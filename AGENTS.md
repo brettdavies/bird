@@ -45,10 +45,10 @@ bird watchlist list
 bird watchlist fetch
 bird watchlist remove x
 
-# Usage tracking and cache inspection — `bird usage` syncs from the API by default;
-# `--local` skips the API and shows only the local cost-estimate ledger
-bird usage
-bird usage --local
+# Spend ledger and cache inspection — `bird spend` reads the local cost-estimate
+# ledger with no request; `--sync` also fetches X's actual usage beside it
+bird spend
+bird spend --sync
 bird cache stats --pretty
 bird cache clear
 
@@ -122,9 +122,9 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `validate_auth_value`, etc.).
 - `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
 - `src/cli/clap_errors.rs` — clap → `BirdError` mapping for `try_parse_from`.
-- `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me), `bookmarks.rs`, `profile.rs`,
-  `search.rs`, `thread.rs`, `watchlist.rs` (Fetch only — Add/Remove/List are
-  pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 write verbs share a single `execute` helper).
+- `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me), `bookmarks.rs`, `profile.rs`, `search.rs`,
+  `thread.rs`, `watchlist.rs` (Fetch only — Add/Remove/List are pre-dispatched), `spend.rs`, `cache.rs`, plus `writes/`
+  (the 13 write verbs share a single `execute` helper).
 - `src/xurl_client/` — bird's seam over the embedded `xdk-rs` library. `mod.rs` declares the `XurlClient` trait (one
   generic `send_request`; bird renders every request itself) and `EmbeddedClient` (an `xdk::api::Client` plus the
   current-thread tokio runtime that blocks on its async calls); `mock.rs` is the `MockXurlClient` test double;
@@ -132,7 +132,7 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
 - `src/db/` — SQLite entity store: `store/` (per-entity table modules + migrations; `Connection` wrapped in
   `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware client wrapping `XurlClient`, split into
   per-shape request modules including the `embedded` seam), `usage.rs` (per-call cost ledger).
-- `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist/`, `src/usage/` —
+- `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist/`, `src/spend/` —
   per-command handlers; streaming where the endpoint paginates.
 - `src/doctor.rs` — diagnostic report (linked xdk-rs crate version, per-app auth state, per-command accepted vs.
   credentialed schemes, cache health).
@@ -176,8 +176,8 @@ on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--p
 with ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
 informational stderr diagnostics.
 
-Stdout success document on `--output json`, the ok envelope `xr` prints for a result it assembles. A list carries
-`data` and `meta`; a single record puts its fields beside `status`; a message-shaped result is `message`:
+Stdout success document on `--output json`, the ok envelope `xr` prints for a result it assembles. A list carries `data`
+and `meta`; a single record puts its fields beside `status`; a message-shaped result is `message`:
 
 ```json
 {"status": "ok", "data": [...], "meta": {...}}
@@ -185,9 +185,10 @@ Stdout success document on `--output json`, the ok envelope `xr` prints for a re
 {"status": "ok", "message": "Added @jack to watchlist."}
 ```
 
-Under `--dry-run` a write prints `{"status": "dry_run", "would_succeed": true, "exit_code": 0, "command", "method",
-"url"}`, with `body` when the request has one and `confirmation_required: true` without `--force`. The reads that print
-X's response body (`me`, `profile`, `bookmarks`, `search`, `get`) keep that body as their document.
+Under `--dry-run` a write prints
+`{"status": "dry_run", "would_succeed": true, "exit_code": 0, "command", "method", "url"}`, with `body` when the request
+has one and `confirmation_required: true` without `--force`. The reads that print X's response body (`me`, `profile`,
+`bookmarks`, `search`, `get`) keep that body as their document.
 
 Stderr error envelope under a structured output mode, the one `xr` prints:
 
@@ -208,10 +209,10 @@ plain text, or an ok envelope carrying `data.help` / `data.version` when JSON is
 
 ## JSON Schema documents
 
-`bird schema` takes `xr schema`'s forms and prints JSON Schema 2020-12 documents: `envelope` (every `ok`, `dry_run`,
-and `error` document, generated from the envelope types) and one per command, named by the command: `bookmarks`,
-`cache-stats`, `doctor`, `profile`, `search`, `skill-install`, `skill-update`, `thread`, `usage`,
-`watchlist-fetch`, `watchlist-list`. A schema prints as itself, never wrapped. The documents carry no `$id`.
+`bird schema` takes `xr schema`'s forms and prints JSON Schema 2020-12 documents: `envelope` (every `ok`, `dry_run`, and
+`error` document, generated from the envelope types) and one per command, named by the command: `bookmarks`,
+`cache-stats`, `doctor`, `profile`, `search`, `skill-install`, `skill-update`, `spend`, `thread`, `watchlist-fetch`,
+`watchlist-list`. A schema prints as itself, never wrapped. The documents carry no `$id`.
 
 ```bash
 bird schema envelope              # the envelope schema
@@ -248,12 +249,12 @@ The entity store sits in front of every read command. Three modes:
 | 143  | Cancelled: SIGTERM arrived while an X API call was in flight (`reason: "cancelled"`)        |
 
 Every code xdk-rs classifies (1, 2 for an auth-scheme mismatch, 3, 4, 5, 77) is `xdk::Error::exit_code`, and the
-envelope's `reason` is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD
-`sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix your config" from "API blew
-up." A write without `--force` under `--no-interactive` exits 1 with `confirmation-required`, as `xr`'s does, instead of
-hanging; a prompt answered no exits 0 having done nothing. SIGTERM or SIGINT during an X API call drops the call and
-reports `cancelled` with 128 plus the signal number; with no call in flight the signal takes its default action and the
-process stops with no envelope.
+envelope's `reason` is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD `sysexits.h`
+convention and lets agent harnesses distinguish "fix your tokens" from "fix your config" from "API blew up." A write
+without `--force` under `--no-interactive` exits 1 with `confirmation-required`, as `xr`'s does, instead of hanging; a
+prompt answered no exits 0 having done nothing. SIGTERM or SIGINT during an X API call drops the call and reports
+`cancelled` with 128 plus the signal number; with no call in flight the signal takes its default action and the process
+stops with no envelope.
 
 ## Token and file permissions
 
@@ -290,9 +291,9 @@ bird skill install --all                    # install into every supported host
 bird skill update claude_code               # remove destination + re-clone
 ```
 
-Without `<host>` or `--all`, `bird skill install` returns exit 2 (a `missing-host` envelope)
-and lists the supported hosts. Output under `--output json` is the install/update envelope (`action`, `host`,
-`install_dir`, `command_preview`, `destination_status`, `status`, `exit_code`, optional `reason`).
+Without `<host>` or `--all`, `bird skill install` returns exit 2 (a `missing-host` envelope) and lists the supported
+hosts. Output under `--output json` is the install/update envelope (`action`, `host`, `install_dir`, `command_preview`,
+`destination_status`, `status`, `exit_code`, optional `reason`).
 
 The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=never`, `protocol.https.allow=always`,
 `http.followRedirects=false` are applied via `-c key=value`; `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_PROXY_COMMAND`,

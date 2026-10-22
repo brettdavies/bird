@@ -94,11 +94,11 @@ pub fn run(
             | WatchlistCommand::Remove { .. }
             | WatchlistCommand::List => Ok(()),
         },
-        Command::Usage {
+        Command::Spend {
             since,
-            local,
+            sync,
             common: OutputFlags { pretty },
-        } => commands::usage::run(client, out, stdout, stderr, since, local, pretty),
+        } => commands::spend::run(client, out, stdout, stderr, since, sync, pretty),
         Command::Tweet {
             text,
             media_id,
@@ -291,7 +291,7 @@ pub fn command_is_api_hitting(cmd: &Command) -> bool {
         | Command::Profile { .. }
         | Command::Search { .. }
         | Command::Thread { .. }
-        | Command::Usage { .. }
+        | Command::Spend { .. }
         | Command::Tweet { .. }
         | Command::Reply { .. }
         | Command::Like { .. }
@@ -345,7 +345,7 @@ fn command_requires_auth(cmd: &Command) -> bool {
         | Command::Schema { .. }
         | Command::Skill { .. }
         | Command::Doctor { .. }
-        | Command::Usage { .. } => false,
+        | Command::Spend { .. } => false,
         // Every remaining command hits the X API and requires some
         // non-`None` auth scheme.
         _ => true,

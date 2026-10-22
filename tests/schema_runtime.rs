@@ -55,7 +55,7 @@ fn offline_commands_match_their_schemas() {
                 "fetch",
             ],
         ),
-        ("usage", &["bird", "--output", "json", "usage", "--local"]),
+        ("spend", &["bird", "--output", "json", "spend"]),
         ("doctor", &["bird", "--output", "json", "doctor"]),
     ];
     for (name, argv) in runs {

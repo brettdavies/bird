@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "bird usage",
-  "description": "The ok document `bird usage` prints under --output json: API usage counts and cost estimates over a window.",
+  "title": "bird spend",
+  "description": "The ok document `bird spend` prints under --output json: the local ledger of API calls and estimated cost over a window, with X's actual figures under `comparison` after `--sync`.",
   "type": "object",
   "required": [
     "status",

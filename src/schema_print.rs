@@ -56,12 +56,12 @@ pub(crate) const SCHEMAS: &[SchemaEntry] = &[
         body: include_str!("../schema/skill-update.schema.json"),
     },
     SchemaEntry {
-        name: "thread",
-        body: include_str!("../schema/thread.schema.json"),
+        name: "spend",
+        body: include_str!("../schema/spend.schema.json"),
     },
     SchemaEntry {
-        name: "usage",
-        body: include_str!("../schema/usage.schema.json"),
+        name: "thread",
+        body: include_str!("../schema/thread.schema.json"),
     },
     SchemaEntry {
         name: "watchlist-fetch",

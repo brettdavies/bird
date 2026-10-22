@@ -70,6 +70,9 @@ _bird() {
             bird,skill)
                 cmd="bird__subcmd__skill"
                 ;;
+            bird,spend)
+                cmd="bird__subcmd__spend"
+                ;;
             bird,thread)
                 cmd="bird__subcmd__thread"
                 ;;
@@ -90,9 +93,6 @@ _bird() {
                 ;;
             bird,unrepost)
                 cmd="bird__subcmd__unrepost"
-                ;;
-            bird,usage)
-                cmd="bird__subcmd__usage"
                 ;;
             bird,watchlist)
                 cmd="bird__subcmd__watchlist"
@@ -169,6 +169,9 @@ _bird() {
             bird__subcmd__help,skill)
                 cmd="bird__subcmd__help__subcmd__skill"
                 ;;
+            bird__subcmd__help,spend)
+                cmd="bird__subcmd__help__subcmd__spend"
+                ;;
             bird__subcmd__help,thread)
                 cmd="bird__subcmd__help__subcmd__thread"
                 ;;
@@ -189,9 +192,6 @@ _bird() {
                 ;;
             bird__subcmd__help,unrepost)
                 cmd="bird__subcmd__help__subcmd__unrepost"
-                ;;
-            bird__subcmd__help,usage)
-                cmd="bird__subcmd__help__subcmd__usage"
                 ;;
             bird__subcmd__help,watchlist)
                 cmd="bird__subcmd__help__subcmd__watchlist"
@@ -275,7 +275,7 @@ _bird() {
 
     case "${cmd}" in
         bird)
-            opts="-u -o -q -v -h -V --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help --version login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
+            opts="-u -o -q -v -h -V --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help --version login me bookmarks profile search thread watchlist spend tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -847,7 +847,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__help)
-            opts="login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
+            opts="login me bookmarks profile search thread watchlist spend tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1168,6 +1168,20 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        bird__subcmd__help__subcmd__spend)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         bird__subcmd__help__subcmd__thread)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
@@ -1253,20 +1267,6 @@ _bird() {
             return 0
             ;;
         bird__subcmd__help__subcmd__unrepost)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        bird__subcmd__help__subcmd__usage)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -2054,6 +2054,64 @@ _bird() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        bird__subcmd__spend)
+            opts="-u -o -q -v -h --since --sync --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --since)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --username)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
+                    return 0
+                    ;;
+                --timeout)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --limit)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cursor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --app)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --auth)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         bird__subcmd__thread)
             opts="-u -o -q -v -h --pretty --max-pages --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -2369,64 +2427,6 @@ _bird() {
                 return 0
             fi
             case "${prev}" in
-                --username)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -u)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --output)
-                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
-                    return 0
-                    ;;
-                -o)
-                    COMPREPLY=($(compgen -W "text json jsonl ndjson" -- "${cur}"))
-                    return 0
-                    ;;
-                --color)
-                    COMPREPLY=($(compgen -W "auto always never" -- "${cur}"))
-                    return 0
-                    ;;
-                --timeout)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --limit)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --cursor)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --app)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --auth)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        bird__subcmd__usage)
-            opts="-u -o -q -v -h --since --local --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --since)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
                 --username)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0

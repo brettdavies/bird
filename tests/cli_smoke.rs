@@ -629,7 +629,7 @@ fn every_subcommand_help_has_example() {
         "search",
         "thread",
         "watchlist",
-        "usage",
+        "spend",
         "tweet",
         "reply",
         "like",
@@ -716,13 +716,25 @@ fn completions_works_without_xurl() {
     assert!(!stdout.is_empty(), "completions bash must emit stdout");
 }
 
-/// `bird usage --local` must be accepted by clap. Asserts clap doesn't reject
-/// the flag with exit 2 (the unrecognised-arg code).
+/// `bird spend` reads the local ledger with no request; `bird usage` names no
+/// command until stack 3 composes `xr`'s.
 #[test]
-fn usage_local_flag_accepted_by_clap() {
+fn spend_reads_the_local_ledger_and_usage_is_gone() {
     let env = common::TestEnv::new();
-    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "usage", "--local"], &env);
-    assert_ne!(exit, 2, "--local must be accepted by clap");
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "spend", "--output", "json"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("spend JSON");
+    assert_eq!(doc["status"], "ok");
+    assert_eq!(doc["sync_status"], "skipped");
+
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "usage", "--output", "json"], &env);
+    assert_eq!(exit, 2);
+    assert_eq!(
+        common::stderr_envelope(&stderr)["reason"],
+        "unknown-command"
+    );
 }
 
 // --- Skill install destinations ------------------------------------------

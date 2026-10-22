@@ -13,7 +13,7 @@ X API library and adds capabilities `xr` doesn't have:
   `--refresh`, `--no-cache`, and `--cache-only` modes.
 - **Thread reconstruction** — Rebuilds full conversation threads from a single tweet ID.
 - **Watchlist** — Monitor a list of users for recent activity without manual searches.
-- **Usage tracking** — Local API usage history with cost estimation; `--sync` to refresh from the X API.
+- **Spend ledger** — Local history of API calls with cost estimates (`bird spend`); `--sync` adds X's actuals.
 - **Structured errors** — Machine-readable JSON errors on stderr for agent and CI integration.
 - **Self-diagnostics** — `bird doctor` reports the embedded X API client, auth state, command availability, and store
   health in one place.
@@ -125,8 +125,8 @@ No config or app creation needed.
 | `bird watchlist add <user>`    | Add a user to the watchlist             |
 | `bird watchlist remove <user>` | Remove a user from the watchlist        |
 | `bird watchlist list`          | Show the current watchlist              |
-| `bird usage`                   | View local API usage and cost estimates |
-| `bird usage --sync`            | Refresh usage data from the X API       |
+| `bird spend`                   | View the local spend ledger             |
+| `bird spend --sync`            | Also fetch X's actual usage             |
 
 ### System
 

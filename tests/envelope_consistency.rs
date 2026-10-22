@@ -109,7 +109,7 @@ fn bird_owned_commands_print_a_status_document() {
         ),
         (&["bird", "--output", "json", "watchlist", "fetch"], "ok"),
         (&["bird", "--output", "json", "doctor"], "ok"),
-        (&["bird", "--output", "json", "usage", "--local"], "ok"),
+        (&["bird", "--output", "json", "spend"], "ok"),
         (
             &["bird", "--output", "json", "like", "1", "--dry-run"],
             "dry_run",

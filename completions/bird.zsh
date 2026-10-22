@@ -516,9 +516,9 @@ esac
     ;;
 esac
 ;;
-(usage)
+(spend)
 _arguments "${_arguments_options[@]}" : \
-'--since=[Show usage since this date (YYYY-MM-DD; default\: 30 days ago)]:SINCE:_default' \
+'--since=[Show spend since this date (YYYY-MM-DD; default\: 30 days ago)]:SINCE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -537,7 +537,7 @@ never\:"Never emit colors"))' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
 '--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
-'--local[Show only local estimates (skip API)]' \
+'--sync[Also fetch X'\''s actual usage (GET /2/usage/tweets) to set beside the estimates]' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1552,7 +1552,7 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
-(usage)
+(spend)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1691,7 +1691,7 @@ _bird_commands() {
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
 'thread:Reconstruct a conversation thread from a post' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
-'usage:View API usage and costs' \
+'spend:Show the local spend ledger\: estimated API cost per call' \
 'tweet:Post a tweet (via xurl)' \
 'reply:Reply to a tweet (via xurl)' \
 'like:Like a tweet (via xurl)' \
@@ -1797,7 +1797,7 @@ _bird__subcmd__help_commands() {
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
 'thread:Reconstruct a conversation thread from a post' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
-'usage:View API usage and costs' \
+'spend:Show the local spend ledger\: estimated API cost per call' \
 'tweet:Post a tweet (via xurl)' \
 'reply:Reply to a tweet (via xurl)' \
 'like:Like a tweet (via xurl)' \
@@ -1936,6 +1936,11 @@ _bird__subcmd__help__subcmd__skill__subcmd__update_commands() {
     local commands; commands=()
     _describe -t commands 'bird help skill update commands' commands "$@"
 }
+(( $+functions[_bird__subcmd__help__subcmd__spend_commands] )) ||
+_bird__subcmd__help__subcmd__spend_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird help spend commands' commands "$@"
+}
 (( $+functions[_bird__subcmd__help__subcmd__thread_commands] )) ||
 _bird__subcmd__help__subcmd__thread_commands() {
     local commands; commands=()
@@ -1970,11 +1975,6 @@ _bird__subcmd__help__subcmd__unmute_commands() {
 _bird__subcmd__help__subcmd__unrepost_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unrepost commands' commands "$@"
-}
-(( $+functions[_bird__subcmd__help__subcmd__usage_commands] )) ||
-_bird__subcmd__help__subcmd__usage_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird help usage commands' commands "$@"
 }
 (( $+functions[_bird__subcmd__help__subcmd__watchlist_commands] )) ||
 _bird__subcmd__help__subcmd__watchlist_commands() {
@@ -2094,6 +2094,11 @@ _bird__subcmd__skill__subcmd__update_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill update commands' commands "$@"
 }
+(( $+functions[_bird__subcmd__spend_commands] )) ||
+_bird__subcmd__spend_commands() {
+    local commands; commands=()
+    _describe -t commands 'bird spend commands' commands "$@"
+}
 (( $+functions[_bird__subcmd__thread_commands] )) ||
 _bird__subcmd__thread_commands() {
     local commands; commands=()
@@ -2128,11 +2133,6 @@ _bird__subcmd__unmute_commands() {
 _bird__subcmd__unrepost_commands() {
     local commands; commands=()
     _describe -t commands 'bird unrepost commands' commands "$@"
-}
-(( $+functions[_bird__subcmd__usage_commands] )) ||
-_bird__subcmd__usage_commands() {
-    local commands; commands=()
-    _describe -t commands 'bird usage commands' commands "$@"
 }
 (( $+functions[_bird__subcmd__watchlist_commands] )) ||
 _bird__subcmd__watchlist_commands() {
