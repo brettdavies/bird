@@ -35,8 +35,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -83,8 +81,6 @@ never\:"Never emit colors"))' \
 '--no-browser[Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -122,8 +118,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -161,8 +155,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -198,8 +190,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -242,8 +232,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -283,8 +271,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -297,7 +283,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':tweet_id -- Tweet ID (root tweet or any reply in the thread):_default' \
+':post_id -- Post ID (the root post or any reply in the thread):_default' \
 && ret=0
 ;;
 (watchlist)
@@ -323,8 +309,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -369,8 +353,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -405,8 +387,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -419,7 +399,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':username -- X/Twitter username (with or without @):_default' \
+':username -- X username (with or without @):_default' \
 && ret=0
 ;;
 (remove)
@@ -445,8 +425,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -459,7 +437,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':username -- X/Twitter username to remove:_default' \
+':username -- X username to remove:_default' \
 && ret=0
 ;;
 (list)
@@ -484,8 +462,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -565,8 +541,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -607,8 +581,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -649,8 +621,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -692,8 +662,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -734,8 +702,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -776,8 +742,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -818,8 +782,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -858,8 +820,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -898,8 +858,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -938,8 +896,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -979,8 +935,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1019,8 +973,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1059,8 +1011,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1099,8 +1049,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1139,8 +1087,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1178,8 +1124,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1227,8 +1171,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1266,8 +1208,6 @@ never\:"Never emit colors"))' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1336,8 +1276,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1375,8 +1313,6 @@ never\:"Never emit colors"))' \
 '--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1423,8 +1359,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Print the planned clone command without spawning git]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1464,8 +1398,6 @@ never\:"Never emit colors"))' \
 '--dry-run[Print the planned operation without touching the filesystem]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1537,8 +1469,6 @@ never\:"Never emit colors"))' \
 '--all[Print every schema in one object keyed by name]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
-'--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
-'--no-color[Deprecated alias for \`--color never\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
 '--quiet[Suppress informational stderr output (keep only fatal errors)]' \
 '*-v[Increase verbosity (repeatable\: -v info, -vv debug, -vvv trace)]' \
@@ -1759,7 +1689,7 @@ _bird_commands() {
 'bookmarks:List bookmarks for the current user (paginated, max_results=100)' \
 'profile:Look up a user profile by username' \
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
-'thread:Reconstruct a conversation thread from a tweet' \
+'thread:Reconstruct a conversation thread from a post' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
 'usage:View API usage and costs' \
 'tweet:Post a tweet (via xurl)' \
@@ -1865,7 +1795,7 @@ _bird__subcmd__help_commands() {
 'bookmarks:List bookmarks for the current user (paginated, max_results=100)' \
 'profile:Look up a user profile by username' \
 'search:Search recent tweets (GET /2/tweets/search/recent)' \
-'thread:Reconstruct a conversation thread from a tweet' \
+'thread:Reconstruct a conversation thread from a post' \
 'watchlist:Monitor users\: check recent activity, manage watchlist' \
 'usage:View API usage and costs' \
 'tweet:Post a tweet (via xurl)' \

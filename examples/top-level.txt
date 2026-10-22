@@ -13,7 +13,7 @@ Examples:
   bird follow jack                              # follow a user
   bird dm jack "great work today"               # direct message
   bird watchlist add jack                       # manage watchlist
-  bird watchlist check                          # check watched users
+  bird watchlist fetch                          # check watched users
   bird usage --since 2026-05-01                 # API cost breakdown
   bird doctor                                   # diagnose environment
   bird cache stats                              # store health (text)

@@ -140,7 +140,7 @@ pub struct CacheStatus {
     pub exists: bool,
     pub size_mb: f64,
     pub max_size_mb: u64,
-    pub tweets: u64,
+    pub posts: u64,
     pub users: u64,
     pub raw_responses: u64,
     pub healthy: bool,
@@ -446,7 +446,7 @@ pub(crate) fn report(
                 exists: true,
                 size_mb: (stats.size_mb() * 10.0).round() / 10.0,
                 max_size_mb: stats.max_size_mb() as u64,
-                tweets: stats.tweet_count,
+                posts: stats.post_count,
                 users: stats.user_count,
                 raw_responses: stats.raw_response_count,
                 healthy: stats.healthy(),
@@ -458,7 +458,7 @@ pub(crate) fn report(
             exists: false,
             size_mb: 0.0,
             max_size_mb: 100,
-            tweets: 0,
+            posts: 0,
             users: 0,
             raw_responses: 0,
             healthy: false,
@@ -640,8 +640,8 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             )
         ));
         out.push_str(&format!(
-            "  tweets: {}\n",
-            output::muted(&cache.tweets.to_string(), use_color)
+            "  posts: {}\n",
+            output::muted(&cache.posts.to_string(), use_color)
         ));
         out.push_str(&format!(
             "  users: {}\n",

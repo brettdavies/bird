@@ -50,7 +50,7 @@
         "conversation_id": {
           "type": "string"
         },
-        "tweet_count": {
+        "post_count": {
           "type": "integer"
         },
         "pages_fetched": {
@@ -59,7 +59,7 @@
         "complete": {
           "type": "boolean"
         },
-        "root_tweet_age_days": {
+        "root_post_age_days": {
           "type": [
             "integer",
             "null"

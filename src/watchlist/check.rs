@@ -1,4 +1,4 @@
-//! `bird watchlist check` — stream NDJSON activity records for watched users.
+//! `bird watchlist fetch` — stream NDJSON activity records for watched users.
 
 use super::store::load_watchlist;
 use crate::cli::auth_scheme::AuthType;
@@ -6,7 +6,7 @@ use crate::config::ResolvedConfig;
 use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 
-/// Options for `bird watchlist check`.
+/// Options for `bird watchlist fetch`.
 pub struct CheckOpts<'a> {
     pub pretty: bool,
     /// Maximum number of accounts to check this run.
@@ -15,7 +15,7 @@ pub struct CheckOpts<'a> {
     pub cursor: Option<&'a str>,
 }
 
-/// `bird watchlist check` — check recent activity for all watched users.
+/// `bird watchlist fetch` — check recent activity for all watched users.
 /// Streams NDJSON (one JSON object per line) per user as they complete.
 ///
 /// The injected stdout writer is wrapped in a local `BufWriter` to amortize
@@ -89,10 +89,10 @@ pub fn run_watchlist_check(
         let search_url = build_check_url(&query);
 
         let activity = match execute_check(client, &ctx, &search_url, stderr, cfg) {
-            Ok((tweet_count, latest_tweet, cache_hit)) => AccountActivity {
+            Ok((post_count, latest_post, cache_hit)) => AccountActivity {
                 username: (*username).clone(),
-                recent_tweets: tweet_count,
-                latest_tweet,
+                recent_posts: post_count,
+                latest_post,
                 cache_hit,
             },
             Err(e) if crate::shutdown::Cancelled::find(e.as_ref()).is_some() => return Err(e),
@@ -102,8 +102,8 @@ pub fn run_watchlist_check(
                 }
                 AccountActivity {
                     username: (*username).clone(),
-                    recent_tweets: 0,
-                    latest_tweet: None,
+                    recent_posts: 0,
+                    latest_post: None,
                     cache_hit: false,
                 }
             }
@@ -149,7 +149,7 @@ fn execute_check(
     url: &str,
     stderr: &mut dyn std::io::Write,
     cfg: &crate::output::OutputConfig,
-) -> Result<(u64, Option<LatestTweet>, bool), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(u64, Option<LatestPost>, bool), Box<dyn std::error::Error + Send + Sync>> {
     let response = client.get(url, ctx)?;
 
     if !response.is_success() {
@@ -167,21 +167,21 @@ fn execute_check(
     let estimate = crate::cost::estimate_cost(&json, url, response.cache_hit);
     crate::cost::display_cost(cfg, stderr, &estimate);
 
-    let tweet_count = json
+    let post_count = json
         .get("meta")
         .and_then(|m| m.get("result_count"))
         .and_then(|c| c.as_u64())
         .unwrap_or(0);
 
-    let latest_tweet = extract_latest_tweet(&json);
+    let latest_post = extract_latest_post(&json);
 
-    Ok((tweet_count, latest_tweet, response.cache_hit))
+    Ok((post_count, latest_post, response.cache_hit))
 }
 
-fn extract_latest_tweet(body: &serde_json::Value) -> Option<LatestTweet> {
+fn extract_latest_post(body: &serde_json::Value) -> Option<LatestPost> {
     let data = body.get("data")?.as_array()?;
     let tweet = data.first()?;
-    Some(LatestTweet {
+    Some(LatestPost {
         id: tweet.get("id")?.as_str()?.to_string(),
         text: tweet.get("text")?.as_str()?.to_string(),
         created_at: tweet
@@ -194,7 +194,7 @@ fn extract_latest_tweet(body: &serde_json::Value) -> Option<LatestTweet> {
             .and_then(|m| m.get("like_count"))
             .and_then(|v| v.as_u64())
             .unwrap_or(0),
-        retweets: tweet
+        reposts: tweet
             .get("public_metrics")
             .and_then(|m| m.get("repost_count"))
             .and_then(|v| v.as_u64())
@@ -205,19 +205,19 @@ fn extract_latest_tweet(body: &serde_json::Value) -> Option<LatestTweet> {
 #[derive(serde::Serialize)]
 struct AccountActivity {
     username: String,
-    recent_tweets: u64,
+    recent_posts: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    latest_tweet: Option<LatestTweet>,
+    latest_post: Option<LatestPost>,
     cache_hit: bool,
 }
 
 #[derive(serde::Serialize)]
-struct LatestTweet {
+struct LatestPost {
     id: String,
     text: String,
     created_at: String,
     likes: u64,
-    retweets: u64,
+    reposts: u64,
 }
 
 #[cfg(test)]
@@ -300,13 +300,13 @@ mod tests {
     }
 
     #[test]
-    fn extract_latest_tweet_empty_data() {
+    fn extract_latest_post_empty_data() {
         let body = serde_json::json!({"data": [], "meta": {"result_count": 0}});
-        assert!(extract_latest_tweet(&body).is_none());
+        assert!(extract_latest_post(&body).is_none());
     }
 
     #[test]
-    fn extract_latest_tweet_with_data() {
+    fn extract_latest_post_with_data() {
         let body = serde_json::json!({
             "data": [{
                 "id": "123",
@@ -318,17 +318,17 @@ mod tests {
                 }
             }]
         });
-        let tweet = extract_latest_tweet(&body).expect("test");
+        let tweet = extract_latest_post(&body).expect("test");
         assert_eq!(tweet.id, "123");
         assert_eq!(tweet.text, "hello world");
         assert_eq!(tweet.likes, 42);
-        assert_eq!(tweet.retweets, 5);
+        assert_eq!(tweet.reposts, 5);
     }
 
     #[test]
-    fn extract_latest_tweet_no_data_key() {
+    fn extract_latest_post_no_data_key() {
         let body = serde_json::json!({"meta": {"result_count": 0}});
-        assert!(extract_latest_tweet(&body).is_none());
+        assert!(extract_latest_post(&body).is_none());
     }
 
     #[test]

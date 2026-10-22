@@ -673,7 +673,7 @@ fn every_subcommand_help_has_example() {
 #[test]
 fn nested_subcommand_help_has_example() {
     let nested = [
-        ("watchlist", "check"),
+        ("watchlist", "fetch"),
         ("watchlist", "add"),
         ("watchlist", "remove"),
         ("watchlist", "list"),

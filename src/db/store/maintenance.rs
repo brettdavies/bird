@@ -9,7 +9,7 @@ use crate::db::unix_now;
 /// Entity store statistics for `bird cache stats` and `bird doctor`.
 #[derive(Debug, serde::Serialize)]
 pub struct StoreStats {
-    pub tweet_count: u64,
+    pub post_count: u64,
     pub user_count: u64,
     pub bookmark_count: u64,
     pub raw_response_count: u64,
@@ -38,7 +38,7 @@ impl BirdDb {
     /// Uses (page_count - freelist_count) * page_size for accurate live data size.
     pub fn stats(&self) -> Result<StoreStats, rusqlite::Error> {
         let conn = self.conn();
-        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
+        let post_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
         let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let bookmark_count: i64 =
             conn.query_row("SELECT count(*) FROM bookmarks", [], |r| r.get(0))?;
@@ -50,7 +50,7 @@ impl BirdDb {
         let total_size = self.live_size_bytes()?;
 
         Ok(StoreStats {
-            tweet_count: tweet_count as u64,
+            post_count: post_count as u64,
             user_count: user_count as u64,
             bookmark_count: bookmark_count as u64,
             raw_response_count: raw_response_count as u64,
@@ -73,7 +73,7 @@ impl BirdDb {
     /// Clear all entity data + raw_responses (preserves usage tables).
     pub fn clear(&self) -> Result<u64, rusqlite::Error> {
         let conn = self.conn();
-        let tweet_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
+        let post_count: i64 = conn.query_row("SELECT count(*) FROM posts", [], |r| r.get(0))?;
         let user_count: i64 = conn.query_row("SELECT count(*) FROM users", [], |r| r.get(0))?;
         let raw_count: i64 =
             conn.query_row("SELECT count(*) FROM raw_responses", [], |r| r.get(0))?;
@@ -83,7 +83,7 @@ impl BirdDb {
              DELETE FROM bookmarks;
              DELETE FROM raw_responses;",
         )?;
-        Ok((tweet_count + user_count + raw_count) as u64)
+        Ok((post_count + user_count + raw_count) as u64)
     }
 
     /// Prune old data when over size limit.
@@ -172,7 +172,7 @@ mod tests {
         })
         .expect("test");
         let stats = db.stats().expect("test");
-        assert_eq!(stats.tweet_count, 1);
+        assert_eq!(stats.post_count, 1);
         assert_eq!(stats.user_count, 1);
         assert!(stats.healthy());
     }

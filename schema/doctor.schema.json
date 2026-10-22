@@ -146,7 +146,7 @@
         "exists": { "type": "boolean" },
         "size_mb": { "type": "number" },
         "max_size_mb": { "type": "integer" },
-        "tweets": { "type": "integer" },
+        "posts": { "type": "integer" },
         "users": { "type": "integer" },
         "raw_responses": { "type": "integer" },
         "healthy": { "type": "boolean" },

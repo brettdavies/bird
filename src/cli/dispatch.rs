@@ -72,10 +72,10 @@ pub fn run(
             &list_flags,
         ),
         Command::Thread {
-            tweet_id,
+            post_id,
             common: OutputFlags { pretty },
             max_pages,
-        } => commands::thread::run(client, out, stdout, stderr, tweet_id, pretty, max_pages),
+        } => commands::thread::run(client, out, stdout, stderr, post_id, pretty, max_pages),
         Command::Watchlist {
             action,
             common: OutputFlags { pretty },

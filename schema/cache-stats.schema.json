@@ -20,7 +20,7 @@
     "max_size_mb": {
       "type": "integer"
     },
-    "tweets": {
+    "posts": {
       "type": "integer"
     },
     "users": {
