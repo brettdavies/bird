@@ -49,3 +49,4 @@ Auth requirements for each command are defined in a **central module** (`src/req
 - **Doctor** — Availability and reasons are computed from the same requirements.
 
 The mapping is hand-maintained. Raw commands are treated as “any auth” with a generic hint.
+
