@@ -102,7 +102,9 @@ commands will hand bird's cache post-vocabulary bodies its decomposer cannot rea
   on stdout, with `body` when the request has one and `confirmation_required: true` when the invocation lacks `--force`.
   It sends nothing.
 - R6. `--output json` prints indented JSON, compact under `--raw`. `jsonl` and `ndjson` print one line per document.
-  Help and version text print plain on stdout under every output mode.
+  Help and version print plain text on stdout, and an ok envelope (`{"status":"ok","data":{"help":...}}`) when JSON is
+  asked for by flag: anc 0.6.0 validates the output flag and envelope consistency only through `--help --output json`,
+  so plain help there would turn two passing rows into a warn and a skip.
 - R7. Headless login prints `{"status":"awaiting_callback","url","instructions"}` and then, after the redirect URL
   arrives on stdin, `{"status":"ok","message","username"}`.
 - R8. Text mode prints the same recovery step a structured caller receives, as one hint line naming the command or
@@ -213,6 +215,9 @@ Considered and not built:
 - An auth preflight in the dry run of bird's write verbs (xr fills `auth` and sets `would_succeed` from
   `Client::auth_preflight`). Every such verb retires under stack 3, and the composed `xr` verb carries the preflight.
   Revisit if stack 3 keeps a bird-owned write verb.
+- Decomposing `includes.posts` into the entity store. bird's decomposer reads `data` and `includes.users` only, so
+  storing included posts would be new caching behavior, not a vocabulary change; stack 3's request hook owns
+  decomposition.
 - A dual-read fallback for legacy keys in cached rows. KD4's purge means no legacy row survives the migration, so a
   fallback would only hide a missed rename.
 
@@ -241,9 +246,11 @@ Considered and not built:
   `Envelope` (`Ok`, `DryRun`, `Error(Box<ErrorBody>)`, tagged on `status`), `ErrorBody` with `deny_unknown_fields` and
   only the optional fields R2 names plus any bird-only ones KTD4 needs, and `NextStep`. All three take field names,
   order, and serde attributes from xr's `crates/xurl-cli/src/cli/envelope.rs` and `hints.rs` at the xurl-rs commit bird
-  pins. `NextStep.action` is `xdk::error::NextAction`, imported, never redeclared. Each type derives
-  `schemars::JsonSchema` (schemars 1.2 is already in `Cargo.lock` through xdk-rs, so it becomes a direct dependency at
-  that version). `src/output.rs`, already past 600 lines, becomes `src/output/mod.rs` plus `envelope.rs` and `hints.rs`.
+  pins. `NextStep.action` is bird's `Action`, xr's thirteen actions in `NextAction`'s spelling: xdk-rs 0.2.0 on
+  crates.io declares eight of them, and the package check builds against it, so bird converts xdk's by wire spelling
+  until the xdk-rs release that carries the rest. Each type derives `schemars::JsonSchema` (schemars 1.2 is already in
+  `Cargo.lock` through xdk-rs, so it becomes a direct dependency at that version). `src/output.rs`, already past 600
+  lines, becomes `src/output/mod.rs` plus `envelope.rs` and `hints.rs`.
 - KTD3. **Assembled results get the ok envelope; X's bodies do not.** xr prints X's typed response verbatim
   (`print_response`) and wraps only results it assembles (`print_success`). bird follows the same line. `thread`,
   `watchlist fetch`, local `usage`, `doctor`, `cache`, `watchlist add|remove|list`, `skill`, `--examples`, and `login`
@@ -255,8 +262,9 @@ Considered and not built:
 - KTD4. **The reason set is xr's plus a short bird-only tail, declared once.** `Reason` in `src/output/envelope.rs`
   spells every member the way xr does. Library errors take `xdk::Error::kind()` through a `from_kind` conversion,
   exactly as xr's `Reason::from_kind`. A test reads every kind the pinned xdk-rs declares and fails on one the set
-  lacks. Bird-only members: `config-error` (exit 78) and `cache-miss` (exit 1, `--cache-only` with no stored entry,
-  `next_step.action: fix-input`). The mapping of today's ids:
+  lacks. Bird-only members: `config-error` (exit 78), `cache-miss` (exit 1, `--cache-only` with no stored entry,
+  `next_step.action: fix-input`), and `cancelled` (128 plus the signal, an X API call dropped by SIGTERM or SIGINT). The
+  mapping of today's ids:
 
 | bird id today                                                                                                                                                                                                         | Reason                                         | Exit     |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------- |
@@ -571,6 +579,9 @@ flowchart TB
 
 ### U4. Login envelopes
 
+- **Not done:** stack 3 composes `xr`'s `auth` family and removes `bird login` (lane C's U12, the maintainer's
+  decision), so `xr`'s own `awaiting_callback` envelope replaces bird's. The unit below stays as the record of the
+  shape.
 - **Goal:** Headless login prints xr's `awaiting_callback` document and then an ok envelope (stack 4 item 3).
 - **Requirements:** R7. KTD3.
 - **Dependencies:** U3; dropped if stack 3 retires `bird login`.
@@ -636,7 +647,6 @@ flowchart TB
     `quoted`.
   - Watchlist activity reads `public_metrics.repost_count`.
   - Cost estimation counts `includes.posts`.
-  - Entity decomposition stores posts from `data` and `includes.posts`, and users from `includes.users`.
   - A body carrying only legacy keys yields no references and no included posts (no fallback).
 - **Verification:** no source file outside the R13 allowlist reads or sends a legacy name.
 
@@ -670,6 +680,8 @@ flowchart TB
 
 - **Goal:** bird-owned keys, help, schemas, and docs say post, and the hidden aliases are gone (stack 5 item 2,
   bird-owned half).
+- **Second PR:** lane C's U8 lands right after this unit as its own PR: `bird usage` becomes `bird spend`, the local
+  ledger by default, with `--sync` fetching X's actual usage, so stack 3 can compose `xr`'s `usage`.
 - **Requirements:** R13, R16. KD1.
 - **Dependencies:** U7.
 - **Files:** modify `src/thread.rs` (`meta.tweet_count` to `post_count`, `root_tweet_age_days` to `root_post_age_days`,
