@@ -1,13 +1,17 @@
-//! OAuth2 PKCE login flow via the embedded xurl-rs library.
+//! OAuth2 PKCE login flow via the embedded xdk-rs client.
 //!
 //! Two entry points: an interactive flow (`oauth2_flow`, browser launch) and
 //! a headless two-step flow (`remote_oauth2_step1` / `step2`) for agents and
-//! SSH sessions without a local browser. xurl owns the token store and the
+//! SSH sessions without a local browser. xdk-rs owns the token store and the
 //! OAuth2 wire protocol; bird owns the user-facing envelope (text prompt vs
 //! `{"data": ..., "meta": ...}` JSON) and stdin plumbing.
 
 use crate::output::{OutputConfig, OutputFormat};
+use crate::xurl_client::EmbeddedClient;
 use std::io::{BufRead, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio_util::sync::CancellationToken;
 
 /// Clap-derive view of `bird login`'s headless-mode arguments. Kept colocated
 /// with the auth driver so the audit's per-file scanner sees both the `#[arg]`
@@ -20,7 +24,7 @@ pub struct HeadlessAuthArgs {
     pub no_browser: bool,
 }
 
-/// Parse the OAuth2 authorize URL emitted by xurl's step 1 and return the
+/// Parse the OAuth2 authorize URL emitted by xdk's step 1 and return the
 /// `state` querystring parameter (used by the JSON envelope). Standalone so
 /// the audit-source scanner sees a free function with an auth keyword in the
 /// same file as the `#[arg]` definition.
@@ -29,26 +33,20 @@ fn parse_oauth2_authorize_url_state(url_str: &str) -> Option<String> {
 }
 
 /// Drive the headless two-step OAuth2 authenticate flow against the
-/// embedded xurl crate. The step-1 and step-2 calls go through
-/// `xurl::auth::Auth::remote_oauth2_step1` / `step2` directly.
+/// embedded xdk-rs client: step 1 writes the PKCE state and returns the
+/// authorize URL, step 2 exchanges the pasted redirect URL for a token.
 pub fn run_oauth2_authenticate_headless_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
     username: Option<&str>,
     app: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut cfg = xurl::config::Config::new();
-    if let Some(app_name) = app {
-        cfg.app_name = app_name.to_string();
-    }
-    let mut auth = xurl::auth::Auth::new(&cfg);
+    let embedded = sign_in_client(app)?;
+    let client = embedded.client();
+    let pending_path = xdk::auth::pending::default_pending_path()?;
 
-    let pending_path = xurl::auth::pending::default_pending_path()
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
-
-    let auth_url = auth
-        .remote_oauth2_step1(&pending_path)
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+    let auth_url =
+        embedded.block_on(async { client.auth().await?.remote_oauth2_step1(&pending_path) })?;
 
     let state = parse_oauth2_authorize_url_state(&auth_url).unwrap_or_default();
 
@@ -85,65 +83,87 @@ pub fn run_oauth2_authenticate_headless_embedded(
                 .into(),
         );
     }
-    let trimmed_owned = trimmed.to_string();
 
     let user = username.unwrap_or("");
-    auth.remote_oauth2_step2(&trimmed_owned, user, &pending_path)
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+    let signed_in = embedded.block_on(client.remote_oauth2_step2(trimmed, user, &pending_path))?;
 
-    match out.format {
-        OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Ndjson => {
-            let envelope = serde_json::json!({
-                "data": {
-                    "status": "authenticated",
-                },
-                "meta": {},
-            });
-            writeln!(stdout, "{}", envelope)?;
-        }
-        OutputFormat::Text => {
-            writeln!(stdout, "OAuth2 authentication successful.")?;
-        }
-    }
-
+    print_authenticated(out, stdout, &signed_in)?;
     Ok(())
 }
 
-/// Drive the interactive (browser-opening) OAuth2 authenticate flow
-/// against the embedded xurl crate. Bird builds the `xurl::output::OutputConfig`
-/// xurl's `oauth2_flow` expects from its own output config so the prompt
-/// vocabulary and quietness flag match what bird already resolved at the
-/// runner.
+/// Drive the interactive (browser-opening) OAuth2 authenticate flow against
+/// the embedded xdk-rs client. xdk binds the callback listener and hands the
+/// authorize URL to bird's opener; bird owns the browser launch and every
+/// line printed.
 pub fn run_oauth2_authenticate_interactive_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
     username: Option<&str>,
     app: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut cfg = xurl::config::Config::new();
+    let embedded = sign_in_client(app)?;
+
+    let browser_failed = Arc::new(AtomicBool::new(false));
+    let opener = {
+        let browser_failed = Arc::clone(&browser_failed);
+        move |url: &str| {
+            let opened = open::that(url);
+            if opened.is_err() {
+                browser_failed.store(true, Ordering::SeqCst);
+            }
+            opened
+        }
+    };
+
+    let user = username.unwrap_or("");
+    let signed_in = match embedded.block_on(embedded.client().oauth2_flow(
+        user,
+        CancellationToken::new(),
+        opener,
+    )) {
+        Ok(signed_in) => signed_in,
+        Err(e) if browser_failed.load(Ordering::SeqCst) => {
+            return Err(format!(
+                "{e}; run `bird login --no-browser` to sign in from a browser on any machine"
+            )
+            .into());
+        }
+        Err(e) => return Err(Box::new(e)),
+    };
+
+    print_authenticated(out, stdout, &signed_in)?;
+    Ok(())
+}
+
+/// The client sign-in runs on: the `~/.xurl` token store for `app`, or the
+/// store's default app when `app` is `None`.
+fn sign_in_client(app: Option<&str>) -> xdk::Result<EmbeddedClient> {
+    let mut cfg = xdk::config::Config::new();
     if let Some(app_name) = app {
         cfg.app_name = app_name.to_string();
     }
-    let mut auth = xurl::auth::Auth::new(&cfg);
+    EmbeddedClient::from_config(&cfg, cfg.http_timeout_secs)
+}
 
-    let xurl_format = match out.format {
+/// Report a finished sign-in, naming the account the token belongs to.
+fn print_authenticated(
+    out: &OutputConfig,
+    stdout: &mut dyn Write,
+    username: &str,
+) -> std::io::Result<()> {
+    match out.format {
         OutputFormat::Json | OutputFormat::Jsonl | OutputFormat::Ndjson => {
-            xurl::output::OutputFormat::Json
+            let envelope = serde_json::json!({
+                "data": {
+                    "status": "authenticated",
+                    "username": username,
+                },
+                "meta": {},
+            });
+            writeln!(stdout, "{}", envelope)
         }
-        OutputFormat::Text => xurl::output::OutputFormat::Text,
-    };
-    let xurl_out = xurl::output::OutputConfig::new(
-        xurl_format,
-        out.suppress_diag(),
-        false,
-        xurl::cli::ColorChoice::default(),
-    );
-
-    let user = username.unwrap_or("");
-    auth.oauth2_flow(user, &xurl_out, stdout)
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
-
-    Ok(())
+        OutputFormat::Text => writeln!(stdout, "OAuth2 authentication successful."),
+    }
 }
 
 /// Pull a query-string value (URL-decoded) from a URL string.

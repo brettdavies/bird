@@ -1,24 +1,18 @@
-//! `BirdClient`'s xurl-rs seam: the `bird raw` template-shaped entry point,
+//! `BirdClient`'s xdk-rs seam: the `bird raw` template-shaped entry point,
 //! the lock-acquire helper typed methods share, and the local AuthType →
 //! wire-string mapping.
 
-// Mirrors xurl-rs's own `#[allow(clippy::result_large_err)]` on `XurlError`
-// (192 bytes). Closures threaded through `with_xurl` return `XurlResult<…>`
-// directly; boxing at every bird seam would pay an allocation per error path
-// for no downstream gain.
-#![allow(clippy::result_large_err)]
-
 use std::collections::HashMap;
 
-use xurl::api::{RequestOptions, RequestTarget};
+use xdk::api::{RequestOptions, RequestTarget};
 
 use super::{ApiResponse, BirdClient, RequestContext};
 use crate::cli::auth_scheme::AuthType;
 use crate::xurl_client::XurlClient;
 
-/// Map bird's `AuthType` enum to xurl-rs's wire-string vocabulary
-/// (`"app"`/`"oauth1"`/`"oauth2"`, or empty for xurl's auto-detect path).
-/// xurl-rs treats `OAuth2User` and the empty string identically — both
+/// Map bird's `AuthType` enum to xdk-rs's wire-string vocabulary
+/// (`"app"`/`"oauth1"`/`"oauth2"`, or empty for xdk's auto-detect path).
+/// xdk-rs treats `OAuth2User` and the empty string identically — both
 /// resolve to OAuth2 via `auth_matrix` — so `OAuth2User` maps to empty here.
 /// `AuthType::None` also maps to empty; the caller is responsible for
 /// setting `RequestOptions.no_auth = true` when the bird-side `AuthType` is
@@ -34,10 +28,9 @@ pub(super) fn auth_type_to_xurl_wire(at: &AuthType) -> String {
 }
 
 impl BirdClient {
-    /// Acquire the embedded `xurl` mutex and dispatch through it. Centralizes
-    /// the lock acquire + poison-panic policy so every typed call site stays
-    /// a one-liner. When xurl v3.0.0 swaps to `tokio::sync::Mutex` (per
-    /// KTD-1), only this helper changes.
+    /// Acquire the embedded client mutex and dispatch through it. Centralizes
+    /// the lock acquire + poison-panic policy so every call site stays a
+    /// one-liner.
     pub(crate) fn with_xurl<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut dyn XurlClient) -> R,
@@ -271,7 +264,6 @@ mod tests {
     use std::io;
     use std::path::Path;
     use std::sync::{Arc, Mutex};
-    use xurl::api::{ApiResponse as XurlApiResponse, Tweet};
 
     /// Build a no-store `BirdClient` whose embedded transport is the supplied
     /// mock. Returns the constructed client alongside a shared handle the
@@ -293,21 +285,17 @@ mod tests {
         (client, handle)
     }
 
-    fn queue_one_tweet(mock: &MockXurlClient) {
-        let queued = XurlApiResponse {
-            data: vec![Tweet {
-                id: "abc".to_string(),
-                ..Tweet::default()
-            }],
-            ..XurlApiResponse::<Vec<Tweet>>::default()
-        };
-        mock.push_response("send_request", queued);
+    fn queue_one_post(mock: &MockXurlClient) {
+        mock.push_value(
+            "send_request",
+            serde_json::json!({ "data": [{ "id": "abc" }] }),
+        );
     }
 
     #[test]
     fn raw_template_request_dispatches_typed_payload() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, _handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
@@ -328,9 +316,9 @@ mod tests {
             )
             .expect("raw template request must succeed");
 
-        // The queued response carries a `Tweet { id: "abc" }`; surfacing it on
+        // The queued response carries a post with id "abc"; surfacing it on
         // bird's `ApiResponse.json` proves the trait method dispatched and the
-        // typed payload survived. `RequestTarget` argument capture is asserted
+        // payload survived. `RequestTarget` argument capture is asserted
         // in the dedicated tests below.
         let json = response.json.expect("queued json must surface");
         assert_eq!(json["data"][0]["id"], "abc");
@@ -350,7 +338,7 @@ mod tests {
     #[test]
     fn no_params_no_query_reaches_xurl_as_template() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
@@ -383,7 +371,7 @@ mod tests {
     #[test]
     fn path_params_reach_xurl_unrendered() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
@@ -419,7 +407,7 @@ mod tests {
     #[test]
     fn query_pairs_preserve_order() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
@@ -449,7 +437,7 @@ mod tests {
     }
 
     /// `BirdClient::get` under embedded routes the fully-rendered URL
-    /// through `xurl::send_request` with `RequestTarget::RawUrl`. The mock
+    /// through `XurlClient::send_request` with `RequestTarget::RawUrl`. The mock
     /// must see the URL verbatim so `auth_type` resolution at the
     /// embedded boundary keys on what bird actually constructed.
     #[test]
@@ -505,7 +493,7 @@ mod tests {
     #[test]
     fn raw_request_headers_reach_xurl() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
@@ -639,7 +627,7 @@ mod tests {
     #[test]
     fn embedded_no_longer_rejects_semicolon_in_path_params() {
         let mock = MockXurlClient::new();
-        queue_one_tweet(&mock);
+        queue_one_post(&mock);
         let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {

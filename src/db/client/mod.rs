@@ -134,11 +134,11 @@ const _: fn() = || {
     _assert_send_sync::<BirdClient>();
 };
 
-/// Entity-aware transport layer. Wraps xurl transport + optional BirdDb.
+/// Entity-aware transport layer. Wraps the xdk-rs client + optional BirdDb.
 /// If BirdDb is unavailable (corrupted, disk error), degrades to direct transport.
 pub struct BirdClient {
-    /// Embedded xurl client guarded by a Mutex so `&self` methods can acquire
-    /// the lock and call `&mut self` xurl methods. The lock-acquire-in-method
+    /// Embedded X API client guarded by a Mutex so `&self` methods can acquire
+    /// the lock and call its `&mut self` methods. The lock-acquire-in-method
     /// pattern mirrors the existing `Mutex<rusqlite::Connection>` precedent in
     /// `src/db/store/mod.rs`. Read through `BirdClient::with_xurl` in
     /// `db::client::embedded`.
