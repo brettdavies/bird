@@ -23,20 +23,22 @@ owner: brettdavies
 ## Execution
 
 A stack that changes a contract across repositories gets a plan before code; the rest is coded directly. The lanes run
-in parallel: lane A starts at once while lanes B, C, and E write their plans, and lane D waits on lane C's design.
+in parallel. The xurl-rs team is cutting a release, so work that needs xurl-rs code (lane C's PRs, lane E) waits for it;
+everything else starts now.
 
-| Lane | Work                                                                             | Plan first?                                                                                   |
-| ---- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| A    | Stack 1 items 1-4 and 7-10; Stack 2; Stack 6 items 2, 3, 5                       | No: stacked PRs                                                                               |
-| B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github` | Short plan: jobs, inputs, xurl-rs adoption                                                    |
-| C    | Stack 3                                                                          | Brainstorm, then plan across xdk-rs, xurl-rs, and bird; revises the seam doc                  |
-| D    | Stacks 4 and 5                                                                   | One plan after lane C: what composition leaves to bird; refreshes the 2026-09-02 cutover plan |
-| E    | Stack 6 item 1 and the release sequence                                          | Decision record: xdk-rs releases, bird versions                                               |
-| F    | Stack 7                                                                          | No for the bird-skill repo structure; its content follows the settled CLI surface             |
+| Lane | Work                                                                                                  | Plan first?                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| A    | Stack 1 (bird side); Stack 2; Stack 6 items 2 to 5                                                    | No: stacked PRs                                                                                     |
+| B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github`                      | Short plan: jobs, inputs; xurl-rs adopts them after its release                                     |
+| C    | Stack 3                                                                                               | Design now; its xdk-rs and xurl-rs PRs open after the xurl-rs team's release                        |
+| D    | Stack 4; stack 5 items 1-2 (bird's own wire vocabulary and store, raw HTTP and block/unblock removal) | One plan now; renames of verbs `xr` will supply wait for lane C                                     |
+| E    | Stack 5 item 3 (pagination)                                                                           | Blocked: xdk-rs has no list loop yet, only per-call `pagination_token`; joins lane C's xurl-rs work |
+| F    | Stack 7                                                                                               | No for the bird-skill repo structure; its content follows the settled CLI surface                   |
 
-Release sequence (proposed in lane E): v0.3.0 once stacks 1 and 2 and an xdk-rs release land, which ships the embedded
-transport and the advisory fix to users still on v0.2.0's subprocess transport; v1.0.0 after stacks 3 to 5, which change
-the output contract and the vocabulary. A later xdk-rs release carries stack 3's request hook.
+bird ships once, after every stack lands, as the release the 2026-09-02 cutover plan targets (1.0.0). Its critical path
+runs through xurl-rs: the current xurl-rs release, which bird adopts from crates.io (stack 6 item 1); stack 3's xdk-rs
+request hook, xurl-rs command-layer surface, and the list loop; the xdk-rs release that carries them; then bird's
+composition and the cut.
 
 ## Landed
 
@@ -122,12 +124,13 @@ X-approvable CLI. bird composes `xr`'s commands instead of re-implementing them.
 3. xurl-rs: the public command-layer surface, `xr` unchanged on its own.
 4. bird: compose `xr`'s tree; retire each bird verb `xr` already has. `xr usage credits` arrives this way.
 
-This stack decides how much of stacks 4 and 5 remains: a composed `xr` command arrives with `xr`'s verbs, flags, and
-envelope. Write the design before starting either.
+A composed `xr` command arrives with `xr`'s verbs, flags, and envelope, so this stack decides which verb renames in
+stack 5 remain. Stack 4 and the rest of stack 5 do not wait for it.
 
 ## Stack 4: output contract parity with xr
 
-What remains after stack 3 for bird's own commands.
+bird's own commands (cache, watchlist, thread, schema, local usage, doctor, skill) print `xr`'s envelope too, so output
+matches whether a command is composed from `xr` or bird's own.
 
 1. Error envelope in `xr`'s shape:
    `{"status":"error","reason","exit_code","message","next_step":{"action","command", "docs"}}`, filling `next_step`
@@ -152,12 +155,13 @@ v0.2.0 is the last release; `dev` carries 228 commits past it, among them the em
 exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on `dev` today `drift` fails, and
 `mechanics` fails only its leak check, which the release branch's overlay resolves.
 
-1. **xdk-rs release first.** bird pins a xurl-rs `dev` commit for xdk-rs (serde-saphyr, xurl-rs#348) under
-   `version = "0.2.0"`, but the release workflow's `cargo publish -p bird` resolves the crates.io `xdk-rs 0.2.0`, which
-   still links `serde_yaml` and lacks `xdk::store::locate_store`, so `cargo install bird` would carry
-   RUSTSEC-2024-0449. Cut an xdk-rs release with both, move bird onto it from crates.io, and collapse
-   `ResolvedPaths::token_store` from `Option` to xdk's resolved default path. Decide then whether bird adopts the
-   directory store layout as `xr` does (`adopt_directory_layout`) or keeps opening a single-file `~/.xurl` in place.
+1. **xdk-rs from crates.io.** bird pins a xurl-rs `dev` commit for xdk-rs (serde-saphyr, xurl-rs#348) under `version =
+   "0.2.0"`, but the release workflow's `cargo publish -p bird` resolves the crates.io `xdk-rs 0.2.0`, which still links
+   `serde_yaml` and lacks `xdk::store::locate_store`, so `cargo install bird` would carry RUSTSEC-2024-0449. When the
+   xurl-rs team's release publishes both, move bird onto it from crates.io and collapse `ResolvedPaths::token_store`
+   from `Option` to xdk's resolved default path; stack 3's hook then needs one more xdk-rs release before bird's cut.
+   Decide whether bird adopts the directory store layout as `xr` does (`adopt_directory_layout`) or keeps opening a
+   single-file `~/.xurl` in place.
 2. **Backport `main` to `dev`.** `main` carries `c2f7789` (`.github/workflows/dependabot-preflight.yml`) and 16 newer
    `Cargo.lock` entries `dev` never received (`preflight.sh drift`).
 3. **Release caller.** `linux_musl_required: true` (both musl rows build clean on #124 and #125), and `attest: true`
@@ -170,8 +174,8 @@ exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on
 5. **Runbooks.** Compare `RELEASES.md`, `RELEASES-PREFLIGHT.md`, `RELEASES-POSTFLIGHT.md`, and `RELEASES-RATIONALE.md`
    against the template and xurl-rs; confirm the `docs/designs/` documents `mechanics` lists as unguarded are meant to
    ship to `main`.
-6. **Version and cut** (`RELEASES.md`): the version reflects the breaking changes (0.3.0 at least; the cutover plan
-   targets 1.0.0 with stack 5), then the live `preflight.sh smoke`, the tag, and `postflight.sh`.
+6. **Version and cut** (`RELEASES.md`): one release after every stack, as 1.0.0, then the live `preflight.sh smoke`, the
+   tag, and `postflight.sh`.
 
 ## Stack 7: external surfaces
 
