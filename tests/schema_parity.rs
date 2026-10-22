@@ -13,21 +13,33 @@ use std::path::PathBuf;
 /// `schema/<name>.schema.json` relative to `CARGO_MANIFEST_DIR`.
 const EMBEDDED: &[(&str, &str)] = &[
     ("bookmarks", include_str!("../schema/bookmarks.schema.json")),
-    ("doctor", include_str!("../schema/doctor.schema.json")),
     (
-        "error-envelope",
-        include_str!("../schema/error-envelope.schema.json"),
+        "cache-stats",
+        include_str!("../schema/cache-stats.schema.json"),
     ),
+    ("doctor", include_str!("../schema/doctor.schema.json")),
+    ("envelope", include_str!("../schema/envelope.schema.json")),
     ("profile", include_str!("../schema/profile.schema.json")),
     ("raw-get", include_str!("../schema/raw-get.schema.json")),
     ("search", include_str!("../schema/search.schema.json")),
     (
-        "success-envelope",
-        include_str!("../schema/success-envelope.schema.json"),
+        "skill-install",
+        include_str!("../schema/skill-install.schema.json"),
+    ),
+    (
+        "skill-update",
+        include_str!("../schema/skill-update.schema.json"),
     ),
     ("thread", include_str!("../schema/thread.schema.json")),
     ("usage", include_str!("../schema/usage.schema.json")),
-    ("watchlist", include_str!("../schema/watchlist.schema.json")),
+    (
+        "watchlist-fetch",
+        include_str!("../schema/watchlist-fetch.schema.json"),
+    ),
+    (
+        "watchlist-list",
+        include_str!("../schema/watchlist-list.schema.json"),
+    ),
 ];
 
 fn schema_dir() -> PathBuf {

@@ -281,8 +281,8 @@ where
         return ExitCode::from((code.clamp(0, 255)) as u8);
     }
 
-    if let Command::Schema { name, list } = &cli.command {
-        return match schema_print::run(name.as_deref(), *list, &out, stdout) {
+    if let Command::Schema { name, list, all } = &cli.command {
+        return match schema_print::run(name.as_deref(), *list, *all, &out, stdout) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
                 let _ = out.print_error(stderr, &err, &hint_ctx);

@@ -44,8 +44,9 @@ through the embedded client and never writes tokens itself.
 
 ### Envelope
 
-The JSON wrapper every structured output takes: a success envelope on stdout (`data`, `meta`) and an error envelope on
-stderr (`error`, `kind`, `exit_code`, `message`). Each has a JSON Schema under `schema/` that `bird schema` prints.
+The JSON document every structured result bird assembles takes, in `xr`'s shape and tagged by `status`: `ok` and
+`dry_run` on stdout, `error` on stderr (`reason`, `exit_code`, `message`, `next_step`). `bird schema envelope` prints
+its JSON Schema.
 
 ### Writer injection
 

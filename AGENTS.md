@@ -56,11 +56,11 @@ bird cache clear
 bird get /2/users/me -p id=123 -q expansions=author_id --pretty
 bird post /2/tweets --body '{"text":"hi"}'
 
-# JSON Schema documents for every output shape (success envelope + per-command)
-bird schema                  # default: success-envelope schema
-bird schema bookmarks
-bird schema --list           # all available names
-bird schema --list --output json
+# JSON Schema documents: the envelope and each command's output
+bird schema envelope
+bird schema thread
+bird schema --list           # every name and title
+bird schema --all --output json
 
 # Self-diagnostics, shell completions, raw API passthrough
 bird doctor
@@ -213,15 +213,19 @@ plain text, or an ok envelope carrying `data.help` / `data.version` when JSON is
 
 ## JSON Schema documents
 
-`bird schema` prints stable JSON Schema 2020-12 documents for every output shape: `success-envelope`, `error-envelope`,
-`bookmarks`, `search`, `thread`, `profile`, `doctor`, `usage`, `watchlist`, `raw-get`. External consumers pin against
-`https://bird.dev/schema/<name>-v1.json` `$id`s.
+`bird schema` takes `xr schema`'s forms and prints JSON Schema 2020-12 documents: `envelope` (every `ok`, `dry_run`,
+and `error` document, generated from the envelope types) and one per command, named by the command: `bookmarks`,
+`cache-stats`, `doctor`, `profile`, `raw-get`, `search`, `skill-install`, `skill-update`, `thread`, `usage`,
+`watchlist-fetch`, `watchlist-list`. A schema prints as itself, never wrapped. The documents carry no `$id`.
 
 ```bash
-bird schema                       # default: success-envelope schema (text)
-bird schema bookmarks --output json
-bird schema --list                # all available names
+bird schema envelope              # the envelope schema
+bird schema thread                # one command's output
+bird schema --list                # every name and title; one ok document under --output json
+bird schema --all                 # every schema in one object keyed by name
 ```
+
+Bare `bird schema` is a usage error naming those forms.
 
 ## Cache modes
 

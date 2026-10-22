@@ -1,47 +1,73 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/thread-v1.json",
-  "title": "bird thread payload",
-  "description": "Shape of the data payload returned by `bird thread <tweet_id>` under --output json. Reconstructs a conversation thread by walking conversation_id back-references via the recent-search endpoint.",
+  "title": "bird thread",
+  "description": "The ok document `bird thread <post_id>` prints under --output json: the reconstructed conversation in order, root first, each post with its `depth`.",
   "type": "object",
-  "required": ["tweets"],
+  "required": [
+    "status",
+    "data",
+    "meta"
+  ],
   "properties": {
-    "root_id": {
-      "type": "string",
-      "description": "Root tweet ID of the reconstructed thread."
+    "status": {
+      "const": "ok"
     },
-    "conversation_id": {
-      "type": "string",
-      "description": "X API conversation_id linking every tweet in the thread."
-    },
-    "tweets": {
+    "data": {
       "type": "array",
-      "description": "Tweets in conversation order (root first).",
       "items": {
         "type": "object",
-        "required": ["id", "text"],
+        "required": [
+          "id",
+          "depth"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "text": { "type": "string" },
-          "author_id": { "type": "string" },
-          "created_at": { "type": "string" },
-          "in_reply_to_user_id": { "type": "string" },
-          "referenced_tweets": {
-            "type": "array",
-            "items": { "type": "object", "additionalProperties": true }
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "additionalProperties": true
       }
     },
-    "users": {
-      "type": "array",
-      "items": { "type": "object", "additionalProperties": true }
-    },
-    "truncated": {
-      "type": "boolean",
-      "description": "True when max_pages was hit before exhausting the conversation."
+    "meta": {
+      "type": "object",
+      "properties": {
+        "conversation_id": {
+          "type": "string"
+        },
+        "tweet_count": {
+          "type": "integer"
+        },
+        "pages_fetched": {
+          "type": "integer"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "root_tweet_age_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

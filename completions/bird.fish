@@ -80,7 +80,7 @@ complete -c bird -n "__fish_bird_needs_command" -f -a "doctor" -d 'Show what is 
 complete -c bird -n "__fish_bird_needs_command" -f -a "cache" -d 'Manage the HTTP response cache'
 complete -c bird -n "__fish_bird_needs_command" -f -a "completions" -d 'Generate shell completions'
 complete -c bird -n "__fish_bird_needs_command" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
-complete -c bird -n "__fish_bird_needs_command" -f -a "schema" -d 'Print a JSON Schema document for one of bird\'s output shapes'
+complete -c bird -n "__fish_bird_needs_command" -f -a "schema" -d 'Print the JSON Schema of a command\'s output, or of the envelope'
 complete -c bird -n "__fish_bird_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand login" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
@@ -1145,7 +1145,8 @@ complete -c bird -n "__fish_bird_using_subcommand schema" -l limit -d 'Maximum n
 complete -c bird -n "__fish_bird_using_subcommand schema" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand schema" -l list -d 'List all available schema names instead of printing a schema'
+complete -c bird -n "__fish_bird_using_subcommand schema" -l list -d 'List every schema name and title instead of printing a schema'
+complete -c bird -n "__fish_bird_using_subcommand schema" -l all -d 'Print every schema in one object keyed by name'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l plain -d 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1188,7 +1189,7 @@ complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subc
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "cache" -d 'Manage the HTTP response cache'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "completions" -d 'Generate shell completions'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
-complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "schema" -d 'Print a JSON Schema document for one of bird\'s output shapes'
+complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "schema" -d 'Print the JSON Schema of a command\'s output, or of the envelope'
 complete -c bird -n "__fish_bird_using_subcommand help; and not __fish_seen_subcommand_from login me get post put bookmarks profile search thread delete watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "fetch" -d 'Fetch recent activity for all watched users'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "add" -d 'Add a user to the watchlist'

@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/bookmarks-v1.json",
   "title": "bird bookmarks payload",
   "description": "Shape of the data payload returned by `bird bookmarks` under --output json. Under --output jsonl, one tweet object is emitted per line WITHOUT the success-envelope wrapper.",
   "type": "object",

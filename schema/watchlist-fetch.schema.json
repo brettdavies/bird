@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bird watchlist fetch",
+  "description": "The ok document `bird watchlist fetch` prints under --output json: one activity object per watched user. Under jsonl each activity object is its own line.",
+  "type": "object",
+  "required": [
+    "status",
+    "data",
+    "meta"
+  ],
+  "properties": {
+    "status": {
+      "const": "ok"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "username",
+          "cache_hit"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "recent_tweets": {
+            "type": "integer"
+          },
+          "latest_tweet": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "cache_hit": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

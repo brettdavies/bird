@@ -656,15 +656,19 @@ mod method_tests {
     }
 
     /// Every error envelope the emitter writes uses only keys the published
-    /// `error-envelope` schema declares; the schema closes the object.
+    /// envelope schema declares for its error variant, which closes the object.
     #[test]
     fn print_error_json_keys_are_declared_by_the_schema() {
         let schema: serde_json::Value =
-            serde_json::from_str(include_str!("../../schema/error-envelope.schema.json"))
-                .expect("error-envelope schema is JSON");
-        let declared = schema["properties"]
-            .as_object()
-            .expect("schema declares properties");
+            serde_json::from_str(include_str!("../../schema/envelope.schema.json"))
+                .expect("envelope schema is JSON");
+        let declared = schema["oneOf"]
+            .as_array()
+            .expect("schema lists the variants")
+            .iter()
+            .find(|v| v["properties"]["status"]["const"] == "error")
+            .and_then(|v| v["properties"].as_object())
+            .expect("schema declares the error variant");
         let errors = [
             BirdError::usage(envelope::Reason::InvalidArgs, "m"),
             BirdError::unknown_command("tweeet", Some("tweet".into()), "m"),
@@ -676,7 +680,10 @@ mod method_tests {
         for err in &errors {
             let doc = error_doc(&json_cfg(), err, &HintContext::default());
             for key in doc.as_object().unwrap().keys() {
-                assert!(declared.contains_key(key), "{key} undeclared: {doc}");
+                assert!(
+                    key == "status" || declared.contains_key(key),
+                    "{key} undeclared: {doc}"
+                );
             }
         }
     }

@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/doctor-v1.json",
   "title": "bird doctor payload",
   "description": "The ok document `bird doctor` prints under --output json: `status` beside the fields of the `DoctorReport` struct in src/doctor.rs: embedded X API client status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
   "type": "object",

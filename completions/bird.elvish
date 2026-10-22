@@ -75,7 +75,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand cache 'Manage the HTTP response cache'
             cand completions 'Generate shell completions'
             cand skill 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)'
-            cand schema 'Print a JSON Schema document for one of bird''s output shapes'
+            cand schema 'Print the JSON Schema of a command''s output, or of the envelope'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
         &'bird;login'= {
@@ -1257,7 +1257,8 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --cursor 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)'
             cand --app 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl''s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not'
             cand --auth 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list'
-            cand --list 'List all available schema names instead of printing a schema'
+            cand --list 'List every schema name and title instead of printing a schema'
+            cand --all 'Print every schema in one object keyed by name'
             cand --json 'Shorthand for `--output json`'
             cand --jsonl 'Shorthand for `--output jsonl`'
             cand --plain 'Deprecated alias for `--color never` (plain output, no color)'
@@ -1305,7 +1306,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand cache 'Manage the HTTP response cache'
             cand completions 'Generate shell completions'
             cand skill 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host''s skills dir)'
-            cand schema 'Print a JSON Schema document for one of bird''s output shapes'
+            cand schema 'Print the JSON Schema of a command''s output, or of the envelope'
             cand help 'Print this message or the help of the given subcommand(s)'
         }
         &'bird;help;login'= {

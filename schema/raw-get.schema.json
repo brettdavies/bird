@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bird.dev/schema/raw-get-v1.json",
   "title": "bird raw GET payload",
   "description": "Shape of the data payload returned by `bird get|post|put|delete <path>` under --output json. The body is the raw X API response (passed through unchanged); bird only wraps it in the success envelope.",
   "type": "object",
