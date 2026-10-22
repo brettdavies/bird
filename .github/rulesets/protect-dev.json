@@ -12,13 +12,61 @@
   },
   "rules": [
     {
+      "type": "pull_request",
+      "parameters": {
+        "allowed_merge_methods": [
+          "squash"
+        ],
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "require_last_push_approval": false,
+        "required_approving_review_count": 0,
+        "required_review_thread_resolution": false,
+        "required_reviewers": []
+      }
+    },
+    {
+      "type": "required_signatures"
+    },
+    {
       "type": "deletion"
     },
     {
       "type": "non_fast_forward"
     },
     {
-      "type": "required_signatures"
+      "type": "required_status_checks",
+      "parameters": {
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "build-examples"
+          },
+          {
+            "context": "ci / Fmt, clippy, test"
+          },
+          {
+            "context": "ci / Package check"
+          },
+          {
+            "context": "ci / Security audit (advisories)"
+          },
+          {
+            "context": "ci / Security audit (bans licenses sources)"
+          },
+          {
+            "context": "ci / Shellcheck"
+          },
+          {
+            "context": "ci / Windows check"
+          }
+        ],
+        "strict_required_status_checks_policy": false
+      }
+    },
+    {
+      "type": "required_linear_history"
     }
   ],
   "bypass_actors": [
