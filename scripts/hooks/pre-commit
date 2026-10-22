@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Pre-commit hook: fast, staged-file-scoped checks that catch the cheap
+# mistakes before they reach a commit. The whole-repo CI mirror lives in the
+# pre-push hook (scripts/hooks/pre-push); keep this hook fast enough that it
+# is never the reason someone reaches for --no-verify.
+#
+# Every check comes from scripts/hooks/_lib.sh, which both hooks source. The
+# two hooks differ in scope, not in what a check means: pre-commit passes the
+# staged set, pre-push passes the tracked set.
+#
+# Activate per clone via: git config core.hooksPath scripts/hooks
+# (This is machine-local git config: it does NOT travel with the clone, and
+# an unset core.hooksPath is the single most common reason a hook never fires.
+# Run the command above once per fresh clone, human and agent workspace alike.)
+#
+# Defensive no-ops: each check guards on its own tool being present and on the
+# relevant file type being staged, then skips cleanly. The library announces a
+# skip caused by a missing tool, and a skipped check never prints a pass line:
+# a silent skip is indistinguishable from a passing check.
+#
+# Failures aggregate. One run reports every failing check rather than stopping
+# at the first, so a commit is fixed in one pass.
+#
+# Exit codes: 0 = all staged checks pass (or cleanly skipped), 1 = failure.
+#
+# Requires bash >= 4.4 (mapfile, and empty-array expansion under `set -u`). The
+# guard re-execs under Homebrew's bash when `#!/usr/bin/env bash` found an older
+# one, such as the macOS /bin/bash 3.2, and otherwise stops with the install hint.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  for b in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [ -x "$b" ] && exec "$b" "$0" "$@"
+  done
+  echo "ERROR: needs bash >= 4.4 (running $BASH_VERSION); install it with: brew install bash" >&2
+  exit 1
+fi
+
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+# shellcheck source=scripts/hooks/_lib.sh
+. ./scripts/hooks/_lib.sh || exit 1
+
+fail=0
+
+# Git's repository variables stay set in this hook: during `commit -a` and
+# `commit <paths>`, GIT_INDEX_FILE names the temporary index the commit is built
+# from, and `staged` has to read it. None of the checks below runs git. A check
+# whose tool does (a test suite that builds scratch repositories, cargo
+# resolving a git dependency) runs through without_git_repo_env, so the tool's
+# git calls find its own repository rather than this one:
+#
+#   step "test" "bun test" without_git_repo_env bun test || fail=1
+
+# Every check here is a file-scoped linter over a disjoint set of paths: none
+# writes, none takes a build lock, so they all run together and the slowest one
+# sets the wall-clock. step_wait replays them in the order queued below.
+#
+# rustfmt runs per file rather than through `cargo fmt`, so it takes no build
+# lock either and belongs in the queue with the rest.
+
+# Rust: format-check the staged .rs files.
+mapfile -t rs < <(staged '*.rs')
+step_bg "rustfmt" "cargo fmt" check_rustfmt "${rs[@]}"
+
+# Shell: correctness and layout on the staged scripts, hooks included.
+mapfile -t sh < <(staged '*.sh' 'scripts/hooks/pre-commit' 'scripts/hooks/pre-push' 'scripts/hooks/_lib.sh')
+step_bg "shellcheck" "shellcheck --severity=warning" check_shell "${sh[@]}"
+step_bg "shfmt" "shfmt -i 2 -ci -bn -d" check_shfmt "${sh[@]}"
+
+# Tests: no staged test file resets a core environment variable.
+mapfile -t tests < <(staged '*.bats' '*.bash' '*tests/*.sh' '*test/*.sh')
+step_bg "core-env guard" "scripts/hooks/core-env-guard.sh" check_core_env "${tests[@]}"
+
+# Workflows: lint the staged workflow files, and check group namespacing when
+# one is staged.
+mapfile -t wf < <(staged '.github/workflows/*.yml' '.github/workflows/*.yaml')
+step_bg "actionlint" "actionlint" check_actionlint "${wf[@]}"
+step_bg "concurrency namespacing" "scripts/check-workflow-concurrency.sh" check_workflow_concurrency "${wf[@]}"
+
+# Markdown: lint the staged docs. check_markdown refuses to run when the repo's
+# markdownlint config sets `fix: true`, which would rewrite files mid-commit.
+#
+# CHANGELOG.md is excluded because generate-changelog.py writes it with one
+# logical line per bullet, so MD013 reports hundreds of characters no author
+# typed. The release flow stages it on the one commit that carries a release,
+# which is the worst place to leave `--no-verify` as the only way through.
+mapfile -t md < <(staged '*.md' ':!:CHANGELOG.md')
+step_bg "markdownlint" "markdownlint-cli2" check_markdown "${md[@]}"
+
+step_wait || fail=1
+
+[ "$fail" -eq 0 ] || {
+  echo "pre-commit checks failed; rerun the command each failure names." >&2
+  exit 1
+}
+
+echo "pre-commit: staged checks passed"
