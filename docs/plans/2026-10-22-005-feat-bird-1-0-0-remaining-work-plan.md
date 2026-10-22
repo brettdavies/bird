@@ -133,13 +133,15 @@ plan 003 depended on, so its unit sequence no longer holds.
   addressing the next page, and the next cursor in `meta`.
 - R36. bird's own commands that read more than one page (`rank`, `thread`, `watchlist fetch`) follow `next_token`
   themselves, one request per page, within their own bounds.
-- R37. `--cache-only` answers what bird's cache answers today, fresh posts and users by id or username and stored
-  non-entity responses, and fails any other request with bird's cache-miss error before it is sent.
+- R37. A GET is answered from the store only by a stored full response for the same request (method, normalized URL,
+  and account) written the same UTC day; under `--cache-only` any other request fails with bird's cache-miss error
+  before it is sent. Entity rows are still written from every observation, for bird's store.
 
 **Ranking**
 
-- R29. `bird rank <query> [--by likes|reposts|replies|quotes] [--min-likes <n>]` gathers up to the global `--limit`
-  posts (1 to 1000, default 100) through the search request `xr search` sends, following `next_token`, then ranks once
+- R29. `bird rank <query> [-n/--max-posts <n>] [--by likes|reposts|replies|quotes] [--min-likes <n>]` gathers up to
+  `--max-posts` posts (1 to 1000, default 100; the global `--limit` keeps `xr`'s per-call meaning and does not size a
+  rank run) through the search request `xr search` sends, following `next_token`, then ranks once
   by the chosen public metric and drops posts below `--min-likes`.
 
 **Design documents**
@@ -182,22 +184,22 @@ plan 003 depended on, so its unit sequence no longer holds.
 
 ### Acceptance Examples
 
-- AE1. **Covers R4, R18.** A post cached today: `bird read <id>` sends nothing and prints what `xr read <id>` prints for
-  that post.
+- AE1. **Covers R4, R18.** `bird read <id>` run a second time the same UTC day sends nothing and prints what
+  `xr read <id>` prints for that post.
 - AE2. **Covers R1, R8.** xurl-rs with the hook and the library surface: its existing CLI tests and goldens pass
   unchanged.
 - AE3. **Covers R14, R19.** `bird like <id> --output json` and `xr like <id> --output json` against the same scripted
   responses: same stdout, same exit code.
 - AE5. **Covers R20, R37.** `--cache-only` and an empty store: `bird user jack` fails with bird's cache-miss error and
   sends nothing.
-- AE7. **Covers R29.** `bird rank rust --limit 80` sends exactly the request `bird search rust --limit 80` sends and
+- AE7. **Covers R29.** `bird rank rust -n 80` sends exactly the request `bird search rust --limit 80` sends and
   prints those posts sorted by like count, ties by id descending, with posts under `--min-likes` removed.
-- AE8. **Covers R29, R36.** `bird rank rust --limit 250` sends three search requests, the second and third carrying the
+- AE8. **Covers R29, R36.** `bird rank rust -n 250` sends three search requests, the second and third carrying the
   previous page's `next_token`, and ranks all 250 posts after the third.
 - AE9. **Covers R35.** `bird search rust --limit 500` and `xr search rust --limit 500` send the same single request and
   print the same bytes.
-- AE10. **Covers R37.** `bird search rust --cache-only` fails with bird's cache-miss error and sends nothing, whatever
-  the store holds.
+- AE10. **Covers R37.** After `bird search rust` ran today, `bird search rust --cache-only` replays that stored response
+  and sends nothing; with no stored response for that request it fails with bird's cache-miss error and sends nothing.
 
 ### Scope Boundaries
 
@@ -260,8 +262,9 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
   composition in `src/cli/compose.rs`; a shipped name or shape that differs from its request changes those files and
   nothing else.
 - KTD6. **bird's cache moves behind the hook, and the hook replaces bird's test seam.** `BirdClient`'s read and write
-  logic (`src/db/client/`) becomes bird's hook with today's rules unchanged: fresh-entity answers by id or username,
-  stored-response answers under `--cache-only`, and entity, stored-response, and ledger writes from the observation. The
+  logic (`src/db/client/`) becomes bird's hook. It answers a GET only from a stored full response (`data`, `includes`,
+  `meta`) for the same request (KTD8's key) written the same UTC day, so a cached answer prints what `xr` printed the
+  first time; entity, stored-response, and ledger writes from the observation keep today's rules. The
   batch-ID partition has no caller left and is removed. `XurlClient` and `MockXurlClient` retire: bird's hook is a cache
   policy over an inner responder, which proceeds in production and answers from a script in tests (bodies and error
   statuses alike); when the inner responder answers, bird runs its own observation path, since xdk observes only sent
@@ -294,7 +297,7 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
   with the pagination redesign.
 - KTD12. **`bird rank` calls xdk's search shortcut with the parameters `xr search` sends and passes each page's
   `next_token` as the next page's `pagination_token`.** Each page asks for `min(100, remaining)` posts, raised to X's
-  minimum of 10; the run stops at `--limit` or when a page carries no `next_token`; posts dedup by id as `bird search`
+  minimum of 10; the run stops at `--max-posts` or when a page carries no `next_token`; posts dedup by id as `bird search`
   does today; ranking sorts by the `--by` metric's count, ties by id descending, then drops posts below `--min-likes`.
   Under `--dry-run` it prints the first page's request and sends nothing, as `xr search` does. Governs R29.
 - KTD13. **bird opens the token store as `xr` does.** It calls xdk's `adopt_directory_layout` on the first command that
@@ -785,12 +788,15 @@ together.
   deleting `BirdClient`'s transport code.
 - **Patterns to follow:** `src/db/client/get.rs` freshness rules; `src/db/client/entity.rs` cache keys.
 - **Test scenarios:**
-  - A GET for a post cached today is answered and the scripted transport sees no request.
+  - A GET repeated the same UTC day for the same account is answered from its stored full response, and the scripted
+    transport sees no request.
+  - `bird user jack` after a search that stored jack from `includes` is sent, not answered from the entity row.
   - `--refresh` on the same GET proceeds and the observation rewrites the stored entity.
   - `--no-cache` proceeds and writes nothing.
   - Covers AE5. `--cache-only` on an empty store fails with bird's `cache-miss` reason, xdk's declined exit code, and a
     message naming `--cache-only`.
-  - Covers AE10. A search request under `--cache-only` declines whatever the store holds.
+  - Covers AE10. A search under `--cache-only` replays a same-day stored response for the same request and otherwise
+    declines.
   - `--cache-only` on a write declines before any request.
   - A 404 observation writes nothing and logs nothing billable.
   - A store that cannot open leaves the cache out and requests proceed; under `--cache-only` every read and write
@@ -805,7 +811,7 @@ together.
 
 ### U10. `bird rank`
 
-- **Goal:** `bird rank <query>` ranks up to `--limit` posts from a search at the cost of that search.
+- **Goal:** `bird rank <query>` ranks up to `--max-posts` posts from a search at the cost of that search.
 - **Requirements:** R29, R36; KTD4, KTD12.
 - **Dependencies:** U8.
 - **Files:** `src/rank.rs` (new), `src/cli/mod.rs`, `src/cli/dispatch.rs`, `schema/rank.schema.json` (new),
@@ -819,13 +825,14 @@ together.
 - **Patterns to follow:** `src/search.rs` (dedup by id, cost estimate per page); xurl-rs
   `crates/xurl-cli/src/cli/commands/reads.rs` for the parameters `xr search` sends.
 - **Test scenarios:**
-  - `--limit 80` on scripted answers sends one request whose path and query equal those `xr search rust --limit 80`
+  - `-n 80` on scripted answers sends one request whose path and query equal those `xr search rust --limit 80`
     builds, taken as a fixture from `xr`'s search handler at the pinned xurl-rs version.
-  - Covers AE8. `--limit 250` sends three requests carrying the previous `next_token`, asking for 100, 100, and 50
+  - Covers AE8. `-n 250` sends three requests carrying the previous `next_token`, asking for 100, 100, and 50
     posts, and ranks all 250.
-  - A page with no `next_token` ends the run with fewer posts than `--limit`.
-  - `--limit 5` asks X for 10 and ranks only 5.
-  - `--limit 2000` is clamped to 1000 with bird's existing clamp notice.
+  - A page with no `next_token` ends the run with fewer posts than `--max-posts`.
+  - `-n 5` asks X for 10 and ranks only 5.
+  - `-n 2000` is clamped to 1000 with bird's existing clamp notice.
+  - `bird rank rust --limit 500` leaves `rank`'s size at its default and changes nothing else about the run.
   - `--by reposts` orders by `repost_count`, ties by id descending.
   - `--min-likes 5` drops posts with fewer than five likes and reports the number dropped.
   - A post repeated across pages appears once.
@@ -858,7 +865,7 @@ together.
   - Covers AE3. For `like`, `read`, `user`, `search`, and `usage credits`, bird and a direct library `run`, each on a
     client whose only hook is the same scripted answering hook, print the same bytes and exit codes.
   - Covers AE9. `bird search rust --limit 500` sends one request, as `xr` does.
-  - Covers AE7. `bird rank rust --limit 80` and the composed `bird search rust --limit 80` send the same request.
+  - Covers AE7. `bird rank rust -n 80` and the composed `bird search rust --limit 80` send the same request.
   - Covers F1 / AE1. `bird read <id>` twice: the second run sends nothing and prints the same bytes.
   - Covers F3. `bird tweet hi`, `bird me`, `bird login`, and `bird get /2/users/me` fail as unknown commands at exit 2
     and send nothing.
