@@ -39,6 +39,11 @@ impl BirdClient {
         f(&mut **guard)
     }
 
+    /// Why the embedded client could not be built, or `None` when it was.
+    pub(crate) fn client_unavailable_reason(&self) -> Option<String> {
+        self.with_xurl(|x| x.unavailable_reason().map(str::to_string))
+    }
+
     /// Reads `/2/users/me` through the embedded transport and extracts
     /// `data.id`. Used by write verbs whose API endpoint is keyed on the
     /// caller's user id (likes, retweets, following, muting, blocking).

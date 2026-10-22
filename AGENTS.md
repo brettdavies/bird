@@ -10,8 +10,8 @@ repository: https://github.com/brettdavies/bird
 
 ## Running bird
 
-The crate is `bird`. The installed binary is `bird`. All HTTP and authentication delegate to `xr` (xurl-rs) or `xurl`
-(Go fallback) at runtime.
+The crate is `bird`. The installed binary is `bird`. All HTTP and authentication go through the embedded `xdk-rs`
+library; bird starts no `xr` or `xurl` process.
 
 ```bash
 # Read commands — current user, bookmarks, profile lookup, search, thread reconstruction
@@ -23,7 +23,7 @@ bird search "rust" --output json
 bird search "rust" --sort likes --min-likes 100 --pages 2
 bird thread 1234567890
 
-# Write commands — tweet, reply, like, follow, DM (each round-trips via xurl)
+# Write commands — tweet, reply, like, follow, DM (each sent through the embedded client)
 bird tweet "hello from bird"
 bird like 1234567890
 bird follow jack
@@ -62,7 +62,7 @@ bird schema bookmarks
 bird schema --list           # all available names
 bird schema --list --output json
 
-# Self-diagnostics, shell completions, raw xurl passthrough
+# Self-diagnostics, shell completions, raw API passthrough
 bird doctor
 bird doctor me
 bird completions zsh
@@ -127,7 +127,7 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
 - `src/cli/clap_errors.rs` — clap → `BirdError` mapping for `try_parse_from`.
 - `src/cli/commands/` — per-command modules: `login.rs`, `reads.rs` (Me, Get), `bookmarks.rs`, `profile.rs`,
   `search.rs`, `thread.rs`, `raw_write.rs` (Post, Put, Delete), `watchlist.rs` (Fetch only — Add/Remove/List are
-  pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 xurl-write verbs share a single `execute` helper).
+  pre-dispatched), `usage.rs`, `cache.rs`, plus `writes/` (the 13 write verbs share a single `execute` helper).
 - `src/xurl_client/` — bird's seam over the embedded `xdk-rs` library. `mod.rs` declares the `XurlClient` trait (one
   generic `send_request`; bird renders every request itself) and `EmbeddedClient` (an `xdk::api::Client` plus the
   current-thread tokio runtime that blocks on its async calls); `mock.rs` is the `MockXurlClient` test double;
@@ -207,8 +207,8 @@ The entity store sits in front of every read command. Three modes:
 
 - `--refresh` — bypass the store for the read, then write the fresh response back.
 - `--no-cache` — neither read from nor write to the store.
-- `--cache-only` — read from the store only; never invoke xurl. Errors with `kind: "command"` (exit_code 1) if the entry
-  is missing. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only` with the same error.
+- `--cache-only` — read from the store only; never send an API request. Errors with `kind: "general"` (exit_code 1) if
+  the entry is missing. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only` with the same error.
 
 ## Exit codes
 
@@ -230,7 +230,7 @@ up." Exit 2 lets non-interactive callers gate destructive operations explicitly 
 
 ## Token and file permissions
 
-bird does **not** store API tokens (xurl does, under its own `~/.xurl` store). bird only owns:
+bird does **not** store API tokens (xdk-rs does, in the `~/.xurl` token store `xr` shares). bird only owns:
 
 - `~/.config/bird/config.toml` — minimal user config (`username`, `watchlist`). Created at mode 0644.
 - `~/.config/bird/bird.db` — SQLite entity store. Created at mode 0600.

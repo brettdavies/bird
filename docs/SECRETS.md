@@ -1,7 +1,8 @@
 # Secrets
 
-bird delegates all authentication to [xurl](https://github.com/xdevplatform/xurl). There are no API keys, tokens, or
-OAuth2 client IDs in the bird codebase.
+bird delegates all authentication to the embedded `xdk-rs` library from
+[xurl-rs](https://github.com/brettdavies/xurl-rs). There are no API keys, tokens, or OAuth2 client IDs in the bird
+codebase.
 
 ## GitHub Actions Secrets
 
@@ -20,8 +21,7 @@ OAuth2 client IDs in the bird codebase.
 `<release-token-uuid>` is the UUID of the GitHub token item whose `secret_name` field is `CI_RELEASE_TOKEN`. The item's
 title contains parentheses, which `op://` references cannot carry, so the path names the item by UUID.
 
-## Removed
+## Not a bird secret
 
-The `BIRD_DEFAULT_CLIENT_ID` secret was removed — it referenced dead code from a pre-xurl architecture where bird
-handled OAuth2 directly. Auth is now fully delegated to xurl via the subprocess transport layer (see
-`src/transport.rs`).
+`BIRD_DEFAULT_CLIENT_ID` is not used: bird holds no OAuth2 client ID of its own. The X app's credentials come from the
+`CLIENT_ID` / `CLIENT_SECRET` environment variables or the `~/.xurl` token store.
