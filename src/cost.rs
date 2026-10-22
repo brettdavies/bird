@@ -58,7 +58,7 @@ pub fn estimate_cost(body: &serde_json::Value, endpoint: &str, cache_hit: bool) 
         if let Some(inc_users) = includes.get("users").and_then(|u| u.as_array()) {
             users += inc_users.len() as u32;
         }
-        if let Some(inc_tweets) = includes.get("tweets").and_then(|t| t.as_array()) {
+        if let Some(inc_tweets) = includes.get("posts").and_then(|t| t.as_array()) {
             tweets += inc_tweets.len() as u32;
         }
     }
@@ -168,7 +168,7 @@ mod tests {
             "data": [{"id": "1"}],
             "includes": {
                 "users": [{"id": "u1"}, {"id": "u2"}],
-                "tweets": [{"id": "t1"}]
+                "posts": [{"id": "t1"}]
             }
         });
         let est = estimate_cost(&body, "/2/tweets/search/recent", false);

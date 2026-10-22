@@ -114,7 +114,7 @@ fn fetch_root(
             .expect("invariant: tweet endpoint URL is well-formed with validated tweet_id");
         {
             let mut pairs = url.query_pairs_mut();
-            for (key, value) in fields::tweet_query_params() {
+            for (key, value) in fields::post_query_params() {
                 pairs.append_pair(key, value);
             }
         }
@@ -298,7 +298,7 @@ fn build_search_url(conversation_id: &str, next_token: Option<&str>) -> String {
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", &format!("conversation_id:{}", conversation_id));
-        for (key, value) in fields::tweet_query_params() {
+        for (key, value) in fields::post_query_params() {
             pairs.append_pair(key, value);
         }
         pairs.append_pair("max_results", "100");
@@ -347,7 +347,7 @@ fn build_thread_tree(
             continue;
         }
         let parent_id = tweet
-            .get("referenced_tweets")
+            .get("referenced_posts")
             .and_then(|refs| refs.as_array())
             .and_then(|refs| {
                 refs.iter()
@@ -456,7 +456,7 @@ mod tests {
             "created_at": created_at,
         });
         if let Some(parent) = replied_to {
-            tweet["referenced_tweets"] = serde_json::json!([{"type": "replied_to", "id": parent}]);
+            tweet["referenced_posts"] = serde_json::json!([{"type": "replied_to", "id": parent}]);
         }
         tweet
     }

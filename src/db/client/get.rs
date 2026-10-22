@@ -352,7 +352,7 @@ mod tests {
     fn batch_ids_extraction() {
         assert_eq!(
             extract_batch_ids(&parse(
-                "https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text"
+                "https://api.x.com/2/tweets?ids=1,2,3&post.fields=text"
             )),
             Some(vec!["1".into(), "2".into(), "3".into()])
         );
@@ -392,10 +392,10 @@ mod tests {
 
     #[test]
     fn url_rebuild_with_ids() {
-        let url = "https://api.x.com/2/tweets?ids=1,2,3&tweet.fields=text";
+        let url = "https://api.x.com/2/tweets?ids=1,2,3&post.fields=text";
         let rebuilt = rebuild_url_with_ids(url, &["2".into(), "3".into()]);
         assert!(rebuilt.contains("ids=2%2C3") || rebuilt.contains("ids=2,3"));
-        assert!(rebuilt.contains("tweet.fields=text"));
+        assert!(rebuilt.contains("post.fields=text"));
         assert!(!rebuilt.contains("ids=1"));
     }
 

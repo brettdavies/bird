@@ -100,7 +100,7 @@ pub fn run_bookmarks(
             {
                 let mut pairs = u.query_pairs_mut();
                 pairs.append_pair("max_results", &max_results.to_string());
-                for (key, value) in fields::tweet_query_params() {
+                for (key, value) in fields::post_query_params() {
                     pairs.append_pair(key, value);
                 }
                 if let Some(ref pt) = pagination_token {
