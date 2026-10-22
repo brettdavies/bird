@@ -29,4 +29,9 @@ permissions:
 
 jobs:
   ci:
-    uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+    uses: brettdavies/.github/.github/workflows/rust-ci.yml@feat/rust-ci-opt-in-jobs
+    with:
+      docs: true
+      msrv: true
+      lint_stdio: true
+      workflow_concurrency: true

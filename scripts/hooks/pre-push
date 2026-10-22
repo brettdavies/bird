@@ -43,23 +43,15 @@ echo -e "${BOLD}Running local CI checks...${RESET}"
 # the toolchain is a reviewed PR that updates rust-toolchain.toml.
 pass "toolchain ($(rustc --version 2>/dev/null | awk '{print $2}' || echo unknown))"
 
-# 0.5. Plan 2 R20 guard: writer-injection compliance. Every call site that
-# emits user-visible output must use an injected &mut dyn Write writer (or an
-# OutputConfig::print_* method) — never the bare println! / eprintln! family
-# or the deleted out_println! / out_print! / diag! macros. The only permitted
-# survivors are:
-#   - src/main.rs (binary shim — no output today, future-proofed)
-#   - src/error/fatal.rs (the fatal-error chokepoint, intentionally bare)
-# Anywhere else in src/ — including elsewhere in src/error/ — the guard fires.
-forbidden=$(rg -n '\b(println|eprintln|print|eprint|out_println|out_print|diag)!' \
-    --glob 'src/**/*.rs' \
-    --glob '!src/main.rs' \
-    --glob '!src/error/fatal.rs' 2>/dev/null || true)
-if [ -n "$forbidden" ]; then
-    echo "$forbidden"
-    fail "forbidden output macro in src/ — use an injected writer or OutputConfig method (Plan 2 R20)"
-fi
-pass "r20 (no bare println!/eprintln!/out_println!/diag! outside fatal.rs)"
+# 0.5. Output discipline: the writer-injection rule in scripts/lint-stdio.sh,
+# the script CI's `Output discipline` job runs.
+bash scripts/lint-stdio.sh || fail "scripts/lint-stdio.sh"
+pass "output discipline"
+
+# 0.6. Workflow concurrency groups lead with a literal token (CI's `Workflow
+# concurrency` job).
+bash scripts/check-workflow-concurrency.sh || fail "scripts/check-workflow-concurrency.sh"
+pass "workflow concurrency"
 
 # 1. Format check
 cargo fmt -- --check 2>/dev/null || fail "cargo fmt -- --check"

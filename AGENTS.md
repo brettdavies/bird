@@ -105,8 +105,8 @@ Additional env vars without flag pairs:
 
 - `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI
   (`xr auth app`).
-- `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2
-  pending state sits beside it.
+- `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2 pending
+  state sits beside it.
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
@@ -289,6 +289,9 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
 - MSRV: **1.94**. The pinned toolchain (`rust-toolchain.toml`, channel `1.94.1`) is the supply-chain anchor; rustup
   verifies component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
 - No `unwrap()` in production code paths.
+- `bash scripts/lint-stdio.sh` — no output macro (`println!`, `eprintln!`, and kin) in `src/` outside `src/main.rs` and
+  `src/error/fatal.rs`; output goes to an injected writer.
+- `bash scripts/check-workflow-concurrency.sh` — every workflow concurrency group leads with a literal token.
 
 The pre-push hook at `scripts/hooks/pre-push` mirrors CI 1:1: fmt, clippy, test, deny, shellcheck, MSRV verification,
 rustdoc-as-warnings, Windows cross-clippy. Set `git config core.hooksPath scripts/hooks` once per clone.
