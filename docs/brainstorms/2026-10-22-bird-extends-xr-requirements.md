@@ -20,17 +20,18 @@ execution: code
   (`docs/plans/2026-10-22-001-xurl-rs-parity-backlog.md`, Rules and stack 3) and two statements of direction: bird does
   not recreate `xr`'s commands, and xurl-rs stays fully usable on its own. Stacks 4 and 5 of the backlog are context,
   not scope.
-- **Open blockers:** no xurl-rs pull request opens until the xurl-rs release in flight ships; the xdk-rs hook, the
-  xurl-rs library surface, and any shared contract change need the maintainer's approval before they merge.
+- **Open blockers:** bird's composition waits for the xdk-rs and xurl-rs releases that carry R3 to R16 and R30 to R34.
+  The xurl-rs team owns their design and timing; bird states what it needs and adapts to what ships.
 
 ## Product Contract
 
 ### Summary
 
 bird stops re-implementing `xr`. Its command set becomes `xr`'s API commands, composed in-process from the xurl-rs
-library, plus the commands only bird has (thread, watchlist, cache, doctor, schema, completions, skill, and a local
-spend ledger). Every request either tool sends goes through one xdk-rs client, and bird's cache and spend policy ride on
-that client as hooks, so a composed command is cached, priced, and recorded the same way bird's own commands are.
+library, plus the commands only bird has (thread, watchlist, cache, doctor, schema, completions, skill, a local spend
+ledger, and post ranking). Every request either tool sends goes through one xdk-rs client, and bird's cache and spend
+policy ride on that client as hooks, so a composed command is cached, priced, and recorded the same way bird's own
+commands are. bird remembers the order of every list it fetches, so `--cache-only` replays a list at no cost.
 
 ### Problem Frame
 
@@ -59,7 +60,10 @@ cache entirely.
   `user`) happen by retirement. Governs R17.
 - **The hook lives on the client, not in the command layer.** xr's commands stay unaware of caching; any embedder of
   xdk-rs gets the same hook whether or not it composes `xr`. Governs R3 to R8, R18.
-- **xurl-rs takes a client factory, not a built client.** `xr`'s `--app`, `--timeout`, and `--wait-on-rate-limit` shape
+- **bird asks; xdk-rs and xurl-rs decide.** bird writes no code in xurl-rs: it states each need with the interface it
+  codes against and the behavior it tests, and adapts to the names and shapes that ship. Governs R3 to R16, R23, R24,
+  R30 to R34.
+- **bird asks for a client factory, not a built client.** `xr`'s `--app`, `--timeout`, and `--wait-on-rate-limit` shape
   the client, so the command layer builds it from the parsed flags through a factory the embedder supplies. Governs R13.
 - **Spend control is a second hook, on the list loop's plan.** The request hook sees one request at a time and cannot
   refuse a run before its first page; a budget policy sees the whole plan. Governs R10, R18.
@@ -69,6 +73,14 @@ cache entirely.
   raw mode out. Governs R12, R21.
 - **bird keeps its `BIRD_*` environment variables.** A user's `XURL_OUTPUT` set for `xr` does not change bird's output,
   and bird's documented variables keep working. Governs R19.
+- **xr's `auth` family composes, and `bird login` is removed.** Sign-in is an `xr` capability bird shares the token
+  store with. Governs R17.
+- **bird's local ledger is `bird spend`.** `usage` belongs to `xr`, and `spend` is the word the pagination contract
+  reserves for bird. Governs R22.
+- **The query cache ships in 1.0.0; checkpoints and hydration do not.** A replayable list is what makes `--cache-only`
+  useful for list commands. Governs R25 to R28.
+- **Ranking is a bird command, not a `search` flag.** `xr`'s `search` composes flag for flag, so `--sort` and
+  `--min-likes` leave it, and `bird rank` fetches through the same search request. Governs R29.
 
 ### Requirements
 
@@ -80,7 +92,7 @@ cache entirely.
 - R2. Nothing in xdk-rs or xurl-rs depends on bird or names a bird concept (cache, price, spend), and `xr` installs no
   hook.
 
-**Request hook (xdk-rs)**
+**Needed from xdk-rs: request hook**
 
 - R3. An embedder installs a request hook on an xdk-rs client built from credentials or from a token store.
 - R4. Before a request is sent, the hook can answer it with a response body, which the client decodes as it would
@@ -94,7 +106,7 @@ cache entirely.
   requests do not reach the hook.
 - R8. A client with no hook behaves as it does today.
 
-**List loop (xdk-rs)**
+**Needed from xdk-rs: list loop**
 
 - R9. A list call returns up to `limit` unique items across as many pages as it needs, with a lossless next cursor and a
   closed-set stop reason, as the pagination contract defines
@@ -103,8 +115,15 @@ cache entirely.
   embedder-supplied budget policy sees the plan and either refuses the run or returns the budget the loop binds to (D4).
 - R11. Sending one page with `Call::send` and a `pagination_token` keeps working unchanged; the loop is a new way to
   send a list call beside it.
+- R32. Each page request the loop sends carries, on the hook's views, the list's canonical request identity (every
+  parameter except page size and cursor), its list class, its primary resource kind, the page's index in the run, and
+  the cursor that addressed it.
+- R33. An embedder can install a local list source that serves a list run with no request; such a run plans zero
+  requests, skips the endpoint's floor, and carries the source's own fields into the run's list metadata.
+- R34. The contract's exit codes 75 (partial data), 80 (bounded stop, nothing delivered), and 81 (pre-flight refusal)
+  are xdk-rs constants, and a list run's metadata names the code its stop maps to.
 
-**Command layer (xurl-rs)**
+**Needed from xurl-rs: command layer**
 
 - R12. xurl-rs exposes `xr`'s API commands and its global flags as a supported library: a clap subcommand set and a
   global-flags struct an embedder flattens into its own clap tree, separate from `xr`'s meta commands (schema,
@@ -117,11 +136,16 @@ cache entirely.
   `xr`'s schemas beside their own and print `xr`'s envelope.
 - R16. The library surface carries a semver contract: it is documented, checked for breaking changes in CI, and its
   types allow additive change without a major release.
+- R30. xdk-rs exposes its post-vocabulary normalizer, or a public typed decode, so a body bird stored or requested
+  itself reads `post_count` where `xr`'s output does.
+- R31. `xr schema --list --output json` prints one `ok` document, as every other command does, not one `{"message"}`
+  per row.
 
 **bird composition**
 
-- R17. bird's command set is `xr`'s API commands plus bird's own: `thread`, `watchlist`, `cache`, `doctor`, `schema`,
-  `completions`, `skill`, and the spend ledger (R22). Every bird verb `xr` has retires with no alias.
+- R17. bird's command set is `xr`'s API commands, `auth` included, plus bird's own: `thread`, `watchlist`, `cache`,
+  `doctor`, `schema`, `completions`, `skill`, `spend` (R22), and `rank` (R29). Every bird verb `xr` has retires with no
+  alias, `login` among them.
 - R18. Every command bird runs, composed or its own, goes through a client bird builds with its cache hook and budget
   policy installed, so cache reads, entity writes, the usage ledger, and the spend guard apply to both.
 - R19. bird's global flags are `xr`'s global flags plus bird's `--refresh`, `--no-cache`, `--cache-only`, `--max-spend`,
@@ -133,7 +157,27 @@ cache entirely.
 - R22. `bird usage` and `bird usage credits` are `xr`'s; bird's local estimate ledger and its estimate-against-actual
   view move to a bird verb, `bird spend`.
 
-**Seam and documents**
+**Query cache (bird)**
+
+- R25. For each list request identity, bird stores the ordered ids an online run observes, each id's observation time,
+  and the API cursor where observation stopped: a run from the head replaces the stored order of a stable list and
+  merges by id descending into a time-ordered one, a run from the stored end cursor appends, and a run from any other
+  cursor updates entities only (contract D7.2).
+- R26. Under `--cache-only` a list command replays the stored list for its request identity in stored order up to
+  `limit` and sends nothing; its envelope carries a `cache` field with the observation-time range it served, and a
+  stored list that runs out first stops with `cache_miss` and the stored end cursor (D7.4).
+- R27. Each page's entity writes, query-cache update, and ledger entry commit in one transaction, so a page is either
+  fully recorded or absent after a crash (D7.6).
+- R28. An online list run always fetches; the query cache serves only `--cache-only` (D7.3).
+
+**Ranking (bird)**
+
+- R29. `bird rank <query> [--by likes|reposts|replies|quotes] [--min-likes <n>]`, bounded by the global `--limit`,
+  sends exactly the requests `bird search <query>` sends for the same `--limit`, ranks the delivered posts by the chosen
+  public metric after the last page (likes by default), and drops posts below `--min-likes`; under `--cache-only` it
+  ranks the stored list for that query and sends nothing.
+
+**Needed from xurl-rs: seam and documents**
 
 - R23. The seam document's flag-parsing rule reads: flag parsing is presentation, implemented once in `xr`'s command
   layer, and a client passes an `xr` capability through by composing that command, never by re-implementing its flags.
@@ -171,6 +215,13 @@ cache entirely.
   caller and the client sends nothing.
 - AE5. **Covers R20.** Given `--cache-only` and an empty store, when `bird user jack` runs, then it fails with bird's
   cache-miss error and sends nothing.
+- AE6. **Covers R25, R26.** Given an online `bird search rust --limit 30` that stored 30 ids, when
+  `bird search rust --limit 20 --cache-only` runs, then it prints the first 20 stored posts in stored order, sends
+  nothing, and carries `meta.cache` with the observation-time range; with `--limit 40` it prints 30 and stops with
+  `cache_miss` and the stored end cursor.
+- AE7. **Covers R29.** Given the same query and `--limit`, when `bird rank` and `bird search` each run online against
+  the same scripted answers, then they send the same requests, and `bird rank`'s `data` is `bird search`'s posts sorted
+  by like count with those under `--min-likes` removed.
 
 ### Success Criteria
 
@@ -180,24 +231,27 @@ cache entirely.
   `xr` has a command for.
 - A composed verb and its `xr` twin print the same output for the same input (AE3).
 - Repeating a cached read on the same UTC day costs one request in total (AE1).
+- A stored list replays under `--cache-only` at no cost (AE6), and `bird rank` costs what `bird search` costs for the
+  same query and limit (AE7).
 
 ### Scope Boundaries
 
-- In: the xdk-rs request hook, the xdk-rs list loop with plan and budget policy, the xurl-rs command-layer surface, the
-  move of the seam and contract documents into xurl-rs with R23's revision, `xr`'s list verbs on the loop, bird's
-  composition and the retirement of its overlapping verbs, and bird's spend guard on composed lists.
+- In, bird: composition and the retirement of its overlapping verbs, the spend guard on composed lists, the query
+  cache with `--cache-only` list replay, `bird spend`, and `bird rank`.
+- Needed from upstream, owned by the xurl-rs team: the xdk-rs request hook, list loop, budget policy, page context,
+  local list source, and exit codes; the xurl-rs command-layer surface; `xr`'s list verbs on the loop; the seam and
+  contract documents in xurl-rs with R23's revision; the vocabulary normalizer export; the `xr schema --list` envelope.
 - Out: `xr`'s raw mode and meta commands in bird; `xr validate` in bird; any change to `xr`'s verbs, flags, or
   envelopes.
-- Deferred to follow-up work, each a client-only row in the pagination contract: the query cache (D7.2), checkpoint mode
-  (D6), author hydration (D7.5), the `cost`, `checkpoint`, `cache`, and `hydration` fields on a composed command's
-  envelope, `xr endpoints`, and the seam's ast-grep rules and CI workflow.
-- Deferred: bird's `search --sort` and `--min-likes` re-ranking, which retire with bird's `search`; a later bird command
-  over the local store can bring ranking back.
+- Deferred to follow-up work: checkpoint mode (D6), author hydration (D7.5), the `cost`, `checkpoint`, and `hydration`
+  envelope fields, vendored prose evidence with checksums (D2.4), the `SEAM_VERSION` and `CONTRACT_VERSION` constants,
+  `xr endpoints`, and the seam's ast-grep rules and CI workflow.
 
 ### Dependencies / Assumptions
 
 - The xurl-rs release in flight ships first; bird then takes xdk-rs and xurl-rs from crates.io.
-- One more xdk-rs release and one xurl-rs release carry the hook, the loop, and the surface before bird's 1.0.0 cut.
+- The xdk-rs and xurl-rs releases that carry R3 to R16 and R32 to R34 ship before bird's 1.0.0 cut; R23, R24, R30,
+  and R31 do not gate it. bird adapts to the names and shapes they ship with.
 - Assumption: xdk-rs keeps one JSON send path (`Client::send_request_with`) that every shortcut and every page goes
   through, which is where the hook sits.
 - Assumption: bird stays synchronous and drives the async xurl-rs library on its current-thread runtime, as it drives
@@ -207,13 +261,6 @@ cache entirely.
 
 #### Deferred to Planning
 
-- (Affects R22; product) Is `bird spend` the name for the local estimate ledger? Default adopted: `spend`, a word the
-  pagination contract already reserves for bird. The maintainer confirms before the composition PR merges.
-- (Affects R17; product) Retiring bird's `search --sort likes --min-likes` drops a bird-only feature. Default adopted:
-  retire it with no replacement in 1.0.0. The maintainer confirms before the composition PR merges.
-- (Affects R9, R10; product) The deferrals in Scope Boundaries leave 1.0.0 with the loop, the plan, the budget, and the
-  spend guard but no query cache, checkpoints, or hydration. Default adopted: ship 1.0.0 with that cut. The maintainer
-  confirms before the list-loop PR opens.
 - (Affects R13; technical) Whether the library renders the run's `tracing` diagnostics itself or hands the renderer to
   the embedder.
 - (Affects R4; technical) Whether an answer is restricted to GET by the client or by the hook's own policy.
