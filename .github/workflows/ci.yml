@@ -28,9 +28,19 @@ permissions:
   pull-requests: read
 
 jobs:
+  # Whether the change can reach cargo, by scripts/cargo-inputs.sh. A
+  # documentation-only PR skips every Rust job, and a skipped job reports
+  # success, so required checks still pass. The `ci` job runs unless this
+  # answered `false`, so a scope job that fails runs the full battery.
+  scope:
+    uses: brettdavies/.github/.github/workflows/rust-change-scope.yml@feat/rust-change-scope
+
   ci:
+    needs: scope
+    if: ${{ !cancelled() }}
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@feat/rust-ci-opt-in-jobs
     with:
+      docs_only: ${{ needs.scope.outputs.rust == 'false' }}
       docs: true
       msrv: true
       completions: true
