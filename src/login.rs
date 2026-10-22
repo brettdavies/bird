@@ -6,12 +6,15 @@
 //! OAuth2 wire protocol; bird owns the user-facing envelope (text prompt vs
 //! `{"data": ..., "meta": ...}` JSON) and stdin plumbing.
 
+use crate::config::ResolvedConfig;
+use crate::error::BirdError;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::xurl_client::EmbeddedClient;
+use crate::xurl_client::{EmbeddedClient, open_store, pending_path};
 use std::io::{BufRead, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio_util::sync::CancellationToken;
+use xdk::auth::Auth;
 
 /// Clap-derive view of `bird login`'s headless-mode arguments. Kept colocated
 /// with the auth driver so the audit's per-file scanner sees both the `#[arg]`
@@ -33,20 +36,23 @@ fn parse_oauth2_authorize_url_state(url_str: &str) -> Option<String> {
 }
 
 /// Drive the headless two-step OAuth2 authenticate flow against the
-/// embedded xdk-rs client: step 1 writes the PKCE state and returns the
-/// authorize URL, step 2 exchanges the pasted redirect URL for a token.
+/// embedded xdk-rs client: step 1 writes the PKCE state beside the token store
+/// and returns the authorize URL, step 2 exchanges the redirect URL read from
+/// `input` for a token.
 pub fn run_oauth2_authenticate_headless_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    input: &mut dyn BufRead,
+    config: &ResolvedConfig,
     username: Option<&str>,
-    app: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let embedded = sign_in_client(app)?;
+) -> Result<(), BirdError> {
+    let embedded = sign_in_client(config)?;
     let client = embedded.client();
-    let pending_path = xdk::auth::pending::default_pending_path()?;
+    let pending_path = pending_path(config.token_store.as_deref()).map_err(login_error)?;
 
-    let auth_url =
-        embedded.block_on(async { client.auth().await?.remote_oauth2_step1(&pending_path) })?;
+    let auth_url = embedded
+        .block_on(async { client.auth().await?.remote_oauth2_step1(&pending_path) })
+        .map_err(login_error)?;
 
     let state = parse_oauth2_authorize_url_state(&auth_url).unwrap_or_default();
 
@@ -61,34 +67,35 @@ pub fn run_oauth2_authenticate_headless_embedded(
                     "awaiting": "callback_url_on_stdin",
                 },
             });
-            writeln!(stdout, "{}", envelope)?;
+            writeln!(stdout, "{}", envelope).map_err(login_error)?;
         }
         OutputFormat::Text => {
-            writeln!(stdout, "Open this URL in any browser:\n")?;
-            writeln!(stdout, "  {}\n", auth_url)?;
+            writeln!(stdout, "Open this URL in any browser:\n").map_err(login_error)?;
+            writeln!(stdout, "  {}\n", auth_url).map_err(login_error)?;
             writeln!(
                 stdout,
                 "After authorizing, paste the full redirect URL from your browser here and press Enter:"
-            )?;
+            )
+            .map_err(login_error)?;
         }
     }
     stdout.flush().ok();
 
     let mut redirect_url = String::new();
-    let bytes = std::io::stdin().lock().read_line(&mut redirect_url)?;
+    let bytes = input.read_line(&mut redirect_url).map_err(login_error)?;
     let trimmed = redirect_url.trim();
     if bytes == 0 || trimmed.is_empty() {
-        return Err(
-            "no redirect URL received on stdin; expected the URL from your browser's address bar"
-                .into(),
-        );
+        return Err(login_error(
+            "no redirect URL received on stdin; expected the URL from your browser's address bar",
+        ));
     }
 
     let user = username.unwrap_or("");
-    let signed_in = embedded.block_on(client.remote_oauth2_step2(trimmed, user, &pending_path))?;
+    let signed_in = embedded
+        .block_on(client.remote_oauth2_step2(trimmed, user, &pending_path))
+        .map_err(login_error)?;
 
-    print_authenticated(out, stdout, &signed_in)?;
-    Ok(())
+    print_authenticated(out, stdout, &signed_in).map_err(login_error)
 }
 
 /// Drive the interactive (browser-opening) OAuth2 authenticate flow against
@@ -98,10 +105,10 @@ pub fn run_oauth2_authenticate_headless_embedded(
 pub fn run_oauth2_authenticate_interactive_embedded(
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    config: &ResolvedConfig,
     username: Option<&str>,
-    app: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let embedded = sign_in_client(app)?;
+) -> Result<(), BirdError> {
+    let embedded = sign_in_client(config)?;
 
     let browser_failed = Arc::new(AtomicBool::new(false));
     let opener = {
@@ -123,26 +130,63 @@ pub fn run_oauth2_authenticate_interactive_embedded(
     )) {
         Ok(signed_in) => signed_in,
         Err(e) if browser_failed.load(Ordering::SeqCst) => {
-            return Err(format!(
+            return Err(login_error(format!(
                 "{e}; run `bird login --no-browser` to sign in from a browser on any machine"
-            )
-            .into());
+            )));
         }
-        Err(e) => return Err(Box::new(e)),
+        Err(e) => return Err(login_error(e)),
     };
 
-    print_authenticated(out, stdout, &signed_in)?;
-    Ok(())
+    print_authenticated(out, stdout, &signed_in).map_err(login_error)
 }
 
-/// The client sign-in runs on: the `~/.xurl` token store for `app`, or the
-/// store's default app when `app` is `None`.
-fn sign_in_client(app: Option<&str>) -> xdk::Result<EmbeddedClient> {
-    let mut cfg = xdk::config::Config::new();
-    if let Some(app_name) = app {
-        cfg.app_name = app_name.to_string();
+/// The client sign-in runs on: the token store and environment the runner
+/// captured, for `config.app` or the store's default app. Refuses an app with
+/// no client credentials before any URL is built or pending state written,
+/// as `xr auth oauth2` does.
+fn sign_in_client(config: &ResolvedConfig) -> Result<EmbeddedClient, BirdError> {
+    let (cfg, auth) = open_store(
+        &config.xdk_env,
+        config.token_store.as_deref(),
+        config.app.as_deref(),
+    );
+    if let Some(refusal) = client_credentials_missing(&auth, config.app.is_some()) {
+        return Err(refusal);
     }
-    EmbeddedClient::from_config(&cfg, cfg.http_timeout_secs)
+    EmbeddedClient::new(&cfg, auth, cfg.http_timeout_secs).map_err(login_error)
+}
+
+/// The `client-credentials-missing` refusal `xr auth oauth2` gives when the
+/// app sign-in would use has no client id: it names another app that has one
+/// when the store holds one, and otherwise how to register one.
+fn client_credentials_missing(auth: &Auth, app_explicit: bool) -> Option<BirdError> {
+    if !auth.client_id().is_empty() {
+        return None;
+    }
+    let store = auth.token_store();
+    let target = store.get_active_app_name(auth.app_name()).to_string();
+    let alternative = store.list_apps().into_iter().find(|name| {
+        *name != target
+            && store
+                .get_app(name)
+                .is_some_and(|app| !app.client_id.is_empty())
+    });
+    let message = match alternative {
+        Some(other) => format!(
+            "app {target:?} has no client credentials; app {other:?} does. Run: bird login --app {other}"
+        ),
+        None if app_explicit => format!(
+            "app {target:?} has no client credentials. Register them with `xr auth app`, or set CLIENT_ID and CLIENT_SECRET."
+        ),
+        None => "no app carries client credentials. Register one with `xr auth app`, or set CLIENT_ID and CLIENT_SECRET.".to_string(),
+    };
+    Some(BirdError::usage("client-credentials-missing", message))
+}
+
+/// Maps a sign-in failure onto bird's envelope, an `xdk::Error` keeping
+/// xdk's reason and exit code.
+fn login_error(err: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> BirdError {
+    BirdError::from_source("login", err.into())
 }
 
 /// Report a finished sign-in, naming the account the token belongs to.

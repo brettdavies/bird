@@ -105,6 +105,8 @@ Additional env vars without flag pairs:
 
 - `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI
   (`xr auth app`).
+- `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2
+  pending state sits beside it.
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
@@ -119,8 +121,8 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
 - `src/cli/mod.rs` — clap derive definitions (`Cli`, `Command`, `CacheAction`, `WatchlistCommand`, `SkillAction`,
   `SchemaArgs`).
 - `src/cli/runner.rs` — layered entrypoints: `run_argv()`, `run(args, &mut stdout, &mut stderr)`,
-  `run_with_paths(args, &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with TempDir-backed
-  `ResolvedPaths` and `Vec<u8>` writers.
+  `run_with_paths(args, &mut stdin, &mut stdout, &mut stderr, paths, env)`. Tests call `run_with_paths` directly with
+  TempDir-backed `ResolvedPaths`, `std::io::empty()` for stdin, and `Vec<u8>` writers.
 - `src/cli/dispatch.rs` — `fn run` top-level match plus shared dispatcher helpers (`command_is_api_hitting`,
   `require_confirmation`, `emit_dry_run`, `build_dry_run_url`, `clamp_limit`, `validate_auth_value`, etc.).
 - `src/cli/argv.rs` — argv pre-scan helpers (`output_from_argv`, `explicit_output_from_argv`).
@@ -143,10 +145,13 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   identifier rendered to xdk's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
 - `src/output.rs` — `OutputConfig`, color helpers, ANSI sanitization for stderr envelopes, `print_*` methods that take
   an injected `&mut dyn Write`.
-- `src/error/` — `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation for the 77 / 78 / 1 / 3 / 4 /
-  5 contract (bird's two overrides on top of `xdk::Error::exit_code`).
+- `src/error/` — `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation: xdk's reason and exit code,
+  filed under bird's envelope kind.
 - `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
+  `ResolvedPaths::token_store` and `EnvOverrides::xdk` carry the xdk-rs token store and environment: when a store is
+  named (`XURL_TOKEN_STORE`, or a test's temporary one), nothing below the runner reads `$HOME` or the process
+  environment for X credentials; with none, xdk opens its default store as `xr` does.
 - `src/schema.rs` — input validation (`validate_username` strips `@`, enforces X charset).
 - `src/schema_print.rs` — `bird schema` subcommand: prints embedded JSON Schema 2020-12 documents from `schema/`.
 - `src/skill_install/` — `bird skill install <host>` / `update <host>` orchestrate a hardened `git clone --depth 1` of
@@ -164,8 +169,9 @@ the embedded client).
 
 `bird login` calls `xdk::api::Client::oauth2_flow` with its own browser opener; bird never owns tokens.
 `bird login --no-browser` (alias `--headless`) drives `remote_oauth2_step1` / `remote_oauth2_step2` so agents and
-headless machines get the authorization URL on stdout and feed the redirect URL back on stdin. Token storage, refresh,
-and OAuth1 signing all live in xdk-rs.
+headless machines get the authorization URL on stdout and feed the redirect URL back on stdin. Both refuse an app with
+no client credentials (`client-credentials-missing`, exit 2) before building an authorization URL, as `xr auth oauth2`
+does. Token storage, refresh, and OAuth1 signing all live in xdk-rs.
 
 ## Output formats
 

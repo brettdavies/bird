@@ -97,21 +97,58 @@ fn watchlist_remove_yes_alias_proceeds() {
     assert_eq!(exit_remove, 0);
 }
 
+/// `--no-browser` and its `--headless` alias reach the headless sign-in path.
+/// Against the test's empty token store and environment it refuses the way
+/// `xr auth oauth2` does, with `client-credentials-missing` and exit 2, before
+/// any authorize URL is built: no pending state lands beside the store, and
+/// stdin is never read.
 #[test]
-fn login_no_browser_parses() {
-    // With closed stdin and an isolated HOME, the command must reach the headless
-    // path and exit non-zero (xurl absent or rejects empty redirect URL) — not a
-    // clap usage error.
-    let env = common::TestEnv::new();
-    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "login", "--no-browser"], &env);
-    assert_ne!(exit, 2, "clap usage error: --no-browser not recognized");
+fn login_headless_refuses_an_app_without_client_credentials() {
+    for flag in ["--no-browser", "--headless"] {
+        let env = common::TestEnv::new();
+        let (exit, _stdout, stderr) = common::run_in_process_with_stdin(
+            &["bird", "login", flag, "--output", "json"],
+            &env,
+            &mut common::PanicOnRead,
+        );
+        assert_eq!(exit, 2, "{flag}: stderr {stderr:?}");
+        let envelope = common::stderr_envelope(&stderr);
+        assert_eq!(envelope["error"], "client-credentials-missing", "{flag}");
+        let store = env.paths.token_store.as_deref().expect("test: named store");
+        let pending = xdk::auth::pending::pending_path_for_store(store);
+        assert!(!pending.exists(), "{flag}: wrote {}", pending.display());
+    }
 }
 
+/// `bird doctor` reads the token store the runner was handed, not the
+/// machine's `~/.xurl`: an app seeded into the test's store is the only app
+/// the report lists.
 #[test]
-fn login_headless_alias_parses() {
+fn doctor_reads_the_injected_token_store() {
     let env = common::TestEnv::new();
-    let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "login", "--headless"], &env);
-    assert_ne!(exit, 2, "clap usage error: --headless alias not recognized");
+    let store_path = env
+        .paths
+        .token_store
+        .as_deref()
+        .and_then(|path| path.to_str())
+        .expect("test: named utf-8 store path");
+    xdk::store::TokenStore::new_with_path(store_path)
+        .add_app("fixture-app", "fixture-client-id", "fixture-client-secret")
+        .expect("test: seed the token store");
+
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "doctor", "--output", "json"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let report: serde_json::Value = serde_json::from_str(stdout.trim()).expect("doctor JSON");
+    let apps: Vec<&str> = report["auth"]["apps"]
+        .as_object()
+        .expect("auth.apps object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(apps, ["fixture-app"]);
+    assert_eq!(report["auth"]["apps"]["fixture-app"]["client_id_set"], true);
+    assert_eq!(report["auth"]["env"]["client_id_set"], false);
 }
 
 // --- Content-asserting migrations from cli_smoke_subprocess.rs (Plan 2 U11) -

@@ -1,5 +1,6 @@
 //! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
+use crate::config::ResolvedConfig;
 use crate::db::BirdClient;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -213,25 +214,25 @@ fn build_xurl_status(client: &BirdClient) -> XurlStatus {
     }
 }
 
-/// Read presence of `CLIENT_ID` / `CLIENT_SECRET` / `XURL_BEARER_TOKEN` env
-/// vars without ever inspecting their values. An empty value counts as
-/// "not set" because that is the predominant cause of subtle auth failures.
-fn build_env_credentials() -> EnvCredentials {
-    let is_set =
-        |name: &str| -> bool { std::env::var(name).map(|v| !v.is_empty()).unwrap_or(false) };
+/// Report whether `CLIENT_ID` / `CLIENT_SECRET` / `XURL_BEARER_TOKEN` were
+/// set in the captured environment without ever inspecting their values. An
+/// empty value counts as "not set" because that is the predominant cause of
+/// subtle auth failures.
+fn build_env_credentials(env: &xdk::config::EnvOverrides) -> EnvCredentials {
+    let is_set = |value: &Option<String>| value.as_deref().is_some_and(|v| !v.is_empty());
     EnvCredentials {
-        client_id_set: is_set("CLIENT_ID"),
-        client_secret_set: is_set("CLIENT_SECRET"),
-        bearer_token_set: is_set("XURL_BEARER_TOKEN"),
+        client_id_set: is_set(&env.client_id),
+        client_secret_set: is_set(&env.client_secret),
+        bearer_token_set: is_set(&env.bearer_token),
     }
 }
 
 /// Build the auth section by enumerating every app in xurl's `TokenStore`
 /// and reporting presence-only flags for every credential type. The active
 /// app is the one xurl's runner would pick when no `--app NAME` is supplied.
-fn build_auth_state(_client: &BirdClient) -> AuthState {
-    let cfg = xdk::config::Config::new();
-    let auth = xdk::auth::Auth::new(&cfg);
+fn build_auth_state(config: &ResolvedConfig) -> AuthState {
+    let (_, auth) =
+        crate::xurl_client::open_store(&config.xdk_env, config.token_store.as_deref(), None);
     let store = auth.token_store();
     let active_app = store.get_default_app().to_string();
 
@@ -269,7 +270,7 @@ fn build_auth_state(_client: &BirdClient) -> AuthState {
     AuthState {
         active_app,
         apps,
-        env: build_env_credentials(),
+        env: build_env_credentials(&config.xdk_env),
     }
 }
 
@@ -421,9 +422,13 @@ fn build_commands_section(xurl: &XurlStatus, auth: &AuthState) -> HashMap<String
 }
 
 /// Build full or scoped report.
-pub(crate) fn report(client: &BirdClient, scope: Option<&str>) -> DoctorReport {
+pub(crate) fn report(
+    client: &BirdClient,
+    config: &ResolvedConfig,
+    scope: Option<&str>,
+) -> DoctorReport {
     let xurl = build_xurl_status(client);
-    let auth = build_auth_state(client);
+    let auth = build_auth_state(config);
     let mut commands = build_commands_section(&xurl, &auth);
     if let Some(cmd) = scope
         && let Some(status) = commands.remove(cmd)
@@ -672,6 +677,7 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
 /// from `use_color && pretty`.
 pub fn run_doctor(
     client: &BirdClient,
+    config: &ResolvedConfig,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
     pretty: bool,
@@ -679,7 +685,7 @@ pub fn run_doctor(
     use_emoji: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let use_color = cfg.use_color;
-    let r = report(client, scope);
+    let r = report(client, config, scope);
     if pretty {
         writeln!(stdout, "{}", format_pretty(&r, use_color, use_emoji))?;
     } else {
@@ -711,10 +717,26 @@ mod tests {
         )
     }
 
+    /// A config whose token store and environment are empty, so the report
+    /// never reads the machine's real `~/.xurl` or credentials.
+    fn isolated_config() -> ResolvedConfig {
+        let dir = std::env::temp_dir().join(format!("bird-doctor-test-{}", std::process::id()));
+        ResolvedConfig {
+            username: None,
+            config_dir: dir.clone(),
+            cache_path: dir.join("bird.db"),
+            cache_enabled: false,
+            cache_max_size_mb: 100,
+            token_store: Some(dir.join("no-such-store").join("auth.yml")),
+            xdk_env: xdk::config::EnvOverrides::default(),
+            app: None,
+        }
+    }
+
     #[test]
     fn doctor_report_has_commands() {
         let client = no_cache_client();
-        let r = report(&client, None);
+        let r = report(&client, &isolated_config(), None);
         assert!(!r.commands.is_empty());
         assert!(r.commands.contains_key("me"));
         assert!(r.commands.contains_key("login"));
@@ -723,7 +745,7 @@ mod tests {
     #[test]
     fn doctor_report_scoped_has_only_that_command() {
         let client = no_cache_client();
-        let r = report(&client, Some("me"));
+        let r = report(&client, &isolated_config(), Some("me"));
         assert_eq!(r.commands.len(), 1);
         assert!(r.commands.contains_key("me"));
     }
@@ -747,7 +769,7 @@ mod tests {
             false,
             std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),
         );
-        let r = report(&client, None);
+        let r = report(&client, &isolated_config(), None);
         assert!(!r.xurl.available);
         assert_eq!(
             r.xurl.reason.as_deref(),
@@ -767,7 +789,7 @@ mod tests {
     #[test]
     fn doctor_report_built_client_is_available_without_reason() {
         let client = no_cache_client();
-        let r = report(&client, None);
+        let r = report(&client, &isolated_config(), None);
         assert!(r.xurl.available);
         assert!(r.xurl.reason.is_none());
         let json = serde_json::to_value(&r).expect("serialize");
@@ -778,7 +800,7 @@ mod tests {
     #[test]
     fn doctor_report_json_serializable() {
         let client = no_cache_client();
-        let r = report(&client, None);
+        let r = report(&client, &isolated_config(), None);
         let json = serde_json::to_string(&r).expect("test");
         assert!(json.contains("xurl"));
         assert!(json.contains("auth"));
