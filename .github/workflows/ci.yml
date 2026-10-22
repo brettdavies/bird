@@ -33,5 +33,6 @@ jobs:
     with:
       docs: true
       msrv: true
+      completions: true
       lint_stdio: true
       workflow_concurrency: true
