@@ -183,11 +183,11 @@ Stdout success envelope on `--output json`:
 Stderr error envelope on `--output json`:
 
 ```json
-{"error": "...", "kind": "config|auth|command", "exit_code": 78|77|1, "message": "...", "meta": {}}
+{"error": "...", "kind": "usage|auth|config|general", "exit_code": 2|77|78|1|3|4|5, "message": "...", "meta": {}}
 ```
 
-`command` is present only for `kind: "command"`; `status` is present only when the upstream HTTP status is known. The
-envelope's exit-code key is `exit_code` (matches the anc canonical form).
+`command` names the failing subcommand on `kind: "general"` errors; `status` is present only when the upstream HTTP
+status is known. The envelope's exit-code key is `exit_code` (matches the anc canonical form).
 
 ## JSON Schema documents
 

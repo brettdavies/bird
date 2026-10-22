@@ -198,19 +198,23 @@ Use `--output json` (or `BIRD_OUTPUT=json`) for machine-readable errors on stder
 default.
 
 ```json
-{"error":"message","kind":"config","code":78}
-{"error":"message","kind":"auth","code":77}
-{"error":"message","kind":"command","command":"me","code":1}
-{"error":"message","kind":"command","command":"get","status":429,"code":1}
+{"error":"config-error","kind":"config","message":"...","exit_code":78,"meta":{}}
+{"error":"auth-required","kind":"auth","message":"...","exit_code":77,"meta":{}}
+{"error":"forbidden","kind":"general","message":"...","exit_code":1,"command":"me","status":403,"meta":{}}
+{"error":"rate-limited","kind":"general","message":"...","exit_code":3,"command":"search","status":429,"meta":{}}
 ```
 
-| Field     | Type   | Description                               |
-| --------- | ------ | ----------------------------------------- |
-| `error`   | string | Error message                             |
-| `kind`    | string | `config`, `auth`, or `command`            |
-| `code`    | number | Exit code (78, 77, or 1)                  |
-| `command` | string | Command name (only for `kind: "command"`) |
-| `status`  | number | HTTP status (only for API errors)         |
+| Field       | Type   | Description                                                                         |
+| ----------- | ------ | ----------------------------------------------------------------------------------- |
+| `error`     | string | Stable kebab-case error id; for an X API error, the reason `xr` reports             |
+| `kind`      | string | `usage`, `auth`, `config`, or `general`                                             |
+| `message`   | string | Human-readable message                                                              |
+| `exit_code` | number | 2, 77, 78; or for `general`: 1, 3 (rate limited), 4 (not found), 5 (no response)    |
+| `command`   | string | Failing subcommand, on `general` errors                                             |
+| `status`    | number | Upstream HTTP status, when the error came from an API response                      |
+| `meta`      | object | Always present; empty on errors                                                     |
+
+`bird schema error-envelope` prints the JSON Schema for this envelope.
 
 ---
 

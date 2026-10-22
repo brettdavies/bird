@@ -478,6 +478,60 @@ mod method_tests {
         assert_eq!(obj["kind"], "config");
     }
 
+    /// Every exit code and kind the stderr envelope can carry is one the
+    /// published `error-envelope` schema admits.
+    #[test]
+    fn print_error_json_exit_codes_and_kinds_match_schema() {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../schema/error-envelope.schema.json"))
+                .expect("error-envelope schema is JSON");
+        let allowed = |field: &str| -> Vec<serde_json::Value> {
+            schema["properties"][field]["enum"]
+                .as_array()
+                .unwrap_or_else(|| panic!("schema {field}.enum missing"))
+                .clone()
+        };
+        let exit_codes = allowed("exit_code");
+        let kinds = allowed("kind");
+
+        let general = |exit_code_override: Option<u8>, status: Option<u16>| BirdError::General {
+            error_id: "command-error",
+            message: "m".into(),
+            command: Some("search"),
+            status,
+            exit_code_override,
+        };
+        let errors = [
+            BirdError::usage("invalid-value", "m"),
+            BirdError::Auth {
+                error_id: "auth-error",
+                message: "m".into(),
+            },
+            BirdError::config("m"),
+            general(None, Some(500)),
+            general(Some(3), Some(429)),
+            general(Some(4), Some(404)),
+            general(Some(5), None),
+        ];
+
+        let cfg = json_cfg();
+        for err in &errors {
+            let mut buf = Vec::new();
+            cfg.print_error(&mut buf, err).unwrap();
+            let val: serde_json::Value = serde_json::from_slice(&buf).expect("envelope is JSON");
+            assert!(
+                exit_codes.contains(&val["exit_code"]),
+                "exit_code {} is not in the schema enum {exit_codes:?}",
+                val["exit_code"],
+            );
+            assert!(
+                kinds.contains(&val["kind"]),
+                "kind {} is not in the schema enum {kinds:?}",
+                val["kind"],
+            );
+        }
+    }
+
     // U11 edge-case coverage --------------------------------------------------
 
     /// Multi-line input must arrive at the writer with every embedded `\n`
