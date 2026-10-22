@@ -1,0 +1,26 @@
+# Fails a pull request whose bird surface grows while its `## Changelog` block
+# names no minor-or-higher section; scripts/check-surface-bump.sh names what it
+# compares and what it leaves to review.
+#
+# `edited` is a trigger because the verdict depends on the PR body: fixing the
+# section re-runs the check without a push. PRs to main are release PRs, whose
+# diff spans a whole release and whose body is not a feature changelog.
+name: Changelog bump
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+# A literal token leads the key: a key built only from context is one the
+# called workflow also produces, and its queue would cancel this run.
+concurrency:
+  group: changelog-bump-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog-bump:
+    uses: brettdavies/.github/.github/workflows/rust-changelog-bump.yml@main
