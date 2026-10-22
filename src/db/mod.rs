@@ -17,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Known literal path segments that should never be replaced with `:id`.
 const KNOWN_LITERALS: &[&str] = &[
     "2",
-    "tweets",
+    "posts",
     "users",
     "search",
     "recent",

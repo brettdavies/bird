@@ -170,7 +170,7 @@ impl BirdDb {
         let now = unix_now();
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
-            "INSERT OR REPLACE INTO usage_actual (date, tweet_count, synced_at)
+            "INSERT OR REPLACE INTO usage_actual (date, post_count, synced_at)
              VALUES (?1, ?2, ?3)",
         )?;
         stmt.execute(params![date, tweet_count as i64, now])?;
@@ -190,7 +190,7 @@ impl BirdDb {
         );
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
-            "SELECT date, tweet_count, synced_at FROM usage_actual
+            "SELECT date, post_count, synced_at FROM usage_actual
              WHERE date >= ?1
              ORDER BY date DESC",
         )?;
@@ -222,7 +222,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: "tweet",
+            object_type: "post",
             object_count: 3,
             estimated_cost: 0.015,
             cache_hit: false,
@@ -232,7 +232,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: "tweet",
+            object_type: "post",
             object_count: 3,
             estimated_cost: 0.015,
             cache_hit: true,
@@ -322,7 +322,7 @@ mod tests {
         db.log_usage(&UsageLogEntry {
             endpoint: "/2/tweets/search/recent",
             method: "GET",
-            object_type: "tweet",
+            object_type: "post",
             object_count: 1,
             estimated_cost: 0.005,
             cache_hit: false,

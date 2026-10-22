@@ -282,7 +282,7 @@ impl BirdClient {
         let object_type = if estimate.users_read > 0 && estimate.tweets_read == 0 {
             "user"
         } else if estimate.tweets_read > 0 {
-            "tweet"
+            "post"
         } else {
             "none"
         };
@@ -474,13 +474,13 @@ mod tests {
         let bookmark_rows = vec![
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t1".into(),
+                post_id: "t1".into(),
                 position: 0,
                 refreshed_at: unix_now(),
             },
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t2".into(),
+                post_id: "t2".into(),
                 position: 1,
                 refreshed_at: unix_now(),
             },
@@ -489,11 +489,11 @@ mod tests {
         let stored_bookmarks = db.get_bookmarks("alice").expect("test");
         assert_eq!(stored_bookmarks.len(), 2, "should store 2 bookmarks");
         assert_eq!(
-            stored_bookmarks[0].tweet_id, "t1",
+            stored_bookmarks[0].post_id, "t1",
             "bookmark ordering preserved"
         );
         assert_eq!(
-            stored_bookmarks[1].tweet_id, "t2",
+            stored_bookmarks[1].post_id, "t2",
             "bookmark ordering preserved"
         );
 
@@ -518,7 +518,7 @@ mod tests {
             .log_usage(&super::super::usage::UsageLogEntry {
                 endpoint: "/2/tweets/search/recent",
                 method: "GET",
-                object_type: "tweets",
+                object_type: "posts",
                 object_count: 2,
                 estimated_cost: 0.01,
                 cache_hit: false,

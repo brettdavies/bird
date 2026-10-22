@@ -7,7 +7,7 @@ use super::BirdDb;
 #[derive(Debug, Clone)]
 pub struct BookmarkRow {
     pub username: String,
-    pub tweet_id: String,
+    pub post_id: String,
     pub position: i64,
     pub refreshed_at: i64,
 }
@@ -31,13 +31,13 @@ impl BirdDb {
         )?;
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT INTO bookmarks (username, tweet_id, position, refreshed_at)
+                "INSERT INTO bookmarks (username, post_id, position, refreshed_at)
                  VALUES (?1, ?2, ?3, ?4)",
             )?;
             for bm in bookmarks {
                 stmt.execute(params![
                     bm.username,
-                    bm.tweet_id,
+                    bm.post_id,
                     bm.position,
                     bm.refreshed_at,
                 ])?;
@@ -50,14 +50,14 @@ impl BirdDb {
     pub fn get_bookmarks(&self, username: &str) -> Result<Vec<BookmarkRow>, rusqlite::Error> {
         let conn = self.conn();
         let mut stmt = conn.prepare_cached(
-            "SELECT username, tweet_id, position, refreshed_at
+            "SELECT username, post_id, position, refreshed_at
              FROM bookmarks WHERE username = ?1
              ORDER BY position ASC",
         )?;
         let rows = stmt.query_map(params![username], |row| {
             Ok(BookmarkRow {
                 username: row.get(0)?,
-                tweet_id: row.get(1)?,
+                post_id: row.get(1)?,
                 position: row.get(2)?,
                 refreshed_at: row.get(3)?,
             })
@@ -80,13 +80,13 @@ mod tests {
         let initial = vec![
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t1".into(),
+                post_id: "t1".into(),
                 position: 0,
                 refreshed_at: now,
             },
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t2".into(),
+                post_id: "t2".into(),
                 position: 1,
                 refreshed_at: now,
             },
@@ -96,7 +96,7 @@ mod tests {
 
         let replacement = vec![BookmarkRow {
             username: "alice".into(),
-            tweet_id: "t3".into(),
+            post_id: "t3".into(),
             position: 0,
             refreshed_at: now,
         }];
@@ -104,7 +104,7 @@ mod tests {
 
         let got = db.get_bookmarks("alice").expect("test");
         assert_eq!(got.len(), 1);
-        assert_eq!(got[0].tweet_id, "t3");
+        assert_eq!(got[0].post_id, "t3");
     }
 
     #[test]
@@ -114,27 +114,27 @@ mod tests {
         let bookmarks = vec![
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t3".into(),
+                post_id: "t3".into(),
                 position: 2,
                 refreshed_at: now,
             },
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t1".into(),
+                post_id: "t1".into(),
                 position: 0,
                 refreshed_at: now,
             },
             BookmarkRow {
                 username: "alice".into(),
-                tweet_id: "t2".into(),
+                post_id: "t2".into(),
                 position: 1,
                 refreshed_at: now,
             },
         ];
         db.replace_bookmarks("alice", &bookmarks).expect("test");
         let got = db.get_bookmarks("alice").expect("test");
-        assert_eq!(got[0].tweet_id, "t1");
-        assert_eq!(got[1].tweet_id, "t2");
-        assert_eq!(got[2].tweet_id, "t3");
+        assert_eq!(got[0].post_id, "t1");
+        assert_eq!(got[1].post_id, "t2");
+        assert_eq!(got[2].post_id, "t3");
     }
 }

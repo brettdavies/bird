@@ -244,6 +244,7 @@ fn doctor_report_serializes_match_schema_keys() {
             users: 1,
             raw_responses: 0,
             healthy: true,
+            schema_version: Some(4),
         }),
         linked_xurl_version: None,
     };

@@ -149,7 +149,11 @@
         "tweets": { "type": "integer" },
         "users": { "type": "integer" },
         "raw_responses": { "type": "integer" },
-        "healthy": { "type": "boolean" }
+        "healthy": { "type": "boolean" },
+        "schema_version": {
+          "type": "integer",
+          "description": "The store's schema version: the last migration applied."
+        }
       }
     },
     "linked_xurl_version": {

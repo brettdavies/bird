@@ -3,12 +3,12 @@
 use rusqlite::params;
 
 use super::BirdDb;
-use super::tweets::TweetRow;
+use super::posts::PostRow;
 use super::users::UserRow;
 use crate::db::unix_now;
 
-impl TweetRow {
-    /// Extract a TweetRow from an X API tweet JSON object.
+impl PostRow {
+    /// Extract a PostRow from an X API tweet JSON object.
     /// Stores the full JSON as `raw_json`; only extracts lookup-relevant fields.
     pub fn from_api_json(json: &serde_json::Value) -> Option<Self> {
         let id = json.get("id")?.as_str()?.to_string();
@@ -51,7 +51,7 @@ impl BirdDb {
     /// Upserts users first (parents), then tweets (children) -- logical ordering, no FK enforcement.
     pub fn upsert_entities(
         &self,
-        tweets: &[TweetRow],
+        tweets: &[PostRow],
         users: &[UserRow],
     ) -> Result<(), rusqlite::Error> {
         if tweets.is_empty() && users.is_empty() {
@@ -82,7 +82,7 @@ impl BirdDb {
             }
 
             let mut tweet_stmt = tx.prepare_cached(
-                "INSERT INTO tweets (id, author_id, conversation_id, raw_json, last_refreshed_at)
+                "INSERT INTO posts (id, author_id, conversation_id, raw_json, last_refreshed_at)
                  VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT(id) DO UPDATE SET
                      author_id = excluded.author_id,
@@ -120,14 +120,14 @@ mod tests {
             last_refreshed_at: unix_now(),
         }];
         let tweets = vec![
-            TweetRow {
+            PostRow {
                 id: "t1".into(),
                 author_id: Some("u1".into()),
                 conversation_id: None,
                 raw_json: r#"{"id":"t1"}"#.into(),
                 last_refreshed_at: unix_now(),
             },
-            TweetRow {
+            PostRow {
                 id: "t2".into(),
                 author_id: Some("u1".into()),
                 conversation_id: None,
@@ -145,7 +145,7 @@ mod tests {
     fn upsert_entities_with_missing_author() {
         // X API doesn't guarantee includes.users contains all referenced authors.
         let db = in_memory_db();
-        let tweets = vec![TweetRow {
+        let tweets = vec![PostRow {
             id: "t1".into(),
             author_id: Some("nonexistent_user".into()),
             conversation_id: None,
@@ -165,7 +165,7 @@ mod tests {
             "conversation_id": "789",
             "created_at": "2026-02-18T12:00:00Z"
         });
-        let tweet = TweetRow::from_api_json(&json).expect("test");
+        let tweet = PostRow::from_api_json(&json).expect("test");
         assert_eq!(tweet.id, "123");
         assert_eq!(tweet.author_id.as_deref(), Some("456"));
         assert_eq!(tweet.conversation_id.as_deref(), Some("789"));
@@ -190,6 +190,6 @@ mod tests {
     #[test]
     fn tweet_from_api_json_missing_id() {
         let json = serde_json::json!({"text": "no id"});
-        assert!(TweetRow::from_api_json(&json).is_none());
+        assert!(PostRow::from_api_json(&json).is_none());
     }
 }

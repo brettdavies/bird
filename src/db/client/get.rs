@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use super::super::store::{BirdDb, TweetRow};
+use super::super::store::{BirdDb, PostRow};
 use super::entity::{compute_raw_cache_key, is_entity_endpoint};
 use super::{ApiResponse, BirdClient, RequestContext};
 
@@ -68,7 +68,7 @@ pub(super) fn rebuild_url_with_ids(url: &str, ids: &[String]) -> String {
 }
 
 /// Build an `ApiResponse` representing a store-only hit for a tweet batch.
-fn build_store_response(rows: &[TweetRow]) -> Result<ApiResponse, serde_json::Error> {
+fn build_store_response(rows: &[PostRow]) -> Result<ApiResponse, serde_json::Error> {
     let data: Vec<serde_json::Value> = rows
         .iter()
         .filter_map(|t| serde_json::from_str(&t.raw_json).ok())
@@ -301,7 +301,7 @@ impl BirdClient {
             }
         }
 
-        let store_map: HashMap<&str, &TweetRow> =
+        let store_map: HashMap<&str, &PostRow> =
             from_store.iter().map(|t| (t.id.as_str(), t)).collect();
 
         let mut merged: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
@@ -339,7 +339,7 @@ impl BirdClient {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::store::{TweetRow, UserRow, in_memory_db};
+    use super::super::super::store::{PostRow, UserRow, in_memory_db};
     use super::*;
     use crate::db::unix_now;
     use std::borrow::Cow;
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn check_tweet_freshness_returns_fresh() {
         let db = in_memory_db();
-        db.upsert_tweet(&TweetRow {
+        db.upsert_tweet(&PostRow {
             id: "t1".into(),
             author_id: Some("u1".into()),
             conversation_id: None,
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn check_tweet_freshness_returns_none_for_stale() {
         let db = in_memory_db();
-        db.upsert_tweet(&TweetRow {
+        db.upsert_tweet(&PostRow {
             id: "t1".into(),
             author_id: None,
             conversation_id: None,
