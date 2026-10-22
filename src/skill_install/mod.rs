@@ -12,7 +12,7 @@
 //!   resolve_host(SkillHost) -> (url, dest_template)
 //!         |
 //!         v
-//!   expand_tilde(dest_template) via $HOME  -- HOME unset --> MissingHome
+//!   expand_tilde_with(dest_template, home)  -- home unset --> MissingHome
 //!         |                                                  (reason=home-not-set)
 //!         v
 //!      dry_run? --yes--> emit envelope (mode=dry-run, would_succeed)
@@ -139,17 +139,9 @@ impl DestinationStatus {
     }
 }
 
-/// Expand a leading `~` or `~/` to `$HOME`. Pure passthrough on inputs that
-/// do not start with `~`. `MissingHome` only fires when the input actually
-/// begins with `~` and `$HOME` is unset or empty.
-pub fn expand_tilde(template: &str) -> Result<PathBuf, InstallError> {
-    let home = std::env::var("HOME").ok();
-    expand_tilde_with(template, home.as_deref())
-}
-
-/// Pure-function core of [`expand_tilde`]. Tests pass `home` explicitly so
-/// they never mutate the process environment (which would race with parallel
-/// tests).
+/// Expand a leading `~` or `~/` to `home`, the `HOME` the runner captured.
+/// Pure passthrough on inputs that do not start with `~`. `MissingHome` only
+/// fires when the input actually begins with `~` and `home` is unset or empty.
 pub fn expand_tilde_with(template: &str, home: Option<&str>) -> Result<PathBuf, InstallError> {
     let needs_home = template == "~" || template.starts_with("~/");
     if !needs_home {
@@ -257,11 +249,15 @@ const STATUS_ERROR: &str = "error";
 
 /// Compute the envelope without performing I/O (dry-run) or, in install mode,
 /// after spawning `git`.
-pub fn compute_install_envelope(host: SkillHost, dry_run: bool) -> InstallEnvelope {
+pub fn compute_install_envelope(
+    host: SkillHost,
+    dry_run: bool,
+    home: Option<&str>,
+) -> InstallEnvelope {
     let (url, dest_template) = resolve_host(host);
     let host_str = host_envelope_str(host);
 
-    let dest = match expand_tilde(dest_template) {
+    let dest = match expand_tilde_with(dest_template, home) {
         Ok(p) => p,
         Err(InstallError::MissingHome) => {
             let command_preview = format_clone_command(url, dest_template);
@@ -277,7 +273,7 @@ pub fn compute_install_envelope(host: SkillHost, dry_run: bool) -> InstallEnvelo
                 reason: Some(InstallError::MissingHome.reason()),
             };
         }
-        Err(_) => unreachable!("expand_tilde only emits MissingHome"),
+        Err(_) => unreachable!("expand_tilde_with only emits MissingHome"),
     };
 
     let dest_display = dest.display().to_string();
@@ -418,14 +414,16 @@ fn render_structured<T: serde::Serialize>(env: &T, format: &OutputFormat) -> Str
 }
 
 /// Orchestrate the install pipeline for a single host. Writes the envelope to
-/// `stdout` and returns the exit code.
+/// `stdout` and returns the exit code. `home` is the `HOME` the runner
+/// captured; `~` destinations expand against it alone.
 pub fn run_install(
     host: SkillHost,
     dry_run: bool,
+    home: Option<&str>,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
-    let envelope = compute_install_envelope(host, dry_run);
+    let envelope = compute_install_envelope(host, dry_run, home);
     let rendered = render_envelope(&envelope, &out.format);
     let _ = writeln!(stdout, "{rendered}");
     if envelope.status == STATUS_ERROR {
@@ -443,26 +441,32 @@ pub fn run_install_multi(
     host: Option<SkillHost>,
     all: bool,
     dry_run: bool,
+    home: Option<&str>,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
     if all {
-        return run_for_all_hosts(dry_run, out, stdout);
+        return run_for_all_hosts(dry_run, home, out, stdout);
     }
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
     };
-    run_install(host, dry_run, out, stdout)
+    run_install(host, dry_run, home, out, stdout)
 }
 
 /// Render a per-host envelope sequence as a single multi envelope.
-fn run_for_all_hosts(dry_run: bool, out: &OutputConfig, stdout: &mut dyn Write) -> i32 {
+fn run_for_all_hosts(
+    dry_run: bool,
+    home: Option<&str>,
+    out: &OutputConfig,
+    stdout: &mut dyn Write,
+) -> i32 {
     use clap::ValueEnum as _;
 
     let mut installations = Vec::with_capacity(KNOWN_HOSTS.len());
     let mut worst: i32 = 0;
     for host in SkillHost::value_variants() {
-        let env = compute_install_envelope(*host, dry_run);
+        let env = compute_install_envelope(*host, dry_run, home);
         if env.status == STATUS_ERROR {
             worst = worst.max(env.exit_code.unwrap_or(1));
         }
@@ -515,20 +519,21 @@ fn emit_missing_host_envelope(out: &OutputConfig, stdout: &mut dyn Write) -> i32
 pub fn run_update(
     host: SkillHost,
     dry_run: bool,
+    home: Option<&str>,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
     let (_, dest_template) = resolve_host(host);
     let host_str = host_envelope_str(host);
 
-    let dest = match expand_tilde(dest_template) {
+    let dest = match expand_tilde_with(dest_template, home) {
         Ok(p) => p,
         Err(InstallError::MissingHome) => {
             let rendered = render_update_error(host_str, dest_template, dry_run, "home-not-set");
             let _ = writeln!(stdout, "{rendered}");
             return 1;
         }
-        Err(_) => unreachable!("expand_tilde only emits MissingHome"),
+        Err(_) => unreachable!("expand_tilde_with only emits MissingHome"),
     };
 
     if dry_run {
@@ -550,7 +555,7 @@ pub fn run_update(
         return 1;
     }
 
-    let env = compute_install_envelope(host, false);
+    let env = compute_install_envelope(host, false, home);
     let mut rendered = render_envelope(&env, &out.format);
     if env.status == STATUS_OK {
         rendered = rendered.replace(ACTION_INSTALL, ACTION_UPDATE);
@@ -571,6 +576,7 @@ pub fn run_update_multi(
     host: Option<SkillHost>,
     all: bool,
     dry_run: bool,
+    home: Option<&str>,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
@@ -578,7 +584,7 @@ pub fn run_update_multi(
         use clap::ValueEnum as _;
         let mut worst: i32 = 0;
         for h in SkillHost::value_variants() {
-            let code = run_update(*h, dry_run, out, stdout);
+            let code = run_update(*h, dry_run, home, out, stdout);
             if code != 0 {
                 worst = worst.max(code);
             }
@@ -588,7 +594,7 @@ pub fn run_update_multi(
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
     };
-    run_update(host, dry_run, out, stdout)
+    run_update(host, dry_run, home, out, stdout)
 }
 
 fn render_update_dry_run(host: &str, install_dir: &str, dest_exists: bool) -> String {

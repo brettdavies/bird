@@ -642,3 +642,58 @@ fn usage_local_flag_accepted_by_clap() {
     let (exit, _stdout, _stderr) = common::run_in_process(&["bird", "usage", "--local"], &env);
     assert_ne!(exit, 2, "--local must be accepted by clap");
 }
+
+// --- Skill install destinations ------------------------------------------
+
+/// `~` destinations expand against the `HOME` the runner was handed, so an
+/// in-process run never resolves into the real home directory.
+#[test]
+fn skill_install_expands_against_the_injected_home() {
+    let mut env = common::TestEnv::new();
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    env.env.xdk.home = Some(home.path().display().to_string());
+
+    let (exit, stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "skill",
+            "install",
+            "claude_code",
+            "--dry-run",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let envelope: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("install envelope JSON");
+    let expected = home.path().join(".claude/skills/bird");
+    assert_eq!(envelope["install_dir"], expected.display().to_string());
+}
+
+/// With no `HOME` in the injected environment the installer reports
+/// `home-not-set`, even though the test process itself has one.
+#[test]
+fn skill_install_ignores_the_process_home() {
+    let env = common::TestEnv::new();
+
+    let (exit, stdout, _) = common::run_in_process(
+        &[
+            "bird",
+            "skill",
+            "install",
+            "claude_code",
+            "--dry-run",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+
+    assert_eq!(exit, 1, "stdout {stdout:?}");
+    let envelope: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("install envelope JSON");
+    assert_eq!(envelope["reason"], "home-not-set");
+}
