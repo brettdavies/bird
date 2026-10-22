@@ -189,7 +189,7 @@ Stdout success envelope on `--output json`:
 Stderr error envelope on `--output json`:
 
 ```json
-{"error": "...", "kind": "usage|auth|config|general", "exit_code": 2|77|78|1|3|4|5, "message": "...", "meta": {}}
+{"error": "...", "kind": "usage|auth|config|general", "exit_code": 2|77|78|1|3|4|5|130|143, "message": "...", "meta": {}}
 ```
 
 `command` names the failing subcommand on `kind: "general"` errors; `status` is present only when the upstream HTTP
@@ -228,11 +228,15 @@ The entity store sits in front of every read command. Three modes:
 | 5    | Network or filesystem failure: the request never got an HTTP response                         |
 | 77   | Auth error: missing or refused credential (HTTP 401), or a token store that cannot be read    |
 | 78   | Config error (`EX_CONFIG`): bird's own config file or paths                                   |
+| 130  | Cancelled: SIGINT arrived while an X API call was in flight (`error: "cancelled"`)            |
+| 143  | Cancelled: SIGTERM arrived while an X API call was in flight (`error: "cancelled"`)           |
 
 Every code xdk-rs classifies (1, 2 for an auth-scheme mismatch, 3, 4, 5, 77) is `xdk::Error::exit_code`, and the
 envelope's `error` id is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD
 `sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix your config" from "API blew
-up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of hanging.
+up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of hanging. SIGTERM or SIGINT
+during an X API call drops the call and reports `cancelled` with 128 plus the signal number; with no call in flight the
+signal takes its default action and the process stops with no envelope.
 
 ## Token and file permissions
 

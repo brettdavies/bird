@@ -88,6 +88,7 @@ pub fn run_watchlist_check(
                 latest_tweet,
                 cache_hit,
             },
+            Err(e) if crate::shutdown::Cancelled::find(e.as_ref()).is_some() => return Err(e),
             Err(e) => {
                 if !quiet {
                     writeln!(stderr, "[watchlist] error checking @{}: {}", username, e).ok();
@@ -207,6 +208,81 @@ struct LatestTweet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::CacheOpts;
+    use crate::error::BirdError;
+    use crate::output::{OutputConfig, OutputFormat};
+    use crate::shutdown::Cancelled;
+    use crate::xurl_client::mock::MockXurlClient;
+    use std::sync::{Arc, Mutex};
+
+    /// A signal during one account's check ends the run with that
+    /// cancellation instead of logging it and requesting the next account.
+    #[test]
+    fn a_cancelled_check_ends_the_run() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join("config.toml"),
+            "watchlist = [\"alice\", \"bob\"]\n",
+        )
+        .expect("write config");
+        let config = ResolvedConfig {
+            username: None,
+            config_dir: dir.path().to_path_buf(),
+            cache_path: dir.path().join("bird.db"),
+            cache_enabled: false,
+            cache_max_size_mb: 10,
+            token_store: Some(dir.path().join("auth.yml")),
+            xdk_env: xdk::config::EnvOverrides::default(),
+            app: None,
+        };
+        let mock = MockXurlClient::new();
+        mock.push_err(
+            "send_request",
+            Cancelled {
+                signal: libc::SIGTERM,
+            }
+            .into(),
+        );
+        let calls = mock.clone_handle();
+        let mut client = BirdClient::new(
+            Box::new(mock),
+            &config.cache_path,
+            CacheOpts {
+                no_store: true,
+                ..CacheOpts::default()
+            },
+            10,
+            None,
+            true,
+            Arc::new(Mutex::new(std::io::sink())),
+        );
+        let out = OutputConfig {
+            format: OutputFormat::Json,
+            use_color: false,
+            quiet: true,
+            raw: false,
+        };
+        let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+
+        let err = run_watchlist_check(
+            &mut client,
+            &config,
+            &out,
+            &mut stdout,
+            &mut stderr,
+            CheckOpts {
+                pretty: false,
+                limit: 100,
+                cursor: None,
+            },
+            &AuthType::Bearer,
+        )
+        .expect_err("the cancellation ends the run");
+
+        assert_eq!(BirdError::from_source("watchlist", err).exit_code(), 143);
+        assert_eq!(calls.calls().len(), 1, "bob must not be requested");
+        assert!(stdout.is_empty(), "no record for a cancelled check");
+    }
 
     #[test]
     fn extract_latest_tweet_empty_data() {

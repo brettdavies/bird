@@ -28,6 +28,7 @@ pub mod raw;
 pub mod schema;
 pub mod schema_print;
 pub mod search;
+pub mod shutdown;
 pub mod skill_install;
 pub mod thread;
 pub mod usage;
