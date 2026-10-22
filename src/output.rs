@@ -174,6 +174,17 @@ const _: fn() = || {
     _assert_send_sync_clone::<OutputConfig>();
 };
 
+/// Locks the shared diagnostic writer `BirdClient` and `BirdDb` hold. A panic
+/// on another thread poisons the mutex but leaves the writer intact, so the
+/// guard is recovered rather than turning a warning into a second panic.
+pub(crate) fn lock_writer<'a>(
+    writer: &'a std::sync::Mutex<dyn std::io::Write + Send + 'static>,
+) -> std::sync::MutexGuard<'a, dyn std::io::Write + Send + 'static> {
+    writer
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Resolve the auto color decision based on stderr TTY, NO_COLOR, and TERM=dumb.
 pub fn use_color_auto() -> bool {
     let stderr_tty = std::io::stderr().is_terminal();
