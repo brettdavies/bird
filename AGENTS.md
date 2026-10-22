@@ -286,8 +286,8 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
 - `cargo test --all` — full unit + CLI smoke + transport integration suites green.
 - `cargo deny check` — advisories, licenses, bans, sources all clean.
 - `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` — clean.
-- MSRV: **1.94**. The pinned toolchain (`rust-toolchain.toml`, channel `1.94.1`) is the supply-chain anchor; rustup
-  verifies component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
+- MSRV: **1.94**. The toolchain channel pinned in `rust-toolchain.toml` is the supply-chain anchor; rustup verifies
+  component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
 - No `unwrap()` in production code paths.
 
 The hook pair at `scripts/hooks/` shares one library (`_lib.sh`). `pre-commit` checks the staged files: rustfmt,
