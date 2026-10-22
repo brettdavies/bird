@@ -136,7 +136,7 @@ fn build_check_url(query: &str) -> String {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);
         pairs.append_pair("max_results", "10");
-        for (key, value) in fields::tweet_query_params() {
+        for (key, value) in fields::post_query_params() {
             pairs.append_pair(key, value);
         }
     }
@@ -196,7 +196,7 @@ fn extract_latest_tweet(body: &serde_json::Value) -> Option<LatestTweet> {
             .unwrap_or(0),
         retweets: tweet
             .get("public_metrics")
-            .and_then(|m| m.get("retweet_count"))
+            .and_then(|m| m.get("repost_count"))
             .and_then(|v| v.as_u64())
             .unwrap_or(0),
     })
@@ -314,7 +314,7 @@ mod tests {
                 "created_at": "2026-02-11T10:00:00.000Z",
                 "public_metrics": {
                     "like_count": 42,
-                    "retweet_count": 5
+                    "repost_count": 5
                 }
             }]
         });

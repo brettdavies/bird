@@ -185,7 +185,7 @@ fn build_search_url(query: &str, max_results: u32, next_token: Option<&str>) -> 
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);
-        for (key, value) in fields::tweet_query_params() {
+        for (key, value) in fields::post_query_params() {
             pairs.append_pair(key, value);
         }
         pairs.append_pair("max_results", &max_results.to_string());
@@ -210,7 +210,7 @@ fn apply_noise_reduction(query: &str) -> String {
 /// Client-side retweet filter. `-is:retweet` can leak retweets (known X API bug).
 fn is_retweet(tweet: &serde_json::Value) -> bool {
     tweet
-        .get("referenced_tweets")
+        .get("referenced_posts")
         .and_then(|rt| rt.as_array())
         .map(|arr| {
             arr.iter()
@@ -263,7 +263,7 @@ mod tests {
         assert!(url.starts_with("https://api.x.com/2/tweets/search/recent?"));
         assert!(url.contains("query=rust+lang"));
         assert!(url.contains("max_results=100"));
-        assert!(url.contains("tweet.fields="));
+        assert!(url.contains("post.fields="));
         assert!(!url.contains("next_token="));
     }
 
@@ -283,9 +283,20 @@ mod tests {
     fn is_retweet_detects_retweet() {
         let tweet = serde_json::json!({
             "id": "1",
-            "referenced_tweets": [{"type": "retweeted", "id": "2"}]
+            "referenced_posts": [{"type": "retweeted", "id": "2"}]
         });
         assert!(is_retweet(&tweet));
+    }
+
+    /// bird requests `post.fields`, so X answers in the 2.168 vocabulary; a
+    /// body in the legacy one is read as carrying no references.
+    #[test]
+    fn a_legacy_reference_key_is_not_read() {
+        let tweet = serde_json::json!({
+            "id": "1",
+            "referenced_tweets": [{"type": "retweeted", "id": "2"}]
+        });
+        assert!(!is_retweet(&tweet));
     }
 
     #[test]
@@ -298,7 +309,7 @@ mod tests {
     fn is_retweet_passes_quote() {
         let tweet = serde_json::json!({
             "id": "1",
-            "referenced_tweets": [{"type": "quoted", "id": "2"}]
+            "referenced_posts": [{"type": "quoted", "id": "2"}]
         });
         assert!(!is_retweet(&tweet));
     }
@@ -306,10 +317,10 @@ mod tests {
     #[test]
     fn extract_metric_returns_value() {
         let tweet = serde_json::json!({
-            "public_metrics": {"like_count": 42, "retweet_count": 5}
+            "public_metrics": {"like_count": 42, "repost_count": 5}
         });
         assert_eq!(extract_metric(&tweet, "like_count"), 42);
-        assert_eq!(extract_metric(&tweet, "retweet_count"), 5);
+        assert_eq!(extract_metric(&tweet, "repost_count"), 5);
     }
 
     #[test]

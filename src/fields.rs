@@ -4,17 +4,16 @@
 //! defining its own field strings. This ensures consistent entity shapes across
 //! the codebase and enables Plan 2's entity store to decompose any response.
 
-/// Tweet object fields. Union of all fields used across search, thread, watchlist,
-/// and bookmarks commands, plus fields needed for entity store decomposition.
-pub const TWEET_FIELDS: &str = "\
+/// Post object fields: the union bird's search, thread, watchlist, and
+/// bookmarks reads need, plus what entity-store decomposition reads. Every
+/// member is one X's 2.168 spec lists under `post.fields`; `author_id`,
+/// `in_reply_to_user_id`, and referenced posts are expansions there.
+pub const POST_FIELDS: &str = "\
     attachments,\
-    author_id,\
     conversation_id,\
     created_at,\
     entities,\
-    in_reply_to_user_id,\
     public_metrics,\
-    referenced_tweets,\
     text";
 
 /// User object fields. Union of fields used across profile, search, thread, and watchlist.
@@ -38,18 +37,19 @@ pub const MEDIA_FIELDS: &str = "\
     url,\
     width";
 
-/// Expansion set. Requests nested objects that the API returns alongside the
-/// primary data (author user objects, referenced tweets, media attachments).
+/// Expansion set: author user objects, the replied-to user, referenced posts,
+/// and media attachments, spelled as xdk-rs's own post reads send them.
 pub const EXPANSIONS: &str = "\
     attachments.media_keys,\
     author_id,\
-    referenced_tweets.id";
+    in_reply_to_user_id,\
+    referenced_posts";
 
-/// Build the standard query parameter pairs for tweet-centric endpoints.
-/// Includes tweet.fields, user.fields, media.fields, and expansions.
-pub fn tweet_query_params() -> Vec<(&'static str, &'static str)> {
+/// Build the standard query parameter pairs for post-centric endpoints.
+/// Includes post.fields, user.fields, media.fields, and expansions.
+pub fn post_query_params() -> Vec<(&'static str, &'static str)> {
     vec![
-        ("tweet.fields", TWEET_FIELDS),
+        ("post.fields", POST_FIELDS),
         ("user.fields", USER_FIELDS),
         ("media.fields", MEDIA_FIELDS),
         ("expansions", EXPANSIONS),
@@ -104,8 +104,8 @@ mod tests {
     }
 
     #[test]
-    fn tweet_fields_well_formed() {
-        assert_valid_field_string("TWEET_FIELDS", TWEET_FIELDS);
+    fn post_fields_well_formed() {
+        assert_valid_field_string("POST_FIELDS", POST_FIELDS);
     }
 
     #[test]
@@ -123,11 +123,28 @@ mod tests {
         assert_valid_field_string("EXPANSIONS", EXPANSIONS);
     }
 
+    /// The expansions xdk-rs's `read_post` sends in
+    /// `crates/xdk/src/api/shortcuts.rs` at the pinned commit
+    /// (`author_id,in_reply_to_user_id,referenced_posts`) are all among
+    /// bird's; xdk-rs builds them in a private builder, so the literals are
+    /// copied here.
     #[test]
-    fn tweet_query_params_has_all_keys() {
-        let params = tweet_query_params();
+    fn expansions_cover_xdk_read_post() {
+        let ours: Vec<&str> = EXPANSIONS.split(',').collect();
+        for expansion in ["author_id", "in_reply_to_user_id", "referenced_posts"] {
+            assert!(ours.contains(&expansion), "missing {expansion}");
+        }
+        for legacy in ["referenced_tweets", "referenced_tweets.id"] {
+            assert!(!ours.contains(&legacy), "legacy {legacy}");
+        }
+    }
+
+    #[test]
+    fn post_query_params_has_all_keys() {
+        let params = post_query_params();
         let keys: Vec<&str> = params.iter().map(|(k, _)| *k).collect();
-        assert!(keys.contains(&"tweet.fields"));
+        assert!(keys.contains(&"post.fields"));
+        assert!(!keys.contains(&"tweet.fields"));
         assert!(keys.contains(&"user.fields"));
         assert!(keys.contains(&"media.fields"));
         assert!(keys.contains(&"expansions"));
