@@ -82,9 +82,10 @@ pub struct EnvOverrides {
     /// applies the default-true at resolution time).
     pub cache_enabled: Option<bool>,
     /// The environment xdk-rs reads (`CLIENT_ID`, `CLIENT_SECRET`,
-    /// `XURL_BEARER_TOKEN`, the endpoint URLs), captured once. With a named
-    /// token store nothing below the runner reads the process environment.
-    /// The default is an empty environment.
+    /// `XURL_BEARER_TOKEN`, the endpoint URLs), plus the `HOME` the skill
+    /// installer expands `~` against, captured once. With a named token store
+    /// nothing below the runner reads the process environment. The default is
+    /// an empty environment.
     pub xdk: xdk::config::EnvOverrides,
 }
 
@@ -105,7 +106,10 @@ impl EnvOverrides {
                 Ok("1") => Some(false),
                 _ => None,
             },
-            xdk: xdk::config::EnvOverrides::from_env(),
+            xdk: xdk::config::EnvOverrides {
+                home: std::env::var("HOME").ok(),
+                ..xdk::config::EnvOverrides::from_env()
+            },
         }
     }
 }
