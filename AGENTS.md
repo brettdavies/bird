@@ -105,8 +105,8 @@ Additional env vars without flag pairs:
 
 - `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI
   (`xr auth app`).
-- `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2
-  pending state sits beside it.
+- `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2 pending
+  state sits beside it.
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
@@ -290,8 +290,12 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
   verifies component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
 - No `unwrap()` in production code paths.
 
-The pre-push hook at `scripts/hooks/pre-push` mirrors CI 1:1: fmt, clippy, test, deny, shellcheck, MSRV verification,
-rustdoc-as-warnings, Windows cross-clippy. Set `git config core.hooksPath scripts/hooks` once per clone.
+The hook pair at `scripts/hooks/` shares one library (`_lib.sh`). `pre-commit` checks the staged files: rustfmt,
+shellcheck, `shfmt -i 2 -ci -bn`, actionlint, concurrency-group namespacing, and the core-env guard. `pre-push` mirrors
+CI over the tracked set: fmt, clippy, test, MSRV, rustdoc with `-D warnings`, deny, the R20 output guard, the Windows
+libc grep and cross-clippy, plus the same file linters. It runs the Rust battery only when the push reaches a cargo
+input. `tests/hook_ci_parity.rs` names the CI job behind every pre-push step. Set
+`git config core.hooksPath scripts/hooks` once per clone.
 
 ## Testing
 

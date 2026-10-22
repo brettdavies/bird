@@ -38,18 +38,18 @@ cargo run --release -- me --pretty
 
 ## Project layout
 
-| Path               | Purpose                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `src/main.rs`      | Thin binary entrypoint; delegates to `bird::cli::run_argv()`                             |
-| `src/cli/`         | clap definitions, layered runner entrypoints, dispatcher, per-command handlers           |
-| `src/xurl_client/` | `XurlClient` trait, `EmbeddedClient`, `MockXurlClient` test double, `ConstructionStub`   |
-| `src/db/`          | SQLite entity store: caching, usage tracking, migrations; `client/` wraps `XurlClient`   |
-| `src/config.rs`    | Config load with priority: args > file > env > default                                   |
-| `src/doctor.rs`    | Diagnostic report: linked xdk-rs version, per-app auth state, per-command scheme matrix  |
-| `src/cost.rs`      | API cost estimation                                                                      |
-| `src/output.rs`    | Color, formatting, ANSI sanitization, JSON envelope rendering                            |
-| `src/schema.rs`    | Username validation (`validate_username`)                                                |
-| `src/error/`       | `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation                |
+| Path               | Purpose                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `src/main.rs`      | Thin binary entrypoint; delegates to `bird::cli::run_argv()`                            |
+| `src/cli/`         | clap definitions, layered runner entrypoints, dispatcher, per-command handlers          |
+| `src/xurl_client/` | `XurlClient` trait, `EmbeddedClient`, `MockXurlClient` test double, `ConstructionStub`  |
+| `src/db/`          | SQLite entity store: caching, usage tracking, migrations; `client/` wraps `XurlClient`  |
+| `src/config.rs`    | Config load with priority: args > file > env > default                                  |
+| `src/doctor.rs`    | Diagnostic report: linked xdk-rs version, per-app auth state, per-command scheme matrix |
+| `src/cost.rs`      | API cost estimation                                                                     |
+| `src/output.rs`    | Color, formatting, ANSI sanitization, JSON envelope rendering                           |
+| `src/schema.rs`    | Username validation (`validate_username`)                                               |
+| `src/error/`       | `BirdError` enum, exit-code mapping, `xdk::Error → BirdError` translation               |
 
 ## Authentication
 
@@ -83,9 +83,14 @@ After cloning, activate local hooks:
 git config core.hooksPath scripts/hooks
 ```
 
-**`pre-push`** mirrors CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `cargo deny check`,
-shellcheck, MSRV verification, rustdoc-as-warnings, and Windows cross-clippy. Direct pushes to `main` are blocked
-server-side by the `protect-main` ruleset; the local hook focuses on catching CI failures before push.
+**`pre-commit`** checks the staged files: rustfmt, shellcheck, shfmt, actionlint, concurrency-group namespacing, and the
+core-env guard.
+
+**`pre-push`** mirrors CI: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`, `cargo test`, MSRV
+verification, rustdoc-as-warnings, `cargo deny check`, the R20 output guard, and the Windows libc grep and cross-clippy,
+when the push reaches a cargo input; shellcheck, shfmt, actionlint, and the guards always. `tests/hook_ci_parity.rs`
+fails when a pre-push step has no named CI counterpart. Direct pushes to `main` are blocked server-side by the
+`protect-main` ruleset; the local hook focuses on catching CI failures before push.
 
 ## Branching workflow
 
