@@ -45,6 +45,10 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
+            "context": "ci / Changelog",
+            "integration_id": 15368
+          },
+          {
             "context": "ci / Fmt, clippy, test",
             "integration_id": 15368
           },
@@ -53,11 +57,19 @@
             "integration_id": 15368
           },
           {
+            "context": "ci / Security audit (advisories)",
+            "integration_id": 15368
+          },
+          {
             "context": "ci / Security audit (bans licenses sources)",
             "integration_id": 15368
           },
           {
-            "context": "ci / Changelog",
+            "context": "ci / Shellcheck",
+            "integration_id": 15368
+          },
+          {
+            "context": "ci / Windows check",
             "integration_id": 15368
           },
           {
