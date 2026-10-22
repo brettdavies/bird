@@ -280,7 +280,7 @@ impl BirdDb {
             Ok(true) => {}
             Ok(false) => {
                 if !self.quiet {
-                    let mut w = self.stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&self.stderr);
                     writeln!(
                         *w,
                         "[store] warning: cache.db missing expected tables, skipping usage migration"
@@ -291,7 +291,7 @@ impl BirdDb {
             }
             Err(e) => {
                 if !self.quiet {
-                    let mut w = self.stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&self.stderr);
                     writeln!(
                         *w,
                         "[store] warning: could not probe cache.db for migration: {}",
@@ -329,13 +329,13 @@ impl BirdDb {
         match result {
             Ok(()) => {
                 if !self.quiet {
-                    let mut w = self.stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&self.stderr);
                     writeln!(*w, "[store] migrated usage data from cache.db").ok();
                 }
             }
             Err(e) => {
                 if !self.quiet {
-                    let mut w = self.stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&self.stderr);
                     writeln!(*w, "[store] warning: usage migration failed: {}", e).ok();
                 }
                 let _ = self.conn().execute_batch("DETACH DATABASE old_cache");

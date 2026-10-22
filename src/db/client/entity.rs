@@ -165,7 +165,7 @@ impl BirdClient {
             && !errors.is_empty()
             && !self.quiet
         {
-            let mut w = self.stderr.lock().unwrap();
+            let mut w = crate::output::lock_writer(&self.stderr);
             writeln!(
                 *w,
                 "[store] {} API error(s) in 200 response (processing available data)",
@@ -177,7 +177,7 @@ impl BirdClient {
         if let Err(e) = db.upsert_entities(&tweets, &users)
             && !self.quiet
         {
-            let mut w = self.stderr.lock().unwrap();
+            let mut w = crate::output::lock_writer(&self.stderr);
             writeln!(*w, "[store] warning: entity upsert failed: {e}").ok();
         }
     }
@@ -189,7 +189,7 @@ impl BirdClient {
         if let Err(e) = db.upsert_raw_response(&key, url, status, body.as_bytes())
             && !self.quiet
         {
-            let mut w = self.stderr.lock().unwrap();
+            let mut w = crate::output::lock_writer(&self.stderr);
             writeln!(*w, "[store] warning: raw response store failed: {e}").ok();
         }
     }

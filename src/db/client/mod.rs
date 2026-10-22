@@ -201,14 +201,14 @@ impl BirdClient {
                 if let Err(e) = db.prune_if_needed()
                     && !quiet
                 {
-                    let mut w = stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&stderr);
                     writeln!(*w, "[store] warning: pruning failed: {e}").ok();
                 }
                 Some(db)
             }
             Err(e) => {
                 if !quiet {
-                    let mut w = stderr.lock().unwrap();
+                    let mut w = crate::output::lock_writer(&stderr);
                     writeln!(*w, "[store] warning: failed to open entity store: {e}").ok();
                     writeln!(*w, "[store] Run `bird cache clear` to reset the store.").ok();
                 }
@@ -296,7 +296,7 @@ impl BirdClient {
             username,
         }) && !self.quiet
         {
-            let mut w = self.stderr.lock().unwrap();
+            let mut w = crate::output::lock_writer(&self.stderr);
             writeln!(*w, "[usage] warning: failed to log API call: {e}").ok();
         }
     }
@@ -367,6 +367,42 @@ mod tests {
         assert!(
             result.is_err(),
             "body() must debug_assert when no body is present"
+        );
+    }
+
+    /// A panic elsewhere that poisoned the shared writer must not turn the
+    /// store-open warning into a second panic.
+    #[test]
+    fn store_open_warning_survives_a_poisoned_writer() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let poisoner = Arc::clone(&buf);
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoner.lock();
+            panic!("poison the shared writer");
+        })
+        .join();
+        assert!(buf.is_poisoned());
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let stderr: Arc<Mutex<dyn Write + Send>> = buf.clone();
+        let client = BirdClient::new(
+            Box::new(MockXurlClient::new()),
+            dir.path(),
+            CacheOpts::default(),
+            10,
+            None,
+            false,
+            stderr,
+        );
+
+        assert!(client.db().is_none());
+        let written = buf
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let text = String::from_utf8_lossy(&written);
+        assert!(
+            text.contains("failed to open entity store"),
+            "warning not written: {text:?}"
         );
     }
 
