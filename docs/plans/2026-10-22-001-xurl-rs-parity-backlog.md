@@ -20,6 +20,24 @@ owner: brettdavies
   `github-repo-setup/scripts/check-canonical-drift.sh` reports the drift.
 - **One stack per row group, one concern per PR.** Each stack lands with `gh stack merge` once every head is green.
 
+## Execution
+
+A stack that changes a contract across repositories gets a plan before code; the rest is coded directly. The lanes run
+in parallel: lane A starts at once while lanes B, C, and E write their plans, and lane D waits on lane C's design.
+
+| Lane | Work                                                                             | Plan first?                                                                                   |
+| ---- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| A    | Stack 1 items 1-4 and 7-10; Stack 2; Stack 6 items 2, 3, 5                       | No: stacked PRs                                                                               |
+| B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github` | Short plan: jobs, inputs, xurl-rs adoption                                                    |
+| C    | Stack 3                                                                          | Brainstorm, then plan across xdk-rs, xurl-rs, and bird; revises the seam doc                  |
+| D    | Stacks 4 and 5                                                                   | One plan after lane C: what composition leaves to bird; refreshes the 2026-09-02 cutover plan |
+| E    | Stack 6 item 1 and the release sequence                                          | Decision record: xdk-rs releases, bird versions                                               |
+| F    | Stack 7                                                                          | No for the bird-skill repo structure; its content follows the settled CLI surface             |
+
+Release sequence (proposed in lane E): v0.3.0 once stacks 1 and 2 and an xdk-rs release land, which ships the embedded
+transport and the advisory fix to users still on v0.2.0's subprocess transport; v1.0.0 after stacks 3 to 5, which change
+the output contract and the vocabulary. A later xdk-rs release carries stack 3's request hook.
+
 ## Landed
 
 | PR   | Change                                                                                                 |
