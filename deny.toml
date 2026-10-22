@@ -2,10 +2,22 @@
 # https://embarkstudios.github.io/cargo-deny/
 
 [graph]
-# Empty `targets` checks all targets. Set explicit triples if bird ever
-# needs target-conditional dependency analysis.
-targets = []
-all-features = false
+# The seven release triples. Restricting the graph to them drops audit
+# coverage for any other host by policy: the release builds nothing else, and
+# target-only branches of the tree would otherwise add duplicates and licenses
+# that never ship.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+# bird declares no features of its own; `true` keeps the audit covering any
+# that arrive without a policy edit.
+all-features = true
 no-default-features = false
 
 [output]
@@ -18,9 +30,7 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 [licenses]
 allow = [
     "Apache-2.0",
-    "BSD-2-Clause",
     "BSD-3-Clause",
-    "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
     "MPL-2.0",
@@ -35,6 +45,12 @@ wildcards = "allow"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow-workspace = false
+skip = [
+    { crate = "base64@0.22", reason = "hyper-util and serde-saphyr lag the 0.23 that reqwest and xdk-rs use" },
+    { crate = "getrandom@0.3", reason = "tempfile lags the 0.4 that cc's jobserver uses at build time" },
+    { crate = "syn@2", reason = "displaydoc and the other proc-macro crates on the icu path lag syn 3" },
+    { crate = "windows-sys@0.52", reason = "rustls-platform-verifier and winapi-util lag 0.61" },
+]
 
 [sources]
 unknown-registry = "warn"
