@@ -30,7 +30,7 @@ use crate::output::{OutputConfig, OutputFormat};
 use crate::{db, doctor, output, schema, schema_print, skill_install, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
-use std::io::{IsTerminal, Write};
+use std::io::{BufRead, IsTerminal, Write};
 use std::process::ExitCode;
 
 /// Curated top-level examples block — embedded so `--examples` works on every host.
@@ -101,11 +101,21 @@ where
         }
     };
     let env = EnvOverrides::from_env();
-    run_with_paths(args, stdout, stderr, paths, env)
+    run_with_paths(
+        args,
+        &mut std::io::stdin().lock(),
+        stdout,
+        stderr,
+        paths,
+        env,
+    )
 }
 
 /// Worker entrypoint. Owns the full dispatch pipeline against caller-supplied
 /// paths and env. Tests call this directly with `TempDir`-backed paths.
+///
+/// `stdin` is read only by `bird login --no-browser`, for the redirect URL;
+/// tests pass `std::io::empty()`.
 ///
 /// stdout flows through the injected `stdout` writer for every short-circuit
 /// branch (`Completions`, `--examples`, the JSON-wrapped help/version
@@ -116,6 +126,7 @@ where
 /// binary entrypoint, both can be redirected for library callers.
 pub fn run_with_paths<I, S>(
     args: I,
+    stdin: &mut dyn BufRead,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     paths: ResolvedPaths,
@@ -296,19 +307,19 @@ where
     };
     config.app = cli.app.clone();
 
-    // Construct the xdk-rs client honoring the bird-side `--app` / `BIRD_APP`
-    // resolution. `xdk::api::Client::from_env()` resolves the app from
-    // `XURL_APP`, which bird intentionally ignores (R10/R11); the XURL_APP
-    // migration warn fires elsewhere in the runner when the user has
-    // `XURL_APP` set but not `BIRD_APP`. A construction failure is captured as
-    // a stub impl returning the original error on every call so non-API
-    // commands keep working.
+    // Construct the xdk-rs client from the captured environment and token
+    // store, honoring the bird-side `--app` / `BIRD_APP` resolution. bird
+    // does not consult `XURL_APP` (R10/R11); the XURL_APP migration warn fires
+    // elsewhere in the runner when the user has `XURL_APP` set but not
+    // `BIRD_APP`. A construction failure is captured as a stub impl returning
+    // the original error on every call so non-API commands keep working.
     let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> = {
-        let mut cfg = xdk::config::Config::new();
-        if let Some(ref app) = cli.app {
-            cfg.app_name = app.clone();
-        }
-        match crate::xurl_client::EmbeddedClient::from_config(&cfg, cli.timeout) {
+        let (cfg, auth) = crate::xurl_client::open_store(
+            &config.xdk_env,
+            config.token_store.as_deref(),
+            config.app.as_deref(),
+        );
+        match crate::xurl_client::EmbeddedClient::new(&cfg, auth, cli.timeout) {
             Ok(client) => Box::new(client),
             Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
         }
@@ -346,7 +357,7 @@ where
         let scope = command.as_deref();
         let pretty = *pretty;
         let use_emoji = use_color && pretty;
-        match doctor::run_doctor(&client, &out, stdout, pretty, scope, use_emoji) {
+        match doctor::run_doctor(&client, &config, &out, stdout, pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,
             Err(e) => {
                 let err = BirdError::general("doctor", e);
@@ -449,6 +460,7 @@ where
         config,
         &mut client,
         &out,
+        stdin,
         stdout,
         stderr,
         cli.cache_only,
@@ -478,7 +490,7 @@ mod tests {
             std::env::temp_dir().join(format!("bird-runner-test-{}-{}", std::process::id(), nanos));
         ResolvedPaths {
             config_dir: tmp.clone(),
-            store_path: tmp,
+            token_store: Some(tmp.join("auth.yml")),
         }
     }
 
@@ -494,7 +506,14 @@ mod tests {
         let env = EnvOverrides::default();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        let exit = run_with_paths(["bird", "--help"], &mut stdout, &mut stderr, paths, env);
+        let exit = run_with_paths(
+            ["bird", "--help"],
+            &mut std::io::empty(),
+            &mut stdout,
+            &mut stderr,
+            paths,
+            env,
+        );
         assert!(
             exit_eq(exit, ExitCode::SUCCESS),
             "--help should exit 0, got {:?}",
@@ -512,7 +531,14 @@ mod tests {
         let env = EnvOverrides::default();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        let exit = run_with_paths(["bird", "--bogus"], &mut stdout, &mut stderr, paths, env);
+        let exit = run_with_paths(
+            ["bird", "--bogus"],
+            &mut std::io::empty(),
+            &mut stdout,
+            &mut stderr,
+            paths,
+            env,
+        );
         assert!(
             exit_eq(exit, ExitCode::from(2)),
             "bogus flag should exit 2, got {:?}",
@@ -526,7 +552,14 @@ mod tests {
         let env = EnvOverrides::default();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        let exit = run_with_paths(["bird", "--version"], &mut stdout, &mut stderr, paths, env);
+        let exit = run_with_paths(
+            ["bird", "--version"],
+            &mut std::io::empty(),
+            &mut stdout,
+            &mut stderr,
+            paths,
+            env,
+        );
         assert!(
             exit_eq(exit, ExitCode::SUCCESS),
             "--version should exit 0, got {:?}",

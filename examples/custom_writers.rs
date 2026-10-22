@@ -39,7 +39,7 @@ fn main() -> ExitCode {
     std::fs::create_dir_all(&config_dir).expect("example: create config dir");
     let paths = ResolvedPaths {
         config_dir: config_dir.clone(),
-        store_path: config_dir,
+        token_store: Some(config_dir.join("auth.yml")),
     };
 
     let mut stdout_capture: Vec<u8> = Vec::new();
@@ -59,6 +59,7 @@ fn main() -> ExitCode {
         };
         bird::cli::run_with_paths(
             ["bird", "--examples"],
+            &mut std::io::empty(),
             &mut stdout_tee,
             &mut stderr_tee,
             paths,

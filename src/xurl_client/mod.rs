@@ -6,6 +6,7 @@
 //! production requests flow through [`EmbeddedClient`].
 
 use std::future::Future;
+use std::path::Path;
 
 use serde_json::Value;
 use xdk::api::{Client, RequestOptions};
@@ -29,6 +30,36 @@ pub trait XurlClient {
     }
 }
 
+/// Opens the xdk-rs config and token store for one invocation from what the
+/// runner captured: the environment snapshot, the store at `token_store`, and
+/// `app` when `--app` names one. A named store reads nothing from the process,
+/// so a test that passes an empty environment and a temporary store stays
+/// isolated; with none, xdk opens its default store the way `xr` does.
+pub fn open_store(
+    env: &xdk::config::EnvOverrides,
+    token_store: Option<&Path>,
+    app: Option<&str>,
+) -> (Config, Auth) {
+    let mut cfg = Config::from_overrides(env);
+    if let Some(app) = app {
+        cfg.app_name = app.to_string();
+    }
+    let auth = match token_store {
+        Some(path) => Auth::new_with_store_path_and_overrides(&cfg, path, env),
+        None => Auth::new(&cfg),
+    };
+    (cfg, auth)
+}
+
+/// Where the OAuth2 pending state for `token_store` lives: beside a named
+/// store, or beside xdk's default store.
+pub fn pending_path(token_store: Option<&Path>) -> xdk::Result<std::path::PathBuf> {
+    match token_store {
+        Some(path) => Ok(xdk::auth::pending::pending_path_for_store(path)),
+        None => xdk::auth::pending::default_pending_path(),
+    }
+}
+
 /// An `xdk::api::Client` plus the current-thread runtime that drives its
 /// async calls. bird is synchronous, so each call blocks on the runtime; the
 /// client's connection pool lives on that runtime and is reused across calls.
@@ -38,18 +69,18 @@ pub struct EmbeddedClient {
 }
 
 impl EmbeddedClient {
-    /// Builds a client over the `~/.xurl` token store for `cfg`'s app, with
-    /// every non-streaming request bounded by `timeout_secs`. A store with no
-    /// usable credential still builds; the first request that needs one fails
-    /// with xdk's auth-required error.
-    pub fn from_config(cfg: &Config, timeout_secs: u64) -> xdk::Result<Self> {
+    /// Builds a client over `auth`'s token store, with every non-streaming
+    /// request bounded by `timeout_secs`. A store with no usable credential
+    /// still builds; the first request that needs one fails with xdk's
+    /// auth-required error.
+    pub fn new(cfg: &Config, auth: Auth, timeout_secs: u64) -> xdk::Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| xdk::Error::Internal(format!("cannot start the async runtime: {e}")))?;
         let client = {
             let _context = runtime.enter();
-            Client::with_timeout(cfg, Auth::new(cfg), timeout_secs)?
+            Client::with_timeout(cfg, auth, timeout_secs)?
         };
         Ok(Self { client, runtime })
     }
@@ -79,7 +110,7 @@ const _: fn() = || {
     assert_send_sync::<EmbeddedClient>();
 };
 
-/// `XurlClient` used when [`EmbeddedClient::from_config`] fails at startup.
+/// `XurlClient` used when [`EmbeddedClient::new`] fails at startup.
 /// Returns the construction error on every call, so commands that never send
 /// a request keep working and the first one that does reports why it cannot.
 pub struct ConstructionStub {

@@ -22,7 +22,7 @@ fn main() -> ExitCode {
 
     let paths = ResolvedPaths {
         config_dir: config_dir.clone(),
-        store_path: config_dir,
+        token_store: Some(config_dir.join("auth.yml")),
     };
     let env = EnvOverrides::default();
 
@@ -31,6 +31,7 @@ fn main() -> ExitCode {
 
     let exit = bird::cli::run_with_paths(
         ["bird", "doctor", "--output", "json"],
+        &mut std::io::empty(),
         &mut stdout,
         &mut stderr,
         paths,

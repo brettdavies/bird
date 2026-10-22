@@ -28,7 +28,7 @@ impl TestEnv {
         std::fs::create_dir_all(&config_dir).expect("test: create config dir");
         let paths = ResolvedPaths {
             config_dir: config_dir.clone(),
-            store_path: config_dir,
+            token_store: Some(config_dir.join("auth.yml")),
         };
         Self {
             paths,
@@ -51,10 +51,20 @@ impl Default for TestEnv {
 /// injected writers; rely on the exit code byte and on filesystem side effects
 /// until Plan 2 U11 lands.
 pub fn run_in_process(args: &[&str], env: &TestEnv) -> (u8, String, String) {
+    run_in_process_with_stdin(args, env, &mut std::io::empty())
+}
+
+/// [`run_in_process`] reading `stdin` in place of an empty input.
+pub fn run_in_process_with_stdin(
+    args: &[&str],
+    env: &TestEnv,
+    stdin: &mut dyn std::io::BufRead,
+) -> (u8, String, String) {
     let mut stdout: Vec<u8> = Vec::new();
     let mut stderr: Vec<u8> = Vec::new();
     let exit = bird::cli::run_with_paths(
         args.iter().copied(),
+        stdin,
         &mut stdout,
         &mut stderr,
         env.paths.clone(),
@@ -65,6 +75,33 @@ pub fn run_in_process(args: &[&str], env: &TestEnv) -> (u8, String, String) {
         String::from_utf8_lossy(&stdout).into_owned(),
         String::from_utf8_lossy(&stderr).into_owned(),
     )
+}
+
+/// A stdin that fails the test the moment anything reads it.
+pub struct PanicOnRead;
+
+impl std::io::Read for PanicOnRead {
+    fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+        panic!("test: stdin was read");
+    }
+}
+
+impl std::io::BufRead for PanicOnRead {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        panic!("test: stdin was read");
+    }
+
+    fn consume(&mut self, _amt: usize) {}
+}
+
+/// The JSON envelope on the last `{`-led line of `stderr`.
+pub fn stderr_envelope(stderr: &str) -> serde_json::Value {
+    let line = stderr
+        .lines()
+        .rev()
+        .find(|line| line.trim_start().starts_with('{'))
+        .unwrap_or_else(|| panic!("test: no JSON envelope on stderr: {stderr:?}"));
+    serde_json::from_str(line).expect("test: stderr envelope is JSON")
 }
 
 /// Extract the inner exit-status byte from an [`ExitCode`].

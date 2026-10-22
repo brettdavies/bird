@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Resolved config after applying priority: args > config file > env > default.
-/// Auth is fully delegated to xurl — no token fields here.
+/// Auth is delegated to xdk-rs; no token fields here.
 #[derive(Clone, Debug)]
 pub struct ResolvedConfig {
     pub username: Option<String>,
@@ -12,6 +12,10 @@ pub struct ResolvedConfig {
     pub cache_path: PathBuf,
     pub cache_enabled: bool,
     pub cache_max_size_mb: u64,
+    /// The xdk-rs token store, from [`ResolvedPaths::token_store`].
+    pub token_store: Option<PathBuf>,
+    /// The environment xdk-rs reads, from [`EnvOverrides::xdk`].
+    pub xdk_env: xdk::config::EnvOverrides,
     /// Active xurl app name resolved from `--app` / `BIRD_APP`. Empty
     /// `None` means "use xurl's stored default app". `XURL_APP` is not
     /// consulted; bird emits a migration warning when `XURL_APP` is set
@@ -40,19 +44,22 @@ pub struct ArgOverrides {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedPaths {
     pub config_dir: PathBuf,
-    /// Reserved for future xurl store injection. bird does not maintain a
-    /// separate store today; mirrors `config_dir` from `from_env`.
-    pub store_path: PathBuf,
+    /// The xdk-rs token store `xr` shares, when one is named: `XURL_TOKEN_STORE`,
+    /// or a test's temporary store. `None` opens xdk's default store, where
+    /// `xr` keeps it. The OAuth2 pending state sits beside the store.
+    pub token_store: Option<PathBuf>,
 }
 
 impl ResolvedPaths {
     /// Resolve real paths from the host environment (production path).
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let config_dir = dirs::config_dir().ok_or("no config dir")?.join("bird");
-        let store_path = config_dir.clone();
+        let token_store = std::env::var_os("XURL_TOKEN_STORE")
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from);
         Ok(Self {
             config_dir,
-            store_path,
+            token_store,
         })
     }
 }
@@ -74,6 +81,11 @@ pub struct EnvOverrides {
     /// `BIRD_NO_CACHE=1` → `Some(false)`; unset → `None` (load_with_paths
     /// applies the default-true at resolution time).
     pub cache_enabled: Option<bool>,
+    /// The environment xdk-rs reads (`CLIENT_ID`, `CLIENT_SECRET`,
+    /// `XURL_BEARER_TOKEN`, the endpoint URLs), captured once. With a named
+    /// token store nothing below the runner reads the process environment.
+    /// The default is an empty environment.
+    pub xdk: xdk::config::EnvOverrides,
 }
 
 impl EnvOverrides {
@@ -93,6 +105,7 @@ impl EnvOverrides {
                 Ok("1") => Some(false),
                 _ => None,
             },
+            xdk: xdk::config::EnvOverrides::from_env(),
         }
     }
 }
@@ -145,6 +158,8 @@ impl ResolvedConfig {
             cache_path,
             cache_enabled,
             cache_max_size_mb: 100,
+            token_store: paths.token_store,
+            xdk_env: env.xdk,
             app: None,
         })
     }
@@ -181,7 +196,7 @@ mod tests {
         ));
         ResolvedPaths {
             config_dir: tmp.clone(),
-            store_path: tmp,
+            token_store: Some(tmp.join("auth.yml")),
         }
     }
 

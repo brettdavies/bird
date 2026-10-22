@@ -11,7 +11,7 @@ use crate::db;
 use crate::error::BirdError;
 use crate::output::{self, OutputConfig};
 use std::collections::HashMap;
-use std::io::{IsTerminal, Write};
+use std::io::{BufRead, IsTerminal, Write};
 
 /// Top-level dispatcher: routes a parsed `Command` to its per-command module.
 ///
@@ -21,8 +21,9 @@ use std::io::{IsTerminal, Write};
 /// for exhaustiveness — the dispatcher never panics on a stray
 /// pre-dispatched variant slipping through.
 ///
-/// `stdout` and `stderr` writers are threaded through here so each
-/// per-command module can pass them to its handler. The `stderr` writer
+/// `stdin`, `stdout`, and `stderr` are threaded through here so each
+/// per-command module can pass them to its handler; `stdin` carries the
+/// redirect URL `bird login --no-browser` reads. The `stderr` writer
 /// reaches handlers' diagnostic sites and `cost::display_cost`.
 #[allow(clippy::too_many_arguments)]
 pub fn run(
@@ -30,6 +31,7 @@ pub fn run(
     config: ResolvedConfig,
     client: &mut db::BirdClient,
     out: &OutputConfig,
+    stdin: &mut dyn BufRead,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     cache_only: bool,
@@ -37,15 +39,9 @@ pub fn run(
     list_flags: ListFlags,
 ) -> Result<(), BirdError> {
     match command {
-        Command::Login { headless } => commands::login::run(
-            client,
-            out,
-            stdout,
-            stderr,
-            headless,
-            config.username.as_deref(),
-            config.app.as_deref(),
-        ),
+        Command::Login { headless } => {
+            commands::login::run(client, &config, out, stdin, stdout, stderr, headless)
+        }
         Command::Me {
             common: OutputFlags { pretty },
         } => commands::reads::run_me(client, out, stdout, stderr, pretty),

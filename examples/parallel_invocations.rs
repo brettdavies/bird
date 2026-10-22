@@ -30,13 +30,14 @@ fn main() -> ExitCode {
                 std::fs::create_dir_all(&config_dir).expect("example: create config dir");
                 let paths = ResolvedPaths {
                     config_dir: config_dir.clone(),
-                    store_path: config_dir,
+                    token_store: Some(config_dir.join("auth.yml")),
                 };
 
                 let mut stdout: Vec<u8> = Vec::new();
                 let mut stderr: Vec<u8> = Vec::new();
                 let exit = bird::cli::run_with_paths(
                     ["bird", "--version"],
+                    &mut std::io::empty(),
                     &mut stdout,
                     &mut stderr,
                     paths,
