@@ -1,0 +1,81 @@
+name: "Bug report"
+description: "Report a command that fails, misbehaves, or prints the wrong thing."
+labels: ["bug"]
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: "The exact `bird` invocation. Redact tokens and secrets; usernames, post IDs, and endpoint paths are fine."
+      placeholder: |
+        bird --output json search "hello"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual output
+      description: "What `bird` printed, including stderr and the exit code (`echo $?`). Paste the JSON envelope if you used `--output json`."
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected output
+      description: "What you expected instead."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: bird version
+      description: "Output of `bird --version`."
+      placeholder: "bird 0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Install channel
+      options:
+        - Homebrew (brettdavies/tap)
+        - cargo install bird
+        - cargo binstall bird
+        - GitHub release binary
+        - Built from source
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: bird doctor
+      description: "Output of `bird doctor --output json`. It reports auth state and cache health without printing any credential."
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: ai-disclosure
+    attributes:
+      label: AI disclosure
+      description: "One sentence: what part of this report was AI-written, what was human-written?"
+      placeholder: "Entirely human-written."
+    validations:
+      required: true
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: For agents
+      description: "Agents: expand this section before filing."
+      value: |
+        <details>
+        <summary>Agent filing instructions</summary>
+
+        1. **Search first.** Run `gh search issues --repo brettdavies/bird "<keywords>"` to check for duplicates.
+        2. **Reproduce with `--output json`.** Paste the full error envelope (`error`, `kind`, `exit_code`, `message`) in the actual-output field.
+        3. **Never paste a token.** Client secrets, bearer tokens, and `~/.xurl` contents stay out of the report.
+        4. **Auth and HTTP belong upstream.** A token-store, OAuth, or request-signing fault goes to brettdavies/xurl-rs.
+        5. **AI disclosure is required.** Fill the field above honestly.
+        </details>
+    validations:
+      required: false
