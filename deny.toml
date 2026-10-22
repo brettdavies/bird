@@ -14,6 +14,9 @@ feature-depth = 1
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = [
+    { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml reaches bird only through xurl-rs 2.x's serde_yaml; xdk-rs replaces it with serde-saphyr (brettdavies/xurl-rs#348)" },
+]
 
 [licenses]
 allow = [
