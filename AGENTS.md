@@ -216,16 +216,17 @@ The entity store sits in front of every read command. Three modes:
 | ---- | --------------------------------------------------------------------------------------------- |
 | 0    | Success                                                                                       |
 | 1    | Command error: an API status with no code of its own (400, 403, 5xx), or any other failure    |
-| 2    | `requires-confirmation`: no-TTY caller hit a write op without `--force`/`--yes`               |
+| 2    | Usage: `requires-confirmation` write op without `--force`/`--yes`, or an auth-scheme mismatch |
 | 3    | Rate limited (HTTP 429)                                                                       |
 | 4    | Not found (HTTP 404)                                                                          |
 | 5    | Network or filesystem failure: the request never got an HTTP response                         |
-| 77   | Auth error: missing or refused credential (HTTP 401), or a scheme the endpoint does not take  |
-| 78   | Config error (`EX_CONFIG`): invalid config, bad path, or a request xdk-rs rejects as invalid  |
+| 77   | Auth error: missing or refused credential (HTTP 401), or a token store that cannot be read    |
+| 78   | Config error (`EX_CONFIG`): bird's own config file or paths                                   |
 
-The 77/78 split follows the BSD `sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix
-your config" from "API blew up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of
-hanging.
+Every code xdk-rs classifies (1, 2 for an auth-scheme mismatch, 3, 4, 5, 77) is `xdk::Error::exit_code`, and the
+envelope's `error` id is `xdk::Error::kind`, the same `reason` `xr` reports. The 77/78 split follows the BSD
+`sysexits.h` convention and lets agent harnesses distinguish "fix your tokens" from "fix your config" from "API blew
+up." Exit 2 lets non-interactive callers gate destructive operations explicitly instead of hanging.
 
 ## Token and file permissions
 

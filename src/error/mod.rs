@@ -37,7 +37,7 @@ pub enum BirdError {
         status: Option<u16>,
         /// Optional override that bypasses the default `General → 1`
         /// exit-code rule. Carries xdk's `EXIT_RATE_LIMITED (3)`,
-        /// `EXIT_NOT_FOUND (4)`, and `EXIT_NETWORK_ERROR (5)` (KTD-4).
+        /// `EXIT_NOT_FOUND (4)`, and `EXIT_NETWORK_ERROR (5)`.
         exit_code_override: Option<u8>,
     },
 }
@@ -83,40 +83,25 @@ impl BirdError {
         BirdError::general(name, source)
     }
 
-    /// Translate an `xdk::Error` into the bird envelope per KTD-4.
-    ///
-    /// bird overrides two of xdk's classifications: `Validation` is a config
-    /// error (78, where xdk exits 1), and `AuthMethodMismatch` is an auth
-    /// error (77, where xdk's 2 collides with clap's usage exit). Every other
-    /// error takes xdk's own `exit_code()`: 77 for a missing or refused
-    /// credential, 3 for a rate limit, 4 for not found, 5 for a transport or
-    /// I/O failure, 1 otherwise. `xdk::Error` is `#[non_exhaustive]`, so a
-    /// variant xdk adds arrives already classified.
+    /// Translate an `xdk::Error` into the bird envelope. xdk-rs owns the
+    /// classification: the envelope's `error` id is `xdk::Error::kind` (the
+    /// `reason` `xr` reports) and the exit code is `xdk::Error::exit_code`.
+    /// bird only files the result under its envelope `kind`: 77 is `auth`,
+    /// 2 is `usage`, and every other code is `general`.
     fn from_xdk_error(name: &'static str, err: &xdk::Error) -> Self {
+        let error_id = err.kind();
         let message = err.to_string();
-        match err {
-            xdk::Error::Validation(_) => BirdError::Config {
-                error_id: "config-error",
+        match err.exit_code() {
+            xdk::error::EXIT_AUTH_REQUIRED => BirdError::Auth { error_id, message },
+            xdk::error::EXIT_USAGE_ERROR => BirdError::Usage { error_id, message },
+            code => BirdError::General {
+                error_id,
                 message,
-            },
-            xdk::Error::AuthMethodMismatch(_) => BirdError::Auth {
-                error_id: "auth-method-mismatch",
-                message,
-            },
-            _ => match err.exit_code() {
-                xdk::error::EXIT_AUTH_REQUIRED => BirdError::Auth {
-                    error_id: "auth-error",
-                    message,
-                },
-                code => BirdError::General {
-                    error_id: "command-error",
-                    message,
-                    command: Some(name),
-                    status: api_status(err),
-                    exit_code_override: u8::try_from(code)
-                        .ok()
-                        .filter(|&c| i32::from(c) != xdk::error::EXIT_GENERAL_ERROR),
-                },
+                command: Some(name),
+                status: api_status(err),
+                exit_code_override: u8::try_from(code)
+                    .ok()
+                    .filter(|&c| i32::from(c) != xdk::error::EXIT_GENERAL_ERROR),
             },
         }
     }
@@ -234,52 +219,34 @@ mod tests {
         Box::new(err)
     }
 
+    fn mapped(err: xdk::Error) -> BirdError {
+        BirdError::from_source("search", boxed(err))
+    }
+
     #[test]
     fn exit_codes_match_envelope_kinds() {
         assert_eq!(BirdError::usage("u", "m").exit_code(), 2);
         assert_eq!(BirdError::config("m").exit_code(), 78);
-        let general = BirdError::from_source("test", boxed(xdk::Error::Internal("boom".into())));
-        assert_eq!(general.exit_code(), 1);
-        let auth = BirdError::from_source("test", boxed(xdk::Error::auth("x")));
-        assert_eq!(auth.exit_code(), 77);
+        assert_eq!(mapped(xdk::Error::Internal("boom".into())).exit_code(), 1);
+        assert_eq!(mapped(xdk::Error::auth("x")).exit_code(), 77);
     }
 
     #[test]
     fn kind_strings_match_envelope() {
         assert_eq!(BirdError::usage("u", "m").kind(), "usage");
         assert_eq!(BirdError::config("m").kind(), "config");
-        let auth = BirdError::from_source("test", boxed(xdk::Error::auth("x")));
-        assert_eq!(auth.kind(), "auth");
-        let general = BirdError::from_source("test", boxed(xdk::Error::Internal("boom".into())));
-        assert_eq!(general.kind(), "general");
+        assert_eq!(mapped(xdk::Error::auth("x")).kind(), "auth");
+        assert_eq!(
+            mapped(xdk::Error::Internal("boom".into())).kind(),
+            "general"
+        );
     }
 
-    /// Validation overrides xdk's exit 1 → bird's 78 (config error).
+    /// Every xdk error takes xdk's own exit code and its `kind()` as the
+    /// envelope id; bird adds only its envelope `kind` and, on `general`
+    /// errors, the command name and upstream status.
     #[test]
-    fn xdk_validation_maps_to_config_78() {
-        let mapped = BirdError::from_source("raw", boxed(xdk::Error::validation("missing field")));
-        assert_eq!(mapped.exit_code(), 78);
-        assert_eq!(mapped.kind(), "config");
-    }
-
-    #[test]
-    fn xdk_auth_maps_to_auth_77() {
-        let mapped = BirdError::from_source("me", boxed(xdk::Error::auth("token expired")));
-        assert_eq!(mapped.exit_code(), 77);
-        assert_eq!(mapped.kind(), "auth");
-        assert_eq!(mapped.error_id(), "auth-error");
-    }
-
-    #[test]
-    fn xdk_token_store_maps_to_auth_77() {
-        let mapped = BirdError::from_source("me", boxed(xdk::Error::token_store("read failed")));
-        assert_eq!(mapped.exit_code(), 77);
-        assert_eq!(mapped.kind(), "auth");
-    }
-
-    /// AuthMethodMismatch overrides xdk's 2 → bird's 77.
-    #[test]
-    fn xdk_auth_method_mismatch_maps_to_auth_77_not_2() {
+    fn xdk_errors_keep_xdk_reason_and_exit_code() {
         let mismatch = AuthMismatch {
             endpoint: "/2/users/{id}/likes".into(),
             rendered_url: Some("/2/users/12345/likes".into()),
@@ -290,53 +257,138 @@ mod tests {
             app: Some("default".into()),
             other_apps_with_creds: None,
         };
-        let mapped = BirdError::from_source("post", boxed(mismatch.into()));
-        assert_eq!(mapped.exit_code(), 77);
-        assert_eq!(mapped.kind(), "auth");
-        assert_eq!(mapped.error_id(), "auth-method-mismatch");
-    }
-
-    #[test]
-    fn xdk_api_401_maps_to_auth_77() {
-        let mapped = BirdError::from_source("me", boxed(xdk::Error::api(401, "Unauthorized")));
-        assert_eq!(mapped.exit_code(), 77);
-        assert_eq!(mapped.kind(), "auth");
-    }
-
-    /// 429 inherits xdk's `EXIT_RATE_LIMITED = 3` via `exit_code_override`.
-    /// The contract is the load-bearing signal agents key on for back-off.
-    #[test]
-    fn xdk_api_429_maps_to_general_3() {
-        let mapped = BirdError::from_source(
-            "bookmarks",
-            boxed(xdk::Error::api(429, "Too Many Requests")),
-        );
-        assert_eq!(mapped.exit_code(), 3);
-        assert_eq!(mapped.kind(), "general");
-        assert_eq!(mapped.status(), Some(429));
-    }
-
-    /// 404 inherits xdk's `EXIT_NOT_FOUND = 4`.
-    #[test]
-    fn xdk_api_404_maps_to_general_4() {
-        let mapped = BirdError::from_source("profile", boxed(xdk::Error::api(404, "Not Found")));
-        assert_eq!(mapped.exit_code(), 4);
-        assert_eq!(mapped.kind(), "general");
-        assert_eq!(mapped.status(), Some(404));
-    }
-
-    /// Transport and filesystem failures inherit xdk's `EXIT_NETWORK_ERROR = 5`.
-    #[test]
-    fn xdk_transport_and_io_map_to_general_5() {
-        for err in [
-            xdk::Error::http("connection reset"),
-            xdk::Error::io("ECONNRESET"),
-        ] {
+        let cases: Vec<(xdk::Error, &str, u8, &str, Option<u16>)> = vec![
+            (
+                xdk::Error::auth("token expired"),
+                "auth-required",
+                77,
+                "auth",
+                None,
+            ),
+            (
+                xdk::Error::token_store("read failed"),
+                "token-store",
+                77,
+                "auth",
+                None,
+            ),
+            (
+                xdk::Error::api(401, "Unauthorized"),
+                "auth-required",
+                77,
+                "auth",
+                None,
+            ),
+            (mismatch.into(), "auth-method-mismatch", 2, "usage", None),
+            (
+                xdk::Error::api(429, "Too Many Requests"),
+                "rate-limited",
+                3,
+                "general",
+                Some(429),
+            ),
+            (
+                xdk::Error::api(404, "Not Found"),
+                "not-found",
+                4,
+                "general",
+                Some(404),
+            ),
+            (
+                xdk::Error::http("connection reset"),
+                "network-error",
+                5,
+                "general",
+                None,
+            ),
+            (xdk::Error::io("ECONNRESET"), "io", 5, "general", None),
+            (
+                xdk::Error::api(403, "Forbidden"),
+                "forbidden",
+                1,
+                "general",
+                Some(403),
+            ),
+            (
+                xdk::Error::api(422, "Unprocessable"),
+                "invalid-request",
+                1,
+                "general",
+                Some(422),
+            ),
+            (
+                xdk::Error::api(503, "Unavailable"),
+                "server-error",
+                1,
+                "general",
+                Some(503),
+            ),
+            (
+                xdk::Error::validation("missing field"),
+                "validation",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::Internal("invariant".into()),
+                "internal",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::invalid_url("ftp://bad"),
+                "invalid-url",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::InvalidPathParam {
+                    name: "id".into(),
+                    value: "/escape".into(),
+                },
+                "invalid-path-param",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::json("unexpected token"),
+                "serialization",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::InvalidMethod("GLOMP".into()),
+                "invalid-method",
+                1,
+                "general",
+                None,
+            ),
+            (
+                xdk::Error::ProcessingTimeout {
+                    media_id: "1".into(),
+                    waited: std::time::Duration::from_secs(60),
+                },
+                "processing-timeout",
+                1,
+                "general",
+                None,
+            ),
+        ];
+        for (err, error_id, exit_code, kind, status) in cases {
             let label = format!("{err:?}");
-            let mapped = BirdError::from_source("search", boxed(err));
-            assert_eq!(mapped.exit_code(), 5, "{label} must map to exit 5");
-            assert_eq!(mapped.kind(), "general");
-            assert_eq!(mapped.status(), None);
+            let bird = mapped(err);
+            assert_eq!(bird.error_id(), error_id, "{label}");
+            assert_eq!(bird.exit_code(), exit_code, "{label}");
+            assert_eq!(bird.kind(), kind, "{label}");
+            assert_eq!(bird.status(), status, "{label}");
+            if kind == "general" {
+                assert_eq!(bird.command(), Some("search"), "{label}");
+            }
         }
     }
 
@@ -344,60 +396,19 @@ mod tests {
     /// URL, so a status-like number in it must not pick the exit code.
     #[test]
     fn xdk_transport_message_digits_do_not_pick_the_exit_code() {
-        let mapped = BirdError::from_source(
-            "profile",
-            boxed(xdk::Error::http(
-                "error sending request for url (https://api.x.com/2/users/404)",
-            )),
-        );
-        assert_eq!(mapped.exit_code(), 5);
-        assert_eq!(mapped.status(), None);
-    }
-
-    /// Other API status codes (e.g. 422, 500) inherit xdk's
-    /// `EXIT_GENERAL_ERROR = 1` and preserve the status field on the envelope.
-    #[test]
-    fn xdk_api_other_status_maps_to_general_1() {
-        let mapped =
-            BirdError::from_source("post", boxed(xdk::Error::api(422, "Unprocessable Entity")));
-        assert_eq!(mapped.exit_code(), 1);
-        assert_eq!(mapped.kind(), "general");
-        assert_eq!(mapped.status(), Some(422));
-    }
-
-    /// `Internal`, `InvalidUrl`, `InvalidPathParam`, `Json`, `InvalidMethod`,
-    /// and `ProcessingTimeout` all surface as `EXIT_GENERAL_ERROR = 1` with
-    /// the command name preserved.
-    #[test]
-    fn xdk_structural_errors_map_to_general_1() {
-        let cases = vec![
-            xdk::Error::Internal("invariant violated".into()),
-            xdk::Error::invalid_url("ftp://bad"),
-            xdk::Error::InvalidPathParam {
-                name: "id".into(),
-                value: "/escape".into(),
-            },
-            xdk::Error::json("unexpected token"),
-            xdk::Error::InvalidMethod("GLOMP".into()),
-            xdk::Error::ProcessingTimeout {
-                media_id: "1".into(),
-                waited: std::time::Duration::from_secs(60),
-            },
-        ];
-        for err in cases {
-            let label = format!("{err:?}");
-            let mapped = BirdError::from_source("raw", boxed(err));
-            assert_eq!(mapped.exit_code(), 1, "{label} must map to exit 1");
-            assert_eq!(mapped.kind(), "general", "{label} must surface as general");
-            assert_eq!(mapped.command(), Some("raw"));
-        }
+        let bird = mapped(xdk::Error::http(
+            "error sending request for url (https://api.x.com/2/users/404)",
+        ));
+        assert_eq!(bird.exit_code(), 5);
+        assert_eq!(bird.status(), None);
     }
 
     /// A source that is not an `xdk::Error` is a general error with no status.
     #[test]
     fn non_xdk_source_maps_to_general_1() {
-        let mapped = BirdError::from_source("cache", "disk full".into());
-        assert_eq!(mapped.exit_code(), 1);
-        assert_eq!(mapped.status(), None);
+        let bird = BirdError::from_source("cache", "disk full".into());
+        assert_eq!(bird.error_id(), "command-error");
+        assert_eq!(bird.exit_code(), 1);
+        assert_eq!(bird.status(), None);
     }
 }
