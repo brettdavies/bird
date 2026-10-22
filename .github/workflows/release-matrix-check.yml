@@ -1,0 +1,38 @@
+# Builds every target the release matrix builds, without releasing anything.
+#
+# The release build only runs on a `v*` tag push, so a dependency that breaks a
+# cross-compiled target would otherwise surface while cutting the release,
+# after the tag exists. reqwest's rustls backend builds aws-lc-sys, which
+# compiles C and needs a working cross toolchain per target, so a dependency or
+# toolchain change is what breaks a target.
+#
+# This runs the same seven targets when the dependency graph or toolchain pin
+# changes, and on every release branch, the last point before a tag exists.
+# The matrix and its build steps live in the shared workflow this calls, beside
+# the release workflow whose matrix they mirror.
+name: Release matrix check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/release-matrix-check.yml
+  # A release branch carries commits the path filter above may never have seen
+  # together, so it runs the full matrix regardless of what changed.
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    uses: brettdavies/.github/.github/workflows/rust-release-matrix-check.yml@main
