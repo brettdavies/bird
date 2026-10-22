@@ -1,0 +1,43 @@
+name: "Skill bundle report"
+description: "Report a problem with the agent skill bundle installed by `bird skill install` (routed here from bird-skill)."
+title: "[skill] "
+labels: ["documentation"]
+body:
+  - type: input
+    id: bundle-file
+    attributes:
+      label: Bundle file
+      description: "The file inside the bundle that is wrong, for example `SKILL.md`."
+    validations:
+      required: true
+  - type: textarea
+    id: mismatch
+    attributes:
+      label: What the bundle says versus what bird does
+      description: "Quote the bundle text, then paste the `bird` command and output that contradicts it. Redact tokens."
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: bird version
+      description: "Output of `bird --version`."
+      placeholder: "bird 0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Agent host
+      description: "Which host the bundle is installed into (`bird skill install <host>`), for example `claude_code` or `codex`."
+    validations:
+      required: false
+  - type: textarea
+    id: ai-disclosure
+    attributes:
+      label: AI disclosure
+      description: "One sentence: what part of this report was AI-written, what was human-written?"
+      placeholder: "Entirely human-written."
+    validations:
+      required: true

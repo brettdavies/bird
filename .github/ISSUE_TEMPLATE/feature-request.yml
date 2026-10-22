@@ -1,0 +1,50 @@
+name: "Feature request"
+description: "Suggest a new command, flag, or behavior for bird."
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: "What can you not do today, or what takes more steps or more billed API reads than it should?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed command or flag
+      description: "Sketch the invocation and the output you would want, in text mode and under `--output json` if both apply."
+      placeholder: |
+        bird watchlist fetch --since 2h
+    validations:
+      required: true
+  - type: textarea
+    id: agent-native
+    attributes:
+      label: Agent-native considerations
+      description: "How should an AI agent driving `bird` use this? Name the structured fields and exit codes it would branch on, if any."
+    validations:
+      required: false
+  - type: textarea
+    id: ai-disclosure
+    attributes:
+      label: AI disclosure
+      description: "One sentence: what part of this request was AI-written, what was human-written?"
+      placeholder: "Entirely human-written."
+    validations:
+      required: true
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: For agents
+      description: "Agents: expand this section before filing."
+      value: |
+        <details>
+        <summary>Agent filing instructions</summary>
+
+        1. **Search first.** Run `gh search issues --repo brettdavies/bird "<keywords>"` to check for duplicates.
+        2. **Workflows here, primitives upstream.** bird owns the entity store, threads, watchlists, and cost views. A new request primitive, auth mode, or error-contract change belongs to brettdavies/xurl-rs.
+        3. **AI disclosure is required.** Fill the field above honestly.
+        </details>
+    validations:
+      required: false
