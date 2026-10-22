@@ -25,8 +25,8 @@ request. Write commands accept no cache mode that would skip the API.
 
 ### Cost ledger
 
-The usage table that records an estimated cost for every API call bird sends. `bird usage --local` reports from it
-alone; `bird usage` also syncs the actual figures X reports, so estimate and bill sit side by side.
+The usage table that records an estimated cost for every API call bird sends. `bird spend` reports from it
+alone; `bird spend --sync` also fetches the actual figures X reports, so estimate and bill sit side by side.
 
 ## Transport
 

@@ -47,7 +47,7 @@ fn ymd_to_display(ymd: i64) -> String {
 /// BufWriter is dropped on unwind, flushing buffered bytes in debug builds.
 /// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
 /// truncate — accepted property of streaming output.
-pub fn run_usage(
+pub fn run_spend(
     client: &mut BirdClient,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
@@ -69,7 +69,7 @@ pub fn run_usage(
             "Store database is unavailable. Run `bird cache clear` to reset."
         };
         if !quiet {
-            writeln!(stderr, "[usage] {}", msg).ok();
+            writeln!(stderr, "[spend] {}", msg).ok();
         }
         if !pretty {
             cfg.print_ok(&mut out, serde_json::to_value(empty_report(since_ymd))?)?;
@@ -93,7 +93,7 @@ pub fn run_usage(
     if summary.total_calls == 0 && local && !quiet {
         writeln!(
             stderr,
-            "[usage] No usage data recorded yet. Run some API commands first."
+            "[spend] No usage data recorded yet. Run some API commands first."
         )
         .ok();
     }
@@ -113,7 +113,7 @@ pub fn run_usage(
             if days_back > 90 && !quiet {
                 writeln!(
                     stderr,
-                    "[usage] warning: X API only returns 90 days of history; --since may exceed that range"
+                    "[spend] warning: X API only returns 90 days of history; --since may exceed that range"
                 )
                 .ok();
             }
@@ -283,12 +283,12 @@ mod tests {
     }
 
     #[test]
-    fn run_usage_local_skips_api() {
+    fn run_spend_local_skips_api() {
         let mut client = sync_client(vec![]);
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        run_usage(
+        run_spend(
             &mut client,
             &cfg,
             &mut stdout,
@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn run_usage_default_calls_api() {
+    fn run_spend_default_calls_api() {
         let api_response = serde_json::json!({
             "data": {
                 "daily_project_usage": {
@@ -315,7 +315,7 @@ mod tests {
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        run_usage(
+        run_spend(
             &mut client,
             &cfg,
             &mut stdout,
@@ -328,12 +328,12 @@ mod tests {
     }
 
     #[test]
-    fn run_usage_default_with_empty_mock_errors() {
+    fn run_spend_default_with_empty_mock_errors() {
         let mut client = sync_client(vec![]);
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
-        let result = run_usage(
+        let result = run_spend(
             &mut client,
             &cfg,
             &mut stdout,

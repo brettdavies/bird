@@ -243,15 +243,15 @@ pub enum Command {
         common: OutputFlags,
     },
 
-    /// View API usage and costs.
-    #[command(after_help = include_str!("../../examples/usage.txt"))]
-    Usage {
-        /// Show usage since this date (YYYY-MM-DD; default: 30 days ago).
+    /// Show the local spend ledger: estimated API cost per call.
+    #[command(after_help = include_str!("../../examples/spend.txt"))]
+    Spend {
+        /// Show spend since this date (YYYY-MM-DD; default: 30 days ago).
         #[arg(long)]
         since: Option<String>,
-        /// Show only local estimates (skip API).
+        /// Also fetch X's actual usage (GET /2/usage/tweets) to set beside the estimates.
         #[arg(long)]
-        local: bool,
+        sync: bool,
         #[command(flatten)]
         common: OutputFlags,
     },

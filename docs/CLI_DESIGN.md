@@ -6,7 +6,7 @@ source of truth.
 ## Doctor: full and scoped reports
 
 - **`bird doctor`** — Full report: auth state, effective config (with source), and availability plus reasons for all
-  commands (login, me, bookmarks, profile, search, thread, watchlist, usage, get, post, put, delete).
+  commands (login, me, bookmarks, profile, search, thread, watchlist, spend).
 - **`bird doctor <command>`** — Scoped report: same auth and config, but the commands section lists only the given
   command (e.g. `bird doctor me`). Lets humans and agents ask “what do I need to run `bird me`?” without parsing the
   full JSON.
@@ -31,8 +31,8 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **watchlist fetch**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same auth as search — runs `from:<username>` search
   queries).
 - **watchlist add/remove/list**: no auth required (local config.toml operations).
-- **usage**: no auth required (reads local SQLite usage table).
-- **usage --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
+- **spend**: no auth required (reads the local SQLite usage table).
+- **spend --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
 - **login**: N/A (runs the OAuth2 PKCE browser flow through the embedded `xdk-rs` client; `--no-browser` runs the
   headless two-step flow).
 

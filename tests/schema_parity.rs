@@ -29,8 +29,8 @@ const EMBEDDED: &[(&str, &str)] = &[
         "skill-update",
         include_str!("../schema/skill-update.schema.json"),
     ),
+    ("spend", include_str!("../schema/spend.schema.json")),
     ("thread", include_str!("../schema/thread.schema.json")),
-    ("usage", include_str!("../schema/usage.schema.json")),
     (
         "watchlist-fetch",
         include_str!("../schema/watchlist-fetch.schema.json"),

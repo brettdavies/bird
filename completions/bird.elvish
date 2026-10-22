@@ -51,7 +51,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand search 'Search recent tweets (GET /2/tweets/search/recent)'
             cand thread 'Reconstruct a conversation thread from a post'
             cand watchlist 'Monitor users: check recent activity, manage watchlist'
-            cand usage 'View API usage and costs'
+            cand spend 'Show the local spend ledger: estimated API cost per call'
             cand tweet 'Post a tweet (via xurl)'
             cand reply 'Reply to a tweet (via xurl)'
             cand like 'Like a tweet (via xurl)'
@@ -389,8 +389,8 @@ set edit:completion:arg-completer[bird] = {|@words|
         }
         &'bird;watchlist;help;help'= {
         }
-        &'bird;usage'= {
-            cand --since 'Show usage since this date (YYYY-MM-DD; default: 30 days ago)'
+        &'bird;spend'= {
+            cand --since 'Show spend since this date (YYYY-MM-DD; default: 30 days ago)'
             cand -u 'Username for multi-user token selection (maps to xurl -u)'
             cand --username 'Username for multi-user token selection (maps to xurl -u)'
             cand -o 'Output format (text, json, jsonl, ndjson). Defaults to json when piped'
@@ -401,7 +401,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand --cursor 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)'
             cand --app 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl''s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not'
             cand --auth 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list'
-            cand --local 'Show only local estimates (skip API)'
+            cand --sync 'Also fetch X''s actual usage (GET /2/usage/tweets) to set beside the estimates'
             cand --pretty 'Pretty-print human-readable output'
             cand --json 'Shorthand for `--output json`'
             cand --jsonl 'Shorthand for `--output jsonl`'
@@ -1063,7 +1063,7 @@ set edit:completion:arg-completer[bird] = {|@words|
             cand search 'Search recent tweets (GET /2/tweets/search/recent)'
             cand thread 'Reconstruct a conversation thread from a post'
             cand watchlist 'Monitor users: check recent activity, manage watchlist'
-            cand usage 'View API usage and costs'
+            cand spend 'Show the local spend ledger: estimated API cost per call'
             cand tweet 'Post a tweet (via xurl)'
             cand reply 'Reply to a tweet (via xurl)'
             cand like 'Like a tweet (via xurl)'
@@ -1110,7 +1110,7 @@ set edit:completion:arg-completer[bird] = {|@words|
         }
         &'bird;help;watchlist;list'= {
         }
-        &'bird;help;usage'= {
+        &'bird;help;spend'= {
         }
         &'bird;help;tweet'= {
         }

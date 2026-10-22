@@ -10,7 +10,7 @@ pub mod login;
 pub mod profile;
 pub mod reads;
 pub mod search;
+pub mod spend;
 pub mod thread;
-pub mod usage;
 pub mod watchlist;
 pub mod writes;

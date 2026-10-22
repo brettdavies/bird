@@ -54,7 +54,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('search', 'search', [CompletionResultType]::ParameterValue, 'Search recent tweets (GET /2/tweets/search/recent)')
             [CompletionResult]::new('thread', 'thread', [CompletionResultType]::ParameterValue, 'Reconstruct a conversation thread from a post')
             [CompletionResult]::new('watchlist', 'watchlist', [CompletionResultType]::ParameterValue, 'Monitor users: check recent activity, manage watchlist')
-            [CompletionResult]::new('usage', 'usage', [CompletionResultType]::ParameterValue, 'View API usage and costs')
+            [CompletionResult]::new('spend', 'spend', [CompletionResultType]::ParameterValue, 'Show the local spend ledger: estimated API cost per call')
             [CompletionResult]::new('tweet', 'tweet', [CompletionResultType]::ParameterValue, 'Post a tweet (via xurl)')
             [CompletionResult]::new('reply', 'reply', [CompletionResultType]::ParameterValue, 'Reply to a tweet (via xurl)')
             [CompletionResult]::new('like', 'like', [CompletionResultType]::ParameterValue, 'Like a tweet (via xurl)')
@@ -410,8 +410,8 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
         'bird;watchlist;help;help' {
             break
         }
-        'bird;usage' {
-            [CompletionResult]::new('--since', '--since', [CompletionResultType]::ParameterName, 'Show usage since this date (YYYY-MM-DD; default: 30 days ago)')
+        'bird;spend' {
+            [CompletionResult]::new('--since', '--since', [CompletionResultType]::ParameterName, 'Show spend since this date (YYYY-MM-DD; default: 30 days ago)')
             [CompletionResult]::new('-u', '-u', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('--username', '--username', [CompletionResultType]::ParameterName, 'Username for multi-user token selection (maps to xurl -u)')
             [CompletionResult]::new('-o', '-o', [CompletionResultType]::ParameterName, 'Output format (text, json, jsonl, ndjson). Defaults to json when piped')
@@ -422,7 +422,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--app', '--app', [CompletionResultType]::ParameterName, 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl''s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not')
             [CompletionResult]::new('--auth', '--auth', [CompletionResultType]::ParameterName, 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list')
-            [CompletionResult]::new('--local', '--local', [CompletionResultType]::ParameterName, 'Show only local estimates (skip API)')
+            [CompletionResult]::new('--sync', '--sync', [CompletionResultType]::ParameterName, 'Also fetch X''s actual usage (GET /2/usage/tweets) to set beside the estimates')
             [CompletionResult]::new('--pretty', '--pretty', [CompletionResultType]::ParameterName, 'Pretty-print human-readable output')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')
@@ -1115,7 +1115,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('search', 'search', [CompletionResultType]::ParameterValue, 'Search recent tweets (GET /2/tweets/search/recent)')
             [CompletionResult]::new('thread', 'thread', [CompletionResultType]::ParameterValue, 'Reconstruct a conversation thread from a post')
             [CompletionResult]::new('watchlist', 'watchlist', [CompletionResultType]::ParameterValue, 'Monitor users: check recent activity, manage watchlist')
-            [CompletionResult]::new('usage', 'usage', [CompletionResultType]::ParameterValue, 'View API usage and costs')
+            [CompletionResult]::new('spend', 'spend', [CompletionResultType]::ParameterValue, 'Show the local spend ledger: estimated API cost per call')
             [CompletionResult]::new('tweet', 'tweet', [CompletionResultType]::ParameterValue, 'Post a tweet (via xurl)')
             [CompletionResult]::new('reply', 'reply', [CompletionResultType]::ParameterValue, 'Reply to a tweet (via xurl)')
             [CompletionResult]::new('like', 'like', [CompletionResultType]::ParameterValue, 'Like a tweet (via xurl)')
@@ -1174,7 +1174,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
         'bird;help;watchlist;list' {
             break
         }
-        'bird;help;usage' {
+        'bird;help;spend' {
             break
         }
         'bird;help;tweet' {

@@ -297,7 +297,7 @@ impl BirdClient {
         }) && !self.quiet
         {
             let mut w = crate::output::lock_writer(&self.stderr);
-            writeln!(*w, "[usage] warning: failed to log API call: {e}").ok();
+            writeln!(*w, "[spend] warning: failed to log API call: {e}").ok();
         }
     }
 }

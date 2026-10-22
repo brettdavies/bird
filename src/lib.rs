@@ -30,7 +30,7 @@ pub mod schema_print;
 pub mod search;
 pub mod shutdown;
 pub mod skill_install;
+pub mod spend;
 pub mod thread;
-pub mod usage;
 pub mod watchlist;
 pub mod xurl_client;
