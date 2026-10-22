@@ -49,15 +49,10 @@ composition and the cut.
 | #125 | xdk-rs replaces the xurl-rs 2.x library; xdk's error reason and exit code; store-only credentials work |
 | #126 | `bird doctor` reports whether the embedded client was built; subprocess-era residue removed            |
 | #127 | `error-envelope` schema admits exit codes 3, 4, 5; envelope docs match the emitter                     |
+| #128 | login, doctor, and the runner take the token store, xdk environment, and stdin as injected inputs      |
 | #120 | `docs/SECRETS.md` names the release token by UUID                                                      |
 | #121 | Dependabot: `dtolnay/rust-toolchain` bump                                                              |
 | #122 | Dependabot: cargo minor/patch group                                                                    |
-
-## Stack 0: in flight
-
-- #128: login, doctor, and the runner read the token store (`XURL_TOKEN_STORE` or xdk's default), the xdk environment,
-  and stdin from the runner's inputs, so tests stay off the machine's `~/.xurl`; login refuses an app without client
-  credentials as `xr auth oauth2` does.
 
 ## Stack 1: repo environment
 
