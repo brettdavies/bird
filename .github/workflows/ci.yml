@@ -41,6 +41,7 @@ jobs:
       advisories_blocking: true
       docs: true
       msrv: true
+      completions: true
       lint_stdio: true
       workflow_concurrency: true
 
