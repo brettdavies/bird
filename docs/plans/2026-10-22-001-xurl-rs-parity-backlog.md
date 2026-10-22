@@ -27,26 +27,26 @@ owner: brettdavies
 | #123 | rustls, rustls-webpki, webpki-roots advisories cleared                                                 |
 | #124 | `release-matrix-check.yml`: the seven release targets build on dependency and toolchain changes        |
 | #125 | xdk-rs replaces the xurl-rs 2.x library; xdk's error reason and exit code; store-only credentials work |
+| #126 | `bird doctor` reports whether the embedded client was built; subprocess-era residue removed            |
+| #127 | `error-envelope` schema admits exit codes 3, 4, 5; envelope docs match the emitter                     |
 | #120 | `docs/SECRETS.md` names the release token by UUID                                                      |
 | #121 | Dependabot: `dtolnay/rust-toolchain` bump                                                              |
 | #122 | Dependabot: cargo minor/patch group                                                                    |
 
 ## Stack 0: in flight
 
-| Item | Change                                                                                                                       |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------- |
-| #126 | `bird doctor` reports whether the embedded client was built; `xurl.path` removed; subprocess-era prose and help text removed |
-| B3   | `error-envelope` schema admits exit codes 3, 4, 5; README and AGENTS.md envelope docs match the emitter                      |
+- #128: login, doctor, and the runner read the token store (`XURL_TOKEN_STORE` or xdk's default), the xdk environment,
+  and stdin from the runner's inputs, so tests stay off the machine's `~/.xurl`; login refuses an app without client
+  credentials as `xr auth oauth2` does.
 
 ## Stack 1: repo environment
 
 Lands before any product work: every later PR runs under these hooks and checks.
 
-1. **Changelog categories upstream.** Add `### Removed` (and the `Breaking changes` / `Deprecated` headings the
-   generator already reads) to the canonical PR template
-   (`dotfiles/stow/github/dot-config/github/pull_request_template.md`) and `Removed` to `CATEGORIES` in
-   `agent-skills/github-repo-setup/templates/generate-changelog.py`, with its section-order tests. Then re-vendor both
-   into bird and xurl-rs.
+1. **Changelog categories upstream.** `Removed` sits between Deprecated and Fixed in `generate-changelog.py`'s
+   `CATEGORIES`, with a section-order test (brettdavies/agent-skills `b4318aa`). The canonical PR template gains the
+   `Breaking changes`, `Deprecated`, and `Removed` headings (brettdavies/dotfiles#288). Then re-vendor the PR template,
+   `generate-changelog.py`, `cliff.toml`, and the release-doc templates into bird and xurl-rs.
 2. **Canonical drift.** Re-vendor `.github/pull_request_template.md` and `cliff.toml` (drifted), and vendor
    `scripts/check-workflow-concurrency.sh`, `scripts/hooks/core-env-guard.sh`, `scripts/hooks/_lib.sh`, and
    `scripts/release/release.env`.
@@ -121,10 +121,15 @@ What remains after stack 3 for bird's own commands.
 
 ## Stack 6: release and external surfaces
 
-1. Version and cut (`RELEASES.md`); the release carries every breaking change above.
-2. Homebrew tap: drop the `xdevplatform/tap/xurl` caveat from the bird formula.
-3. bird-skill: replace the subprocess transport, `BIRD_XURL_PATH`, and `xurl.available` guidance.
-4. agentnative-site: rescore bird and add the README badge.
+1. **xdk-rs release first.** bird pins a xurl-rs `dev` commit for xdk-rs (serde-saphyr, xurl-rs#348) under `version =
+   "0.2.0"`, but `cargo publish` resolves the crates.io `xdk-rs 0.2.0`, which still links `serde_yaml` and lacks
+   `xdk::store::locate_store`. Cut an xdk-rs release with both, move bird onto it from crates.io, and collapse
+   `ResolvedPaths::token_store` from `Option` to xdk's resolved default path. Decide then whether bird adopts the
+   directory store layout as `xr` does (`adopt_directory_layout`) or keeps opening a single-file `~/.xurl` in place.
+2. Version and cut (`RELEASES.md`); the release carries every breaking change above.
+3. Homebrew tap: drop the `xdevplatform/tap/xurl` caveat from the bird formula.
+4. bird-skill: replace the subprocess transport, `BIRD_XURL_PATH`, and `xurl.available` guidance.
+5. agentnative-site: rescore bird and add the README badge.
 
 ## Local housekeeping
 
