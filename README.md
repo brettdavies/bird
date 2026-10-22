@@ -1,13 +1,13 @@
 # bird
 
-**bird** is a Rust CLI for the X (Twitter) API, built on [xurl](https://github.com/xdevplatform/xurl) for authentication
-and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread reconstruction, and structured
-error output for agents.
+**bird** is a Rust CLI for the X (Twitter) API, built on `xdk-rs` from [xurl-rs](https://github.com/brettdavies/xurl-rs)
+for authentication and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread
+reconstruction, and structured error output for agents.
 
 ## Why bird?
 
-xurl already provides authentication, curated commands, and raw API access. bird extends xurl with capabilities it
-doesn't have:
+`xr`, the xurl-rs CLI, already provides authentication, curated commands, and raw API access. bird is built on the same
+X API library and adds capabilities `xr` doesn't have:
 
 - **Entity store** — Local SQLite cache with per-endpoint TTL. Reduces API calls, enables offline access, and supports
   `--refresh`, `--no-cache`, and `--cache-only` modes.
@@ -15,10 +15,11 @@ doesn't have:
 - **Watchlist** — Monitor a list of users for recent activity without manual searches.
 - **Usage tracking** — Local API usage history with cost estimation; `--sync` to refresh from the X API.
 - **Structured errors** — Machine-readable JSON errors on stderr for agent and CI integration.
-- **Self-diagnostics** — `bird doctor` reports xurl status, auth state, command availability, and store health in one
-  place.
+- **Self-diagnostics** — `bird doctor` reports the embedded X API client, auth state, command availability, and store
+  health in one place.
 
-bird delegates all authentication and HTTP transport to xurl at runtime.
+bird delegates all authentication and HTTP transport to the embedded `xdk-rs` library; it starts no `xr` or `xurl`
+process.
 
 ---
 
@@ -57,7 +58,7 @@ cargo build --release
 
 ### App credentials
 
-bird embeds xurl-rs as a library, so it ships as a single binary. You still need X API app credentials. Either set them
+bird embeds `xdk-rs` as a library, so it ships as a single binary. You still need X API app credentials. Either set them
 as env vars:
 
 ```bash
@@ -140,8 +141,8 @@ No config or app creation needed.
 
 | Command                    | Description                                                        |
 | -------------------------- | ------------------------------------------------------------------ |
-| `bird login`               | Sign in via browser (delegates to xurl); `--no-browser` for agents |
-| `bird doctor`              | Diagnostics: xurl status, auth, commands, store health             |
+| `bird login`               | Sign in via browser; `--no-browser` for agents                     |
+| `bird doctor`              | Diagnostics: X API client, auth, commands, store health            |
 | `bird doctor <cmd>`        | Scoped diagnostics for a single command                            |
 | `bird cache stats`         | Entity store status                                                |
 | `bird cache clear`         | Delete all cached entities                                         |
@@ -182,13 +183,14 @@ Colors and hyperlinks are disabled automatically when stdout is not a TTY or `TE
 
 ## Agent and non-interactive usage
 
-Authentication is handled entirely by xurl. For headless/CI environments where a browser is not available, use `bird
+Authentication is handled by `xdk-rs`. For headless/CI environments where a browser is not available, use `bird
 login --no-browser` (alias `--headless`): bird prints the authorization URL on stdout, then reads the redirect URL back
 from stdin. Under `--output json` the prompt and result are wrapped in the standard envelope so agents can parse them
-programmatically. Tokens are otherwise configurable through xurl's environment variables — see
-[xurl documentation](https://github.com/xdevplatform/xurl).
+programmatically. Tokens live in the `~/.xurl` token store that `xr` also uses; `XURL_BEARER_TOKEN` supplies an app-only
+bearer token without storing it. See [xurl-rs](https://github.com/brettdavies/xurl-rs) for the full set of variables.
 
-bird reads one environment variable: `X_API_USERNAME` (or `--username`) to select which stored account xurl should use.
+bird reads one environment variable of its own: `X_API_USERNAME` (or `--username`) to select which stored account to
+use.
 
 ### Structured error output
 
@@ -221,8 +223,9 @@ bird's own config is minimal — just `username` and `watchlist`:
 
 Username priority: `--username` flag > config file > `X_API_USERNAME` env var.
 
-Authentication and token storage are handled entirely by xurl. To use your own X Developer app, configure it through
-xurl — see [xurl documentation](https://github.com/xdevplatform/xurl).
+Authentication and token storage are handled by `xdk-rs`, in the `~/.xurl` token store `xr` also uses. To use your own X
+Developer app, export `CLIENT_ID` / `CLIENT_SECRET` or store it with `xr auth app` (see
+[xurl-rs](https://github.com/brettdavies/xurl-rs)).
 
 ---
 

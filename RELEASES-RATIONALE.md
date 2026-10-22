@@ -275,14 +275,14 @@ pressure.
 
 ### Cross-compile target matrix
 
-Five targets, no musl rows: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`,
-`aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. bird is a CLI client over a hosted API (X / Twitter, via the `xurl`
-subprocess transport); the binaries are consumed by interactive shell users on the three desktop platforms and on Linux
-CI runners. The musl static-link rows (added in sibling repos for Alpine and other glibc-free hosts) carry an additional
-cross-compile cost and no demand signal here yet. Add them when a real Alpine consumer surfaces.
+The shared release workflow builds seven targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
+`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`,
+`x86_64-pc-windows-msvc`. bird does not set `linux_musl_required`, so the two musl rows soft-fail: a musl build failure
+omits those two archives from the release instead of blocking it. `aws-lc-sys`, under reqwest's rustls backend,
+compiles C for every target, so `release-matrix-check.yml` builds all seven on every pull request that changes
+`Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml`, and on every `release/**` push.
 
-The Windows row uses `x86_64-pc-windows-msvc` (MSVC ABI) rather than GNU because the subprocess transport spawns `xr`
-(xurl-rs) via the platform-native exec path; MSVC is the path of least resistance on Windows. CI also runs a separate
+The Windows row is `x86_64-pc-windows-msvc`, the shared workflow's only Windows target. CI also runs a separate
 `ci / Windows check` job on every PR (not just at release) so MSVC build failures surface immediately, not at tag time.
 
 ### Known CI transient: cargo-deny Docker Hub timeout

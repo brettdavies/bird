@@ -24,7 +24,8 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **watchlist add/remove/list**: no auth required (local config.toml operations).
 - **usage**: no auth required (reads local SQLite usage table).
 - **usage --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
-- **login**: N/A (delegates to `xurl auth oauth2` for OAuth2 PKCE browser flow).
+- **login**: N/A (runs the OAuth2 PKCE browser flow through the embedded `xdk-rs` client; `--no-browser` runs the
+  headless two-step flow).
 - **get / post / put / delete** (raw): any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 
 When a command fails because auth is missing or the wrong type, the CLI prints:
@@ -35,13 +36,15 @@ When a command fails because auth is missing or the wrong type, the CLI prints:
    - **OAuth 1.0a** (when supported): Set `X_API_CONSUMER_KEY`, `X_API_CONSUMER_SECRET`, `X_API_OAUTH1_ACCESS_TOKEN`, `X_API_OAUTH1_ACCESS_TOKEN_SECRET`.
    - **Bearer** (when supported): Set `X_API_BEARER_TOKEN`.
 
-The same requirement definitions drive **doctor** availability and reason strings (e.g. “run bird login or set … Or set OAuth 1.0a env”), so execution, error messages, and doctor stay consistent.
+The same requirement definitions drive **doctor** availability and reason strings (e.g. “run bird login or set … Or set
+OAuth 1.0a env”), so execution, error messages, and doctor stay consistent.
 
 ## Source of truth
 
 Auth requirements for each command are defined in a **central module** (`src/requirements.rs`). That module is used by:
 
-- **Execution** — “resolve token for command X” tries accepted auth types in a defined order and returns a structured “auth required” error with hints when none work.
+- **Execution** — “resolve token for command X” tries accepted auth types in a defined order and returns a structured
+  “auth required” error with hints when none work.
 - **Errors** — Subcommand failure formatting uses the same hint strings.
 - **Doctor** — Availability and reasons are computed from the same requirements.
 
