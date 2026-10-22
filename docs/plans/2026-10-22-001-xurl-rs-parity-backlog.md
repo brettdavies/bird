@@ -24,9 +24,8 @@ owner: brettdavies
 
 A stack that changes a contract across repositories gets a plan before code; the rest is coded directly. The lanes run
 in parallel. bird writes no code in xurl-rs: what bird needs from xdk-rs and xurl-rs goes to the xurl-rs team as a
-request (a local handoff in xurl-rs's `.context/handoffs/`), and bird adapts to what they ship. bird work that needs
-new xdk-rs or xurl-rs code (lane C's bird units, lane E) waits for the release that carries it; everything else starts
-now.
+request (lane C's plan, "Requests to the xurl-rs team"), and bird adapts to what they ship. bird work that needs new
+xdk-rs or xurl-rs code (lane C's bird units, lane E) waits for the release that carries it; everything else starts now.
 
 | Lane | Work                                                                                                  | Plan first?                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
