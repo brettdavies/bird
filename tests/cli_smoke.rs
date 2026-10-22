@@ -27,9 +27,13 @@ fn watchlist_list_empty_config() {
     let env = common::TestEnv::new();
     let (exit, stdout, _stderr) = common::run_in_process(&["bird", "watchlist", "list"], &env);
     assert_eq!(exit, 0);
-    // Empty config → empty JSON array on stdout (default output mode in a
-    // non-TTY test environment is JSON per the runner's auto-detect path).
-    assert_eq!(stdout.trim(), "[]");
+    // Empty config: an ok document with an empty list (the default output
+    // mode in a non-TTY test environment is JSON).
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(
+        doc,
+        serde_json::json!({"status": "ok", "data": [], "meta": {}})
+    );
 }
 
 #[test]
@@ -437,8 +441,12 @@ fn delete_dry_run_emits_envelope_and_skips_request() {
     );
     assert_eq!(exit, 0);
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-    assert_eq!(json["data"]["dry_run"], true);
-    assert_eq!(json["data"]["would"]["method"], "DELETE");
+    assert_eq!(json["status"], "dry_run");
+    assert_eq!(json["would_succeed"], true);
+    assert_eq!(json["exit_code"], 0);
+    assert_eq!(json["command"], "delete");
+    assert_eq!(json["method"], "DELETE");
+    assert_eq!(json["confirmation_required"], true);
 }
 
 #[test]
@@ -450,8 +458,8 @@ fn tweet_dry_run_includes_body() {
     );
     assert_eq!(exit, 0);
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-    assert_eq!(json["data"]["dry_run"], true);
-    assert_eq!(json["data"]["would"]["body"]["text"], "hi there");
+    assert_eq!(json["status"], "dry_run");
+    assert_eq!(json["body"]["text"], "hi there");
 }
 
 #[test]
@@ -463,7 +471,8 @@ fn cache_clear_dry_run_does_not_clear() {
     );
     assert_eq!(exit, 0);
     let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-    assert_eq!(json["data"]["dry_run"], true);
+    assert_eq!(json["status"], "dry_run");
+    assert_eq!(json["command"], "clear");
 }
 
 // --- JSON error output schemas --------------------------------------------

@@ -42,13 +42,12 @@ pub fn run(
                     let stats = client.db_stats().and_then(|r| r.ok());
                     let size_str =
                         stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    if !quiet {
-                        writeln!(
-                            stderr,
-                            "Cleared {} stored entities ({} MB).",
-                            count, size_str
-                        )
-                        .ok();
+                    let message = format!("Cleared {} stored entities ({} MB).", count, size_str);
+                    if out.format.is_json() {
+                        out.print_ok_message(stdout, &message)
+                            .map_err(cache_io_err)?;
+                    } else if !quiet {
+                        writeln!(stderr, "{message}").ok();
                     }
                 }
                 Some(Err(e)) => {
@@ -107,8 +106,7 @@ pub fn run(
                             .map_err(cache_io_err)?;
                         writeln!(stdout, "healthy={}", stats.healthy()).map_err(cache_io_err)?;
                     } else {
-                        let env = serde_json::json!({"data": data, "meta": {}});
-                        out.print_envelope(stdout, &env).map_err(cache_io_err)?;
+                        out.print_ok(stdout, data).map_err(cache_io_err)?;
                     }
                 }
                 Some(Err(e)) => {
@@ -119,11 +117,8 @@ pub fn run(
                 }
                 None => {
                     if !pretty && !out.is_raw_text() {
-                        let env = serde_json::json!({
-                            "data": {"healthy": false},
-                            "meta": {"status": "store-unavailable"},
-                        });
-                        out.print_envelope(stdout, &env).map_err(cache_io_err)?;
+                        out.print_ok(stdout, serde_json::json!({"healthy": false}))
+                            .map_err(cache_io_err)?;
                     } else if !quiet {
                         writeln!(stderr, "Store is not available.").ok();
                     }

@@ -73,3 +73,53 @@ fn help_under_explicit_json_shares_the_status_key_with_errors() {
         "plain help, got {stdout:?}"
     );
 }
+
+/// Every bird-owned command that runs offline prints one document whose
+/// `status` is `ok` or `dry_run` under `--output json`.
+#[test]
+fn bird_owned_commands_print_a_status_document() {
+    let env = common::TestEnv::new();
+    let runs: &[(&[&str], &str)] = &[
+        (&["bird", "--output", "json", "--examples"], "ok"),
+        (&["bird", "--output", "json", "cache", "stats"], "ok"),
+        (
+            &["bird", "--output", "json", "cache", "clear", "--dry-run"],
+            "dry_run",
+        ),
+        (
+            &["bird", "--output", "json", "cache", "clear", "--force"],
+            "ok",
+        ),
+        (
+            &["bird", "--output", "json", "watchlist", "add", "alice"],
+            "ok",
+        ),
+        (&["bird", "--output", "json", "watchlist", "list"], "ok"),
+        (
+            &[
+                "bird",
+                "--output",
+                "json",
+                "watchlist",
+                "remove",
+                "alice",
+                "--yes",
+            ],
+            "ok",
+        ),
+        (&["bird", "--output", "json", "watchlist", "fetch"], "ok"),
+        (&["bird", "--output", "json", "doctor"], "ok"),
+        (&["bird", "--output", "json", "usage", "--local"], "ok"),
+        (
+            &["bird", "--output", "json", "like", "1", "--dry-run"],
+            "dry_run",
+        ),
+    ];
+    for (argv, status) in runs {
+        let (exit, stdout, stderr) = common::run_in_process(argv, &env);
+        assert_eq!(exit, 0, "{argv:?}: stderr {stderr:?}");
+        let doc: serde_json::Value = serde_json::from_str(stdout.trim())
+            .unwrap_or_else(|e| panic!("{argv:?}: one JSON document, got {stdout:?}: {e}"));
+        assert_eq!(doc["status"], *status, "{argv:?}: {doc}");
+    }
+}

@@ -38,8 +38,8 @@ use std::process::ExitCode;
 /// Curated top-level examples block — embedded so `--examples` works on every host.
 const TOP_LEVEL_EXAMPLES: &str = include_str!("../../examples/top-level.txt");
 
-/// Emit the curated top-level examples block and exit zero. JSON mode wraps the
-/// parsed example invocations in `{"data": [...], "meta": {...}}`.
+/// Emit the curated top-level examples block and exit zero. JSON mode prints the
+/// parsed example invocations as `{"status":"ok","data":[...],"meta":{...}}`.
 fn print_examples(out: &OutputConfig, stdout: &mut dyn Write) -> ExitCode {
     if out.format.is_json() {
         let qualified: Vec<String> = TOP_LEVEL_EXAMPLES
@@ -54,16 +54,9 @@ fn print_examples(out: &OutputConfig, stdout: &mut dyn Write) -> ExitCode {
             })
             .filter(|s| !s.is_empty())
             .collect();
-        let data = serde_json::json!(qualified);
-        let meta = serde_json::json!({"count": qualified.len()});
-        match output::success_envelope_string(&data, &meta) {
-            Ok(line) => {
-                let _ = writeln!(stdout, "{}", line);
-            }
-            Err(_) => {
-                let _ = writeln!(stdout, "{}", TOP_LEVEL_EXAMPLES);
-            }
-        }
+        let count = qualified.len();
+        let payload = serde_json::json!({"data": qualified, "meta": {"count": count}});
+        let _ = out.print_ok(stdout, payload);
     } else {
         let _ = write!(stdout, "{}", TOP_LEVEL_EXAMPLES);
     }
@@ -427,7 +420,7 @@ where
     {
         let result = match action {
             WatchlistCommand::Add { username } => {
-                watchlist::run_watchlist_add(&config, &out, stderr, username)
+                watchlist::run_watchlist_add(&config, &out, stdout, stderr, username)
                     .map_err(BirdError::config)
             }
             WatchlistCommand::Remove { username, guard } => {
@@ -446,7 +439,7 @@ where
                 ) {
                     Ok(GuardOutcome::DryRun | GuardOutcome::Declined) => Ok(()),
                     Ok(GuardOutcome::Proceed) => {
-                        watchlist::run_watchlist_remove(&config, &out, stderr, username)
+                        watchlist::run_watchlist_remove(&config, &out, stdout, stderr, username)
                             .map_err(BirdError::config)
                     }
                     Err(e) => Err(e),

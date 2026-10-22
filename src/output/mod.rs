@@ -64,16 +64,47 @@ impl OutputConfig {
         self.raw && self.format == OutputFormat::Text
     }
 
-    /// Write a JSON envelope (`{status, data, errors, meta}` or similar) to `out` as a
-    /// single line terminated by `\n`. Serialization failures are mapped to
-    /// `io::ErrorKind::Other`.
-    pub fn print_envelope(
+    /// Write the ok envelope around `payload` in the active structured format.
+    pub fn print_ok(
         &self,
         out: &mut dyn std::io::Write,
-        env: &serde_json::Value,
+        payload: serde_json::Value,
     ) -> std::io::Result<()> {
-        let line = serde_json::to_string(env).map_err(std::io::Error::other)?;
-        writeln!(out, "{}", line)
+        self.write_structured(out, &ok_envelope(payload))
+    }
+
+    /// Write the ok envelope, indented when `pretty` asks for it whatever the
+    /// output format.
+    pub fn print_ok_pretty(
+        &self,
+        out: &mut dyn std::io::Write,
+        payload: serde_json::Value,
+        pretty: bool,
+    ) -> std::io::Result<()> {
+        if pretty {
+            let body = serde_json::to_string_pretty(&ok_envelope(payload))
+                .map_err(std::io::Error::other)?;
+            writeln!(out, "{body}")
+        } else {
+            self.print_ok(out, payload)
+        }
+    }
+
+    /// Write `{"status":"ok","message":...}`.
+    pub fn print_ok_message(&self, out: &mut dyn std::io::Write, msg: &str) -> std::io::Result<()> {
+        self.print_ok(out, serde_json::json!({ "message": msg }))
+    }
+
+    /// Write the dry-run envelope: what the command would have done, with
+    /// `ctx`'s keys at the top level.
+    pub fn print_dry_run(
+        &self,
+        out: &mut dyn std::io::Write,
+        would_succeed: bool,
+        exit_code: i32,
+        ctx: serde_json::Value,
+    ) -> std::io::Result<()> {
+        self.write_structured(out, &dry_run_envelope(would_succeed, exit_code, ctx))
     }
 
     /// Write a plain text line to `out`.
@@ -284,6 +315,37 @@ pub fn emoji_unavailable(use_emoji: bool) -> &'static str {
 
 // -- Envelope writers -------------------------------------------------------
 
+/// The payload as an object: a value that is not one sits under `data`.
+fn payload_object(payload: serde_json::Value) -> serde_json::Value {
+    if payload.is_object() {
+        payload
+    } else {
+        serde_json::json!({ "data": payload })
+    }
+}
+
+/// `{"status":"ok", ...payload}`.
+pub fn ok_envelope(payload: serde_json::Value) -> serde_json::Value {
+    serde_json::to_value(envelope::Envelope::Ok {
+        payload: payload_object(payload),
+    })
+    .unwrap_or_else(|_| serde_json::json!({"status": "ok"}))
+}
+
+/// `{"status":"dry_run","would_succeed","exit_code", ...ctx}`.
+pub fn dry_run_envelope(
+    would_succeed: bool,
+    exit_code: i32,
+    ctx: serde_json::Value,
+) -> serde_json::Value {
+    serde_json::to_value(envelope::Envelope::DryRun {
+        would_succeed,
+        exit_code,
+        payload: payload_object(ctx),
+    })
+    .unwrap_or_else(|_| serde_json::json!({"status": "dry_run"}))
+}
+
 /// Serialize a `data` payload + optional `meta` map to a JSON envelope string.
 ///
 /// Used for success envelopes: `{"data": <T>, "meta": {...}}`. `meta` is always
@@ -415,15 +477,34 @@ mod method_tests {
     }
 
     #[test]
-    fn print_envelope_writes_single_json_line() {
+    fn print_ok_flattens_the_payload_beside_status() {
         let cfg = json_cfg();
         let mut buf = Vec::new();
-        let env = json!({"status": "ok", "data": null, "errors": [], "meta": {}});
-        cfg.print_envelope(&mut buf, &env).unwrap();
-        let s = String::from_utf8(buf).unwrap();
-        assert!(s.ends_with('\n'));
-        let parsed: serde_json::Value = serde_json::from_str(s.trim()).unwrap();
-        assert_eq!(parsed["status"], "ok");
+        cfg.print_ok(&mut buf, json!({"path": "/x", "healthy": true}))
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+        assert_eq!(
+            parsed,
+            json!({"status": "ok", "path": "/x", "healthy": true})
+        );
+
+        let mut buf = Vec::new();
+        cfg.print_ok(&mut buf, json!(["a", "b"])).unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+        assert_eq!(parsed, json!({"status": "ok", "data": ["a", "b"]}));
+    }
+
+    #[test]
+    fn print_dry_run_carries_would_succeed_and_exit_code() {
+        let mut buf = Vec::new();
+        json_cfg()
+            .print_dry_run(&mut buf, true, 0, json!({"command": "like"}))
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+        assert_eq!(
+            parsed,
+            json!({"status": "dry_run", "would_succeed": true, "exit_code": 0, "command": "like"})
+        );
     }
 
     #[test]
@@ -616,12 +697,14 @@ mod method_tests {
         assert_eq!(s.matches('\n').count(), 3);
     }
 
-    /// A nested JSON object must serialize to a single compact line with
-    /// inner structure preserved. Confirms `print_envelope` does not pretty-
-    /// print or split into multiple lines.
+    /// Under `jsonl` a nested ok document serializes to a single compact line
+    /// with inner structure preserved.
     #[test]
-    fn print_envelope_nested_object_serializes_compactly() {
-        let cfg = json_cfg();
+    fn print_ok_jsonl_nested_object_serializes_compactly() {
+        let cfg = OutputConfig {
+            format: OutputFormat::Jsonl,
+            ..json_cfg()
+        };
         let mut buf = Vec::new();
         let env = json!({
             "data": {
@@ -630,7 +713,7 @@ mod method_tests {
             },
             "meta": {"count": 3, "nested": {"deep": true}},
         });
-        cfg.print_envelope(&mut buf, &env).unwrap();
+        cfg.print_ok(&mut buf, env).unwrap();
         let s = String::from_utf8(buf).unwrap();
         assert!(s.ends_with('\n'), "envelope ends with newline");
         // Exactly one terminating newline — no embedded ones.
