@@ -28,9 +28,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -73,9 +75,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--no-browser[Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -110,9 +114,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -137,6 +143,8 @@ _arguments "${_arguments_options[@]}" : \
 '*-p+[]:KEY=VALUE:_default' \
 '*--param=[]:KEY=VALUE:_default' \
 '*--query=[]:KEY=VALUE:_default' \
+'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
+'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -150,9 +158,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -179,6 +189,8 @@ _arguments "${_arguments_options[@]}" : \
 '*--param=[]:KEY=VALUE:_default' \
 '*--query=[]:KEY=VALUE:_default' \
 '--body=[]:JSON:_default' \
+'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
+'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -192,9 +204,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
@@ -224,6 +238,8 @@ _arguments "${_arguments_options[@]}" : \
 '*--param=[]:KEY=VALUE:_default' \
 '*--query=[]:KEY=VALUE:_default' \
 '--body=[]:JSON:_default' \
+'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
+'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -237,9 +253,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
@@ -278,9 +296,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -313,9 +333,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -355,9 +377,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -394,9 +418,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -422,6 +448,8 @@ _arguments "${_arguments_options[@]}" : \
 '*-p+[]:KEY=VALUE:_default' \
 '*--param=[]:KEY=VALUE:_default' \
 '*--query=[]:KEY=VALUE:_default' \
+'*-H+[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
+'*--header=[Custom request header in \`Name\: Value\` form; repeatable]:NAME: VALUE:_default' \
 '-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
@@ -435,9 +463,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
@@ -476,9 +506,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -496,7 +528,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-":: :_bird__watchlist_commands" \
+":: :_bird__subcmd__watchlist_commands" \
 "*::: :->watchlist" \
 && ret=0
 
@@ -521,9 +553,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -555,9 +589,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -590,9 +626,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -630,9 +668,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -653,7 +693,7 @@ never\:"Never emit colors"))' \
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__watchlist__help_commands" \
+":: :_bird__subcmd__watchlist__subcmd__help_commands" \
 "*::: :->help" \
 && ret=0
 
@@ -707,9 +747,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--local[Show only local estimates (skip API)]' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -746,9 +788,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -786,9 +830,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -827,9 +873,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -867,9 +915,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -907,9 +957,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -947,9 +999,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -985,9 +1039,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1023,9 +1079,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1061,9 +1119,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1100,9 +1160,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1138,9 +1200,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1176,9 +1240,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1214,9 +1280,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1254,9 +1322,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1292,9 +1362,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1311,7 +1383,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-":: :_bird__cache_commands" \
+":: :_bird__subcmd__cache_commands" \
 "*::: :->cache" \
 && ret=0
 
@@ -1336,9 +1408,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1375,9 +1449,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1399,7 +1475,7 @@ never\:"Never emit colors"))' \
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__cache__help_commands" \
+":: :_bird__subcmd__cache__subcmd__help_commands" \
 "*::: :->help" \
 && ret=0
 
@@ -1444,9 +1520,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1481,9 +1559,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '--plain[Deprecated alias for \`--color never\` (plain output, no color)]' \
@@ -1500,7 +1580,7 @@ never\:"Never emit colors"))' \
 '--cache-only[Only serve from local store; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-":: :_bird__skill_commands" \
+":: :_bird__subcmd__skill_commands" \
 "*::: :->skill" \
 && ret=0
 
@@ -1525,9 +1605,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--all[Install into every supported host in one invocation]' \
 '--dry-run[Print the planned clone command without spawning git]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -1564,9 +1646,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--all[Update every supported host in one invocation]' \
 '--dry-run[Print the planned operation without touching the filesystem]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -1590,7 +1674,7 @@ never\:"Never emit colors"))' \
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__skill__help_commands" \
+":: :_bird__subcmd__skill__subcmd__help_commands" \
 "*::: :->help" \
 && ret=0
 
@@ -1635,9 +1719,11 @@ ndjson\:"Newline-delimited JSON, accepted as an alias for jsonl"))' \
 '--color=[Color mode\: auto (default), always, never]:COLOR:((auto\:"Auto-detect\: color when stderr is a TTY and \`NO_COLOR\` is unset"
 always\:"Always emit colors"
 never\:"Never emit colors"))' \
-'--timeout=[Network timeout in seconds (default 30). Applies to xurl subprocesses]:TIMEOUT:_default' \
+'--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
+'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
+'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
 '--list[List all available schema names instead of printing a schema]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1660,7 +1746,7 @@ never\:"Never emit colors"))' \
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__help_commands" \
+":: :_bird__subcmd__help_commands" \
 "*::: :->help" \
 && ret=0
 
@@ -1712,7 +1798,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (watchlist)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__help__watchlist_commands" \
+":: :_bird__subcmd__help__subcmd__watchlist_commands" \
 "*::: :->watchlist" \
 && ret=0
 
@@ -1804,7 +1890,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (cache)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__help__cache_commands" \
+":: :_bird__subcmd__help__subcmd__cache_commands" \
 "*::: :->cache" \
 && ret=0
 
@@ -1832,7 +1918,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (skill)
 _arguments "${_arguments_options[@]}" : \
-":: :_bird__help__skill_commands" \
+":: :_bird__subcmd__help__subcmd__skill_commands" \
 "*::: :->skill" \
 && ret=0
 
@@ -1908,18 +1994,18 @@ _bird_commands() {
     )
     _describe -t commands 'bird commands' commands "$@"
 }
-(( $+functions[_bird__block_commands] )) ||
-_bird__block_commands() {
+(( $+functions[_bird__subcmd__block_commands] )) ||
+_bird__subcmd__block_commands() {
     local commands; commands=()
     _describe -t commands 'bird block commands' commands "$@"
 }
-(( $+functions[_bird__bookmarks_commands] )) ||
-_bird__bookmarks_commands() {
+(( $+functions[_bird__subcmd__bookmarks_commands] )) ||
+_bird__subcmd__bookmarks_commands() {
     local commands; commands=()
     _describe -t commands 'bird bookmarks commands' commands "$@"
 }
-(( $+functions[_bird__cache_commands] )) ||
-_bird__cache_commands() {
+(( $+functions[_bird__subcmd__cache_commands] )) ||
+_bird__subcmd__cache_commands() {
     local commands; commands=(
 'clear:Delete all cache entries' \
 'stats:Show cache status (JSON default, --pretty for human-readable)' \
@@ -1927,13 +2013,13 @@ _bird__cache_commands() {
     )
     _describe -t commands 'bird cache commands' commands "$@"
 }
-(( $+functions[_bird__cache__clear_commands] )) ||
-_bird__cache__clear_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__clear_commands] )) ||
+_bird__subcmd__cache__subcmd__clear_commands() {
     local commands; commands=()
     _describe -t commands 'bird cache clear commands' commands "$@"
 }
-(( $+functions[_bird__cache__help_commands] )) ||
-_bird__cache__help_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__help_commands] )) ||
+_bird__subcmd__cache__subcmd__help_commands() {
     local commands; commands=(
 'clear:Delete all cache entries' \
 'stats:Show cache status (JSON default, --pretty for human-readable)' \
@@ -1941,58 +2027,58 @@ _bird__cache__help_commands() {
     )
     _describe -t commands 'bird cache help commands' commands "$@"
 }
-(( $+functions[_bird__cache__help__clear_commands] )) ||
-_bird__cache__help__clear_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__help__subcmd__clear_commands] )) ||
+_bird__subcmd__cache__subcmd__help__subcmd__clear_commands() {
     local commands; commands=()
     _describe -t commands 'bird cache help clear commands' commands "$@"
 }
-(( $+functions[_bird__cache__help__help_commands] )) ||
-_bird__cache__help__help_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__help__subcmd__help_commands] )) ||
+_bird__subcmd__cache__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'bird cache help help commands' commands "$@"
 }
-(( $+functions[_bird__cache__help__stats_commands] )) ||
-_bird__cache__help__stats_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__help__subcmd__stats_commands] )) ||
+_bird__subcmd__cache__subcmd__help__subcmd__stats_commands() {
     local commands; commands=()
     _describe -t commands 'bird cache help stats commands' commands "$@"
 }
-(( $+functions[_bird__cache__stats_commands] )) ||
-_bird__cache__stats_commands() {
+(( $+functions[_bird__subcmd__cache__subcmd__stats_commands] )) ||
+_bird__subcmd__cache__subcmd__stats_commands() {
     local commands; commands=()
     _describe -t commands 'bird cache stats commands' commands "$@"
 }
-(( $+functions[_bird__completions_commands] )) ||
-_bird__completions_commands() {
+(( $+functions[_bird__subcmd__completions_commands] )) ||
+_bird__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'bird completions commands' commands "$@"
 }
-(( $+functions[_bird__delete_commands] )) ||
-_bird__delete_commands() {
+(( $+functions[_bird__subcmd__delete_commands] )) ||
+_bird__subcmd__delete_commands() {
     local commands; commands=()
     _describe -t commands 'bird delete commands' commands "$@"
 }
-(( $+functions[_bird__dm_commands] )) ||
-_bird__dm_commands() {
+(( $+functions[_bird__subcmd__dm_commands] )) ||
+_bird__subcmd__dm_commands() {
     local commands; commands=()
     _describe -t commands 'bird dm commands' commands "$@"
 }
-(( $+functions[_bird__doctor_commands] )) ||
-_bird__doctor_commands() {
+(( $+functions[_bird__subcmd__doctor_commands] )) ||
+_bird__subcmd__doctor_commands() {
     local commands; commands=()
     _describe -t commands 'bird doctor commands' commands "$@"
 }
-(( $+functions[_bird__follow_commands] )) ||
-_bird__follow_commands() {
+(( $+functions[_bird__subcmd__follow_commands] )) ||
+_bird__subcmd__follow_commands() {
     local commands; commands=()
     _describe -t commands 'bird follow commands' commands "$@"
 }
-(( $+functions[_bird__get_commands] )) ||
-_bird__get_commands() {
+(( $+functions[_bird__subcmd__get_commands] )) ||
+_bird__subcmd__get_commands() {
     local commands; commands=()
     _describe -t commands 'bird get commands' commands "$@"
 }
-(( $+functions[_bird__help_commands] )) ||
-_bird__help_commands() {
+(( $+functions[_bird__subcmd__help_commands] )) ||
+_bird__subcmd__help_commands() {
     local commands; commands=(
 'login:Authenticate via xurl (OAuth2 PKCE browser flow)' \
 'me:Show current user (GET /2/users/me)' \
@@ -2028,184 +2114,184 @@ _bird__help_commands() {
     )
     _describe -t commands 'bird help commands' commands "$@"
 }
-(( $+functions[_bird__help__block_commands] )) ||
-_bird__help__block_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__block_commands] )) ||
+_bird__subcmd__help__subcmd__block_commands() {
     local commands; commands=()
     _describe -t commands 'bird help block commands' commands "$@"
 }
-(( $+functions[_bird__help__bookmarks_commands] )) ||
-_bird__help__bookmarks_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__bookmarks_commands] )) ||
+_bird__subcmd__help__subcmd__bookmarks_commands() {
     local commands; commands=()
     _describe -t commands 'bird help bookmarks commands' commands "$@"
 }
-(( $+functions[_bird__help__cache_commands] )) ||
-_bird__help__cache_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__cache_commands] )) ||
+_bird__subcmd__help__subcmd__cache_commands() {
     local commands; commands=(
 'clear:Delete all cache entries' \
 'stats:Show cache status (JSON default, --pretty for human-readable)' \
     )
     _describe -t commands 'bird help cache commands' commands "$@"
 }
-(( $+functions[_bird__help__cache__clear_commands] )) ||
-_bird__help__cache__clear_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__cache__subcmd__clear_commands] )) ||
+_bird__subcmd__help__subcmd__cache__subcmd__clear_commands() {
     local commands; commands=()
     _describe -t commands 'bird help cache clear commands' commands "$@"
 }
-(( $+functions[_bird__help__cache__stats_commands] )) ||
-_bird__help__cache__stats_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__cache__subcmd__stats_commands] )) ||
+_bird__subcmd__help__subcmd__cache__subcmd__stats_commands() {
     local commands; commands=()
     _describe -t commands 'bird help cache stats commands' commands "$@"
 }
-(( $+functions[_bird__help__completions_commands] )) ||
-_bird__help__completions_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__completions_commands] )) ||
+_bird__subcmd__help__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'bird help completions commands' commands "$@"
 }
-(( $+functions[_bird__help__delete_commands] )) ||
-_bird__help__delete_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__delete_commands] )) ||
+_bird__subcmd__help__subcmd__delete_commands() {
     local commands; commands=()
     _describe -t commands 'bird help delete commands' commands "$@"
 }
-(( $+functions[_bird__help__dm_commands] )) ||
-_bird__help__dm_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__dm_commands] )) ||
+_bird__subcmd__help__subcmd__dm_commands() {
     local commands; commands=()
     _describe -t commands 'bird help dm commands' commands "$@"
 }
-(( $+functions[_bird__help__doctor_commands] )) ||
-_bird__help__doctor_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__doctor_commands] )) ||
+_bird__subcmd__help__subcmd__doctor_commands() {
     local commands; commands=()
     _describe -t commands 'bird help doctor commands' commands "$@"
 }
-(( $+functions[_bird__help__follow_commands] )) ||
-_bird__help__follow_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__follow_commands] )) ||
+_bird__subcmd__help__subcmd__follow_commands() {
     local commands; commands=()
     _describe -t commands 'bird help follow commands' commands "$@"
 }
-(( $+functions[_bird__help__get_commands] )) ||
-_bird__help__get_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__get_commands] )) ||
+_bird__subcmd__help__subcmd__get_commands() {
     local commands; commands=()
     _describe -t commands 'bird help get commands' commands "$@"
 }
-(( $+functions[_bird__help__help_commands] )) ||
-_bird__help__help_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__help_commands] )) ||
+_bird__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'bird help help commands' commands "$@"
 }
-(( $+functions[_bird__help__like_commands] )) ||
-_bird__help__like_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__like_commands] )) ||
+_bird__subcmd__help__subcmd__like_commands() {
     local commands; commands=()
     _describe -t commands 'bird help like commands' commands "$@"
 }
-(( $+functions[_bird__help__login_commands] )) ||
-_bird__help__login_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__login_commands] )) ||
+_bird__subcmd__help__subcmd__login_commands() {
     local commands; commands=()
     _describe -t commands 'bird help login commands' commands "$@"
 }
-(( $+functions[_bird__help__me_commands] )) ||
-_bird__help__me_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__me_commands] )) ||
+_bird__subcmd__help__subcmd__me_commands() {
     local commands; commands=()
     _describe -t commands 'bird help me commands' commands "$@"
 }
-(( $+functions[_bird__help__mute_commands] )) ||
-_bird__help__mute_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__mute_commands] )) ||
+_bird__subcmd__help__subcmd__mute_commands() {
     local commands; commands=()
     _describe -t commands 'bird help mute commands' commands "$@"
 }
-(( $+functions[_bird__help__post_commands] )) ||
-_bird__help__post_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__post_commands] )) ||
+_bird__subcmd__help__subcmd__post_commands() {
     local commands; commands=()
     _describe -t commands 'bird help post commands' commands "$@"
 }
-(( $+functions[_bird__help__profile_commands] )) ||
-_bird__help__profile_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__profile_commands] )) ||
+_bird__subcmd__help__subcmd__profile_commands() {
     local commands; commands=()
     _describe -t commands 'bird help profile commands' commands "$@"
 }
-(( $+functions[_bird__help__put_commands] )) ||
-_bird__help__put_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__put_commands] )) ||
+_bird__subcmd__help__subcmd__put_commands() {
     local commands; commands=()
     _describe -t commands 'bird help put commands' commands "$@"
 }
-(( $+functions[_bird__help__reply_commands] )) ||
-_bird__help__reply_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__reply_commands] )) ||
+_bird__subcmd__help__subcmd__reply_commands() {
     local commands; commands=()
     _describe -t commands 'bird help reply commands' commands "$@"
 }
-(( $+functions[_bird__help__repost_commands] )) ||
-_bird__help__repost_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__repost_commands] )) ||
+_bird__subcmd__help__subcmd__repost_commands() {
     local commands; commands=()
     _describe -t commands 'bird help repost commands' commands "$@"
 }
-(( $+functions[_bird__help__schema_commands] )) ||
-_bird__help__schema_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__schema_commands] )) ||
+_bird__subcmd__help__subcmd__schema_commands() {
     local commands; commands=()
     _describe -t commands 'bird help schema commands' commands "$@"
 }
-(( $+functions[_bird__help__search_commands] )) ||
-_bird__help__search_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__search_commands] )) ||
+_bird__subcmd__help__subcmd__search_commands() {
     local commands; commands=()
     _describe -t commands 'bird help search commands' commands "$@"
 }
-(( $+functions[_bird__help__skill_commands] )) ||
-_bird__help__skill_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__skill_commands] )) ||
+_bird__subcmd__help__subcmd__skill_commands() {
     local commands; commands=(
 'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
 'update:Remove the existing destination and re-clone the bird skill bundle' \
     )
     _describe -t commands 'bird help skill commands' commands "$@"
 }
-(( $+functions[_bird__help__skill__install_commands] )) ||
-_bird__help__skill__install_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__skill__subcmd__install_commands] )) ||
+_bird__subcmd__help__subcmd__skill__subcmd__install_commands() {
     local commands; commands=()
     _describe -t commands 'bird help skill install commands' commands "$@"
 }
-(( $+functions[_bird__help__skill__update_commands] )) ||
-_bird__help__skill__update_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__skill__subcmd__update_commands] )) ||
+_bird__subcmd__help__subcmd__skill__subcmd__update_commands() {
     local commands; commands=()
     _describe -t commands 'bird help skill update commands' commands "$@"
 }
-(( $+functions[_bird__help__thread_commands] )) ||
-_bird__help__thread_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__thread_commands] )) ||
+_bird__subcmd__help__subcmd__thread_commands() {
     local commands; commands=()
     _describe -t commands 'bird help thread commands' commands "$@"
 }
-(( $+functions[_bird__help__tweet_commands] )) ||
-_bird__help__tweet_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__tweet_commands] )) ||
+_bird__subcmd__help__subcmd__tweet_commands() {
     local commands; commands=()
     _describe -t commands 'bird help tweet commands' commands "$@"
 }
-(( $+functions[_bird__help__unblock_commands] )) ||
-_bird__help__unblock_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__unblock_commands] )) ||
+_bird__subcmd__help__subcmd__unblock_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unblock commands' commands "$@"
 }
-(( $+functions[_bird__help__unfollow_commands] )) ||
-_bird__help__unfollow_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__unfollow_commands] )) ||
+_bird__subcmd__help__subcmd__unfollow_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unfollow commands' commands "$@"
 }
-(( $+functions[_bird__help__unlike_commands] )) ||
-_bird__help__unlike_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__unlike_commands] )) ||
+_bird__subcmd__help__subcmd__unlike_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unlike commands' commands "$@"
 }
-(( $+functions[_bird__help__unmute_commands] )) ||
-_bird__help__unmute_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__unmute_commands] )) ||
+_bird__subcmd__help__subcmd__unmute_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unmute commands' commands "$@"
 }
-(( $+functions[_bird__help__unrepost_commands] )) ||
-_bird__help__unrepost_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__unrepost_commands] )) ||
+_bird__subcmd__help__subcmd__unrepost_commands() {
     local commands; commands=()
     _describe -t commands 'bird help unrepost commands' commands "$@"
 }
-(( $+functions[_bird__help__usage_commands] )) ||
-_bird__help__usage_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__usage_commands] )) ||
+_bird__subcmd__help__subcmd__usage_commands() {
     local commands; commands=()
     _describe -t commands 'bird help usage commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist_commands] )) ||
-_bird__help__watchlist_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__watchlist_commands] )) ||
+_bird__subcmd__help__subcmd__watchlist_commands() {
     local commands; commands=(
 'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
@@ -2214,83 +2300,83 @@ _bird__help__watchlist_commands() {
     )
     _describe -t commands 'bird help watchlist commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist__add_commands] )) ||
-_bird__help__watchlist__add_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__watchlist__subcmd__add_commands] )) ||
+_bird__subcmd__help__subcmd__watchlist__subcmd__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird help watchlist add commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist__fetch_commands] )) ||
-_bird__help__watchlist__fetch_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__watchlist__subcmd__fetch_commands] )) ||
+_bird__subcmd__help__subcmd__watchlist__subcmd__fetch_commands() {
     local commands; commands=()
     _describe -t commands 'bird help watchlist fetch commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist__list_commands] )) ||
-_bird__help__watchlist__list_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__watchlist__subcmd__list_commands] )) ||
+_bird__subcmd__help__subcmd__watchlist__subcmd__list_commands() {
     local commands; commands=()
     _describe -t commands 'bird help watchlist list commands' commands "$@"
 }
-(( $+functions[_bird__help__watchlist__remove_commands] )) ||
-_bird__help__watchlist__remove_commands() {
+(( $+functions[_bird__subcmd__help__subcmd__watchlist__subcmd__remove_commands] )) ||
+_bird__subcmd__help__subcmd__watchlist__subcmd__remove_commands() {
     local commands; commands=()
     _describe -t commands 'bird help watchlist remove commands' commands "$@"
 }
-(( $+functions[_bird__like_commands] )) ||
-_bird__like_commands() {
+(( $+functions[_bird__subcmd__like_commands] )) ||
+_bird__subcmd__like_commands() {
     local commands; commands=()
     _describe -t commands 'bird like commands' commands "$@"
 }
-(( $+functions[_bird__login_commands] )) ||
-_bird__login_commands() {
+(( $+functions[_bird__subcmd__login_commands] )) ||
+_bird__subcmd__login_commands() {
     local commands; commands=()
     _describe -t commands 'bird login commands' commands "$@"
 }
-(( $+functions[_bird__me_commands] )) ||
-_bird__me_commands() {
+(( $+functions[_bird__subcmd__me_commands] )) ||
+_bird__subcmd__me_commands() {
     local commands; commands=()
     _describe -t commands 'bird me commands' commands "$@"
 }
-(( $+functions[_bird__mute_commands] )) ||
-_bird__mute_commands() {
+(( $+functions[_bird__subcmd__mute_commands] )) ||
+_bird__subcmd__mute_commands() {
     local commands; commands=()
     _describe -t commands 'bird mute commands' commands "$@"
 }
-(( $+functions[_bird__post_commands] )) ||
-_bird__post_commands() {
+(( $+functions[_bird__subcmd__post_commands] )) ||
+_bird__subcmd__post_commands() {
     local commands; commands=()
     _describe -t commands 'bird post commands' commands "$@"
 }
-(( $+functions[_bird__profile_commands] )) ||
-_bird__profile_commands() {
+(( $+functions[_bird__subcmd__profile_commands] )) ||
+_bird__subcmd__profile_commands() {
     local commands; commands=()
     _describe -t commands 'bird profile commands' commands "$@"
 }
-(( $+functions[_bird__put_commands] )) ||
-_bird__put_commands() {
+(( $+functions[_bird__subcmd__put_commands] )) ||
+_bird__subcmd__put_commands() {
     local commands; commands=()
     _describe -t commands 'bird put commands' commands "$@"
 }
-(( $+functions[_bird__reply_commands] )) ||
-_bird__reply_commands() {
+(( $+functions[_bird__subcmd__reply_commands] )) ||
+_bird__subcmd__reply_commands() {
     local commands; commands=()
     _describe -t commands 'bird reply commands' commands "$@"
 }
-(( $+functions[_bird__repost_commands] )) ||
-_bird__repost_commands() {
+(( $+functions[_bird__subcmd__repost_commands] )) ||
+_bird__subcmd__repost_commands() {
     local commands; commands=()
     _describe -t commands 'bird repost commands' commands "$@"
 }
-(( $+functions[_bird__schema_commands] )) ||
-_bird__schema_commands() {
+(( $+functions[_bird__subcmd__schema_commands] )) ||
+_bird__subcmd__schema_commands() {
     local commands; commands=()
     _describe -t commands 'bird schema commands' commands "$@"
 }
-(( $+functions[_bird__search_commands] )) ||
-_bird__search_commands() {
+(( $+functions[_bird__subcmd__search_commands] )) ||
+_bird__subcmd__search_commands() {
     local commands; commands=()
     _describe -t commands 'bird search commands' commands "$@"
 }
-(( $+functions[_bird__skill_commands] )) ||
-_bird__skill_commands() {
+(( $+functions[_bird__subcmd__skill_commands] )) ||
+_bird__subcmd__skill_commands() {
     local commands; commands=(
 'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
 'update:Remove the existing destination and re-clone the bird skill bundle' \
@@ -2298,8 +2384,8 @@ _bird__skill_commands() {
     )
     _describe -t commands 'bird skill commands' commands "$@"
 }
-(( $+functions[_bird__skill__help_commands] )) ||
-_bird__skill__help_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__help_commands] )) ||
+_bird__subcmd__skill__subcmd__help_commands() {
     local commands; commands=(
 'install:Clone the bird skill bundle into a host'\''s canonical skills directory' \
 'update:Remove the existing destination and re-clone the bird skill bundle' \
@@ -2307,73 +2393,73 @@ _bird__skill__help_commands() {
     )
     _describe -t commands 'bird skill help commands' commands "$@"
 }
-(( $+functions[_bird__skill__help__help_commands] )) ||
-_bird__skill__help__help_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__help__subcmd__help_commands] )) ||
+_bird__subcmd__skill__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill help help commands' commands "$@"
 }
-(( $+functions[_bird__skill__help__install_commands] )) ||
-_bird__skill__help__install_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__help__subcmd__install_commands] )) ||
+_bird__subcmd__skill__subcmd__help__subcmd__install_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill help install commands' commands "$@"
 }
-(( $+functions[_bird__skill__help__update_commands] )) ||
-_bird__skill__help__update_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__help__subcmd__update_commands] )) ||
+_bird__subcmd__skill__subcmd__help__subcmd__update_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill help update commands' commands "$@"
 }
-(( $+functions[_bird__skill__install_commands] )) ||
-_bird__skill__install_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__install_commands] )) ||
+_bird__subcmd__skill__subcmd__install_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill install commands' commands "$@"
 }
-(( $+functions[_bird__skill__update_commands] )) ||
-_bird__skill__update_commands() {
+(( $+functions[_bird__subcmd__skill__subcmd__update_commands] )) ||
+_bird__subcmd__skill__subcmd__update_commands() {
     local commands; commands=()
     _describe -t commands 'bird skill update commands' commands "$@"
 }
-(( $+functions[_bird__thread_commands] )) ||
-_bird__thread_commands() {
+(( $+functions[_bird__subcmd__thread_commands] )) ||
+_bird__subcmd__thread_commands() {
     local commands; commands=()
     _describe -t commands 'bird thread commands' commands "$@"
 }
-(( $+functions[_bird__tweet_commands] )) ||
-_bird__tweet_commands() {
+(( $+functions[_bird__subcmd__tweet_commands] )) ||
+_bird__subcmd__tweet_commands() {
     local commands; commands=()
     _describe -t commands 'bird tweet commands' commands "$@"
 }
-(( $+functions[_bird__unblock_commands] )) ||
-_bird__unblock_commands() {
+(( $+functions[_bird__subcmd__unblock_commands] )) ||
+_bird__subcmd__unblock_commands() {
     local commands; commands=()
     _describe -t commands 'bird unblock commands' commands "$@"
 }
-(( $+functions[_bird__unfollow_commands] )) ||
-_bird__unfollow_commands() {
+(( $+functions[_bird__subcmd__unfollow_commands] )) ||
+_bird__subcmd__unfollow_commands() {
     local commands; commands=()
     _describe -t commands 'bird unfollow commands' commands "$@"
 }
-(( $+functions[_bird__unlike_commands] )) ||
-_bird__unlike_commands() {
+(( $+functions[_bird__subcmd__unlike_commands] )) ||
+_bird__subcmd__unlike_commands() {
     local commands; commands=()
     _describe -t commands 'bird unlike commands' commands "$@"
 }
-(( $+functions[_bird__unmute_commands] )) ||
-_bird__unmute_commands() {
+(( $+functions[_bird__subcmd__unmute_commands] )) ||
+_bird__subcmd__unmute_commands() {
     local commands; commands=()
     _describe -t commands 'bird unmute commands' commands "$@"
 }
-(( $+functions[_bird__unrepost_commands] )) ||
-_bird__unrepost_commands() {
+(( $+functions[_bird__subcmd__unrepost_commands] )) ||
+_bird__subcmd__unrepost_commands() {
     local commands; commands=()
     _describe -t commands 'bird unrepost commands' commands "$@"
 }
-(( $+functions[_bird__usage_commands] )) ||
-_bird__usage_commands() {
+(( $+functions[_bird__subcmd__usage_commands] )) ||
+_bird__subcmd__usage_commands() {
     local commands; commands=()
     _describe -t commands 'bird usage commands' commands "$@"
 }
-(( $+functions[_bird__watchlist_commands] )) ||
-_bird__watchlist_commands() {
+(( $+functions[_bird__subcmd__watchlist_commands] )) ||
+_bird__subcmd__watchlist_commands() {
     local commands; commands=(
 'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
@@ -2383,18 +2469,18 @@ _bird__watchlist_commands() {
     )
     _describe -t commands 'bird watchlist commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__add_commands] )) ||
-_bird__watchlist__add_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__add_commands] )) ||
+_bird__subcmd__watchlist__subcmd__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist add commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__fetch_commands] )) ||
-_bird__watchlist__fetch_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__fetch_commands] )) ||
+_bird__subcmd__watchlist__subcmd__fetch_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist fetch commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help_commands] )) ||
-_bird__watchlist__help_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help_commands() {
     local commands; commands=(
 'fetch:Fetch recent activity for all watched users' \
 'add:Add a user to the watchlist' \
@@ -2404,38 +2490,38 @@ _bird__watchlist__help_commands() {
     )
     _describe -t commands 'bird watchlist help commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__add_commands] )) ||
-_bird__watchlist__help__add_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help__subcmd__add_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help__subcmd__add_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help add commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__fetch_commands] )) ||
-_bird__watchlist__help__fetch_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help__subcmd__fetch_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help__subcmd__fetch_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help fetch commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__help_commands] )) ||
-_bird__watchlist__help__help_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help__subcmd__help_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help help commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__list_commands] )) ||
-_bird__watchlist__help__list_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help__subcmd__list_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help__subcmd__list_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help list commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__help__remove_commands] )) ||
-_bird__watchlist__help__remove_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__help__subcmd__remove_commands] )) ||
+_bird__subcmd__watchlist__subcmd__help__subcmd__remove_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist help remove commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__list_commands] )) ||
-_bird__watchlist__list_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__list_commands] )) ||
+_bird__subcmd__watchlist__subcmd__list_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist list commands' commands "$@"
 }
-(( $+functions[_bird__watchlist__remove_commands] )) ||
-_bird__watchlist__remove_commands() {
+(( $+functions[_bird__subcmd__watchlist__subcmd__remove_commands] )) ||
+_bird__subcmd__watchlist__subcmd__remove_commands() {
     local commands; commands=()
     _describe -t commands 'bird watchlist remove commands' commands "$@"
 }
