@@ -28,7 +28,7 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **search**: any of bearer, OAuth 1.0a, or OAuth 2.0 user.
 - **thread**: any of bearer, OAuth 1.0a, or OAuth 2.0 user. Reconstructs a conversation thread via
   `GET /2/tweets/{id}` + `GET /2/tweets/search/recent?query=conversation_id:{id}`.
-- **watchlist check**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same auth as search — runs `from:<username>` search
+- **watchlist fetch**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same auth as search — runs `from:<username>` search
   queries).
 - **watchlist add/remove/list**: no auth required (local config.toml operations).
 - **usage**: no auth required (reads local SQLite usage table).

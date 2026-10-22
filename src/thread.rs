@@ -12,7 +12,7 @@ const MAX_PAGES_CAP: u32 = 25;
 
 /// Thread options bundled to avoid clippy::too_many_arguments.
 pub struct ThreadOpts<'a> {
-    pub tweet_id: &'a str,
+    pub post_id: &'a str,
     pub pretty: bool,
     pub max_pages: u32,
 }
@@ -29,7 +29,7 @@ pub fn run_thread(
     auth_type: &AuthType,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let quiet = cfg.suppress_diag();
-    validate_tweet_id(opts.tweet_id)?;
+    validate_tweet_id(opts.post_id)?;
     let max_pages = opts.max_pages.clamp(1, MAX_PAGES_CAP);
 
     let ctx = RequestContext {
@@ -38,7 +38,7 @@ pub fn run_thread(
     };
 
     let (root_tweet, conversation_id, root_age_days) =
-        fetch_root(client, cfg, stderr, &ctx, opts.tweet_id)?;
+        fetch_root(client, cfg, stderr, &ctx, opts.post_id)?;
 
     let root_id = root_tweet
         .get("id")
@@ -74,10 +74,10 @@ pub fn run_thread(
         "data": thread_array,
         "meta": {
             "conversation_id": conversation_id,
-            "tweet_count": thread_array.len(),
+            "post_count": thread_array.len(),
             "pages_fetched": pages_fetched,
             "complete": complete,
-            "root_tweet_age_days": root_age_days,
+            "root_post_age_days": root_age_days,
         }
     });
 
@@ -86,7 +86,7 @@ pub fn run_thread(
     if !quiet {
         writeln!(
             stderr,
-            "[thread] {} tweets | {} pages fetched | {}",
+            "[thread] {} posts | {} pages fetched | {}",
             thread_array.len(),
             pages_fetched,
             if complete { "complete" } else { "truncated" }
@@ -124,14 +124,14 @@ fn fetch_root(
     let response = client.get(&root_url, ctx)?;
     if !response.is_success() {
         return Err(format!(
-            "GET tweet {}: {}",
+            "GET post {}: {}",
             response.status,
             output::sanitize_for_stderr(&response.body(), 200)
         )
         .into());
     }
 
-    let root_response = response.json.ok_or("invalid JSON from tweet lookup")?;
+    let root_response = response.json.ok_or("invalid JSON from post lookup")?;
     let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
     cost::display_cost(cfg, stderr, &estimate);
 
@@ -148,19 +148,19 @@ fn fetch_root(
 
     let root_tweet = root_response
         .get("data")
-        .ok_or("thread failed: no data in root tweet response")?;
+        .ok_or("thread failed: no data in root post response")?;
 
     let conversation_id = root_tweet
         .get("conversation_id")
         .and_then(|c| c.as_str())
-        .ok_or("thread failed: root tweet missing conversation_id")?;
+        .ok_or("thread failed: root post missing conversation_id")?;
 
     validate_tweet_id(conversation_id)?;
 
     if conversation_id != tweet_id && !quiet {
         writeln!(
             stderr,
-            "[thread] input tweet is a reply; following to root conversation {}",
+            "[thread] input post is a reply; following to root conversation {}",
             conversation_id
         )
         .ok();
@@ -175,7 +175,7 @@ fn fetch_root(
     if root_age_days > 7 && !quiet {
         writeln!(
             stderr,
-            "[thread] warning: root tweet is {} days old; search/recent only covers 7 days",
+            "[thread] warning: root post is {} days old; search/recent only covers 7 days",
             root_age_days
         )
         .ok();
@@ -264,10 +264,10 @@ fn paginate_conversation(
 /// Validate tweet ID: 1-20 digits, all ASCII numeric.
 fn validate_tweet_id(id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if id.is_empty() || id.len() > 20 {
-        return Err(format!("tweet ID must be 1-20 digits, got {}", id.len()).into());
+        return Err(format!("post ID must be 1-20 digits, got {}", id.len()).into());
     }
     if !id.chars().all(|c| c.is_ascii_digit()) {
-        return Err(format!("tweet ID must be numeric: {}", id).into());
+        return Err(format!("post ID must be numeric: {}", id).into());
     }
     Ok(())
 }

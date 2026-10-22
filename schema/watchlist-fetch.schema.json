@@ -24,10 +24,10 @@
           "username": {
             "type": "string"
           },
-          "recent_tweets": {
+          "recent_posts": {
             "type": "integer"
           },
-          "latest_tweet": {
+          "latest_post": {
             "type": "object",
             "additionalProperties": true
           },

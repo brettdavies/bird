@@ -11,7 +11,7 @@ pub fn run(
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,
-    tweet_id: String,
+    post_id: String,
     pretty: bool,
     max_pages: u32,
 ) -> Result<(), BirdError> {
@@ -22,7 +22,7 @@ pub fn run(
         stdout,
         stderr,
         thread::ThreadOpts {
-            tweet_id: &tweet_id,
+            post_id: &post_id,
             pretty,
             max_pages,
         },

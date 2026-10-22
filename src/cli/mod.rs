@@ -68,14 +68,6 @@ pub struct Cli {
     )]
     pub color: ColorMode,
 
-    /// Deprecated alias for `--color never` (plain output, no color).
-    #[arg(long, global = true, hide = true)]
-    pub plain: bool,
-
-    /// Deprecated alias for `--color never`.
-    #[arg(long, global = true, hide = true)]
-    pub no_color: bool,
-
     /// Suppress informational stderr output (keep only fatal errors).
     #[arg(
         long,
@@ -230,11 +222,11 @@ pub enum Command {
         pages: Option<u32>,
     },
 
-    /// Reconstruct a conversation thread from a tweet.
+    /// Reconstruct a conversation thread from a post.
     #[command(after_help = include_str!("../../examples/thread.txt"))]
     Thread {
-        /// Tweet ID (root tweet or any reply in the thread).
-        tweet_id: String,
+        /// Post ID (the root post or any reply in the thread).
+        post_id: String,
         #[command(flatten)]
         common: OutputFlags,
         /// Maximum number of search result pages (default: 10, max: 25).
@@ -458,7 +450,6 @@ pub enum SkillAction {
         dry_run: bool,
     },
     /// Remove the existing destination and re-clone the bird skill bundle
-    #[command(alias = "upgrade")]
     Update {
         /// Target host (omit and pass --all to update everywhere)
         #[arg(value_enum, conflicts_with = "all")]
@@ -493,21 +484,18 @@ pub enum CacheAction {
 #[derive(clap::Subcommand, Debug)]
 pub enum WatchlistCommand {
     /// Fetch recent activity for all watched users.
-    #[command(
-        alias = "check",
-        after_help = include_str!("../../examples/watchlist-check.txt"),
-    )]
+    #[command(after_help = include_str!("../../examples/watchlist-fetch.txt"))]
     Fetch,
     /// Add a user to the watchlist.
     #[command(after_help = include_str!("../../examples/watchlist-add.txt"))]
     Add {
-        /// X/Twitter username (with or without @).
+        /// X username (with or without @).
         username: String,
     },
     /// Remove a user from the watchlist.
     #[command(after_help = include_str!("../../examples/watchlist-remove.txt"))]
     Remove {
-        /// X/Twitter username to remove.
+        /// X username to remove.
         username: String,
         #[command(flatten)]
         guard: WriteGuard,
@@ -528,13 +516,9 @@ const _: fn() = || {
 };
 
 impl Cli {
-    /// Resolve the effective color mode honoring deprecated `--plain` and `--no-color` aliases.
+    /// The color mode `--color` (or `BIRD_COLOR`) selected.
     pub fn effective_color(&self) -> ColorMode {
-        if self.plain || self.no_color {
-            ColorMode::Never
-        } else {
-            self.color
-        }
+        self.color
     }
 
     /// Resolve the effective output format honoring `--json` / `--jsonl` shorthand flags.

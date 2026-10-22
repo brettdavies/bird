@@ -42,7 +42,7 @@ bird search "rust" --cursor <token-from-previous-meta.next_cursor>
 # Watchlist — track users and check recent activity without manual searches
 bird watchlist add x
 bird watchlist list
-bird watchlist fetch         # (alias: `check`, kept for backward compatibility)
+bird watchlist fetch
 bird watchlist remove x
 
 # Usage tracking and cache inspection — `bird usage` syncs from the API by default;
@@ -174,7 +174,7 @@ does. Token storage, refresh, and OAuth1 signing all live in xdk-rs.
 `OutputConfig` (`src/output/mod.rs`) drives three formats, selected by `--output text|json|jsonl|ndjson` (default `text`
 on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--pretty` enables formatted text output
 with ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
-informational stderr diagnostics. `--plain` and `--no-color` survive as hidden aliases for `--color never`.
+informational stderr diagnostics.
 
 Stdout success document on `--output json`, the ok envelope `xr` prints for a result it assembles. A list carries
 `data` and `meta`; a single record puts its fields beside `status`; a message-shaped result is `message`:

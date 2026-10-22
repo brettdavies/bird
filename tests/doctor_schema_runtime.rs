@@ -240,7 +240,7 @@ fn doctor_report_serializes_match_schema_keys() {
             exists: true,
             size_mb: 0.5,
             max_size_mb: 100,
-            tweets: 1,
+            posts: 1,
             users: 1,
             raw_responses: 0,
             healthy: true,

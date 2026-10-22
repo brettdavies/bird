@@ -121,7 +121,7 @@ No config or app creation needed.
 
 | Command                        | Description                             |
 | ------------------------------ | --------------------------------------- |
-| `bird watchlist check`         | Check recent activity for watched users |
+| `bird watchlist fetch`         | Fetch recent activity for watched users |
 | `bird watchlist add <user>`    | Add a user to the watchlist             |
 | `bird watchlist remove <user>` | Remove a user from the watchlist        |
 | `bird watchlist list`          | Show the current watchlist              |
@@ -162,8 +162,7 @@ All commands emit JSON to stdout by default. Use `--pretty` for human-readable o
 
 ```bash
 bird me --pretty         # Formatted, colored output
-bird me --plain          # No color, no hyperlinks (script-friendly)
-bird me --no-color       # Disable ANSI colors only (or set NO_COLOR)
+bird me --color never    # No color (or set NO_COLOR)
 bird me --output json    # Force JSON error output on stderr
 bird me -q               # Suppress informational stderr messages
 ```

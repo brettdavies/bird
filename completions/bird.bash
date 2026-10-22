@@ -275,7 +275,7 @@ _bird() {
 
     case "${cmd}" in
         bird)
-            opts="-u -o -q -v -h -V --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help --version login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
+            opts="-u -o -q -v -h -V --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help --version login me bookmarks profile search thread watchlist usage tweet reply like unlike repost unrepost follow unfollow dm block unblock mute unmute doctor cache completions skill schema help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -329,7 +329,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__block)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -375,7 +375,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__bookmarks)
-            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -429,7 +429,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__cache)
-            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help clear stats help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help clear stats help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -483,7 +483,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__cache__subcmd__clear)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -593,7 +593,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__cache__subcmd__stats)
-            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -647,7 +647,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__completions)
-            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help bash elvish fish powershell zsh"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -701,7 +701,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__dm)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -747,7 +747,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__doctor)
-            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -801,7 +801,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__follow)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1351,7 +1351,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__like)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1405,7 +1405,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__login)
-            opts="-u -o -q -v -h --no-browser --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --no-browser --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1459,7 +1459,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__me)
-            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1513,7 +1513,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__mute)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1559,7 +1559,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__profile)
-            opts="-o -q -v -h --pretty --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-o -q -v -h --pretty --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1605,7 +1605,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__reply)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1659,7 +1659,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__repost)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1713,7 +1713,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__schema)
-            opts="-u -o -q -v -h --list --all --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --list --all --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1767,7 +1767,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__search)
-            opts="-u -o -q -v -h --pretty --sort --min-likes --max-results --pages --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --sort --min-likes --max-results --pages --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1837,7 +1837,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__skill)
-            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help install update help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help install update help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1947,7 +1947,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__skill__subcmd__install)
-            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help claude_code codex cursor factory kiro opencode"
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help claude_code codex cursor factory kiro opencode"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2001,7 +2001,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__skill__subcmd__update)
-            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help claude_code codex cursor factory kiro opencode"
+            opts="-u -o -q -v -h --all --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help claude_code codex cursor factory kiro opencode"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2055,7 +2055,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__thread)
-            opts="-u -o -q -v -h --pretty --max-pages --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --pretty --max-pages --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2113,7 +2113,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__tweet)
-            opts="-f -u -o -q -v -h --media-id --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --media-id --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2171,7 +2171,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__unblock)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2217,7 +2217,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__unfollow)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2263,7 +2263,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__unlike)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2317,7 +2317,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__unmute)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2363,7 +2363,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__unrepost)
-            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -u -o -q -v -h --force --dry-run --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2417,7 +2417,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__usage)
-            opts="-u -o -q -v -h --since --local --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --since --local --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2475,7 +2475,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__watchlist)
-            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help fetch add remove list help"
+            opts="-u -o -q -v -h --pretty --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help fetch add remove list help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2529,7 +2529,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__watchlist__subcmd__add)
-            opts="-o -q -v -h --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-o -q -v -h --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2575,7 +2575,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__watchlist__subcmd__fetch)
-            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2713,7 +2713,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__watchlist__subcmd__list)
-            opts="-u -o -q -v -h --username --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-u -o -q -v -h --username --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2767,7 +2767,7 @@ _bird() {
             return 0
             ;;
         bird__subcmd__watchlist__subcmd__remove)
-            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --plain --no-color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
+            opts="-f -o -q -v -h --force --dry-run --output --json --jsonl --color --quiet --verbose --timeout --no-interactive --raw --examples --refresh --no-cache --cache-only --limit --cursor --app --auth --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

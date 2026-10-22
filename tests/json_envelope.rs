@@ -160,23 +160,61 @@ fn raw_flag_accepted() {
     assert!(!stdout.is_empty());
 }
 
+/// The hidden aliases are gone: `--plain`, `--no-color`, `skill upgrade`, and
+/// `watchlist check` each fail to parse, with no alias window.
 #[test]
-fn plain_alias_still_accepted() {
-    // Deprecated --plain should still parse (it's an alias for --color never).
+fn retired_aliases_are_refused() {
     let env = common::TestEnv::new();
-    let (exit, stdout, _) =
-        common::run_in_process(&["bird", "--plain", "completions", "bash"], &env);
-    assert_eq!(exit, 0);
-    assert!(!stdout.is_empty());
+    let runs: &[(&[&str], &str)] = &[
+        (
+            &["bird", "--output", "json", "--plain", "completions", "bash"],
+            "invalid-args",
+        ),
+        (
+            &[
+                "bird",
+                "--output",
+                "json",
+                "--no-color",
+                "completions",
+                "bash",
+            ],
+            "invalid-args",
+        ),
+        (
+            &[
+                "bird",
+                "--output",
+                "json",
+                "skill",
+                "upgrade",
+                "claude_code",
+            ],
+            "unknown-command",
+        ),
+        (
+            &["bird", "--output", "json", "watchlist", "check"],
+            "unknown-command",
+        ),
+    ];
+    for (argv, reason) in runs {
+        let (exit, stdout, stderr) = common::run_in_process(argv, &env);
+        assert_eq!(exit, 2, "{argv:?}");
+        assert!(stdout.is_empty(), "{argv:?}");
+        assert_eq!(
+            common::stderr_envelope(&stderr)["reason"],
+            *reason,
+            "{argv:?}"
+        );
+    }
 }
 
 #[test]
-fn no_color_alias_still_accepted() {
+fn color_never_and_no_color_env_still_strip_color() {
     let env = common::TestEnv::new();
-    let (exit, stdout, _) =
-        common::run_in_process(&["bird", "--no-color", "completions", "bash"], &env);
+    let (exit, _stdout, _stderr) =
+        common::run_in_process(&["bird", "--color", "never", "completions", "bash"], &env);
     assert_eq!(exit, 0);
-    assert!(!stdout.is_empty());
 }
 
 #[test]

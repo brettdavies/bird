@@ -1,0 +1,5 @@
+Examples:
+  bird watchlist fetch                              # text summary
+  bird watchlist fetch --output json                # paired JSON
+  bird watchlist fetch --pretty
+  BIRD_QUIET=1 bird watchlist fetch --output json   # suppress diagnostics

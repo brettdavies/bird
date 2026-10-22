@@ -531,7 +531,7 @@ mod tests {
 
         // --- Step 6: Stats reflect all stored entities ---
         let stats = db_mut.stats().expect("test");
-        assert_eq!(stats.tweet_count, 2, "should have 2 tweets");
+        assert_eq!(stats.post_count, 2, "should have 2 tweets");
         assert_eq!(stats.user_count, 2, "should have 2 users");
         assert_eq!(stats.bookmark_count, 2, "should have 2 bookmarks");
     }

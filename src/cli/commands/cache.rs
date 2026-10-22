@@ -76,7 +76,7 @@ pub fn run(
                         "path": path,
                         "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
                         "max_size_mb": stats.max_size_mb() as u64,
-                        "tweets": stats.tweet_count,
+                        "posts": stats.post_count,
                         "users": stats.user_count,
                         "raw_responses": stats.raw_response_count,
                         "healthy": stats.healthy(),
@@ -90,7 +90,7 @@ pub fn run(
                             stats.max_size_mb()
                         )
                         .map_err(cache_io_err)?;
-                        writeln!(stdout, "Tweets: {}", stats.tweet_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "Posts:  {}", stats.post_count).map_err(cache_io_err)?;
                         writeln!(stdout, "Users:  {}", stats.user_count).map_err(cache_io_err)?;
                         writeln!(stdout, "Raw:    {}", stats.raw_response_count)
                             .map_err(cache_io_err)?;
@@ -100,7 +100,7 @@ pub fn run(
                         writeln!(stdout, "size_mb={:.1}", stats.size_mb()).map_err(cache_io_err)?;
                         writeln!(stdout, "max_size_mb={:.0}", stats.max_size_mb())
                             .map_err(cache_io_err)?;
-                        writeln!(stdout, "tweets={}", stats.tweet_count).map_err(cache_io_err)?;
+                        writeln!(stdout, "posts={}", stats.post_count).map_err(cache_io_err)?;
                         writeln!(stdout, "users={}", stats.user_count).map_err(cache_io_err)?;
                         writeln!(stdout, "raw_responses={}", stats.raw_response_count)
                             .map_err(cache_io_err)?;
