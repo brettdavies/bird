@@ -4,15 +4,24 @@
   "title": "bird doctor payload",
   "description": "Shape of the data payload returned by `bird doctor` under --output json. Mirrors the `DoctorReport` struct in src/doctor.rs: embedded X API client status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
   "type": "object",
-  "required": ["xurl", "auth", "commands"],
+  "required": [
+    "xurl",
+    "auth",
+    "commands"
+  ],
   "properties": {
     "xurl": {
       "type": "object",
       "description": "The embedded X API client (xdk-rs): the linked version and whether the client was built.",
-      "required": ["available"],
+      "required": [
+        "available"
+      ],
       "properties": {
         "version": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Version of the xdk-rs crate linked into this bird build."
         },
         "available": {
@@ -28,7 +37,11 @@
     "auth": {
       "type": "object",
       "description": "Per-app credential snapshot keyed by app name plus a separate `env` block for `CLIENT_ID` / `CLIENT_SECRET` / `XURL_BEARER_TOKEN` env-var presence. Every credential surface is reported as a boolean presence flag; no token material reaches the report.",
-      "required": ["active_app", "apps", "env"],
+      "required": [
+        "active_app",
+        "apps",
+        "env"
+      ],
       "properties": {
         "active_app": {
           "type": "string",
@@ -38,10 +51,18 @@
           "type": "object",
           "additionalProperties": {
             "type": "object",
-            "required": ["client_id_set", "client_secret_set", "oauth2_tokens"],
+            "required": [
+              "client_id_set",
+              "client_secret_set",
+              "oauth2_tokens"
+            ],
             "properties": {
-              "client_id_set": { "type": "boolean" },
-              "client_secret_set": { "type": "boolean" },
+              "client_id_set": {
+                "type": "boolean"
+              },
+              "client_secret_set": {
+                "type": "boolean"
+              },
               "default_user": {
                 "type": "string",
                 "description": "Username the client picks when no `-u NAME` is supplied for this app."
@@ -51,19 +72,33 @@
                 "description": "Per-user OAuth2 token presence map. Keys are usernames; values describe access/refresh token presence only.",
                 "additionalProperties": {
                   "type": "object",
-                  "required": ["access_token_present", "refresh_token_present"],
+                  "required": [
+                    "access_token_present",
+                    "refresh_token_present"
+                  ],
                   "properties": {
-                    "access_token_present": { "type": "boolean" },
-                    "refresh_token_present": { "type": "boolean" }
+                    "access_token_present": {
+                      "type": "boolean"
+                    },
+                    "refresh_token_present": {
+                      "type": "boolean"
+                    }
                   }
                 }
               },
               "unnamed_oauth2": {
                 "type": "object",
-                "required": ["access_token_present", "refresh_token_present"],
+                "required": [
+                  "access_token_present",
+                  "refresh_token_present"
+                ],
                 "properties": {
-                  "access_token_present": { "type": "boolean" },
-                  "refresh_token_present": { "type": "boolean" }
+                  "access_token_present": {
+                    "type": "boolean"
+                  },
+                  "refresh_token_present": {
+                    "type": "boolean"
+                  }
                 }
               },
               "oauth1": {
@@ -75,17 +110,29 @@
                   "consumer_secret_present"
                 ],
                 "properties": {
-                  "access_token_present": { "type": "boolean" },
-                  "token_secret_present": { "type": "boolean" },
-                  "consumer_key_present": { "type": "boolean" },
-                  "consumer_secret_present": { "type": "boolean" }
+                  "access_token_present": {
+                    "type": "boolean"
+                  },
+                  "token_secret_present": {
+                    "type": "boolean"
+                  },
+                  "consumer_key_present": {
+                    "type": "boolean"
+                  },
+                  "consumer_secret_present": {
+                    "type": "boolean"
+                  }
                 }
               },
               "bearer": {
                 "type": "object",
-                "required": ["token_present"],
+                "required": [
+                  "token_present"
+                ],
                 "properties": {
-                  "token_present": { "type": "boolean" }
+                  "token_present": {
+                    "type": "boolean"
+                  }
                 }
               }
             }
@@ -93,11 +140,21 @@
         },
         "env": {
           "type": "object",
-          "required": ["client_id_set", "client_secret_set", "bearer_token_set"],
+          "required": [
+            "client_id_set",
+            "client_secret_set",
+            "bearer_token_set"
+          ],
           "properties": {
-            "client_id_set": { "type": "boolean" },
-            "client_secret_set": { "type": "boolean" },
-            "bearer_token_set": { "type": "boolean" }
+            "client_id_set": {
+              "type": "boolean"
+            },
+            "client_secret_set": {
+              "type": "boolean"
+            },
+            "bearer_token_set": {
+              "type": "boolean"
+            }
           }
         }
       }
@@ -114,19 +171,35 @@
           "reachable"
         ],
         "properties": {
-          "available": { "type": "boolean" },
+          "available": {
+            "type": "boolean"
+          },
           "reason": {
             "type": "string",
             "description": "Human-readable reason a command is unavailable (e.g. \"not authenticated\")."
           },
           "accepted_schemes": {
             "type": "array",
-            "items": { "type": "string", "enum": ["app", "oauth1", "oauth2"] },
+            "items": {
+              "type": "string",
+              "enum": [
+                "app",
+                "oauth1",
+                "oauth2"
+              ]
+            },
             "description": "Auth schemes the X API endpoint accepts, from `xdk::api::auth_matrix::supported_auth`. Empty for commands with no fixed endpoint: `login`, the raw HTTP verbs, and local watchlist edits."
           },
           "credentialed_schemes": {
             "type": "array",
-            "items": { "type": "string", "enum": ["app", "oauth1", "oauth2"] },
+            "items": {
+              "type": "string",
+              "enum": [
+                "app",
+                "oauth1",
+                "oauth2"
+              ]
+            },
             "description": "Subset of `accepted_schemes` for which the active app has a stored credential."
           },
           "reachable": {
@@ -137,22 +210,44 @@
       }
     },
     "cache": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "description": "Entity-store health; null when no cache is configured.",
       "properties": {
-        "path": { "type": "string" },
-        "exists": { "type": "boolean" },
-        "size_mb": { "type": "number" },
-        "max_size_mb": { "type": "integer" },
-        "tweets": { "type": "integer" },
-        "users": { "type": "integer" },
-        "raw_responses": { "type": "integer" },
-        "healthy": { "type": "boolean" }
+        "path": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "size_mb": {
+          "type": "number"
+        },
+        "max_size_mb": {
+          "type": "integer"
+        },
+        "tweets": {
+          "type": "integer"
+        },
+        "users": {
+          "type": "integer"
+        },
+        "raw_responses": {
+          "type": "integer"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
       }
     },
     "linked_xurl_version": {
       "type": "string",
       "description": "Version of the xdk-rs crate linked into this bird build."
+    },
+    "probe_field": {
+      "type": "string"
     }
   },
   "additionalProperties": false
