@@ -1,3 +1,9 @@
+# Source repo release wrapper — calls the centralized reusable workflow.
+#
+# Pipeline: check-version -> build (7 targets) -> attest (build provenance, and a
+# CycloneDX SBOM of the binary) -> crates.io -> release (non-draft) -> verify the
+# published files against their attestations -> homebrew dispatch ->
+# finalize-release marks the release final.
 name: Release
 
 on:
@@ -7,6 +13,8 @@ on:
 permissions:
   contents: write
   id-token: write
+  # The reusable workflow's attest job takes this from the caller.
+  attestations: write
 
 jobs:
   pipeline:
@@ -14,5 +22,12 @@ jobs:
     with:
       crate: bird
       bin: bird
+      # Both musl rows build clean (verified by release-matrix-check), so a
+      # musl failure blocks the release instead of silently omitting two
+      # artifacts from it.
+      linux_musl_required: true
+      # The tap verifies each prebuilt archive against its attestation before
+      # it pins the archive's checksum in the formula.
+      attest: true
     secrets:
       CI_RELEASE_TOKEN: ${{ secrets.CI_RELEASE_TOKEN }}
