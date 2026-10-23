@@ -101,14 +101,6 @@ impl StoreStatus {
         }
     }
 
-    /// Prints one informational store line unless the run is quiet.
-    pub fn notice(&self, line: std::fmt::Arguments<'_>) {
-        if !self.quiet {
-            let mut w = crate::output::lock_writer(&self.stderr);
-            writeln!(*w, "[store] {line}").ok();
-        }
-    }
-
     /// The run's first store failure, of any area.
     pub fn first_failure(&self) -> Option<Failure> {
         self.recorded
@@ -195,7 +187,6 @@ mod tests {
             Path::new("/a/1.md"),
             &denied(),
         );
-        status.notice(format_args!("removed the 0.2.0 store at /c/bird.db"));
         assert!(status.first_failure().is_some());
     }
 
@@ -225,16 +216,6 @@ mod tests {
             status.first_failure().expect("first").area,
             Area::Ledger,
             "the first failure of any area is kept separately"
-        );
-    }
-
-    #[test]
-    fn a_notice_prints_one_line() {
-        let (status, buf) = captured(false);
-        status.notice(format_args!("removed the 0.2.0 store at /c/bird.db"));
-        assert_eq!(
-            text(&buf),
-            "[store] removed the 0.2.0 store at /c/bird.db\n"
         );
     }
 }

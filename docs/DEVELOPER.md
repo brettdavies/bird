@@ -4,7 +4,7 @@
 
 bird is a CLI for the X (Twitter) API. All HTTP transport and authentication is delegated to the `xdk-rs` crate (from
 the [xurl-rs](https://github.com/brettdavies/xurl-rs) repository), embedded as a library at the bird/xdk boundary
-(`src/xurl_client/`). bird owns the intelligence layer: entity store, caching, cost tracking, and UX.
+(`src/xurl_client/`). bird owns the intelligence layer: the file store, caching, cost tracking, and UX.
 
 ```text
 bird (CLI + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
@@ -43,7 +43,7 @@ cargo run --release -- me --pretty
 | `src/main.rs`      | Thin binary entrypoint; delegates to `bird::cli::run_argv()`                            |
 | `src/cli/`         | clap definitions, layered runner entrypoints, dispatcher, per-command handlers          |
 | `src/xurl_client/` | `XurlClient` trait, `EmbeddedClient`, `MockXurlClient` test double, `ConstructionStub`  |
-| `src/db/`          | SQLite entity store: caching, usage tracking, migrations; `client/` wraps `XurlClient`  |
+| `src/store/`       | File store: archive, response files, spend ledger; `client/` wraps `XurlClient`         |
 | `src/config.rs`    | Config load with priority: args > file > env > default                                  |
 | `src/doctor.rs`    | Diagnostic report: linked xdk-rs version, per-app auth state, per-command scheme matrix |
 | `src/cost.rs`      | API cost estimation                                                                     |

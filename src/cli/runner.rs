@@ -418,6 +418,24 @@ where
         client_stderr,
     );
 
+    let removal = store::legacy::remove(&config.config_dir);
+    if !out.suppress_diag() {
+        for path in &removal.removed {
+            writeln!(
+                stderr,
+                "[store] removed the 0.2.0 store at {}",
+                path.display()
+            )
+            .ok();
+        }
+    }
+    for (path, err) in &removal.failed {
+        client
+            .store()
+            .status()
+            .fail(store::Area::Legacy, "0.2.0 store removal", path, err);
+    }
+
     // --- Diagnostic commands: need config/DB but not xurl ---
     if let Command::Doctor {
         command,
