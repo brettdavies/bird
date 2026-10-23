@@ -43,6 +43,12 @@ pub struct HintContext {
 /// Chooses the hint for `error`, when a recovery step exists.
 #[must_use]
 pub fn for_error(error: &BirdError, ctx: &HintContext) -> Option<Hint> {
+    if let Some(fix) = error.fix() {
+        return Some(Hint {
+            text_lines: vec![fix.to_string()],
+            next_step: NextStep::fix_input(None),
+        });
+    }
     match error.reason() {
         Reason::ConfirmationRequired => return Some(confirm_hint(&ctx.invocation)),
         Reason::InvalidArgs | Reason::UnknownCommand => return Some(show_help_hint(&ctx.help)),

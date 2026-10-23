@@ -331,7 +331,14 @@ where
     let mut config = match ResolvedConfig::load_with_paths(overrides, paths.clone(), env.clone()) {
         Ok(c) => c,
         Err(e) => {
-            let err = BirdError::config(e);
+            let err = match e.downcast::<crate::store::ArchiveDirError>() {
+                Ok(bad) => BirdError::config_setting(
+                    bad.to_string(),
+                    bad.value.clone(),
+                    crate::store::paths::ARCHIVE_DIR_FIX,
+                ),
+                Err(e) => BirdError::config(e),
+            };
             let _ = out.print_error(stderr, &err, &hint_ctx);
             return ExitCode::from(err.exit_code());
         }
@@ -534,6 +541,9 @@ mod tests {
             std::env::temp_dir().join(format!("bird-runner-test-{}-{}", std::process::id(), nanos));
         ResolvedPaths {
             config_dir: tmp.clone(),
+            data_dir: tmp.join("data"),
+            cache_dir: tmp.join("cache"),
+            home_dir: None,
             token_store: Some(tmp.join("auth.yml")),
         }
     }

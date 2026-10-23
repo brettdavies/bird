@@ -22,6 +22,9 @@ fn main() -> ExitCode {
 
     let paths = ResolvedPaths {
         config_dir: config_dir.clone(),
+        data_dir: tmp.path().join(".local").join("share"),
+        cache_dir: tmp.path().join(".cache"),
+        home_dir: Some(tmp.path().to_path_buf()),
         token_store: Some(config_dir.join("auth.yml")),
     };
     let env = EnvOverrides::default();

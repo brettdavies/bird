@@ -48,6 +48,9 @@ pub struct BirdError {
     suggestion: Option<String>,
     /// The library error this came from, when it came from one.
     source: Option<Box<xdk::Error>>,
+    /// The line telling a person how to fix a refused input, when bird names
+    /// one itself; its step is `fix-input`.
+    fix: Option<&'static str>,
 }
 
 impl BirdError {
@@ -61,12 +64,32 @@ impl BirdError {
             command: None,
             suggestion: None,
             source: None,
+            fix: None,
         }
     }
 
     /// bird's own config file or paths could not be used (exit 78).
     pub fn config<E: std::fmt::Display>(err: E) -> Self {
         Self::new(Class::Config, Reason::ConfigError, 78, err.to_string())
+    }
+
+    /// A config setting bird refuses (exit 78): `value` is the offending
+    /// value and `fix` the line saying how to correct it.
+    pub fn config_setting(
+        message: impl Into<String>,
+        value: impl Into<String>,
+        fix: &'static str,
+    ) -> Self {
+        Self {
+            command: Some(value.into()),
+            fix: Some(fix),
+            ..Self::new(Class::Config, Reason::ConfigError, 78, message.into())
+        }
+    }
+
+    /// How to fix a refused input, when bird names it.
+    pub fn fix(&self) -> Option<&str> {
+        self.fix
     }
 
     /// An argument or input refusal at exit 2.
