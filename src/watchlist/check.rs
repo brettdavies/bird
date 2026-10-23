@@ -3,8 +3,8 @@
 use super::store::load_watchlist;
 use crate::cli::auth_scheme::AuthType;
 use crate::config::ResolvedConfig;
-use crate::db::{BirdClient, RequestContext};
 use crate::fields;
+use crate::store::{BirdClient, RequestContext};
 
 /// Options for `bird watchlist fetch`.
 pub struct CheckOpts<'a> {
@@ -224,10 +224,10 @@ struct LatestPost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::CacheOpts;
     use crate::error::BirdError;
     use crate::output::{OutputConfig, OutputFormat};
     use crate::shutdown::Cancelled;
+    use crate::store::CacheOpts;
     use crate::xurl_client::mock::MockXurlClient;
     use std::sync::{Arc, Mutex};
 
@@ -263,12 +263,11 @@ mod tests {
         let calls = mock.clone_handle();
         let mut client = BirdClient::new(
             Box::new(mock),
-            &config.cache_path,
+            crate::store::StoreSetup::under(dir.path()),
             CacheOpts {
                 no_store: true,
                 ..CacheOpts::default()
             },
-            10,
             None,
             true,
             Arc::new(Mutex::new(std::io::sink())),

@@ -7,9 +7,9 @@
 use crate::cli::commands;
 use crate::cli::{Command, OutputFlags, WatchlistCommand, WriteGuard};
 use crate::config::ResolvedConfig;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
+use crate::store;
 use std::io::{BufRead, IsTerminal, Write};
 
 /// Top-level dispatcher: routes a parsed `Command` to its per-command module.
@@ -28,7 +28,7 @@ use std::io::{BufRead, IsTerminal, Write};
 pub fn run(
     command: Command,
     config: ResolvedConfig,
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdin: &mut dyn BufRead,
     stdout: &mut dyn Write,
@@ -38,9 +38,7 @@ pub fn run(
     list_flags: ListFlags,
 ) -> Result<(), BirdError> {
     match command {
-        Command::Login { headless } => {
-            commands::login::run(client, &config, out, stdin, stdout, stderr, headless)
-        }
+        Command::Login { headless } => commands::login::run(&config, out, stdin, stdout, headless),
         Command::Me {
             common: OutputFlags { pretty },
         } => commands::reads::run_me(client, out, stdout, stderr, pretty),

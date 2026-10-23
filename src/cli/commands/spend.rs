@@ -2,15 +2,15 @@
 //! figures beside it under `--sync`.
 
 use crate::config::ResolvedConfig;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use crate::spend;
+use crate::store;
 use crate::store::ledger::Ledger;
 
 #[allow(clippy::too_many_arguments)]
 pub fn run(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     config: &ResolvedConfig,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,

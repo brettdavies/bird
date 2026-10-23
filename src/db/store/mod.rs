@@ -1,25 +1,13 @@
-//! Entity-level SQLite store for tweets, users, bookmarks, raw responses, and
-//! usage tracking. Single connection per CLI invocation -- no pool needed
-//! (short-lived process). Blocking SQLite calls are fine: bird is synchronous
-//! (no async runtime).
+//! The 0.2.0 SQLite store and its migrations. Single connection per CLI
+//! invocation; bird is synchronous, so blocking calls are fine.
 
 use rusqlite::Connection;
 use rusqlite_migration::{M, Migrations};
-use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
-pub mod bookmarks;
-pub mod entities;
 pub mod maintenance;
-pub mod posts;
-pub mod raw;
-pub mod users;
 
-pub use bookmarks::BookmarkRow;
 pub use maintenance::StoreStats;
-pub use posts::PostRow;
-pub use users::UserRow;
 
 // -- Schema migrations --
 
@@ -123,40 +111,20 @@ fn migrations() -> Migrations<'static> {
 
 // -- BirdDb --
 
-/// Entity store: tweets, users, bookmarks, raw responses, and usage tracking.
-/// Single connection per CLI invocation -- no pool needed (short-lived process).
+/// The 0.2.0 store, opened only so `bird cache` and `bird doctor` can report
+/// and clear it.
 ///
 /// `conn` is wrapped in `std::sync::Mutex` so `BirdDb` (and the enclosing
-/// `BirdClient`) satisfy `Sync`, which the writer-injection design
-/// (`Arc<Mutex<dyn Write + Send>>`) requires as a compile-time gate. The
-/// per-call lock is uncontended (single-threaded access) and adds
-/// sub-microsecond cost.
-///
-/// `stderr` is a shared writer handle cloned from the enclosing `BirdClient`.
-/// Internal diagnostic sites lock the shared handle under the `if !self.quiet`
-/// gate; suppressed paths pay zero (no lock, no allocation).
+/// `BirdClient`) satisfy `Sync`.
 pub struct BirdDb {
     pub(crate) conn: std::sync::Mutex<Connection>,
-    pub(crate) write_count: u32,
     pub(crate) max_bytes: u64,
-    pub(crate) stderr: Arc<Mutex<dyn Write + Send>>,
-    pub(crate) quiet: bool,
 }
 
 impl BirdDb {
-    /// Open (or create) the entity store at the given path.
-    /// Sets process umask before opening to ensure SQLite sidecar files inherit restrictive permissions.
-    ///
-    /// `stderr` is the shared writer handle cloned from `BirdClient`; `quiet`
-    /// is stored so internal diagnostic sites suppress without taking a
-    /// per-method parameter. Both fields drive the locked-writeln pattern in
-    /// diagnostic call sites: lock only when `!self.quiet`.
-    pub fn open(
-        path: &Path,
-        max_size_mb: u64,
-        stderr: Arc<Mutex<dyn Write + Send>>,
-        quiet: bool,
-    ) -> Result<Self, rusqlite::Error> {
+    /// Open (or create) the store at the given path, with private file modes
+    /// on the database and its sidecars.
+    pub fn open(path: &Path, max_size_mb: u64) -> Result<Self, rusqlite::Error> {
         Self::ensure_file_permissions(path);
 
         let mut conn = Connection::open(path)?;
@@ -205,10 +173,7 @@ impl BirdDb {
 
         let db = Self {
             conn: std::sync::Mutex::new(conn),
-            write_count: 0,
             max_bytes: max_size_mb * 1024 * 1024,
-            stderr,
-            quiet,
         };
 
         Ok(db)
@@ -259,115 +224,6 @@ impl BirdDb {
             let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
         }
     }
-
-    /// Attempt to migrate usage data from the old cache.db on first open.
-    /// Idempotent: checks a sentinel row in migrations_meta. Uses `self.quiet`
-    /// and `self.stderr` to gate and route diagnostic output through the
-    /// shared writer handle.
-    pub fn migrate_usage_from_cache(&self, cache_db_path: &Path) {
-        if !cache_db_path.exists() {
-            return;
-        }
-
-        // Check idempotency sentinel
-        let already_migrated: bool = self
-            .conn()
-            .query_row(
-                "SELECT count(*) FROM migrations_meta WHERE key = 'cache_usage_migrated'",
-                [],
-                |r| r.get::<_, i64>(0),
-            )
-            .map(|c| c > 0)
-            .unwrap_or(false);
-
-        if already_migrated {
-            return;
-        }
-
-        let cache_path_str = cache_db_path.display().to_string();
-
-        // Validate source DB has expected tables before ATTACH
-        let has_tables = (|| -> Result<bool, rusqlite::Error> {
-            let probe = Connection::open_with_flags(
-                cache_db_path,
-                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-            )?;
-            let count: i64 = probe.query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('usage', 'usage_actual')",
-                [],
-                |r| r.get(0),
-            )?;
-            Ok(count == 2)
-        })();
-
-        match has_tables {
-            Ok(true) => {}
-            Ok(false) => {
-                if !self.quiet {
-                    let mut w = crate::output::lock_writer(&self.stderr);
-                    writeln!(
-                        *w,
-                        "[store] warning: cache.db missing expected tables, skipping usage migration"
-                    )
-                    .ok();
-                }
-                return;
-            }
-            Err(e) => {
-                if !self.quiet {
-                    let mut w = crate::output::lock_writer(&self.stderr);
-                    writeln!(
-                        *w,
-                        "[store] warning: could not probe cache.db for migration: {}",
-                        e
-                    )
-                    .ok();
-                }
-                return;
-            }
-        }
-
-        // ATTACH + copy in transaction
-        let result = (|| -> Result<(), rusqlite::Error> {
-            let conn = self.conn();
-            conn.execute_batch(&format!(
-                "ATTACH DATABASE '{}' AS old_cache",
-                cache_path_str.replace('\'', "''")
-            ))?;
-
-            let tx = conn.unchecked_transaction()?;
-            tx.execute_batch(
-                "INSERT OR IGNORE INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username)
-                   SELECT timestamp, date_ymd, endpoint, method, object_type, object_count, estimated_cost, cache_hit, username FROM old_cache.usage;
-                 INSERT OR IGNORE INTO usage_actual SELECT * FROM old_cache.usage_actual;
-                 UPDATE usage SET object_type = 'post' WHERE object_type = 'tweet';
-                 UPDATE usage SET object_type = 'posts' WHERE object_type = 'tweets';"
-            )?;
-            tx.execute(
-                "INSERT OR IGNORE INTO migrations_meta (key, value) VALUES ('cache_usage_migrated', datetime('now'))",
-                [],
-            )?;
-            tx.commit()?;
-            conn.execute_batch("DETACH DATABASE old_cache")?;
-            Ok(())
-        })();
-
-        match result {
-            Ok(()) => {
-                if !self.quiet {
-                    let mut w = crate::output::lock_writer(&self.stderr);
-                    writeln!(*w, "[store] migrated usage data from cache.db").ok();
-                }
-            }
-            Err(e) => {
-                if !self.quiet {
-                    let mut w = crate::output::lock_writer(&self.stderr);
-                    writeln!(*w, "[store] warning: usage migration failed: {}", e).ok();
-                }
-                let _ = self.conn().execute_batch("DETACH DATABASE old_cache");
-            }
-        }
-    }
 }
 
 impl Drop for BirdDb {
@@ -392,10 +248,7 @@ pub(crate) fn in_memory_db() -> BirdDb {
     migrations().to_latest(&mut conn).expect("test");
     BirdDb {
         conn: std::sync::Mutex::new(conn),
-        write_count: 0,
         max_bytes: 100 * 1024 * 1024, // 100MB
-        stderr: Arc::new(Mutex::new(std::io::sink())),
-        quiet: true,
     }
 }
 
@@ -441,8 +294,7 @@ mod tests {
         let path = tmpdir.path().join("bird.db");
         seed_v3_store(&path);
 
-        let db = BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true)
-            .expect("test: open migrates");
+        let db = BirdDb::open(&path, 100).expect("test: open migrates");
         let conn = db.conn();
         assert_eq!(count(&conn, "PRAGMA user_version"), 4);
         assert_eq!(count(&conn, "SELECT count(*) FROM posts"), 0);
@@ -490,7 +342,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().expect("test");
         let path = tmpdir.path().join("bird.db");
         seed_v3_store(&path);
-        drop(BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true).expect("test"));
+        drop(BirdDb::open(&path, 100).expect("test"));
         {
             let conn = Connection::open(&path).expect("test");
             conn.execute_batch(
@@ -498,8 +350,7 @@ mod tests {
             )
             .expect("test");
         }
-        let db = BirdDb::open(&path, 100, Arc::new(Mutex::new(std::io::sink())), true)
-            .expect("test: reopen");
+        let db = BirdDb::open(&path, 100).expect("test: reopen");
         assert_eq!(count(&db.conn(), "SELECT count(*) FROM posts"), 1);
     }
 
@@ -515,46 +366,6 @@ mod tests {
             ),
             0
         );
-    }
-
-    #[test]
-    fn the_cache_db_import_lands_post_spellings() {
-        let tmpdir = tempfile::tempdir().expect("test");
-        let cache = tmpdir.path().join("cache.db");
-        {
-            let conn = Connection::open(&cache).expect("test");
-            conn.execute_batch(
-                "CREATE TABLE usage (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL,
-                     date_ymd INTEGER NOT NULL, endpoint TEXT NOT NULL, method TEXT NOT NULL,
-                     object_type TEXT, object_count INTEGER NOT NULL DEFAULT 0,
-                     estimated_cost REAL NOT NULL DEFAULT 0.0, cache_hit INTEGER NOT NULL DEFAULT 0,
-                     username TEXT);
-                 CREATE TABLE usage_actual (date TEXT PRIMARY KEY, tweet_count INTEGER NOT NULL,
-                     synced_at INTEGER NOT NULL);
-                 INSERT INTO usage (timestamp, date_ymd, endpoint, method, object_type, object_count)
-                     VALUES (1, 20250101, '/2/tweets/:id', 'GET', 'tweet', 1);
-                 INSERT INTO usage_actual VALUES ('2025-01-01', 3, 1);",
-            )
-            .expect("test");
-        }
-        let db = in_memory_db();
-        db.migrate_usage_from_cache(&cache);
-        let conn = db.conn();
-        assert_eq!(
-            count(
-                &conn,
-                "SELECT count(*) FROM usage WHERE object_type = 'post'"
-            ),
-            1
-        );
-        assert_eq!(
-            count(
-                &conn,
-                "SELECT count(*) FROM usage WHERE object_type = 'tweet'"
-            ),
-            0
-        );
-        assert_eq!(count(&conn, "SELECT post_count FROM usage_actual"), 3);
     }
 
     #[test]
@@ -578,21 +389,8 @@ mod tests {
                 .execute_batch("CREATE VIEW evil AS SELECT * FROM posts")
                 .expect("test");
         }
-        let result = BirdDb::open(&db_path, 100, Arc::new(Mutex::new(std::io::sink())), true);
+        let result = BirdDb::open(&db_path, 100);
         assert!(result.is_err(), "should reject database with views");
-    }
-
-    #[test]
-    fn usage_migration_idempotent() {
-        let db = in_memory_db();
-        db.conn()
-            .execute(
-                "INSERT INTO migrations_meta (key, value) VALUES ('cache_usage_migrated', 'test')",
-                [],
-            )
-            .expect("test");
-        // Should be a no-op (doesn't crash)
-        db.migrate_usage_from_cache(Path::new("/nonexistent/path"));
     }
 
     #[cfg(unix)]
@@ -602,8 +400,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().expect("test");
         let db_path = tmpdir.path().join("test.db");
 
-        let _db =
-            BirdDb::open(&db_path, 100, Arc::new(Mutex::new(std::io::sink())), true).expect("test");
+        let _db = BirdDb::open(&db_path, 100).expect("test");
 
         let perms = std::fs::metadata(&db_path).expect("test").permissions();
         assert_eq!(

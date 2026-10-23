@@ -3,11 +3,16 @@
 
 pub mod archive;
 pub mod atomic;
+pub mod client;
+pub mod endpoint;
+pub mod file_store;
 pub mod ledger;
 pub mod paths;
 pub mod responses;
 pub mod spend_view;
 pub mod status;
 
+pub use client::{BirdClient, CacheOpts, RequestContext, StoreSetup};
+pub use file_store::{FileStore, StoreAccount};
 pub use paths::{ArchiveDirError, ArchiveSource, StorePaths};
 pub use status::{Area, Failure, StoreStatus};

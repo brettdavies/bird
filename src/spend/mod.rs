@@ -5,7 +5,7 @@
 mod pretty;
 mod sync;
 
-use crate::db::BirdClient;
+use crate::store::BirdClient;
 use crate::store::ledger::Ledger;
 use crate::store::spend_view::{self, ActualUsageDay, DailyUsage, EndpointUsage, UsageSummary};
 
@@ -224,9 +224,8 @@ struct UsageReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::BirdClient;
-    use crate::db::store::in_memory_db;
     use crate::output::{OutputConfig, OutputFormat};
+    use crate::store::BirdClient;
     use crate::xurl_client::mock::MockXurlClient;
 
     fn sync_client(responses: Vec<serde_json::Value>) -> BirdClient {
@@ -234,7 +233,7 @@ mod tests {
         for value in responses {
             mock.push_value("send_request", value);
         }
-        BirdClient::new_test(Box::new(mock), in_memory_db())
+        BirdClient::new_test(Box::new(mock))
     }
 
     fn quiet_cfg() -> OutputConfig {

@@ -1,13 +1,13 @@
 //! `bird profile` — look up a user profile by username.
 
 use crate::cli::auth_scheme::AuthType;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use crate::profile;
+use crate::store;
 
 pub fn run(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,

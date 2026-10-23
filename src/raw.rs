@@ -2,8 +2,8 @@
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::db::{BirdClient, RequestContext};
 use crate::output;
+use crate::store::{BirdClient, RequestContext};
 use std::collections::HashMap;
 
 /// Perform a raw API request: resolve path, send via xurl transport, print JSON.
@@ -93,7 +93,7 @@ pub fn run_raw(
 
 #[cfg(test)]
 mod tests {
-    use crate::db::client::ApiResponse;
+    use crate::store::client::ApiResponse;
 
     /// Mirrors the `response.json.take()` fallback at the top of `run_raw`:
     /// when `json` is None but `cached_body` carries the API bytes (a

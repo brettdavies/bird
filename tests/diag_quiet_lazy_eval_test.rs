@@ -1,22 +1,23 @@
 //! Plan 2 R24 regression test: the `if !quiet { writeln!(stderr, ...).ok(); }`
-//! replacement for the deleted `diag!` macro must preserve the zero-allocation
-//! property — when `quiet` is true, no `format_args!` evaluation and no
-//! `write*` call may run.
+//! guard must preserve the zero-allocation property — when `quiet` is true,
+//! no `format_args!` evaluation and no `write*` call may run.
 //!
-//! Strategy: install a `PanicOnWrite` writer in BirdClient's `stderr` slot,
-//! then drive a code path that previously emitted a `diag!` (now a guarded
-//! `writeln!`). With `quiet = true`, the writer must never be touched — if
-//! the guard regresses to evaluating the formatter argument first, the
-//! panic from the writer fires. With `quiet = false`, the same path must
-//! panic to confirm the test wires the writer correctly.
+//! Strategy: install a `PanicOnWrite` writer in BirdClient's `stderr` slot
+//! and force a store failure: a write clears its account's response files,
+//! and here the account's directory is a regular file, so the clear fails on
+//! every platform. With `quiet = true` the writer must never be touched; with
+//! `quiet = false` the same failure must reach it, which proves the test
+//! wires the writer correctly.
 
 use std::io::Write;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-/// Writer that panics on any byte-level write operation. Used to verify the
-/// quiet-gate short-circuit — a successful test pass means no `writeln!`
-/// reached this writer.
+use bird::cli::auth_scheme::AuthType;
+use bird::store::responses::{Account, account_key};
+use bird::store::{BirdClient, CacheOpts, RequestContext, StoreAccount, StoreSetup};
+
+/// Writer that panics on any byte-level write operation. A passing quiet
+/// test means no `writeln!` reached this writer.
 struct PanicOnWrite;
 
 impl Write for PanicOnWrite {
@@ -34,76 +35,49 @@ impl Write for PanicOnWrite {
     }
 }
 
-/// Build a BirdClient with the given quiet flag and PanicOnWrite as its stderr.
-/// Uses no_store=true so no DB file is opened (avoids the BirdDb::open path
-/// that has its own diag sites we may not be exercising).
-fn make_client(quiet: bool) -> bird::db::BirdClient {
+/// Sends one write whose response-file clear fails, through a client whose
+/// diagnostics go to `PanicOnWrite`.
+fn send_a_write_that_cannot_clear(dir: &tempfile::TempDir, quiet: bool) -> BirdClient {
+    let mut setup = StoreSetup::under(dir.path());
+    setup.account = StoreAccount {
+        app: "default".into(),
+        default_user: Some("alice".into()),
+    };
+    let account = Account {
+        app: "default".into(),
+        user: "alice".into(),
+    };
+    let blocker = setup.paths.responses_dir.join(account_key(&account));
+    std::fs::create_dir_all(&setup.paths.responses_dir).expect("responses dir");
+    std::fs::write(&blocker, b"not a directory").expect("blocker file");
+
     let xurl = Box::new(bird::xurl_client::ConstructionStub::new(
         "test: no xurl resolved".to_string(),
     ));
-    let cache_opts = bird::db::CacheOpts {
-        no_store: true,
-        refresh: false,
-        cache_only: false,
-    };
     let stderr: Arc<Mutex<dyn Write + Send>> = Arc::new(Mutex::new(PanicOnWrite));
-    bird::db::BirdClient::new(
-        xurl,
-        &PathBuf::from("/tmp/bird-lazy-eval-test-store"),
-        cache_opts,
-        100,
-        None,
-        quiet,
-        stderr,
-    )
+    let mut client = BirdClient::new(xurl, setup, CacheOpts::default(), None, quiet, stderr);
+    let ctx = RequestContext {
+        auth_type: &AuthType::OAuth2User,
+        username: None,
+    };
+    let _ = client.request("POST", "https://api.x.com/2/users/42/likes", &ctx, None);
+    client
 }
 
 #[test]
 fn diag_quiet_gate_does_not_evaluate_writer_when_quiet() {
-    // With quiet = true, every internal `if !self.quiet { writeln!(*w, ...).ok(); }`
-    // site short-circuits before touching the writer. Constructing the client
-    // exercises several BirdClient-internal paths (no_store branch); none of
-    // them should write to stderr under quiet.
-    let client = make_client(true);
-    // Drop the client. Drop paths on BirdClient/BirdDb may emit diagnostics —
-    // verify those are also gated.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let client = send_a_write_that_cannot_clear(&dir, true);
+    assert!(
+        client.store().status().first_failure().is_some(),
+        "the store failure must have happened for this test to mean anything"
+    );
     drop(client);
-    // If we reach this line without panicking, the quiet-gate is intact.
 }
 
 #[test]
 #[should_panic(expected = "quiet-gate regression")]
 fn diag_quiet_gate_does_panic_when_not_quiet_and_a_diag_fires() {
-    // Sanity check: with quiet = false, a path that emits a diag MUST reach
-    // the writer (and therefore panic). This proves the test isn't trivially
-    // a false negative — i.e., quiet = true above succeeded because the
-    // writer wasn't reached, not because the writer was never set up right.
-    //
-    // We force a diag site by attempting a BirdDb open with a bogus path.
-    // The no_store=false branch of BirdClient::new opens a real DB, and if
-    // the path is invalid the diag site at "[store] warning: failed to open"
-    // fires.
-    let xurl = Box::new(bird::xurl_client::ConstructionStub::new(
-        "test: no xurl resolved".to_string(),
-    ));
-    let cache_opts = bird::db::CacheOpts {
-        no_store: false,
-        refresh: false,
-        cache_only: false,
-    };
-    let stderr: Arc<Mutex<dyn Write + Send>> = Arc::new(Mutex::new(PanicOnWrite));
-    // A directory is not a database file on any platform, so BirdDb::open
-    // fails and the warning diag fires.
-    let not_a_database = tempfile::TempDir::new().expect("test: store tempdir");
-    let _ = bird::db::BirdClient::new(
-        xurl,
-        not_a_database.path(),
-        cache_opts,
-        100,
-        None,
-        false, // quiet = false → diag must fire
-        stderr,
-    );
-    // If we reach here without a panic, the diag failed to fire — the test
-    // setup is wrong. The #[should_panic] attribute ensures CI catches that.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let _ = send_a_write_that_cannot_clear(&dir, false);
 }

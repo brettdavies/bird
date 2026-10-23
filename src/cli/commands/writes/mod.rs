@@ -10,9 +10,9 @@ pub mod spec;
 
 use crate::cli::WriteGuard;
 use crate::cli::dispatch::{GuardOutcome, require_confirmation, xurl_write};
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
+use crate::store;
 use spec::WriteSpec;
 use std::io::Write;
 
@@ -25,7 +25,7 @@ use std::io::Write;
 #[allow(clippy::too_many_arguments)]
 pub fn execute(
     spec: WriteSpec,
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -53,7 +53,7 @@ pub fn execute(
     let embedded_call = spec.embedded_call;
     xurl_write(cache_only, verb, move || {
         let auth = crate::cli::auth_scheme::AuthType::OAuth2User;
-        let ctx = db::RequestContext {
+        let ctx = store::RequestContext {
             auth_type: &auth,
             username,
         };
@@ -68,7 +68,7 @@ pub fn execute(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_tweet(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -102,7 +102,7 @@ pub fn run_tweet(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_reply(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -138,7 +138,7 @@ pub fn run_reply(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_like(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -170,7 +170,7 @@ pub fn run_like(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unlike(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -202,7 +202,7 @@ pub fn run_unlike(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_repost(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -234,7 +234,7 @@ pub fn run_repost(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unrepost(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -266,7 +266,7 @@ pub fn run_unrepost(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_follow(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -303,7 +303,7 @@ pub fn run_follow(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unfollow(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -340,7 +340,7 @@ pub fn run_unfollow(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_dm(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -379,7 +379,7 @@ pub fn run_dm(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_block(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -413,7 +413,7 @@ pub fn run_block(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unblock(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -447,7 +447,7 @@ pub fn run_unblock(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_mute(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -481,7 +481,7 @@ pub fn run_mute(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unmute(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -516,8 +516,8 @@ pub fn run_unmute(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::CacheOpts;
     use crate::output::OutputFormat;
+    use crate::store::CacheOpts;
     use crate::xurl_client::mock::MockXurlClient;
     use std::io;
     use std::path::Path;
@@ -532,15 +532,14 @@ mod tests {
         }
     }
 
-    fn test_client() -> db::BirdClient {
-        db::BirdClient::new(
+    fn test_client() -> store::BirdClient {
+        store::BirdClient::new(
             Box::new(MockXurlClient::new()),
-            Path::new("/nonexistent/writes-test"),
+            store::StoreSetup::under(Path::new("/nonexistent/writes-test")),
             CacheOpts {
                 no_store: true,
                 ..CacheOpts::default()
             },
-            0,
             None,
             true,
             Arc::new(Mutex::new(io::sink())),
@@ -737,14 +736,13 @@ mod tests {
         let mock = MockXurlClient::new();
         mock.push_value("send_request", serde_json::json!({"data": {"id": "42"}}));
         mock.push_value("send_request", serde_json::json!({"data": {"liked": true}}));
-        let mut client = db::BirdClient::new(
+        let mut client = store::BirdClient::new(
             Box::new(mock),
-            Path::new("/nonexistent/writes-test"),
+            store::StoreSetup::under(Path::new("/nonexistent/writes-test")),
             CacheOpts {
                 no_store: true,
                 ..CacheOpts::default()
             },
-            0,
             None,
             true,
             Arc::new(Mutex::new(io::sink())),

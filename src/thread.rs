@@ -3,9 +3,9 @@
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
+use crate::store::{BirdClient, RequestContext};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 const MAX_PAGES_CAP: u32 = 25;

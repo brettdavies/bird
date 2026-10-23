@@ -6,13 +6,13 @@
 use crate::cli::auth_scheme::AuthType;
 use crate::cli::dispatch::{ListFlags, clamp_limit};
 use crate::config::ResolvedConfig;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
+use crate::store;
 use crate::watchlist;
 
 pub fn run_fetch(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,

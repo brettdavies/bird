@@ -2,9 +2,9 @@
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::db::{BirdClient, BookmarkRow, RequestContext};
 use crate::fields;
 use crate::output;
+use crate::store::{BirdClient, RequestContext};
 
 /// Options bundle for `bird bookmarks` (keeps the public signature stable as
 /// flags are added).
@@ -33,7 +33,6 @@ pub fn run_bookmarks(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use std::io::Write;
     let mut out = std::io::BufWriter::new(stdout);
-    let quiet = cfg.suppress_diag();
     let pretty = opts.pretty;
     // Bookmarks require OAuth2 user context
     let auth_type = AuthType::OAuth2User;
@@ -65,18 +64,8 @@ pub fn run_bookmarks(
     );
     cost::display_cost(cfg, stderr, &me_estimate);
 
-    // Extract username from /users/me for bookmark relationship storage
-    let me_username = me_json
-        .get("data")
-        .and_then(|d| d.get("username"))
-        .and_then(|u| u.as_str())
-        .unwrap_or("")
-        .to_string();
-
     let mut pagination_token: Option<String> = opts.cursor.map(|s| s.to_string());
     let mut first_item = true;
-    let mut bookmark_rows: Vec<BookmarkRow> = Vec::new();
-    let mut position: i64 = 0;
     // X API caps `max_results` at 100; clamp here so callers can pass any value.
     let max_results = opts.limit.clamp(1, 100);
     // Stop after this many items so `--limit` bounds the response, not just
@@ -149,15 +138,6 @@ pub fn run_bookmarks(
                     write!(out, "{}", serde_json::to_string(item)?)?;
                 }
                 emitted += 1;
-                if let Some(post_id) = item.get("id").and_then(|v| v.as_str()) {
-                    bookmark_rows.push(BookmarkRow {
-                        username: me_username.clone(),
-                        post_id: post_id.to_string(),
-                        position,
-                        refreshed_at: crate::db::unix_now(),
-                    });
-                    position += 1;
-                }
             }
         }
         pagination_token = page
@@ -172,16 +152,6 @@ pub fn run_bookmarks(
         if pagination_token.is_none() {
             break;
         }
-    }
-
-    // Store bookmark relationships in entity store
-    if !me_username.is_empty()
-        && !bookmark_rows.is_empty()
-        && let Some(db) = client.db()
-        && let Err(e) = db.replace_bookmarks(&me_username, &bookmark_rows)
-        && !quiet
-    {
-        writeln!(stderr, "[store] warning: bookmark storage failed: {e}").ok();
     }
 
     // Close the JSON array wrapper, appending a meta block when there is a

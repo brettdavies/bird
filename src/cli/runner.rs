@@ -29,7 +29,7 @@ use crate::error::BirdError;
 use crate::output::envelope::Reason;
 use crate::output::hints::HintContext;
 use crate::output::{OutputConfig, OutputFormat};
-use crate::{db, doctor, output, schema, schema_print, skill_install, watchlist};
+use crate::{doctor, output, schema, schema_print, skill_install, store, watchlist};
 use clap::Parser;
 use std::ffi::OsString;
 use std::io::{BufRead, IsTerminal, Write};
@@ -351,12 +351,27 @@ where
     // elsewhere in the runner when the user has `XURL_APP` set but not
     // `BIRD_APP`. A construction failure is captured as a stub impl returning
     // the original error on every call so non-API commands keep working.
-    let xurl_client: Box<dyn crate::xurl_client::XurlClient + Send> = {
+    let (store_account, xurl_client): (
+        store::StoreAccount,
+        Box<dyn crate::xurl_client::XurlClient + Send>,
+    ) = {
         let (cfg, auth) = crate::xurl_client::open_store(
             &config.xdk_env,
             config.token_store.as_deref(),
             config.app.as_deref(),
         );
+        // Stored responses are kept per account: the app requests go out
+        // under and that app's default user, read before `auth` moves.
+        let explicit_app = config.app.as_deref().unwrap_or_default();
+        let store_account = store::StoreAccount {
+            app: auth
+                .token_store
+                .get_active_app_name(explicit_app)
+                .to_string(),
+            default_user: Some(auth.token_store.get_default_user(explicit_app))
+                .filter(|user| !user.is_empty())
+                .map(str::to_string),
+        };
         // Taken before `auth` moves into the client: a credential failure's
         // recovery step is chosen from the store this run loaded. The
         // snapshot holds presence flags and names, never a secret.
@@ -370,13 +385,15 @@ where
                 .is_some_and(|value| !value.is_empty()),
         ));
         hint_ctx.structured = out.format.is_json();
-        match crate::xurl_client::EmbeddedClient::new(&cfg, auth, cli.timeout) {
-            Ok(client) => Box::new(client),
-            Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
-        }
+        let client: Box<dyn crate::xurl_client::XurlClient + Send> =
+            match crate::xurl_client::EmbeddedClient::new(&cfg, auth, cli.timeout) {
+                Ok(client) => Box::new(client),
+                Err(e) => Box::new(crate::xurl_client::ConstructionStub::new(e.to_string())),
+            };
+        (store_account, client)
     };
 
-    let cache_opts = db::CacheOpts {
+    let cache_opts = store::CacheOpts {
         no_store: cli.no_cache || !config.cache_enabled,
         refresh: cli.refresh,
         cache_only: cli.cache_only,
@@ -389,11 +406,14 @@ where
     // requires the Plan 2 U11 signature change.
     let client_stderr: std::sync::Arc<std::sync::Mutex<dyn std::io::Write + Send>> =
         std::sync::Arc::new(std::sync::Mutex::new(std::io::stderr()));
-    let mut client = db::BirdClient::new(
+    let mut client = store::BirdClient::new(
         xurl_client,
-        &config.cache_path,
+        store::StoreSetup {
+            paths: config.store.clone(),
+            legacy_db: config.cache_path.clone(),
+            account: store_account,
+        },
         cache_opts,
-        config.cache_max_size_mb,
         config.username.clone(),
         out.suppress_diag(),
         client_stderr,

@@ -2,13 +2,13 @@
 
 use crate::cli::dispatch::{GuardOutcome, require_confirmation};
 use crate::cli::{CacheAction, OutputFlags};
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
+use crate::store;
 use std::io::Write;
 
 pub fn run(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
