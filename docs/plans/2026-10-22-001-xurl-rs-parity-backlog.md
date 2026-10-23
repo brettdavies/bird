@@ -69,6 +69,9 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #174, #176 | `.anc.toml` domain verbs match bird's current commands; plan 005 U5: both rulesets require the shared checks, `dev` also the surface-growth check (live rulesets match the committed JSON) |
 | #175 | `bird skill update --all` refreshes only hosts with a copy and reports the rest as skipped, in one envelope, as `xr` does |
 | none (plan) | Plan 005 U20: `docs/plans/2026-10-22-006-feat-file-store-plan.md`, the file store design U21 builds |
+| #177, #185 | Plan 005 U3: the PR template with the `Breaking changes`, `Deprecated`, and `Removed` headings; `postflight.sh` finds the tap's `Publish formula` run (every vendored copy matches agent-skills `main`) |
+| #179 | Plan 005 U6: `build-examples` runs on pull requests only; `RELEASES.md` Versioning names the surface-growth check |
+| #182 | `src/skill_install/` split into `git.rs`, `render.rs`, and `update.rs`, as `xr` lays it out; no behavior change |
 
 ## Stack 1: repo environment
 
