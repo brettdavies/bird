@@ -46,9 +46,7 @@ external-default-features = "allow"
 allow-workspace = false
 skip = [
     { crate = "base64@0.22", reason = "hyper-util and serde-saphyr lag the 0.23 that reqwest and xdk-rs use" },
-    { crate = "getrandom@0.3", reason = "tempfile lags the 0.4 that cc's jobserver uses at build time" },
     { crate = "syn@2", reason = "displaydoc and the other proc-macro crates on the icu path lag syn 3" },
-    { crate = "windows-sys@0.52", reason = "rustls-platform-verifier and winapi-util lag 0.61" },
 ]
 
 [sources]
