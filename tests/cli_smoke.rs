@@ -1214,6 +1214,43 @@ fn stats_report_the_three_locations() {
     }
 }
 
+/// An unhealthy store names each location bird cannot write, the directory
+/// the check found not writable, and the fix for it.
+#[cfg(unix)]
+#[test]
+fn unhealthy_stats_name_each_failing_location_and_its_fix() {
+    use std::os::unix::fs::PermissionsExt;
+    let env = common::TestEnv::new();
+    let bird_data = env.paths.data_dir.join("bird");
+    std::fs::create_dir_all(&bird_data).expect("mkdir");
+    std::fs::set_permissions(&bird_data, std::fs::Permissions::from_mode(0o500)).expect("chmod");
+    let run = |args: &[&str]| common::run_in_process(args, &env);
+    let (exit, stats, stderr) = run(&["bird", "--output", "text", "cache", "stats"]);
+    let (_, doctor, _) = run(&["bird", "--output", "text", "doctor"]);
+    std::fs::set_permissions(&bird_data, std::fs::Permissions::from_mode(0o700)).expect("chmod");
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+
+    let parent = bird_data.display().to_string();
+    let archive = bird_data.join("archive").display().to_string();
+    let ledger = format!("ledger {parent}");
+    for (name, text) in [("cache stats", &stats), ("doctor", &doctor)] {
+        assert!(text.contains("unhealthy"), "{name}: {text}");
+        let line = |needle: &str| {
+            text.lines()
+                .find(|l| l.contains(needle))
+                .unwrap_or_else(|| panic!("{name}: no line with {needle:?}: {text}"))
+        };
+        let archive_line = line(&format!("archive {archive}"));
+        assert!(archive_line.contains(&parent), "{archive_line}");
+        assert!(archive_line.contains("BIRD_ARCHIVE_DIR"), "{archive_line}");
+        assert!(line(&ledger).contains("permission"), "{text}");
+        assert!(
+            !text.contains("responses /"),
+            "{name}: responses is writable: {text}"
+        );
+    }
+}
+
 fn object_keys(value: &serde_json::Value) -> Vec<String> {
     let mut keys: Vec<String> = value.as_object().expect("object").keys().cloned().collect();
     keys.sort();

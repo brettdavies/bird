@@ -100,6 +100,44 @@ fn a_read_only_archive_is_unhealthy() {
     assert!(!report.archive.writable);
     assert!(report.responses.writable);
     assert!(!report.healthy);
+    assert_eq!(
+        report.unwritable,
+        [Unwritable {
+            location: "archive",
+            path: paths.archive_dir.clone(),
+            checked: paths.archive_dir.clone(),
+        }]
+    );
+    let line = report.unwritable[0].line();
+    assert!(line.ends_with("is not writable; set BIRD_ARCHIVE_DIR, or archive_dir in config.toml, to a directory bird can write."), "{line}");
+}
+
+/// A location that does not exist yet fails at its nearest existing parent,
+/// and the report names that parent.
+#[cfg(unix)]
+#[test]
+fn a_missing_location_under_a_read_only_parent_names_the_parent() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let paths = StorePaths::under(dir.path());
+    let cache = paths.responses_dir.parent().expect("parent").to_path_buf();
+    std::fs::create_dir_all(&cache).expect("mkdir");
+    std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o500)).expect("chmod");
+    let report = StoreReport::gather(&paths, now());
+    std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700)).expect("chmod back");
+    let failure = report
+        .unwritable
+        .iter()
+        .find(|u| u.location == "responses")
+        .expect("responses fails");
+    assert_eq!(failure.checked, cache);
+    assert!(
+        failure.line().contains(
+            "its nearest existing parent, is not writable; give this user write permission on"
+        ),
+        "{}",
+        failure.line()
+    );
 }
 
 #[test]
