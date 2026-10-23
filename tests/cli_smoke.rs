@@ -1062,6 +1062,45 @@ fn no_skill_variable_and_no_home_is_home_not_set_for_every_host() {
     }
 }
 
+// --- File store ---------------------------------------------------------------
+
+/// A `--dry-run` write sends nothing, so it leaves the account's stored
+/// responses in place.
+#[test]
+fn a_dry_run_clears_nothing() {
+    let env = common::TestEnv::new();
+    let responses = env.paths.cache_dir.join("bird").join("responses");
+    let mut stored = Vec::new();
+    for app in ["", "default"] {
+        let account = bird::store::responses::Account {
+            app: app.into(),
+            user: "alice".into(),
+        };
+        let dir = responses.join(bird::store::responses::account_key(&account));
+        std::fs::create_dir_all(&dir).expect("account dir");
+        let file = dir.join(format!("{}.json", "0".repeat(64)));
+        std::fs::write(&file, b"{}").expect("response file");
+        stored.push(file);
+    }
+    let (exit, stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "-u",
+            "alice",
+            "--output",
+            "json",
+            "like",
+            "1849",
+            "--dry-run",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 0, "stdout {stdout:?} stderr {stderr:?}");
+    for file in stored {
+        assert!(file.exists(), "{} was removed", file.display());
+    }
+}
+
 // --- Store locations --------------------------------------------------------
 
 /// A relative `archive_dir` would scatter notes across working directories,

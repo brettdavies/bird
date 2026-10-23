@@ -3,9 +3,10 @@
 
 use super::{AppDailyUsage, ProjectCap, SyncData};
 use crate::cli::auth_scheme::AuthType;
-use crate::db::{ActualUsageDay, BirdClient, RequestContext};
 use crate::output;
 use crate::store::ledger::{self, ActualRecord, Ledger, Record};
+use crate::store::spend_view::ActualUsageDay;
+use crate::store::{BirdClient, RequestContext};
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
 fn parse_usage_count(v: &serde_json::Value) -> u64 {
@@ -154,8 +155,7 @@ pub(super) fn sync_actual_usage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::BirdClient;
-    use crate::db::store::in_memory_db;
+    use crate::store::BirdClient;
     use crate::xurl_client::mock::MockXurlClient;
 
     /// Build a BirdClient backed by MockXurlClient queueing `send_request`
@@ -165,7 +165,7 @@ mod tests {
         for value in responses {
             mock.push_value("send_request", value);
         }
-        BirdClient::new_test(Box::new(mock), in_memory_db())
+        BirdClient::new_test(Box::new(mock))
     }
 
     fn do_sync(

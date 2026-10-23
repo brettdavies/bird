@@ -2,10 +2,10 @@
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::db::{BirdClient, RequestContext};
 use crate::fields;
 use crate::output;
 use crate::schema;
+use crate::store::{BirdClient, RequestContext};
 
 /// Profile options bundled to avoid clippy::too_many_arguments.
 pub struct ProfileOpts<'a> {

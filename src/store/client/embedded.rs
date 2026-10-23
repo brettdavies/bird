@@ -253,8 +253,9 @@ impl BirdClient {
             no_auth: matches!(ctx.auth_type, AuthType::None),
             ..RequestOptions::default()
         };
-        self.with_xurl(|x| x.send_request(&opts))
-            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })
+        let sent = self.with_xurl(|x| x.send_request(&opts));
+        self.after_send(method, ctx);
+        sent.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })
     }
 
     /// `bird raw` embedded seam: dispatch a request through the typed xurl
@@ -300,9 +301,9 @@ impl BirdClient {
             ..RequestOptions::default()
         };
 
-        let json = self
-            .with_xurl(|x| x.send_request(&opts))
-            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
+        let sent = self.with_xurl(|x| x.send_request(&opts));
+        self.after_send(method, ctx);
+        let json = sent.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
 
         let request = cost::Request {
             method,
@@ -324,7 +325,7 @@ impl BirdClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::client::CacheOpts;
+    use crate::store::client::CacheOpts;
     use crate::xurl_client::mock::MockXurlClient;
     use std::io;
     use std::path::Path;
@@ -337,12 +338,11 @@ mod tests {
         let handle = mock.clone_handle();
         let client = BirdClient::new(
             Box::new(mock),
-            Path::new("/nonexistent/u6-embedded-test"),
+            crate::store::client::StoreSetup::under(Path::new("/nonexistent/u6-embedded-test")),
             CacheOpts {
                 no_store: true,
                 ..CacheOpts::default()
             },
-            0,
             None,
             true,
             Arc::new(Mutex::new(io::sink())),
@@ -697,15 +697,12 @@ mod tests {
     }
 
     fn client_with_store(mock: MockXurlClient) -> BirdClient {
-        BirdClient::new_test(Box::new(mock), crate::db::store::in_memory_db())
+        BirdClient::new_test(Box::new(mock))
     }
 
     fn ledger_total(client: &BirdClient) -> (i64, f64) {
-        let summary = client
-            .db()
-            .expect("store")
-            .query_usage_summary(0)
-            .expect("summary");
+        let records = client.store().ledger().read().expect("ledger").records;
+        let summary = crate::store::spend_view::summary(&records, 0);
         (summary.total_calls, summary.total_cost)
     }
 

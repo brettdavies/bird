@@ -1,6 +1,6 @@
 //! `AuthType` enum — bird's representation of "which scheme the caller
 //! picked for this call". The xurl wire string (`"app"` / `"oauth1"` /
-//! `"oauth2"`) is rendered by `db::client::embedded::auth_type_to_xurl_wire`.
+//! `"oauth2"`) is rendered by `store::client::embedded::auth_type_to_xurl_wire`.
 
 /// Auth schemes bird picks at request time. The enum has stayed identical
 /// since bird's pre-xurl era; renaming or restructuring would churn every

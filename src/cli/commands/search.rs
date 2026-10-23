@@ -2,14 +2,14 @@
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cli::dispatch::ListFlags;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use crate::search;
+use crate::store;
 
 #[allow(clippy::too_many_arguments)]
 pub fn run(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,

@@ -1,7 +1,7 @@
 //! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
 
 use crate::config::ResolvedConfig;
-use crate::db::BirdClient;
+use crate::store::BirdClient;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -697,20 +697,19 @@ pub fn run_doctor(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{BirdClient, CacheOpts};
+    use crate::store::{BirdClient, CacheOpts};
     use crate::xurl_client::mock::MockXurlClient;
     use std::path::Path;
 
     fn no_cache_client() -> BirdClient {
         BirdClient::new(
             Box::new(MockXurlClient::new()),
-            Path::new("/dev/null"),
+            crate::store::StoreSetup::under(Path::new("/dev/null")),
             CacheOpts {
                 no_store: true,
                 refresh: false,
                 cache_only: false,
             },
-            100,
             None,
             false,
             std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),
@@ -759,13 +758,12 @@ mod tests {
             Box::new(crate::xurl_client::ConstructionStub::new(
                 "cannot start the async runtime".into(),
             )),
-            Path::new("/dev/null"),
+            crate::store::StoreSetup::under(Path::new("/dev/null")),
             CacheOpts {
                 no_store: true,
                 refresh: false,
                 cache_only: false,
             },
-            100,
             None,
             false,
             std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),

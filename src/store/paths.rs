@@ -94,8 +94,7 @@ impl StorePaths {
     }
 
     /// Every location under `root`, for tests that build a config by hand.
-    #[cfg(test)]
-    pub(crate) fn under(root: &Path) -> Self {
+    pub fn under(root: &Path) -> Self {
         Self {
             archive_dir: root.join("archive"),
             archive_source: ArchiveSource::Default,

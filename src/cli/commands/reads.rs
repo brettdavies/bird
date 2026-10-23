@@ -1,14 +1,14 @@
 //! `bird me` — the authenticated user, read through `raw::run_raw`.
 
 use crate::cli::auth_scheme::AuthType;
-use crate::db;
 use crate::error::BirdError;
 use crate::output::OutputConfig;
 use crate::raw;
+use crate::store;
 use std::collections::HashMap;
 
 pub fn run_me(
-    client: &mut db::BirdClient,
+    client: &mut store::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,

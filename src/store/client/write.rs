@@ -1,11 +1,10 @@
-//! Write path: POST/PUT/DELETE pass-through. Stays thin until write-side
-//! cache invalidation (deleted-tweet, blocked-user propagation) lands as a
-//! future tenant.
+//! Write path: POST/PUT/DELETE sent through the embedded client. Sending one
+//! removes the account's stored responses (see `BirdClient::after_send`).
 
 use super::{ApiResponse, BirdClient, RequestContext};
 
 impl BirdClient {
-    /// POST/PUT/DELETE — pass-through via xurl, no entity store interaction.
+    /// POST/PUT/DELETE through the embedded client, priced into the ledger.
     pub fn request(
         &mut self,
         method: &str,
