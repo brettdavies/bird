@@ -77,7 +77,13 @@
             "context": "ci / Windows check"
           },
           {
+            "context": "ci / Windows test"
+          },
+          {
             "context": "ci / Workflow concurrency"
+          },
+          {
+            "context": "ci / macOS test"
           },
           {
             "context": "scope / Change scope"
