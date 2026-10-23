@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use super::markdown::escape_text;
-use super::note::{Kind, Note};
+use super::note::{Kind, Note, RegionSource};
 use super::yaml::Field;
 
 /// The relation note recording that `account_id` bookmarked or liked
@@ -35,6 +35,6 @@ pub fn relation_note(kind: Kind, account_id: &str, account: Option<&str>, post_i
             .join(account_id)
             .join(format!("{post_id}.md")),
         keys,
-        region,
+        source: RegionSource::Fixed(region),
     }
 }

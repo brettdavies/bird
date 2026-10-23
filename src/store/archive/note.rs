@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 
+use super::frontmatter::Stored;
+use super::known::Known;
 use super::yaml::{Field, entry};
+use super::{post, user};
 
 /// The line that opens bird's region in a note body.
 pub const REGION_BEGIN: &str = "<!-- bird:begin -->";
@@ -103,6 +106,23 @@ impl Kind {
     }
 }
 
+/// What a note's region shows besides bird's keys.
+#[derive(Clone, Debug, PartialEq)]
+pub enum RegionSource {
+    /// A post's text, and the `(type, url)` of each media item the response
+    /// included.
+    Post {
+        /// The text as X sent it.
+        text: String,
+        /// The attached media the response's `includes` named.
+        media: Vec<(String, String)>,
+    },
+    /// A user's region, which reads bird's keys alone.
+    User,
+    /// A relation's region, written once and never rewritten.
+    Fixed(String),
+}
+
 /// One note an observation yields.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Note {
@@ -113,14 +133,25 @@ pub struct Note {
     /// bird's keys the observation carries, without the timestamps and
     /// `bird_format`, which [`Note::render`] adds.
     pub keys: Vec<(&'static str, Field)>,
-    /// The text between the region markers, without them.
-    pub region: String,
+    /// What the region shows besides those keys.
+    pub source: RegionSource,
 }
 
 impl Note {
     /// The value the observation carries for `key`.
     pub fn get(&self, key: &str) -> Option<&Field> {
         self.keys.iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+    }
+
+    /// The text between the region markers, without them. Each of bird's
+    /// keys the observation lacks is read from `stored`.
+    pub fn region(&self, stored: Option<&Stored<'_>>) -> String {
+        let known = Known::new(&self.keys, stored);
+        match &self.source {
+            RegionSource::Post { text, media } => post::region(&known, text, media),
+            RegionSource::User => user::region(&known),
+            RegionSource::Fixed(region) => region.clone(),
+        }
     }
 
     /// bird's frontmatter entries in key order, with the given timestamps.
@@ -145,7 +176,7 @@ impl Note {
         format!(
             "---\n{}---\n{}",
             self.frontmatter(now, now),
-            region_block(&self.region)
+            region_block(&self.region(None))
         )
     }
 }

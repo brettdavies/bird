@@ -4,8 +4,9 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
+use super::known::Known;
 use super::markdown::{escape_text, link};
-use super::note::{Kind, Note, int_key, str_key, str_of, valid_id};
+use super::note::{Kind, Note, RegionSource, int_key, str_key, str_of, valid_id};
 use super::yaml::Field;
 
 /// The user's website: the expanded profile URL, else the short one.
@@ -28,7 +29,6 @@ pub fn user_note(user: &Value) -> Result<Note, String> {
     }
     let url = format!("https://x.com/i/user/{id}");
     let username = str_of(user, "username");
-    let site = website(user);
 
     let mut keys = vec![
         ("type", Field::Str("x-user".into())),
@@ -36,10 +36,10 @@ pub fn user_note(user: &Value) -> Result<Note, String> {
     ];
     str_key(&mut keys, "username", user, "username");
     str_key(&mut keys, "name", user, "name");
-    keys.push(("url", Field::Str(url.clone())));
+    keys.push(("url", Field::Str(url)));
     str_key(&mut keys, "description", user, "description");
     str_key(&mut keys, "location", user, "location");
-    if let Some(site) = site {
+    if let Some(site) = website(user) {
         keys.push(("website", Field::Str(site.into())));
     }
     str_key(&mut keys, "created_at", user, "created_at");
@@ -71,30 +71,36 @@ pub fn user_note(user: &Value) -> Result<Note, String> {
         keys.push(("aliases", Field::List(vec![format!("@{name}")])));
     }
 
-    let heading = match (str_of(user, "name"), username) {
-        (Some(name), Some(handle)) => format!("{} (@{handle})", name),
-        (Some(name), None) => name.to_string(),
-        (None, Some(handle)) => format!("@{handle}"),
-        (None, None) => format!("user {id}"),
-    };
-    let mut lines = vec![format!("# {}", escape_text(&heading))];
-    if let Some(bio) = str_of(user, "description").filter(|b| !b.is_empty()) {
-        lines.push(String::new());
-        lines.push(escape_text(bio));
-    }
-    let mut meta = vec![format!("[x.com]({url})")];
-    if let Some(site) = site {
-        meta.push(link("website", site));
-    }
-    if let Some(place) = str_of(user, "location").filter(|l| !l.is_empty()) {
-        meta.push(escape_text(place));
-    }
-    lines.push(String::new());
-    lines.push(meta.join(" · "));
     Ok(Note {
         kind: Kind::User,
         path: PathBuf::from("users").join(format!("{id}.md")),
         keys,
-        region: lines.join("\n"),
+        source: RegionSource::User,
     })
+}
+
+/// A user's region: a heading with the name and `@username`, the bio, and a
+/// line with the X URL, website, and location.
+pub fn region(known: &Known<'_>) -> String {
+    let heading = match (known.str("name"), known.str("username")) {
+        (Some(name), Some(handle)) => format!("{name} (@{handle})"),
+        (Some(name), None) => name.to_string(),
+        (None, Some(handle)) => format!("@{handle}"),
+        (None, None) => format!("user {}", known.str("id").unwrap_or_default()),
+    };
+    let mut lines = vec![format!("# {}", escape_text(&heading))];
+    if let Some(bio) = known.str("description").filter(|b| !b.is_empty()) {
+        lines.push(String::new());
+        lines.push(escape_text(bio));
+    }
+    let mut meta = vec![format!("[x.com]({})", known.str("url").unwrap_or_default())];
+    if let Some(site) = known.str("website").filter(|s| !s.is_empty()) {
+        meta.push(link("website", site));
+    }
+    if let Some(place) = known.str("location").filter(|l| !l.is_empty()) {
+        meta.push(escape_text(place));
+    }
+    lines.push(String::new());
+    lines.push(meta.join(" · "));
+    lines.join("\n")
 }

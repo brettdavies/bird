@@ -145,7 +145,8 @@ fn merge(note: &Note, stored: &Stored<'_>, stamp: &str) -> Option<String> {
             .map(|e| e.raw.to_string())
     };
     let (before, region, after) = region_parts(stored.body);
-    let mut changed = region != Some(note.region.as_str());
+    let rendered = note.region(Some(stored));
+    let mut changed = region != Some(rendered.as_str());
     let mut bird = Vec::new();
     for &key in note.kind.keys() {
         let value = match key {
@@ -184,6 +185,6 @@ fn merge(note: &Note, stored: &Stored<'_>, stamp: &str) -> Option<String> {
     }
     Some(format!(
         "---\n{fm}---\n{before}{}{after}",
-        region_block(&note.region)
+        region_block(&rendered)
     ))
 }
