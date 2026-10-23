@@ -153,7 +153,7 @@ fn merge(note: &Note, stored: &Stored<'_>, stamp: &str) -> Option<String> {
             "archived_at" | "updated_at" => None,
             "bird_format" => Some(Field::Int(super::note::BIRD_FORMAT)),
             "aliases" => merged_aliases(note, &stored.parsed),
-            _ => note.get(key).cloned(),
+            _ => note.value(key, Some(stored)),
         };
         if let Some(v) = &value
             && stored.parsed.get(key) != Some(&v.to_json())

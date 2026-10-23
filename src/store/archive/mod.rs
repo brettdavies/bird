@@ -7,6 +7,7 @@
 pub mod frontmatter;
 pub mod known;
 pub mod markdown;
+pub mod media;
 pub mod merge;
 pub mod note;
 pub mod post;
