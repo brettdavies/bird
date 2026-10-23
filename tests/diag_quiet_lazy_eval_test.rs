@@ -92,10 +92,12 @@ fn diag_quiet_gate_does_panic_when_not_quiet_and_a_diag_fires() {
         cache_only: false,
     };
     let stderr: Arc<Mutex<dyn Write + Send>> = Arc::new(Mutex::new(PanicOnWrite));
+    // A directory is not a database file on any platform, so BirdDb::open
+    // fails and the warning diag fires.
+    let not_a_database = tempfile::TempDir::new().expect("test: store tempdir");
     let _ = bird::db::BirdClient::new(
         xurl,
-        // Force the BirdDb::open failure path so the warning diag fires.
-        &PathBuf::from("/dev/null/cannot-exist-here/store"),
+        not_a_database.path(),
         cache_opts,
         100,
         None,
