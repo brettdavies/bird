@@ -60,7 +60,7 @@ client.
 To authenticate: `bird login` calls `xdk::api::Client::oauth2_flow` with its own browser opener (interactive) or
 `remote_oauth2_step1`/`step2` (headless via `--no-browser`).
 
-For environment-based auth (agents, CI), set `CLIENT_ID` and `CLIENT_SECRET`. xurl-rs's CLI (`xr auth app`) is an
+For environment-based auth (agents, CI), set `CLIENT_ID` and `CLIENT_SECRET`. xurl-rs's CLI (`xr auth apps add`) is an
 optional convenience for persisting an app to the shared token store; the embedded client reads the same store.
 
 ## Config file

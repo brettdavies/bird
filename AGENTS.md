@@ -98,8 +98,8 @@ bird without arguments.
 
 Additional env vars without flag pairs:
 
-- `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to a stored app via the xurl-rs CLI
-  (`xr auth app`).
+- `CLIENT_ID` / `CLIENT_SECRET` — X API app credentials. Alternative to an app stored with the xurl-rs CLI
+  (`<secret-command> | xr auth apps add <name> --client-id <client-id> --client-secret-file -`).
 - `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2 pending
   state sits beside it.
 - `BIRD_ARCHIVE_DIR` — where the Markdown archive lives, ahead of `archive_dir` in `config.toml`; absolute or `~/`-led.
@@ -171,8 +171,10 @@ bird does **not** implement HTTP or OAuth itself. It embeds [`xdk-rs`](https://g
 (`use xdk::`), the X API library published from the xurl-rs repository; every API call goes through one
 `xdk::api::Client` constructed per CLI invocation. xdk-rs is async on tokio and bird is synchronous, so `EmbeddedClient`
 owns a current-thread runtime and blocks on each call. App credentials come from `CLIENT_ID` / `CLIENT_SECRET` env vars
-or a stored app written by the optional `xr auth app` command (xurl-rs's `xr` CLI shares the `~/.xurl` token store with
-the embedded client).
+or an app stored by the optional `xr auth apps add` command (xurl-rs's `xr` CLI shares the `~/.xurl` token store with
+the embedded client). With neither, `bird login` refuses with `client-credentials-missing` and `bird doctor` reports the
+same reason for login and every command that needs auth; both name the two ways to supply credentials
+(`hints::client_credentials_missing` holds the text).
 
 `bird login` calls `xdk::api::Client::oauth2_flow` with its own browser opener; bird never owns tokens.
 `bird login --no-browser` (alias `--headless`) drives `remote_oauth2_step1` / `remote_oauth2_step2` so agents and

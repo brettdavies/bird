@@ -13,8 +13,8 @@ checklist covers what CI structurally can't:
 - Behavioral drift against the live X (Twitter) API. CI runs unit and integration tests against mocked HTTP and stubbed
   transports, not the real endpoints, so API-contract regressions land silently until a user hits them.
 - Embedded-transport reachability against a real X API on a fresh machine: env-var credentials, token-store credentials
-  via `xr auth app`, and the missing-credentials fall-through. None of these are exercised end-to-end by the in-repo
-  tests; bird mocks the bird/xurl boundary, and xurl-rs's own tests cover the HTTP layer.
+  via `xr auth apps add`, and the missing-credentials fall-through. None of these are exercised end-to-end by the
+  in-repo tests; bird mocks the bird/xurl boundary, and xurl-rs's own tests cover the HTTP layer.
 - Distribution paths that only exercise on real artifacts (cross-compile binaries, `cargo install` from a clean machine,
   `cargo-binstall` against a published GitHub Release, `brew install` once the Homebrew dispatch finishes).
 - Local state correctness on a fresh machine: bird does NOT store auth tokens itself (xurl owns the token store), but it
@@ -184,8 +184,8 @@ real shell.
 
 - [ ] App credentials via env: with `CLIENT_ID` + `CLIENT_SECRET` set in the shell, `bird login` runs through the
   embedded OAuth2 flow.
-- [ ] App credentials via token store: with no `CLIENT_ID` in env but an app persisted via `xr auth app`, bird reads the
-  same store and `bird login` succeeds.
+- [ ] App credentials via token store: with no `CLIENT_ID` in env but an app persisted via `xr auth apps add`, bird
+  reads the same store and `bird login` succeeds.
 - [ ] Missing credentials: with no `CLIENT_ID` and no stored app, an API-hitting command exits with the
   `ConstructionStub` "CLIENT_ID not set" message surfaced on stderr.
 - [ ] SIGPIPE: `bird bookmarks --output jsonl | head -1` exits cleanly (no broken-pipe panic). The Unix-only

@@ -168,7 +168,7 @@ fn sign_in_client(config: &ResolvedConfig) -> Result<EmbeddedClient, BirdError> 
 
 /// The `client-credentials-missing` refusal `xr auth oauth2` gives when the
 /// app sign-in would use has no client id: it names another app that has one
-/// when the store holds one, and otherwise how to register one.
+/// when the store holds one, and otherwise both ways to supply one.
 fn client_credentials_missing(auth: &Auth, app_explicit: bool) -> Option<BirdError> {
     if !auth.client_id().is_empty() {
         return None;
@@ -181,15 +181,12 @@ fn client_credentials_missing(auth: &Auth, app_explicit: bool) -> Option<BirdErr
                 .get_app(name)
                 .is_some_and(|app| !app.client_id.is_empty())
     });
-    let message = match alternative {
-        Some(other) => format!(
-            "app {target:?} has no client credentials; app {other:?} does. Run: bird login --app {other}"
-        ),
-        None if app_explicit => format!(
-            "app {target:?} has no client credentials. Register them with `xr auth app`, or set CLIENT_ID and CLIENT_SECRET."
-        ),
-        None => "no app carries client credentials. Register one with `xr auth app`, or set CLIENT_ID and CLIENT_SECRET.".to_string(),
-    };
+    let (message, _) = crate::output::hints::client_credentials_missing(
+        &target,
+        app_explicit,
+        alternative.as_deref(),
+        false,
+    );
     Some(BirdError::usage(
         crate::output::envelope::Reason::ClientCredentialsMissing,
         message,
