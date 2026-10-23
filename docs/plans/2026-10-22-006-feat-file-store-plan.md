@@ -521,6 +521,7 @@ the keys spread that JSON into named fields bird's `POST_FIELDS` and `EXPANSIONS
 | `hashtags`, `mentions`                                                                           | list of strings | `entities.hashtags[].tag`, `entities.mentions[].username`                                   |
 | `links`                                                                                          | list of strings | `entities.urls[].expanded_url`, else `url`                                                  |
 | `media`                                                                                          | list of strings | `includes.media` entries named in `attachments.media_keys`: `url`, else `preview_image_url` |
+| `media_keys`                                                                                     | list of strings | `attachments.media_keys`, in order; pairs each `media` entry with its key                   |
 | `archived_at`, `updated_at`                                                                      | string          | first write; last content change                                                            |
 | `bird_format`                                                                                    | integer, 1      | constant                                                                                    |
 
