@@ -1061,3 +1061,42 @@ fn no_skill_variable_and_no_home_is_home_not_set_for_every_host() {
         assert_eq!(installation["next_step"]["action"], "fix-input");
     }
 }
+
+// --- Store locations --------------------------------------------------------
+
+/// A relative `archive_dir` would scatter notes across working directories,
+/// so it is refused naming both settings that move the archive.
+#[test]
+fn relative_archive_dir_is_a_config_error() {
+    let mut env = common::TestEnv::new();
+    env.env.archive_dir = Some("notes/x".into());
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    assert_eq!(exit, 78, "stderr {stderr:?}");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "config-error");
+    assert_eq!(json["command"], "notes/x");
+    assert_eq!(json["next_step"]["action"], "fix-input");
+    let message = json["message"].as_str().expect("message");
+    assert!(message.contains("archive_dir"), "{message}");
+    assert!(message.contains("BIRD_ARCHIVE_DIR"), "{message}");
+}
+
+/// A `config.toml` that does not parse is refused rather than replaced by the
+/// default config, which would send notes to the default folder silently.
+#[test]
+fn malformed_config_toml_is_a_config_error() {
+    let env = common::TestEnv::new();
+    std::fs::write(
+        env.paths.config_dir.join("config.toml"),
+        "archive_dir = \"/v\n",
+    )
+    .expect("write config");
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    assert_eq!(exit, 78, "stderr {stderr:?}");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "config-error");
+    let message = json["message"].as_str().expect("message");
+    assert!(message.contains("config.toml"), "{message}");
+}

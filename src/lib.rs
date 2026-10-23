@@ -31,6 +31,7 @@ pub mod search;
 pub mod shutdown;
 pub mod skill_install;
 pub mod spend;
+pub mod store;
 pub mod thread;
 pub mod watchlist;
 pub mod xurl_client;

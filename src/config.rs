@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::skill_install::{BASE_DIR_VARS, CONFIG_DIR_VARS, SkillEnv};
+use crate::store::StorePaths;
+use crate::store::paths::ARCHIVE_DIR_VAR;
 
 /// Resolved config after applying priority: args > config file > env > default.
 /// Auth is delegated to xdk-rs; no token fields here.
@@ -15,6 +17,8 @@ pub struct ResolvedConfig {
     pub cache_path: PathBuf,
     pub cache_enabled: bool,
     pub cache_max_size_mb: u64,
+    /// The file store's locations: archive, response files, and ledger.
+    pub store: StorePaths,
     /// The xdk-rs token store, from [`ResolvedPaths::token_store`].
     pub token_store: Option<PathBuf>,
     /// The environment xdk-rs reads, from [`EnvOverrides::xdk`].
@@ -31,6 +35,8 @@ pub struct ResolvedConfig {
 pub struct FileConfig {
     pub username: Option<String>,
     pub watchlist: Option<Vec<String>>,
+    /// Where the Markdown archive lives; `BIRD_ARCHIVE_DIR` wins over it.
+    pub archive_dir: Option<String>,
 }
 
 /// Overrides from CLI args (highest priority).
@@ -41,12 +47,22 @@ pub struct ArgOverrides {
     pub env_username: Option<String>,
 }
 
-/// Injectable path resolution. Captures what `dirs::config_dir()` returns so
+/// Injectable path resolution. Captures what `dirs::config_dir()`,
+/// `dirs::data_dir()`, `dirs::cache_dir()`, and `dirs::home_dir()` return so
 /// tests can supply a temp directory instead of mutating `HOME` /
 /// `XDG_CONFIG_HOME` at the process level.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedPaths {
+    /// bird's config directory, `bird` included.
     pub config_dir: PathBuf,
+    /// The platform data directory; the archive and ledger sit under its
+    /// `bird` folder.
+    pub data_dir: PathBuf,
+    /// The platform cache directory; response files sit under its `bird`
+    /// folder.
+    pub cache_dir: PathBuf,
+    /// The home directory a leading `~` in `archive_dir` expands against.
+    pub home_dir: Option<PathBuf>,
     /// The xdk-rs token store `xr` shares, when one is named: `XURL_TOKEN_STORE`,
     /// or a test's temporary store. `None` opens xdk's default store, where
     /// `xr` keeps it. The OAuth2 pending state sits beside the store.
@@ -57,11 +73,16 @@ impl ResolvedPaths {
     /// Resolve real paths from the host environment (production path).
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let config_dir = dirs::config_dir().ok_or("no config dir")?.join("bird");
+        let data_dir = dirs::data_dir().ok_or("no data dir")?;
+        let cache_dir = dirs::cache_dir().ok_or("no cache dir")?;
         let token_store = std::env::var_os("XURL_TOKEN_STORE")
             .filter(|path| !path.is_empty())
             .map(PathBuf::from);
         Ok(Self {
             config_dir,
+            data_dir,
+            cache_dir,
+            home_dir: dirs::home_dir(),
             token_store,
         })
     }
@@ -90,6 +111,8 @@ pub struct EnvOverrides {
     /// nothing below the runner reads the process environment. The default is
     /// an empty environment.
     pub xdk: xdk::config::EnvOverrides,
+    /// `BIRD_ARCHIVE_DIR` raw string; empty counts as unset.
+    pub archive_dir: Option<String>,
     /// `BIRD_SKILL_HOME`, which stands in for `HOME` in skill destinations.
     pub skill_home: Option<String>,
     /// Each skill host's config- or base-directory variable that is set, by
@@ -118,6 +141,7 @@ impl EnvOverrides {
                 home: std::env::var("HOME").ok(),
                 ..xdk::config::EnvOverrides::from_env()
             },
+            archive_dir: std::env::var(ARCHIVE_DIR_VAR).ok(),
             skill_home: std::env::var("BIRD_SKILL_HOME").ok(),
             skill_dirs: CONFIG_DIR_VARS
                 .iter()
@@ -168,10 +192,17 @@ impl ResolvedConfig {
 
         let file_config: FileConfig = if config_path.exists() {
             let s = std::fs::read_to_string(&config_path)?;
-            toml::from_str(&s).unwrap_or_default()
+            toml::from_str(&s).map_err(|e| {
+                format!(
+                    "config.toml at {} does not parse: {}",
+                    config_path.display(),
+                    e.message()
+                )
+            })?
         } else {
             FileConfig::default()
         };
+        let store = StorePaths::resolve(&paths, &env, &file_config)?;
 
         // env.username (X_API_USERNAME) feeds env_username when ArgOverrides
         // didn't already set it. Args > file > env_username preserved.
@@ -190,6 +221,7 @@ impl ResolvedConfig {
             cache_path,
             cache_enabled,
             cache_max_size_mb: 100,
+            store,
             token_store: paths.token_store,
             xdk_env: env.xdk,
             app: None,
@@ -228,6 +260,9 @@ mod tests {
         ));
         ResolvedPaths {
             config_dir: tmp.clone(),
+            data_dir: tmp.join("data"),
+            cache_dir: tmp.join("cache"),
+            home_dir: None,
             token_store: Some(tmp.join("auth.yml")),
         }
     }
@@ -279,6 +314,26 @@ mod tests {
         assert!(cfg.config_dir.ends_with("bird"));
         assert_eq!(cfg.cache_path, cfg.config_dir.join("bird.db"));
         assert_eq!(cfg.cache_max_size_mb, 100);
+    }
+
+    #[test]
+    fn malformed_config_toml_is_a_config_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("config.toml"), "archive_dir = \"/v\n").expect("write");
+        let paths = ResolvedPaths {
+            config_dir: dir.path().to_path_buf(),
+            data_dir: dir.path().join("data"),
+            cache_dir: dir.path().join("cache"),
+            home_dir: None,
+            token_store: None,
+        };
+        let err = ResolvedConfig::load_with_paths(
+            ArgOverrides::default(),
+            paths,
+            EnvOverrides::default(),
+        )
+        .expect_err("a config.toml that does not parse is refused");
+        assert!(err.to_string().contains("config.toml"), "{err}");
     }
 
     #[test]

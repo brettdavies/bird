@@ -727,6 +727,7 @@ mod tests {
             cache_path: dir.join("bird.db"),
             cache_enabled: false,
             cache_max_size_mb: 100,
+            store: crate::store::StorePaths::under(&dir),
             token_store: Some(dir.join("no-such-store").join("auth.yml")),
             xdk_env: xdk::config::EnvOverrides::default(),
             app: None,
