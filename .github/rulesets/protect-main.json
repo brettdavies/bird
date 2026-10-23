@@ -93,7 +93,15 @@
             "integration_id": 15368
           },
           {
+            "context": "ci / Windows test",
+            "integration_id": 15368
+          },
+          {
             "context": "ci / Workflow concurrency",
+            "integration_id": 15368
+          },
+          {
+            "context": "ci / macOS test",
             "integration_id": 15368
           },
           {
