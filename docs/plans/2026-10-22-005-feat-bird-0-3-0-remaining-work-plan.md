@@ -1059,7 +1059,9 @@ prints that host as `error: not-installed: <dir>`. bird prints `skipped: not-ins
      commands; `login`, `me`, `profile`, and `tweet` are gone (F3). `search --sort`, `--min-likes`, and `--pages` go
      with bird's `search`; bird's `--page` alias, `-v` count, and `--pretty` give way to `xr`'s flags (R19).
   4. Rewrite bird's own hints and doctor reasons that name `bird login` to `bird auth oauth2 [--no-browser]`, and make
-     the unknown-command error link `docs/migrating/v0.3.0.md` (no table of retired names).
+     the unknown-command error link `docs/migrating/v0.3.0.md` (no table of retired names). Doctor reads the app the
+     run selects (`--app`, then `BIRD_APP`, then the store's default), as a composed command does; it reads only the
+     store's default today, so its `active_app` and reasons can disagree with the command's.
   5. Run `compose::run` under bird's `Stop`, so a composed command stopped mid-request prints `cancelled` and exits 130
      or 143; with nothing in flight the signal takes its default action.
 - **Test scenarios:**
@@ -1123,7 +1125,8 @@ prints that host as `error: not-installed: <dir>`. bird prints `skipped: not-ins
      `cache-miss` at xdk's declined code); bird's own error reasons carry `next_step.docs` anchors in
      `docs/CLI_DESIGN.md`; composed paging and `--cache-only` per R35 to R37.
   8. Regenerate completions from the composed tree; rewrite every bird-owned subcommand's help string to the 0.3.0
-     design.
+     design. Text mode already prints bird's own reports as text (#199), so `--pretty` repeats it: retire the flag in
+     the migration guide's flag table, as xr has none.
 - **Test scenarios:**
   - One table-driven test over bird's own subcommands' help, hints, and doctor reasons fails if any names `xurl`,
     `tweet`, `bird login`, or an HTTP response cache.

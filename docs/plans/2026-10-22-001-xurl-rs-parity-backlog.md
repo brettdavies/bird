@@ -77,6 +77,7 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #195, #196 | `deny.toml` drops the getrandom 0.3 and windows-sys 0.52 skips nothing matches; a note's body renders from its merged keys, so a thinner response keeps the author, links, media, and profile |
 | #194, #197 | Workflows drop `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`; a note keeps a post's stored media (with a new `media_keys` key) when a response omits one item's entry |
 | #202 | Post notes carry an `aliases` entry (`@author date: first words`) so Obsidian's quick switcher and link autocomplete find them; a stored alias list that already holds bird's keeps the user's order |
+| #198 to #201, #203 to #205 | The live DX audit's fixes: `bird doctor <unknown>` exits 2 `unknown-command`; text mode prints doctor, `cache stats`, and `spend` as text; a `--cache-only` miss names the request and the UTC day; a `config.toml` parse error names its line and column; a missing app names `CLIENT_ID`/`CLIENT_SECRET` and `xr auth apps add`; an unhealthy store names each failing location; help and README name each OS's store paths |
 
 ## Stack 1: repo environment
 
