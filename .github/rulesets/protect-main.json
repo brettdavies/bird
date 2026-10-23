@@ -45,11 +45,31 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
+            "context": "ci / Agent-native audit",
+            "integration_id": 15368
+          },
+          {
             "context": "ci / Changelog",
             "integration_id": 15368
           },
           {
+            "context": "ci / Completions freshness",
+            "integration_id": 15368
+          },
+          {
+            "context": "ci / Doc build",
+            "integration_id": 15368
+          },
+          {
             "context": "ci / Fmt, clippy, test",
+            "integration_id": 15368
+          },
+          {
+            "context": "ci / MSRV",
+            "integration_id": 15368
+          },
+          {
+            "context": "ci / Output discipline",
             "integration_id": 15368
           },
           {
@@ -73,6 +93,10 @@
             "integration_id": 15368
           },
           {
+            "context": "ci / Workflow concurrency",
+            "integration_id": 15368
+          },
+          {
             "context": "guard-docs / check-forbidden-docs",
             "integration_id": 15368
           },
@@ -82,6 +106,10 @@
           },
           {
             "context": "guard-release / check-release-branch-name",
+            "integration_id": 15368
+          },
+          {
+            "context": "scope / Change scope",
             "integration_id": 15368
           }
         ]
