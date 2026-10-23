@@ -49,7 +49,7 @@ bird watchlist remove x
 # ledger with no request; `--sync` also fetches X's actual usage beside it
 bird spend
 bird spend --sync
-bird cache stats --pretty
+bird cache stats
 bird cache clear
 
 # JSON Schema documents: the envelope and each command's output
@@ -183,9 +183,11 @@ does. Token storage, refresh, and OAuth1 signing all live in xdk-rs.
 ## Output formats
 
 `OutputConfig` (`src/output/mod.rs`) drives three formats, selected by `--output text|json|jsonl|ndjson` (default `text`
-on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. `--pretty` enables formatted text output
-with ANSI color and OSC-8 hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses
-informational stderr diagnostics.
+on a TTY, `json` when stderr is non-TTY) and overridable via `BIRD_OUTPUT`. bird's own reports (`doctor`, `cache stats`,
+`spend`) print their human-readable text in text mode and under `--pretty` (`OutputConfig::report_as_text`), and one ok
+document in a JSON mode. On the read commands `--pretty` enables formatted text output with ANSI color and OSC-8
+hyperlinks; `--color never` (or `NO_COLOR=1`) strips color; `-q` / `--quiet` suppresses informational stderr
+diagnostics.
 
 Stdout success document on `--output json`, the ok envelope `xr` prints for a result it assembles. A list carries `data`
 and `meta`; a single record puts its fields beside `status`; a message-shaped result is `message`:

@@ -447,7 +447,7 @@ where
             let _ = out.print_error(stderr, &err, &hint_ctx);
             return ExitCode::from(err.exit_code());
         }
-        let pretty = *pretty;
+        let pretty = out.report_as_text(*pretty);
         let use_emoji = use_color && pretty;
         match doctor::run_doctor(&client, &config, &out, stdout, pretty, scope, use_emoji) {
             Ok(()) => return ExitCode::SUCCESS,

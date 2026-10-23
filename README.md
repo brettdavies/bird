@@ -155,7 +155,7 @@ is removed on the first run.
 bird search "rust" --refresh     # Send the read, store the fresh response
 bird search "rust" --no-cache    # Read and write nothing
 bird search "rust" --cache-only  # Answer from today's stored response only, no API requests
-bird cache stats --pretty        # Archive, response files, and ledger
+bird cache stats                 # Archive, response files, and ledger
 bird cache clear                 # Delete stored responses; the archive stays
 ```
 
@@ -163,13 +163,17 @@ bird cache clear                 # Delete stored responses; the archive stays
 
 ## Output and formatting
 
-All commands emit JSON to stdout by default. Use `--pretty` for human-readable output.
+Read commands print X's JSON response to stdout; use `--pretty` for formatted output. bird's own reports (`bird doctor`,
+`bird cache stats`, `bird spend`) print as human-readable text in text mode, the default when stderr is a terminal, and
+as one JSON document under `--output json` or when stderr is not a terminal.
 
 ```bash
-bird me --pretty         # Formatted, colored output
-bird me --color never    # No color (or set NO_COLOR)
-bird me --output json    # Force JSON error output on stderr
-bird me -q               # Suppress informational stderr messages
+bird me --pretty           # Formatted, colored output
+bird doctor                # Human-readable report on a terminal
+bird doctor --output json  # The same report as JSON
+bird me --color never      # No color (or set NO_COLOR)
+bird me --output json      # Force JSON error output on stderr
+bird me -q                 # Suppress informational stderr messages
 ```
 
 Colors and hyperlinks are disabled automatically when stdout is not a TTY or `TERM=dumb`.

@@ -2,4 +2,4 @@ Examples:
   bird doctor                                              # full environment check
   bird doctor --output json                                # paired JSON
   bird doctor me                                           # scope to one command
-  bird doctor bookmarks --pretty
+  bird doctor bookmarks --output json                      # one command's report as JSON

@@ -1,5 +1,4 @@
 Examples:
   bird cache stats                                         # archive, responses, ledger
   bird cache stats --output json                           # paired JSON
-  bird cache stats --pretty
   bird cache clear                                         # delete stored responses

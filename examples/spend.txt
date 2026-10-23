@@ -1,5 +1,5 @@
 Examples:
-  bird spend                                        # last 30 days from the local ledger (text)
-  bird spend --output json                          # paired JSON
-  bird spend --since 2026-05-01 --pretty
-  bird spend --sync                                 # also fetch X's actual usage
+  bird spend                                        # estimated cost by day and endpoint, last 30 days
+  bird spend --output json                          # the same report as one JSON document
+  bird spend --since 2026-05-01                     # the report from 2026-05-01 to today
+  bird spend --sync                                 # also fetch X's actual usage and print it beside the estimates

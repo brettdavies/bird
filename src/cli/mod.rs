@@ -478,7 +478,7 @@ pub enum CacheAction {
         #[command(flatten)]
         guard: WriteGuard,
     },
-    /// Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable).
+    /// Show the archive, stored responses, and ledger.
     #[command(after_help = include_str!("../../examples/cache-stats.txt"))]
     Stats {
         #[command(flatten)]

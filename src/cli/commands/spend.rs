@@ -28,7 +28,7 @@ pub fn run(
         stderr,
         since.as_deref(),
         !sync,
-        pretty,
+        out.report_as_text(pretty),
     )
     .map_err(|e| BirdError::from_source("spend", e))?;
     Ok(())

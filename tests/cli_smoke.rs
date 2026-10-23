@@ -1262,6 +1262,43 @@ fn doctor_scoped_to_a_reported_command_succeeds() {
     assert_eq!(commands.keys().collect::<Vec<_>>(), ["me"]);
 }
 
+/// bird's own reports print as text in text mode, the same text `--pretty`
+/// prints, and as one JSON document under `--output json`.
+#[test]
+fn reports_print_text_in_text_mode() {
+    let env = common::TestEnv::new();
+    let cases: [(&[&str], &str); 3] = [
+        (&["doctor"], "X API client"),
+        (&["cache", "stats"], "Archive:"),
+        (&["spend"], "API Usage ("),
+    ];
+    for (args, heading) in cases {
+        let run = |output: &str, pretty: bool| {
+            let mut argv = vec!["bird", "--color", "never", "--output", output];
+            argv.extend_from_slice(args);
+            if pretty {
+                argv.push("--pretty");
+            }
+            common::run_in_process(&argv, &env)
+        };
+        let (exit, text, stderr) = run("text", false);
+        assert_eq!(exit, 0, "{args:?} stderr {stderr:?}");
+        assert!(text.starts_with(heading), "{args:?} text mode: {text}");
+        assert!(!text.trim_start().starts_with('{'), "{args:?}: {text}");
+
+        let (_, pretty, _) = run("text", true);
+        assert_eq!(
+            text, pretty,
+            "{args:?}: text mode prints what --pretty prints"
+        );
+
+        let (exit, json, stderr) = run("json", false);
+        assert_eq!(exit, 0, "{args:?} stderr {stderr:?}");
+        let doc: serde_json::Value = serde_json::from_str(json.trim()).expect("one document");
+        assert_eq!(doc["status"], "ok", "{args:?}: {doc}");
+    }
+}
+
 // --- The 0.2.0 store ------------------------------------------------------------
 
 fn seed_legacy(env: &common::TestEnv, names: &[&str]) {
