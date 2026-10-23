@@ -25,9 +25,10 @@ use std::io::Write;
 #[allow(clippy::too_many_arguments)]
 pub fn execute(
     spec: WriteSpec,
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     guard: WriteGuard,
     cache_only: bool,
     no_interactive: bool,
@@ -56,17 +57,21 @@ pub fn execute(
             auth_type: &auth,
             username,
         };
-        let json = client.execute_embedded_write(embedded_call, &ctx)?;
-        writeln!(stdout, "{}", serde_json::to_string(&json)?)?;
+        let outcome = client.execute_embedded_write(embedded_call, &ctx)?;
+        for estimate in &outcome.costs {
+            crate::cost::display_cost(out, stderr, estimate);
+        }
+        writeln!(stdout, "{}", serde_json::to_string(&outcome.json)?)?;
         Ok(())
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_tweet(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     text: String,
     media_id: Option<String>,
     guard: WriteGuard,
@@ -87,6 +92,7 @@ pub fn run_tweet(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -96,9 +102,10 @@ pub fn run_tweet(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_reply(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     tweet_id: String,
     text: String,
     guard: WriteGuard,
@@ -121,6 +128,7 @@ pub fn run_reply(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -130,9 +138,10 @@ pub fn run_reply(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_like(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -151,6 +160,7 @@ pub fn run_like(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -160,9 +170,10 @@ pub fn run_like(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unlike(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -181,6 +192,7 @@ pub fn run_unlike(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -190,9 +202,10 @@ pub fn run_unlike(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_repost(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -211,6 +224,7 @@ pub fn run_repost(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -220,9 +234,10 @@ pub fn run_repost(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unrepost(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     tweet_id: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -241,6 +256,7 @@ pub fn run_unrepost(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -250,9 +266,10 @@ pub fn run_unrepost(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_follow(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -276,6 +293,7 @@ pub fn run_follow(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -285,9 +303,10 @@ pub fn run_follow(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unfollow(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -311,6 +330,7 @@ pub fn run_unfollow(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -320,9 +340,10 @@ pub fn run_unfollow(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_dm(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     text: String,
     guard: WriteGuard,
@@ -348,6 +369,7 @@ pub fn run_dm(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -357,9 +379,10 @@ pub fn run_dm(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_block(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -380,6 +403,7 @@ pub fn run_block(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -389,9 +413,10 @@ pub fn run_block(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unblock(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -412,6 +437,7 @@ pub fn run_unblock(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -421,9 +447,10 @@ pub fn run_unblock(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_mute(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -444,6 +471,7 @@ pub fn run_mute(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -453,9 +481,10 @@ pub fn run_mute(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_unmute(
-    client: &db::BirdClient,
+    client: &mut db::BirdClient,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
     target: String,
     guard: WriteGuard,
     cache_only: bool,
@@ -476,6 +505,7 @@ pub fn run_unmute(
         client,
         out,
         stdout,
+        stderr,
         guard,
         cache_only,
         no_interactive,
@@ -534,19 +564,21 @@ mod tests {
     /// short-circuits before xurl_write fires.
     #[test]
     fn execute_dry_run_short_circuits() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let guard = WriteGuard {
             force: false,
             dry_run: true,
         };
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         assert!(
             execute(
                 like_spec(),
-                &client,
+                &mut client,
                 &out,
                 &mut stdout,
+                &mut stderr,
                 guard,
                 false,
                 false,
@@ -561,18 +593,20 @@ mod tests {
     /// succeeds and before transport is invoked.
     #[test]
     fn execute_cache_only_rejects_write() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let guard = WriteGuard {
             force: true,
             dry_run: false,
         };
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         match execute(
             like_spec(),
-            &client,
+            &mut client,
             &out,
             &mut stdout,
+            &mut stderr,
             guard,
             true,
             false,
@@ -595,18 +629,20 @@ mod tests {
     /// runs.
     #[test]
     fn execute_no_interactive_without_force_errors() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let guard = WriteGuard {
             force: false,
             dry_run: false,
         };
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         match execute(
             like_spec(),
-            &client,
+            &mut client,
             &out,
             &mut stdout,
+            &mut stderr,
             guard,
             false,
             true,
@@ -622,13 +658,15 @@ mod tests {
     /// short-circuits before xurl_write.
     #[test]
     fn tweet_builder_dry_run_envelope_with_media() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         let res = run_tweet(
-            &client,
+            &mut client,
             &out,
             &mut stdout,
+            &mut stderr,
             "hello world".into(),
             Some("media-123".into()),
             WriteGuard {
@@ -646,13 +684,15 @@ mod tests {
     /// an extra `@` prefix).
     #[test]
     fn follow_builder_dry_run_envelope() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         let res = run_follow(
-            &client,
+            &mut client,
             &out,
             &mut stdout,
+            &mut stderr,
             "someuser".into(),
             WriteGuard {
                 force: false,
@@ -668,13 +708,15 @@ mod tests {
     /// dm builder exercise (POST with body) — multi-field envelope.
     #[test]
     fn dm_builder_dry_run_envelope() {
-        let client = test_client();
+        let mut client = test_client();
         let out = quiet_out();
         let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
         let res = run_dm(
-            &client,
+            &mut client,
             &out,
             &mut stdout,
+            &mut stderr,
             "9876543210".into(),
             "hi".into(),
             WriteGuard {
@@ -686,5 +728,53 @@ mod tests {
             None,
         );
         assert!(res.is_ok(), "dm dry-run should succeed");
+    }
+
+    /// A sent write prints one cost line per request: the `/2/users/me`
+    /// lookup, then the like at its write rate.
+    #[test]
+    fn executed_write_prints_each_request_cost() {
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": {"id": "42"}}));
+        mock.push_value("send_request", serde_json::json!({"data": {"liked": true}}));
+        let mut client = db::BirdClient::new(
+            Box::new(mock),
+            Path::new("/nonexistent/writes-test"),
+            CacheOpts {
+                no_store: true,
+                ..CacheOpts::default()
+            },
+            0,
+            None,
+            true,
+            Arc::new(Mutex::new(io::sink())),
+        );
+        let out = OutputConfig {
+            quiet: false,
+            ..quiet_out()
+        };
+        let mut stdout: Vec<u8> = Vec::new();
+        let mut stderr: Vec<u8> = Vec::new();
+        execute(
+            like_spec(),
+            &mut client,
+            &out,
+            &mut stdout,
+            &mut stderr,
+            WriteGuard {
+                force: true,
+                dry_run: false,
+            },
+            false,
+            false,
+            None,
+        )
+        .expect("like must send");
+
+        assert_eq!(
+            String::from_utf8(stderr).expect("utf8"),
+            "[cost] ~$0.0100 (1 user, cache miss)\n\
+             [cost] ~$0.0150 (User Interaction: Create)\n"
+        );
     }
 }

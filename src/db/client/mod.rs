@@ -148,6 +148,8 @@ pub struct BirdClient {
     /// Username threaded into `RequestOptions.username` for multi-user token
     /// selection.
     pub(super) username: Option<String>,
+    /// The authenticated user's id, once a `/2/users/me` response names it.
+    pub(super) caller_id: Option<String>,
     /// Suppress informational stderr output. Stored on the struct (unlike `use_color`
     /// which is parameter-passed) because 7+ internal methods emit diagnostics and
     /// threading through every method signature would be excessive.
@@ -184,6 +186,7 @@ impl BirdClient {
                 db: None,
                 cache_opts,
                 username,
+                caller_id: None,
                 quiet,
                 stderr,
             };
@@ -220,6 +223,7 @@ impl BirdClient {
             db,
             cache_opts,
             username,
+            caller_id: None,
             quiet,
             stderr,
         }
@@ -235,6 +239,7 @@ impl BirdClient {
             db: Some(db),
             cache_opts: CacheOpts::default(),
             username: None,
+            caller_id: None,
             quiet: true,
             stderr: Arc::new(Mutex::new(std::io::sink())),
         }
@@ -265,32 +270,51 @@ impl BirdClient {
         self.cache_opts.no_store
     }
 
-    /// Log an API call to the usage database. Non-fatal: errors are warned to stderr.
+    /// Price an API call and log it to the usage database, returning the
+    /// fresh-request estimate. Non-fatal: logging errors are warned to stderr.
+    /// A `/2/users/me` response teaches the client the caller's id, which
+    /// later requests need for owned-read pricing.
     pub fn log_api_call(
         &mut self,
-        url: &str,
-        method: &str,
+        request: cost::Request<'_>,
         json: Option<&serde_json::Value>,
         cache_hit: bool,
         username: Option<&str>,
-    ) {
-        let Some(ref mut db) = self.db else { return };
-        let endpoint = normalize_endpoint(url);
+    ) -> cost::CostEstimate {
+        let endpoint = normalize_endpoint(request.url);
         let null = serde_json::Value::Null;
         let json = json.unwrap_or(&null);
-        let estimate = cost::estimate_raw_cost(json, &endpoint);
-        let object_type = if estimate.users_read > 0 && estimate.tweets_read == 0 {
-            "user"
-        } else if estimate.tweets_read > 0 {
-            "post"
+        if endpoint == "/2/users/me"
+            && let Some(id) = json
+                .get("data")
+                .and_then(|d| d.get("id"))
+                .and_then(|id| id.as_str())
+        {
+            self.caller_id = Some(id.to_string());
+        }
+        let priced = cost::Request {
+            caller_id: request.caller_id.or(self.caller_id.as_deref()),
+            ..request
+        };
+        let estimate = cost::estimate_raw_cost(&priced, json);
+
+        let Some(ref mut db) = self.db else {
+            return estimate;
+        };
+        let (object_type, object_count) = if estimate.write.is_some() {
+            ("write", 1)
+        } else if estimate.users_read > 0 && estimate.posts_read == 0 {
+            ("user", estimate.users_read)
+        } else if estimate.posts_read > 0 {
+            ("post", estimate.posts_read + estimate.users_read)
         } else {
-            "none"
+            ("none", 0)
         };
         if let Err(e) = db.log_usage(&super::UsageLogEntry {
             endpoint: &endpoint,
-            method,
+            method: request.method,
             object_type,
-            object_count: (estimate.tweets_read + estimate.users_read) as i64,
+            object_count: i64::from(object_count),
             estimated_cost: estimate.estimated_usd,
             cache_hit,
             username,
@@ -299,6 +323,7 @@ impl BirdClient {
             let mut w = crate::output::lock_writer(&self.stderr);
             writeln!(*w, "[spend] warning: failed to log API call: {e}").ok();
         }
+        estimate
     }
 }
 
@@ -314,9 +339,51 @@ mod tests {
             db: Some(db),
             cache_opts: CacheOpts::default(),
             username: None,
+            caller_id: None,
             quiet: false,
             stderr: Arc::new(Mutex::new(std::io::sink())),
         }
+    }
+
+    /// The ledger prices the caller's own bookmarks at the owned-read rate
+    /// once a `/2/users/me` response has named the caller.
+    #[test]
+    fn ledger_prices_own_bookmarks_as_owned_reads() {
+        let mock = MockXurlClient::new();
+        mock.push_value(
+            "send_request",
+            serde_json::json!({"data": {"id": "42", "username": "me"}}),
+        );
+        let page: Vec<_> = (0..10)
+            .map(|i| serde_json::json!({"id": format!("10{i}"), "text": "t"}))
+            .collect();
+        mock.push_value("send_request", serde_json::json!({ "data": page }));
+        let mut client = BirdClient::new_test(Box::new(mock), super::super::store::in_memory_db());
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        client
+            .get("https://api.x.com/2/users/me", &ctx)
+            .expect("me");
+        client
+            .get(
+                "https://api.x.com/2/users/42/bookmarks?max_results=10",
+                &ctx,
+            )
+            .expect("bookmarks");
+
+        let summary = client
+            .db()
+            .expect("store")
+            .query_usage_summary(0)
+            .expect("summary");
+        assert_eq!(summary.total_calls, 2);
+        assert!(
+            (summary.total_cost - 0.020).abs() < 1e-9,
+            "one user read plus ten owned reads, got ${}",
+            summary.total_cost
+        );
     }
 
     #[test]

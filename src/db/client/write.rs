@@ -14,7 +14,13 @@ impl BirdClient {
         body: Option<&str>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let json = self.xurl_send_raw_url(method, url, body.unwrap_or(""), ctx)?;
-        self.log_api_call(url, method, Some(&json), false, ctx.username);
+        let request = crate::cost::Request {
+            method,
+            url,
+            body,
+            caller_id: None,
+        };
+        self.log_api_call(request, Some(&json), false, ctx.username);
         Ok(ApiResponse {
             status: 200,
             cached_body: None,
