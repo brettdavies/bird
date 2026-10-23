@@ -267,7 +267,10 @@ Entries marked ⚑ are calls the maintainer is most likely to revisit.
 - KTD8. **A rewrite merges: bird's keys update, everything else stays.** The steps, in the rewrite flowchart below: bird
   keys present in the new observation overwrite, bird keys it lacks keep their stored value, `archived_at` is kept,
   `aliases` is the union with bird's alias first, frontmatter entries with other keys are copied verbatim in their order
-  after bird's keys, and only the region's text is replaced. A note whose bird keys and region are unchanged is not
+  after bird's keys, and only the region's text is replaced. The region is rendered from the merged keys, so an
+  observation that lacks a value the note holds (an author absent from `includes.users`, a thinner user entry) keeps
+  that value in the body as in the frontmatter; post text is the one exception (Risks). A note whose bird keys and
+  region are unchanged is not
   written, so an editor's reformatting causes no churn, and `updated_at` moves only when content changes. The file's
   SHA-256 is taken at read and again just before the rename; a mismatch (the user saved meanwhile) skips the note with
   the store warning, and its next observation merges the saved file. A frontmatter that does not parse, or whose line
@@ -431,13 +434,14 @@ Rewriting one note (KTD8):
 
 ```mermaid
 flowchart TB
-  S["render bird keys and region from the observation"] --> T{"file exists?"}
-  T -->|no| W["write new note: archived_at = updated_at = now"]
+  S["render bird keys from the observation"] --> T{"file exists?"}
+  T -->|no| W["render region; write new note: archived_at = updated_at = now"]
   T -->|yes| U["read bytes, hash; split frontmatter"]
   U --> V{"frontmatter parses and split agrees?"}
   V -->|no| Z["leave file; store warning"]
   V -->|yes| M["merge: new keys win, missing keys kept, foreign entries verbatim"]
-  M --> N{"bird keys and region unchanged?"}
+  M --> MR["render region from the merged keys"]
+  MR --> N{"bird keys and region unchanged?"}
   N -->|yes| Q["no write"]
   N -->|no| P["updated_at = now; write temp file"]
   P --> R{"hash still matches?"}
