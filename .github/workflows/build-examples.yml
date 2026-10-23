@@ -24,9 +24,6 @@ concurrency:
   group: build-examples-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-examples:
     runs-on: ubuntu-latest

@@ -29,9 +29,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # Whether the change can reach cargo, by scripts/cargo-inputs.sh. A
   # documentation-only PR skips every Rust job, and a skipped job reports
