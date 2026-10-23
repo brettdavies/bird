@@ -46,7 +46,10 @@ pub fn for_error(error: &BirdError, ctx: &HintContext) -> Option<Hint> {
     if let Some(fix) = error.fix() {
         return Some(Hint {
             text_lines: vec![fix.to_string()],
-            next_step: NextStep::fix_input(None),
+            next_step: NextStep {
+                template: error.fix_template().map(str::to_string),
+                ..NextStep::fix_input(None)
+            },
         });
     }
     match error.reason() {
@@ -387,7 +390,7 @@ fn rerun_with_app(invocation: &[String], app: &str) -> String {
 }
 
 /// Quotes one argument of a rebuilt invocation when a shell would split it.
-fn shell_word(arg: &str) -> String {
+pub(crate) fn shell_word(arg: &str) -> String {
     if !arg.is_empty()
         && arg.chars().all(|c| {
             c.is_ascii_alphanumeric()

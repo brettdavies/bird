@@ -69,9 +69,19 @@ pub struct BirdError {
     suggestion: Option<String>,
     /// The library error this came from, when it came from one.
     source: Option<Box<xdk::Error>>,
-    /// The line telling a person how to fix a refused input, when bird names
-    /// one itself; its step is `fix-input`.
-    fix: Option<&'static str>,
+    /// How to fix a refused input, when bird names it itself; its step is
+    /// `fix-input`. Boxed to keep `Result<_, BirdError>` small.
+    fix: Option<Box<Fix>>,
+}
+
+/// How to fix a refused input.
+#[derive(Debug)]
+struct Fix {
+    /// The line telling a person what to change.
+    line: String,
+    /// The invocation that opens what to fix, carried as the step's
+    /// `template`.
+    template: Option<String>,
 }
 
 impl BirdError {
@@ -99,18 +109,41 @@ impl BirdError {
     pub fn config_setting(
         message: impl Into<String>,
         value: impl Into<String>,
-        fix: &'static str,
+        fix: impl Into<String>,
     ) -> Self {
         Self {
             command: Some(value.into()),
-            fix: Some(fix),
+            fix: Some(Box::new(Fix {
+                line: fix.into(),
+                template: None,
+            })),
             ..Self::new(Class::Config, Reason::ConfigError, 78, message.into())
+        }
+    }
+
+    /// A `config.toml` that does not parse (exit 78): the file is the
+    /// offending value, and the step's template opens it in an editor.
+    pub fn config_parse(err: &crate::config::ConfigParseError) -> Self {
+        let path = err.path.display().to_string();
+        let template = format!("<editor> {}", crate::output::hints::shell_word(&path));
+        Self {
+            command: Some(path),
+            fix: Some(Box::new(Fix {
+                line: err.fix(),
+                template: Some(template),
+            })),
+            ..Self::new(Class::Config, Reason::ConfigError, 78, err.to_string())
         }
     }
 
     /// How to fix a refused input, when bird names it.
     pub fn fix(&self) -> Option<&str> {
-        self.fix
+        self.fix.as_ref().map(|fix| fix.line.as_str())
+    }
+
+    /// The invocation that opens what to fix, when there is one.
+    pub fn fix_template(&self) -> Option<&str> {
+        self.fix.as_ref().and_then(|fix| fix.template.as_deref())
     }
 
     /// An argument or input refusal at exit 2.

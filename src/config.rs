@@ -37,6 +37,58 @@ pub struct FileConfig {
     pub archive_dir: Option<String>,
 }
 
+/// A `config.toml` that does not parse, with the parser's position in it.
+#[derive(Debug)]
+pub struct ConfigParseError {
+    pub path: PathBuf,
+    /// The 1-based line and column the parser stopped at, when it named one.
+    pub position: Option<(usize, usize)>,
+    /// The parser's reason, without its position or source excerpt.
+    pub reason: String,
+}
+
+impl ConfigParseError {
+    fn new(path: &std::path::Path, source: &str, err: &toml::de::Error) -> Self {
+        let position = err.span().map(|span| {
+            let before = source.get(..span.start).unwrap_or(source);
+            let line = before.matches('\n').count() + 1;
+            let column = before.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+            (line, column)
+        });
+        Self {
+            path: path.to_path_buf(),
+            position,
+            reason: err.message().to_string(),
+        }
+    }
+
+    /// The line telling a person what to change.
+    pub fn fix(&self) -> String {
+        match self.position {
+            Some((line, column)) => format!(
+                "Fix line {line}, column {column} of {}, then run the command again.",
+                self.path.display()
+            ),
+            None => format!(
+                "Fix the TOML in {}, then run the command again.",
+                self.path.display()
+            ),
+        }
+    }
+}
+
+impl std::fmt::Display for ConfigParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "config.toml at {} does not parse", self.path.display())?;
+        if let Some((line, column)) = self.position {
+            write!(f, " at line {line}, column {column}")?;
+        }
+        write!(f, ": {}", self.reason)
+    }
+}
+
+impl std::error::Error for ConfigParseError {}
+
 /// Overrides from CLI args (highest priority).
 #[derive(Clone, Debug, Default)]
 pub struct ArgOverrides {
@@ -190,13 +242,7 @@ impl ResolvedConfig {
 
         let file_config: FileConfig = if config_path.exists() {
             let s = std::fs::read_to_string(&config_path)?;
-            toml::from_str(&s).map_err(|e| {
-                format!(
-                    "config.toml at {} does not parse: {}",
-                    config_path.display(),
-                    e.message()
-                )
-            })?
+            toml::from_str(&s).map_err(|e| ConfigParseError::new(&config_path, &s, &e))?
         } else {
             FileConfig::default()
         };
@@ -260,6 +306,25 @@ mod tests {
             home_dir: None,
             token_store: Some(tmp.join("auth.yml")),
         }
+    }
+
+    /// The column counts characters, not bytes, so a non-ASCII value before
+    /// the error does not shift it.
+    #[test]
+    fn a_parse_error_reports_its_line_and_character_column() {
+        let source = "username = \"jack\"\na = \"é\" x\n";
+        let err = toml::from_str::<FileConfig>(source).expect_err("trailing word");
+        let parse = ConfigParseError::new(std::path::Path::new("/c/config.toml"), source, &err);
+        assert_eq!(parse.position, Some((2, 9)));
+        assert!(
+            parse.to_string().contains("at line 2, column 9: "),
+            "{parse}"
+        );
+        assert!(
+            parse
+                .fix()
+                .starts_with("Fix line 2, column 9 of /c/config.toml")
+        );
     }
 
     #[test]

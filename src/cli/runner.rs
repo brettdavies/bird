@@ -337,7 +337,10 @@ where
                     bad.value.clone(),
                     crate::store::paths::ARCHIVE_DIR_FIX,
                 ),
-                Err(e) => BirdError::config(e),
+                Err(e) => match e.downcast::<crate::config::ConfigParseError>() {
+                    Ok(bad) => BirdError::config_parse(&bad),
+                    Err(e) => BirdError::config(e),
+                },
             };
             let _ = out.print_error(stderr, &err, &hint_ctx);
             return ExitCode::from(err.exit_code());
