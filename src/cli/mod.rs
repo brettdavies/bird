@@ -405,11 +405,16 @@ pub enum Command {
     },
 
     /// Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host's skills dir)
-    #[command(after_help = "Examples:
+    #[command(after_help = concat!(
+        "Examples:
   bird skill install claude_code
   bird skill install claude_code --dry-run
   bird skill install --all
-  bird skill update claude_code")]
+  bird skill update claude_code
+
+",
+        include_str!(concat!(env!("OUT_DIR"), "/skill_env_help.txt"))
+    ))]
     Skill {
         #[command(subcommand)]
         action: SkillAction,

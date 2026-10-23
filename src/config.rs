@@ -1,7 +1,10 @@
 //! Config load with priority: command args > config file > env > default (build-in).
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use crate::skill_install::{BASE_DIR_VARS, CONFIG_DIR_VARS, SkillEnv};
 
 /// Resolved config after applying priority: args > config file > env > default.
 /// Auth is delegated to xdk-rs; no token fields here.
@@ -87,6 +90,11 @@ pub struct EnvOverrides {
     /// nothing below the runner reads the process environment. The default is
     /// an empty environment.
     pub xdk: xdk::config::EnvOverrides,
+    /// `BIRD_SKILL_HOME`, which stands in for `HOME` in skill destinations.
+    pub skill_home: Option<String>,
+    /// Each skill host's config- or base-directory variable that is set, by
+    /// name ([`CONFIG_DIR_VARS`], [`BASE_DIR_VARS`]).
+    pub skill_dirs: BTreeMap<String, String>,
 }
 
 impl EnvOverrides {
@@ -110,6 +118,26 @@ impl EnvOverrides {
                 home: std::env::var("HOME").ok(),
                 ..xdk::config::EnvOverrides::from_env()
             },
+            skill_home: std::env::var("BIRD_SKILL_HOME").ok(),
+            skill_dirs: CONFIG_DIR_VARS
+                .iter()
+                .chain(BASE_DIR_VARS)
+                .filter_map(|var| {
+                    std::env::var(var)
+                        .ok()
+                        .map(|value| ((*var).to_string(), value))
+                })
+                .collect(),
+        }
+    }
+
+    /// The environment a skill destination resolves against: the captured
+    /// `HOME`, `BIRD_SKILL_HOME`, and host directory variables.
+    pub fn skill_env(&self) -> SkillEnv {
+        SkillEnv {
+            home: self.xdk.home.clone(),
+            skill_home: self.skill_home.clone(),
+            config_dirs: self.skill_dirs.clone(),
         }
     }
 }

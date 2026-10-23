@@ -102,6 +102,9 @@ Additional env vars without flag pairs:
   (`xr auth app`).
 - `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2 pending
   state sits beside it.
+- `BIRD_SKILL_HOME` — stands in for `HOME` in every `bird skill` destination, as `XURL_SKILL_HOME` does for `xr`. A
+  host's own config-directory variable (`CLAUDE_CONFIG_DIR`, `KIRO_HOME`, `OPENCODE_CONFIG_DIR`) wins over it; see
+  [Agent-skill bundle](#agent-skill-bundle).
 - `NO_COLOR=1` — strip ANSI color (industry-standard).
 
 ## Architecture
@@ -152,7 +155,9 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
 - `src/schema_print.rs` — `bird schema` subcommand: prints embedded JSON Schema 2020-12 documents from `schema/`.
 - `src/skill_install/` — `bird skill install <host>` / `update <host>` orchestrate a hardened `git clone --depth 1` of
   the [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill) bundle repo. `skill.json` is the build-time
-  manifest; `build.rs` codegens `SkillHost`, `KNOWN_HOSTS`, and `resolve_host` from it.
+  manifest; `build.rs` codegens `SkillHost`, `KNOWN_HOSTS`, `resolve_host`, and each host's directory variables and
+  legacy location from it. `destination.rs` resolves a host's directory from the `SkillEnv` the runner builds out of
+  `EnvOverrides` (`HOME`, `BIRD_SKILL_HOME`, and the host variables, each captured once).
 
 ## Transport dependency
 
@@ -269,18 +274,33 @@ Permission enforcement lives in `src/config.rs` behind `#[cfg(unix)]` (`std::os:
 
 The skill bundle lives in a dedicated repo: [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill).
 `bird skill install <host>` runs a hardened `git clone --depth 1` of that repo into the host's canonical skills
-directory; `bird skill update <host>` removes the destination and re-clones. The supported hosts and their target paths
-are the single source of truth in `src/skill_install/skill.json`; `build.rs` codegens the `SkillHost` enum,
-`KNOWN_HOSTS`, and the `resolve_host` / `host_envelope_str` lookup at build time.
+directory; `bird skill update <host>` removes the destination, and any copy at the host's legacy location, and
+re-clones. The supported hosts, their target paths, the variables that move them, and their legacy locations are the
+single source of truth in `src/skill_install/skill.json`, in `xr`'s shape; `build.rs` codegens the `SkillHost` enum,
+`KNOWN_HOSTS`, the `resolve_host` / `host_envelope_str` lookup, `config_dir_env` / `base_dir_env` /
+`legacy_destination`, and the `Environment:` block of `bird skill --help` at build time.
 
-| Host          | Destination                      |
-| ------------- | -------------------------------- |
-| `claude_code` | `~/.claude/skills/bird`          |
-| `codex`       | `~/.codex/skills/bird`           |
-| `cursor`      | `~/.cursor/skills/bird`          |
-| `factory`     | `~/.factory/skills/bird`         |
-| `kiro`        | `~/.kiro/skills/bird`            |
-| `opencode`    | `~/.config/opencode/skills/bird` |
+| Host          | Destination                      | Host config-dir variable | Base-dir variable | Legacy location        |
+| ------------- | -------------------------------- | ------------------------ | ----------------- | ---------------------- |
+| `claude_code` | `~/.claude/skills/bird`          | `CLAUDE_CONFIG_DIR`      |                   |                        |
+| `codex`       | `~/.agents/skills/bird`          |                          |                   | `~/.codex/skills/bird` |
+| `cursor`      | `~/.cursor/skills/bird`          |                          |                   |                        |
+| `factory`     | `~/.factory/skills/bird`         |                          |                   |                        |
+| `kiro`        | `~/.kiro/skills/bird`            | `KIRO_HOME`              |                   |                        |
+| `opencode`    | `~/.config/opencode/skills/bird` | `OPENCODE_CONFIG_DIR`    | `XDG_CONFIG_HOME` |                        |
+
+A destination resolves as `xr`'s does, first match wins:
+
+1. The host's config-directory variable replaces the host directory: `CLAUDE_CONFIG_DIR=/x` installs to
+   `/x/skills/bird`.
+2. `BIRD_SKILL_HOME` replaces `HOME` for every host: `BIRD_SKILL_HOME=/h` installs Codex to `/h/.agents/skills/bird`.
+3. The host's base-directory variable replaces its prefix: `XDG_CONFIG_HOME=/c` installs opencode to
+   `/c/opencode/skills/bird`.
+4. `HOME`. With none of these set, the verb reports `home-not-set` (exit 1).
+
+An empty value counts as unset. Each variable is read once, by the runner, into `EnvOverrides`; tests inject them there.
+Codex still reads `~/.codex/skills`, so a copy found there (under `BIRD_SKILL_HOME`, else `HOME`) is named as
+`legacy_install_dir`: `skill install` leaves it in place, and `skill update` removes it along with the destination.
 
 Usage:
 
@@ -293,7 +313,7 @@ bird skill update claude_code               # remove destination + re-clone
 
 Without `<host>` or `--all`, `bird skill install` returns exit 2 (a `missing-host` envelope) and lists the supported
 hosts. Output under `--output json` is the install/update envelope (`action`, `host`, `install_dir`, `command_preview`,
-`destination_status`, `status`, `exit_code`, optional `reason`).
+`destination_status`, `status`, `exit_code`, optional `reason`, `legacy_install_dir`, and `next_step`).
 
 The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=never`, `protocol.https.allow=always`,
 `http.followRedirects=false` are applied via `-c key=value`; `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_PROXY_COMMAND`,

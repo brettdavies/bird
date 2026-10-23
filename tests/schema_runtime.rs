@@ -85,3 +85,33 @@ fn the_skill_dry_run_matches_its_schema() {
     let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("test: skill JSON");
     assert_matches("skill-install", &doc);
 }
+
+/// A dry run that finds a copy at Codex's legacy location names it, under a
+/// key each verb's schema declares.
+#[test]
+fn a_skill_dry_run_naming_a_legacy_copy_matches_its_schema() {
+    let mut env = common::TestEnv::new();
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    env.env.xdk.home = Some(home.path().display().to_string());
+    std::fs::create_dir_all(home.path().join(".codex/skills/bird"))
+        .expect("test: create the legacy copy");
+
+    for (verb, schema_name) in [("install", "skill-install"), ("update", "skill-update")] {
+        let (exit, stdout, stderr) = common::run_in_process(
+            &[
+                "bird",
+                "--output",
+                "json",
+                "skill",
+                verb,
+                "codex",
+                "--dry-run",
+            ],
+            &env,
+        );
+        assert_eq!(exit, 0, "{verb}: stderr {stderr:?}");
+        let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("test: skill JSON");
+        assert!(doc["legacy_install_dir"].is_string(), "{verb}: {doc}");
+        assert_matches(schema_name, &doc);
+    }
+}

@@ -130,14 +130,15 @@ No config or app creation needed.
 
 ### System
 
-| Command                    | Description                                                        |
-| -------------------------- | ------------------------------------------------------------------ |
-| `bird login`               | Sign in via browser; `--no-browser` for agents                     |
-| `bird doctor`              | Diagnostics: X API client, auth, commands, store health            |
-| `bird doctor <cmd>`        | Scoped diagnostics for a single command                            |
-| `bird cache stats`         | Entity store status                                                |
-| `bird cache clear`         | Delete all cached entities                                         |
-| `bird completions <shell>` | Generate shell completions (bash, zsh, fish, powershell, elvish)   |
+| Command                     | Description                                                      |
+| --------------------------- | ---------------------------------------------------------------- |
+| `bird login`                | Sign in via browser; `--no-browser` for agents                   |
+| `bird doctor`               | Diagnostics: X API client, auth, commands, store health          |
+| `bird doctor <cmd>`         | Scoped diagnostics for a single command                          |
+| `bird cache stats`          | Entity store status                                              |
+| `bird cache clear`          | Delete all cached entities                                       |
+| `bird completions <shell>`  | Generate shell completions (bash, zsh, fish, powershell, elvish) |
+| `bird skill install <host>` | Install bird's agent skill into a host's skills directory        |
 
 ---
 
@@ -251,6 +252,28 @@ bird completions elvish > bird.elv
 Pre-generated scripts are also available in `completions/`.
 
 Homebrew users get completions installed automatically.
+
+---
+
+## Agent skill
+
+`bird skill install <host>` clones the [bird skill bundle](https://github.com/brettdavies/bird-skill) into the directory
+each agent host reads skills from; `bird skill update <host>` replaces it. `--all` covers every host, and `--dry-run`
+prints the planned clone without running it.
+
+| Host          | Destination                      | Moved by                                 |
+| ------------- | -------------------------------- | ---------------------------------------- |
+| `claude_code` | `~/.claude/skills/bird`          | `CLAUDE_CONFIG_DIR`                      |
+| `codex`       | `~/.agents/skills/bird`          |                                          |
+| `cursor`      | `~/.cursor/skills/bird`          |                                          |
+| `factory`     | `~/.factory/skills/bird`         |                                          |
+| `kiro`        | `~/.kiro/skills/bird`            | `KIRO_HOME`                              |
+| `opencode`    | `~/.config/opencode/skills/bird` | `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME` |
+
+Destinations resolve as `xr skill install` resolves them. A host's own config-directory variable comes first, then
+`BIRD_SKILL_HOME` (which stands in for `HOME` for every host), then `XDG_CONFIG_HOME` for opencode, then `HOME`. Codex
+still reads the older `~/.codex/skills`, so a copy found there is reported; `bird skill update codex` removes it and
+installs at `~/.agents/skills/bird`.
 
 ---
 
