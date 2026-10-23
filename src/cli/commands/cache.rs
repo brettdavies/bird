@@ -88,7 +88,11 @@ fn write_pretty(w: &mut dyn Write, r: &StoreReport) -> std::io::Result<()> {
     writeln!(w, "Ledger:    {}", r.ledger.path)?;
     writeln!(w, "  {:.1} MB", r.ledger.size_mb)?;
     let status = if r.healthy { "healthy" } else { "unhealthy" };
-    writeln!(w, "Status:    {status}")
+    writeln!(w, "Status:    {status}")?;
+    for failure in &r.unwritable {
+        writeln!(w, "  {}", failure.line())?;
+    }
+    Ok(())
 }
 
 /// One `key=value` per line, pipe-safe.

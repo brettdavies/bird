@@ -659,6 +659,9 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
         output::error("unhealthy", use_color)
     };
     out.push_str(&format!("  status: {status}\n"));
+    for failure in &cache.unwritable {
+        out.push_str(&format!("    {}\n", failure.line()));
+    }
 
     out
 }

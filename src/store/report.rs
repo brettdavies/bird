@@ -5,13 +5,13 @@
 //! into the user's vault. A location's `writable` is the access check of the
 //! location, or of its nearest existing ancestor when it does not exist yet.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use super::paths::{ArchiveSource, StorePaths};
+use super::paths::{ARCHIVE_DIR_KEY, ARCHIVE_DIR_VAR, ArchiveSource, StorePaths};
 use super::responses::{is_account_dir_name, is_request_file_name};
 
 /// The archive directory.
@@ -57,6 +57,49 @@ pub struct StoreReport {
     /// True when the archive, the responses directory, and the ledger's
     /// directory are all writable.
     pub healthy: bool,
+    /// Each location bird cannot write, for the text report; the JSON
+    /// document carries the same verdict as `writable` and `healthy`.
+    #[serde(skip)]
+    pub unwritable: Vec<Unwritable>,
+}
+
+/// A store location bird cannot write.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unwritable {
+    /// `archive`, `responses`, or `ledger`.
+    pub location: &'static str,
+    /// The location itself: the ledger's is its directory.
+    pub path: PathBuf,
+    /// The directory found not writable: the location, or its nearest
+    /// existing ancestor when it does not exist yet.
+    pub checked: PathBuf,
+}
+
+impl Unwritable {
+    /// One line naming the location, what is not writable, and the fix.
+    pub fn line(&self) -> String {
+        let what = if self.checked == self.path {
+            format!("{} {} is not writable", self.location, self.path.display())
+        } else {
+            format!(
+                "{} {} does not exist and {}, its nearest existing parent, is not writable",
+                self.location,
+                self.path.display(),
+                self.checked.display()
+            )
+        };
+        let fix = if self.location == "archive" {
+            format!(
+                "set {ARCHIVE_DIR_VAR}, or {ARCHIVE_DIR_KEY} in config.toml, to a directory bird can write"
+            )
+        } else {
+            format!(
+                "give this user write permission on {}",
+                self.checked.display()
+            )
+        };
+        format!("{what}; {fix}.")
+    }
 }
 
 #[derive(Default)]
@@ -84,7 +127,7 @@ impl StoreReport {
             path: archive_dir.display().to_string(),
             source: paths.archive_source,
             exists: archive_dir.is_dir(),
-            writable: writable(archive_dir),
+            writable: unwritable_at(archive_dir).is_none(),
             posts: posts.files,
             users: users.files,
             bookmarks: bookmarks.files,
@@ -95,7 +138,7 @@ impl StoreReport {
         let responses = ResponsesReport {
             path: paths.responses_dir.display().to_string(),
             exists: paths.responses_dir.is_dir(),
-            writable: writable(&paths.responses_dir),
+            writable: unwritable_at(&paths.responses_dir).is_none(),
             files: stored.files,
             fresh: stored.fresh,
             size_mb: megabytes(stored.bytes),
@@ -106,12 +149,27 @@ impl StoreReport {
             exists: ledger_meta.is_some(),
             size_mb: megabytes(ledger_meta.map_or(0, |m| m.len())),
         };
-        let ledger_writable = paths.ledger.parent().is_some_and(writable);
+        let ledger_dir = paths.ledger.parent().unwrap_or(&paths.ledger);
+        let unwritable: Vec<Unwritable> = [
+            ("archive", archive_dir.as_path()),
+            ("responses", paths.responses_dir.as_path()),
+            ("ledger", ledger_dir),
+        ]
+        .into_iter()
+        .filter_map(|(location, path)| {
+            unwritable_at(path).map(|checked| Unwritable {
+                location,
+                path: path.to_path_buf(),
+                checked,
+            })
+        })
+        .collect();
         Self {
-            healthy: archive.writable && responses.writable && ledger_writable,
+            healthy: unwritable.is_empty(),
             archive,
             responses,
             ledger,
+            unwritable,
         }
     }
 }
@@ -181,17 +239,18 @@ fn megabytes(bytes: u64) -> f64 {
     (bytes as f64 / (1024.0 * 1024.0) * 10.0).round() / 10.0
 }
 
-/// Whether bird could write at `path`, judged at the nearest existing
-/// ancestor when `path` does not exist.
-fn writable(path: &Path) -> bool {
+/// The directory that keeps bird from writing at `path`, judged at the
+/// nearest existing ancestor when `path` does not exist; `None` when bird
+/// can write there.
+fn unwritable_at(path: &Path) -> Option<PathBuf> {
     let mut probe = path;
     loop {
         if probe.exists() {
-            return can_write(probe);
+            return (!can_write(probe)).then(|| probe.to_path_buf());
         }
         match probe.parent() {
             Some(parent) => probe = parent,
-            None => return false,
+            None => return Some(path.to_path_buf()),
         }
     }
 }
