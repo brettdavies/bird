@@ -1,7 +1,8 @@
 # Source repo CI wrapper: calls the centralized reusable workflows.
 #
 # rust-ci.yml runs fmt, clippy, test, cargo-deny check, package check, Windows
-# check, shellcheck, and changelog verification (on PRs to main).
+# check, tests on Windows and macOS, shellcheck, and changelog verification (on
+# PRs to main).
 # lint-basics.yml runs actionlint and markdownlint.
 # No secrets required: only contents: read and pull-requests: read.
 #
@@ -49,6 +50,9 @@ jobs:
       # Actions tab should act on.
       advisories_blocking: true
       docs_only: ${{ needs.scope.outputs.rust == 'false' }}
+      # A release ships for Linux, macOS, and Windows, and paths, file modes,
+      # renames, and locks behave differently on each.
+      cross_os_tests: true
       docs: true
       msrv: true
       completions: true
