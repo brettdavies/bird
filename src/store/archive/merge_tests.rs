@@ -320,3 +320,100 @@ fn a_rewritten_note_stays_private() {
         & 0o777;
     assert_eq!(mode, 0o600);
 }
+
+const SEARCH_PAGE: &str = "https://api.x.com/2/tweets/search/recent";
+const BOOKMARKS_PAGE: &str = "https://api.x.com/2/users/12/bookmarks";
+
+/// A page holding jill's post 1849, with her user object when `author` is set.
+fn jills_page(author: bool) -> Value {
+    let mut page = json!({"data": [{"id": "1849", "text": "hello", "author_id": "13",
+                                    "public_metrics": {"like_count": 5}}]});
+    if author {
+        page["includes"] = json!({"users": [{"id": "13", "username": "jill"}]});
+    }
+    page
+}
+
+fn split_note(text: &str) -> (String, String) {
+    let (fm, body) = text.split_once("\n---\n").expect("frontmatter");
+    (fm.to_string(), body.to_string())
+}
+
+#[test]
+fn a_page_without_the_author_keeps_the_author_link() {
+    let f = fixture();
+    f.archive
+        .observe(SEARCH_PAGE, &jills_page(true), None, at(1));
+    let (first_fm, first_body) = split_note(&f.read(&f.note()));
+    assert!(
+        first_body.contains("[@jill](../users/13.md)"),
+        "{first_body}"
+    );
+
+    f.archive
+        .observe(BOOKMARKS_PAGE, &jills_page(false), Some("jack"), at(2));
+    let (fm, body) = split_note(&f.read(&f.note()));
+    assert!(body.contains("[@jill](../users/13.md)"), "{body}");
+    assert!(!body.contains("user 13"), "{body}");
+    assert_eq!(fm, first_fm);
+    assert_eq!(body, first_body);
+}
+
+#[test]
+fn a_rewrite_keeps_what_the_region_already_showed() {
+    let f = fixture();
+    let full = json!({
+        "data": {"id": "1849", "text": "pic", "author_id": "13",
+                 "created_at": "2026-10-22T14:03:00.000Z",
+                 "referenced_posts": [{"type": "replied_to", "id": "1801"},
+                                      {"type": "quoted", "id": "1802"},
+                                      {"type": "retweeted", "id": "1803"}],
+                 "attachments": {"media_keys": ["3_1", "7_2"]},
+                 "public_metrics": {"like_count": 5}},
+        "includes": {"users": [{"id": "13", "username": "jill"}],
+                     "media": [{"media_key": "3_1", "type": "photo",
+                                "url": "https://pbs.twimg.com/a.jpg"},
+                               {"media_key": "7_2", "type": "video",
+                                "preview_image_url": "https://pbs.twimg.com/v.jpg"}]}
+    });
+    f.archive.observe(SEARCH, &full, None, at(1));
+    let (_, first_body) = split_note(&f.read(&f.note()));
+    for line in [
+        "[@jill](../users/13.md) · 2026-10-22 14:03 UTC",
+        "Replying to [post 1801](1801.md)",
+        "Quoting [post 1802](1802.md)",
+        "Reposting [post 1803](1803.md)",
+        "[photo](https://pbs.twimg.com/a.jpg)",
+        "[video](https://pbs.twimg.com/v.jpg)",
+    ] {
+        assert!(first_body.contains(line), "{line:?} in {first_body}");
+    }
+
+    let thin = json!({"data": {"id": "1849", "text": "pic", "public_metrics": {"like_count": 9}}});
+    f.archive.observe(SEARCH, &thin, None, at(2));
+    let after = f.read(&f.note());
+    assert!(after.contains("like_count: 9\n"), "{after}");
+    assert_eq!(split_note(&after).1, first_body);
+}
+
+#[test]
+fn a_thinner_user_entry_keeps_the_profile_region() {
+    let f = fixture();
+    let profile = json!({"data": {
+        "id": "13", "username": "jill", "name": "Jill", "description": "Writes Rust.",
+        "location": "Austin", "url": "https://t.co/j",
+        "entities": {"url": {"urls": [{"expanded_url": "https://jill.dev"}]}}
+    }});
+    f.archive
+        .observe("https://api.x.com/2/users/13", &profile, None, at(1));
+    let path = f.root.join("users").join("13.md");
+    let first = f.read(&path);
+    assert!(
+        first.contains("# Jill (@jill)\n\nWrites Rust.\n"),
+        "{first}"
+    );
+
+    f.archive
+        .observe(SEARCH_PAGE, &jills_page(true), None, at(2));
+    assert_eq!(f.read(&path), first);
+}

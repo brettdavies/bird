@@ -5,6 +5,7 @@
 //! prefix, so a liked-posts or timeline page files posts and never users.
 
 pub mod frontmatter;
+pub mod known;
 pub mod markdown;
 pub mod merge;
 pub mod note;

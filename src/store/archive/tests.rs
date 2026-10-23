@@ -104,16 +104,9 @@ fn a_bookmarks_page_adds_bookmark_notes_for_the_path_user() {
     let bookmark = note_at(&notes, "bookmarks/12/1849.md");
     assert_eq!(bookmark.kind, Kind::Bookmark);
     assert_eq!(bookmark.get("account"), Some(&Field::Str("jack".into())));
-    assert!(
-        bookmark.region.contains("(../../posts/1849.md)"),
-        "{}",
-        bookmark.region
-    );
-    assert!(
-        bookmark.region.contains("(../../users/12.md)"),
-        "{}",
-        bookmark.region
-    );
+    let region = bookmark.region(None);
+    assert!(region.contains("(../../posts/1849.md)"), "{region}");
+    assert!(region.contains("(../../users/12.md)"), "{region}");
 }
 
 #[test]
@@ -202,12 +195,10 @@ fn included_posts_get_their_own_notes() {
     let (notes, _) = plan(&format!("{API}/2/tweets/1849"), &body, None);
     let quoting = note_at(&notes, "posts/1849.md");
     assert_eq!(quoting.get("quotes"), Some(&Field::Str("1700".into())));
-    assert!(
-        quoting.region.contains("Quoting [post 1700](1700.md)"),
-        "{}",
-        quoting.region
-    );
-    assert!(note_at(&notes, "posts/1700.md").region.contains("original"));
+    let region = quoting.region(None);
+    assert!(region.contains("Quoting [post 1700](1700.md)"), "{region}");
+    let quoted = note_at(&notes, "posts/1700.md").region(None);
+    assert!(quoted.contains("original"), "{quoted}");
 }
 
 #[test]
@@ -362,19 +353,16 @@ fn media_render_as_links() {
             "https://pbs.twimg.com/v.jpg".into()
         ]))
     );
+    let region = post.region(None);
     assert!(
-        post.region
-            .contains("\n[photo](https://pbs.twimg.com/a.jpg)"),
-        "{}",
-        post.region
+        region.contains("\n[photo](https://pbs.twimg.com/a.jpg)"),
+        "{region}"
     );
     assert!(
-        post.region
-            .contains("\n[video](https://pbs.twimg.com/v.jpg)"),
-        "{}",
-        post.region
+        region.contains("\n[video](https://pbs.twimg.com/v.jpg)"),
+        "{region}"
     );
-    assert!(!post.region.contains("!["), "an embed: {}", post.region);
+    assert!(!region.contains("!["), "an embed: {region}");
 }
 
 #[test]
@@ -382,7 +370,7 @@ fn bios_and_names_are_escaped() {
     let body = json!({"data": {"id": "12", "username": "jack", "name": "```dataviewjs",
                                "description": "<script>alert(1)</script>"}});
     let (notes, _) = plan(&format!("{API}/2/users/12"), &body, None);
-    let region = &notes[0].region;
+    let region = notes[0].region(None);
     assert!(region.contains("\\`\\`\\`dataviewjs"), "{region}");
     assert!(region.contains("\\<script>"), "{region}");
     assert!(!region.contains("\n```"), "{region}");
