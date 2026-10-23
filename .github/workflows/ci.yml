@@ -54,6 +54,12 @@ jobs:
       completions: true
       lint_stdio: true
       workflow_concurrency: true
+      # Every `fail` row blocks, source rows included, not only MUST-tier ones.
+      # The floor is the score this tree reports; raise it when the score does.
+      anc_version: "0.6.0"
+      anc_bin: bird
+      anc_blocking_tiers: any
+      anc_score_floor: 99
 
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that
