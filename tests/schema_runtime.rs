@@ -70,20 +70,23 @@ fn offline_commands_match_their_schemas() {
 #[test]
 fn the_skill_dry_run_matches_its_schema() {
     let env = common::TestEnv::new();
-    let (_exit, stdout, _stderr) = common::run_in_process(
-        &[
-            "bird",
-            "--output",
-            "json",
-            "skill",
-            "install",
-            "--all",
-            "--dry-run",
-        ],
-        &env,
-    );
-    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("test: skill JSON");
-    assert_matches("skill-install", &doc);
+    for (verb, schema_name) in [("install", "skill-install"), ("update", "skill-update")] {
+        let (_exit, stdout, _stderr) = common::run_in_process(
+            &[
+                "bird",
+                "--output",
+                "json",
+                "skill",
+                verb,
+                "--all",
+                "--dry-run",
+            ],
+            &env,
+        );
+        let doc: serde_json::Value =
+            serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("{verb}: {e}: {stdout}"));
+        assert_matches(schema_name, &doc);
+    }
 }
 
 /// A dry run that finds a copy at Codex's legacy location names it, under a

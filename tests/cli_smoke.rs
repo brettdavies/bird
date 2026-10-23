@@ -941,6 +941,96 @@ fn a_codex_install_reports_the_legacy_copy() {
     assert!(legacy.exists(), "a dry run leaves the legacy copy in place");
 }
 
+/// `skill update --all` refreshes a host holding a copy, at its destination
+/// or its legacy location, and reports every other host as skipped, all in one
+/// envelope.
+#[test]
+fn update_all_refreshes_installed_hosts_and_skips_the_rest() {
+    let mut env = common::TestEnv::new();
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    env.env.xdk.home = Some(home.path().display().to_string());
+    for copy in [".claude/skills/bird", ".codex/skills/bird"] {
+        std::fs::create_dir_all(home.path().join(copy)).expect("test: create a copy");
+    }
+
+    let (exit, stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "skill",
+            "update",
+            "--all",
+            "--dry-run",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+
+    assert_eq!(exit, 0, "stdout {stdout:?} stderr {stderr:?}");
+    let envelope: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("one update envelope: {e}: {stdout:?}"));
+    assert_eq!(envelope["action"], "skill-update");
+    assert_eq!(envelope["status"], "dry_run");
+    assert_eq!(envelope["exit_code"], 0);
+    let installations = envelope["installations"]
+        .as_array()
+        .expect("installations array");
+    assert_eq!(installations.len(), bird::skill_install::KNOWN_HOSTS.len());
+    for installation in installations {
+        let host = installation["host"].as_str().expect("host string");
+        if matches!(host, "claude_code" | "codex") {
+            assert_eq!(installation["status"], "dry_run", "{installation}");
+            assert_eq!(installation["would_succeed"], true, "{installation}");
+        } else {
+            assert_eq!(installation["status"], "skipped", "{installation}");
+            assert_eq!(installation["reason"], "not-installed", "{installation}");
+            assert_eq!(installation["exit_code"], 0, "{installation}");
+            assert_eq!(installation["destination_status"], "absent");
+            assert_eq!(installation["next_step"]["action"], "run-command");
+            assert_eq!(
+                installation["next_step"]["command"],
+                format!("bird skill install {host}")
+            );
+        }
+    }
+}
+
+/// Text mode names each skipped host's destination without calling it an
+/// error.
+#[test]
+fn update_all_text_reports_skipped_hosts() {
+    let mut env = common::TestEnv::new();
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    env.env.xdk.home = Some(home.path().display().to_string());
+
+    let (exit, stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "skill",
+            "update",
+            "--all",
+            "--dry-run",
+            "--output",
+            "text",
+        ],
+        &env,
+    );
+
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        bird::skill_install::KNOWN_HOSTS.len(),
+        "{stdout}"
+    );
+    let cursor = home.path().join(".cursor/skills/bird");
+    assert!(
+        lines.contains(&format!("skipped: not-installed: {}", cursor.display()).as_str()),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("error"), "{stdout}");
+}
+
 /// With no skill variable and no `HOME` in the injected environment every
 /// host reports `home-not-set`, whatever the test process itself has set.
 #[test]

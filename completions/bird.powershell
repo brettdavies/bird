@@ -1045,7 +1045,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('--cursor', '--cursor', [CompletionResultType]::ParameterName, 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)')
             [CompletionResult]::new('--app', '--app', [CompletionResultType]::ParameterName, 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl''s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not')
             [CompletionResult]::new('--auth', '--auth', [CompletionResultType]::ParameterName, 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list')
-            [CompletionResult]::new('--all', '--all', [CompletionResultType]::ParameterName, 'Update every supported host in one invocation')
+            [CompletionResult]::new('--all', '--all', [CompletionResultType]::ParameterName, 'Update every supported host that has a copy; report the rest as skipped')
             [CompletionResult]::new('--dry-run', '--dry-run', [CompletionResultType]::ParameterName, 'Print the planned operation without touching the filesystem')
             [CompletionResult]::new('--json', '--json', [CompletionResultType]::ParameterName, 'Shorthand for `--output json`')
             [CompletionResult]::new('--jsonl', '--jsonl', [CompletionResultType]::ParameterName, 'Shorthand for `--output jsonl`')

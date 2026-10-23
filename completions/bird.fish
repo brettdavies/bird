@@ -916,7 +916,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l all -d 'Update every supported host in one invocation'
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l all -d 'Update every supported host that has a copy; report the rest as skipped'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l dry-run -d 'Print the planned operation without touching the filesystem'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l jsonl -d 'Shorthand for `--output jsonl`'

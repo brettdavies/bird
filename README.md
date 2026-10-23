@@ -258,8 +258,9 @@ Homebrew users get completions installed automatically.
 ## Agent skill
 
 `bird skill install <host>` clones the [bird skill bundle](https://github.com/brettdavies/bird-skill) into the directory
-each agent host reads skills from; `bird skill update <host>` replaces it. `--all` covers every host, and `--dry-run`
-prints the planned clone without running it.
+each agent host reads skills from; `bird skill update <host>` replaces it. `bird skill install --all` installs into
+every host; `bird skill update --all` refreshes every host that already has a copy and reports the rest as skipped.
+`--dry-run` prints the planned clone without running it.
 
 | Host          | Destination                      | Moved by                                 |
 | ------------- | -------------------------------- | ---------------------------------------- |

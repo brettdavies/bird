@@ -49,7 +49,7 @@
     },
     "reason": {
       "type": "string",
-      "description": "Kebab-case reason on an error."
+      "description": "Kebab-case reason on an error, or `not-installed` on a host `skill update --all` skipped."
     },
     "legacy_install_dir": {
       "type": "string",
@@ -71,7 +71,7 @@
     },
     "installations": {
       "type": "array",
-      "description": "One envelope per host under `--all`.",
+      "description": "One envelope per host under `--all`. A host with nothing installed is reported with `status: skipped`.",
       "items": {
         "type": "object",
         "additionalProperties": true

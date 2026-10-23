@@ -309,11 +309,17 @@ bird skill install claude_code              # clone into ~/.claude/skills/bird
 bird skill install claude_code --dry-run    # print the planned `git clone` without spawning git
 bird skill install --all                    # install into every supported host
 bird skill update claude_code               # remove destination + re-clone
+bird skill update --all                     # refresh every host that has a copy; skip the rest
 ```
 
 Without `<host>` or `--all`, `bird skill install` returns exit 2 (a `missing-host` envelope) and lists the supported
 hosts. Output under `--output json` is the install/update envelope (`action`, `host`, `install_dir`, `command_preview`,
-`destination_status`, `status`, `exit_code`, optional `reason`, `legacy_install_dir`, and `next_step`).
+`destination_status`, `status`, `exit_code`, optional `reason`, `legacy_install_dir`, and `next_step`). Under `--all`
+both verbs print one envelope (`action`, `status`, `exit_code`) whose `installations` array holds one of those per host.
+
+`bird skill update --all` refreshes only the hosts holding a copy, at the destination or the legacy location, as
+`xr skill update --all` does. Each other host is reported with `status: "skipped"`, `reason: "not-installed"`,
+`exit_code: 0`, and a `next_step` that runs `bird skill install <host>`; installing everywhere is `skill install --all`.
 
 The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=never`, `protocol.https.allow=always`,
 `http.followRedirects=false` are applied via `-c key=value`; `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_PROXY_COMMAND`,
