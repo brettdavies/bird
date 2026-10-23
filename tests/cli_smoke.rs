@@ -1493,7 +1493,11 @@ fn malformed_config_toml_names_its_line_column_and_file() {
     assert_eq!(json["command"], path.as_str());
     assert_eq!(json["next_step"]["action"], "fix-input");
     let template = json["next_step"]["template"].as_str().expect("template");
-    assert!(template.ends_with(&path), "{template}");
+    // The path is quoted where a shell would split it, as a Windows path is.
+    assert!(
+        template.starts_with("<editor> ") && template.contains(&path),
+        "{template}"
+    );
 
     let (_, _, text) =
         common::run_in_process(&["bird", "--output", "text", "cache", "stats"], &env);
