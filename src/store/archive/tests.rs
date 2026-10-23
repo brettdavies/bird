@@ -247,6 +247,7 @@ fn absent_fields_write_no_keys() {
             "type",
             "id",
             "url",
+            "aliases",
             "archived_at",
             "updated_at",
             "bird_format"

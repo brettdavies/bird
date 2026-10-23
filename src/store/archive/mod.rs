@@ -4,6 +4,7 @@
 //! What a response archives is decided by its endpoint shape, not a path
 //! prefix, so a liked-posts or timeline page files posts and never users.
 
+pub mod alias;
 pub mod frontmatter;
 pub mod known;
 pub mod markdown;
@@ -15,6 +16,8 @@ pub mod relation;
 pub mod user;
 pub mod yaml;
 
+#[cfg(test)]
+mod alias_tests;
 #[cfg(test)]
 mod merge_tests;
 #[cfg(test)]
