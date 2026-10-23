@@ -3,6 +3,7 @@
 
 pub mod atomic;
 pub mod paths;
+pub mod responses;
 pub mod status;
 
 pub use paths::{ArchiveDirError, ArchiveSource, StorePaths};
