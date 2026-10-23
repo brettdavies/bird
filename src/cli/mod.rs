@@ -460,7 +460,7 @@ pub enum SkillAction {
         #[arg(value_enum, conflicts_with = "all")]
         host: Option<SkillHost>,
 
-        /// Update every supported host in one invocation
+        /// Update every supported host that has a copy; report the rest as skipped
         #[arg(long)]
         all: bool,
 

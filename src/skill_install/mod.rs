@@ -1,7 +1,9 @@
 //! `bird skill install <host>` — clone the bird skill bundle into a host's
 //! canonical skills directory using a build-generated host map and a hardened
 //! `git clone` invocation. The companion `bird skill update <host>` removes
-//! the destination, and any copy at the host's legacy location, and re-clones.
+//! the destination, and any copy at the host's legacy location, and re-clones;
+//! `bird skill update --all` does that only for the hosts holding a copy and
+//! reports the rest as skipped.
 //!
 //! Pipeline:
 //!
@@ -196,6 +198,9 @@ impl InstallEnvelope {
             "destination-not-empty" => {
                 Some(NextStep::run_command(format!("bird skill update {host}")))
             }
+            REASON_NOT_INSTALLED => {
+                Some(NextStep::run_command(format!("bird skill install {host}")))
+            }
             "git-clone-failed" => Some(NextStep::retry(None)),
             "home-not-set" | "destination-is-file" | "git-not-found" | REASON_REMOVE_FAILED => {
                 Some(NextStep::fix_input(None))
@@ -220,7 +225,13 @@ const ACTION_UPDATE: &str = "skill-update";
 const STATUS_DRY_RUN: &str = "dry_run";
 const STATUS_OK: &str = "ok";
 const STATUS_ERROR: &str = "error";
+const STATUS_SKIPPED: &str = "skipped";
 const REASON_REMOVE_FAILED: &str = "remove-failed";
+
+/// Reason paired with [`STATUS_SKIPPED`] when `skill update --all` passes over
+/// a host with nothing installed. Update refreshes what is installed;
+/// installing everywhere is what `skill install --all` is for.
+const REASON_NOT_INSTALLED: &str = "not-installed";
 
 /// Compute the envelope without performing I/O (dry-run) or, in install mode,
 /// after spawning `git`. A copy at the host's legacy location is named in the
@@ -407,6 +418,38 @@ fn update_envelope(host: SkillHost, dry_run: bool, skill_env: &SkillEnv) -> Inst
     envelope
 }
 
+/// The envelope for a host `--all` passes over because nothing is installed
+/// there. Carries exit code 0: a host with no installation is not a failure.
+fn skipped_envelope(host: SkillHost, skill_env: &SkillEnv) -> InstallEnvelope {
+    let (url, dest_template) = resolve_host(host);
+    let install_dir = skill_env
+        .destination(host)
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| dest_template.to_string());
+
+    InstallEnvelope {
+        action: ACTION_UPDATE,
+        host: host_envelope_str(host),
+        command_preview: format_clone_command(url, &install_dir),
+        install_dir,
+        destination_status: DestinationStatus::Absent.as_envelope_str(),
+        status: STATUS_SKIPPED,
+        would_succeed: None,
+        exit_code: Some(0),
+        reason: Some(REASON_NOT_INSTALLED),
+        legacy_install_dir: None,
+        next_step: None,
+    }
+    .with_next_step()
+}
+
+/// Whether a host has something to update, at its destination or its legacy
+/// location.
+fn is_installed(host: SkillHost, skill_env: &SkillEnv) -> bool {
+    skill_env.destination(host).is_ok_and(|dest| dest.exists())
+        || skill_env.legacy_copy(host).is_some()
+}
+
 /// Spawn the prepared `git clone` command and reduce the result to typed
 /// `InstallError` variants matching the reason taxonomy.
 fn spawn_git_clone(cmd: &mut Command) -> Result<(), InstallError> {
@@ -431,8 +474,13 @@ fn render_envelope(env: &InstallEnvelope, format: &OutputFormat) -> String {
         STATUS_DRY_RUN => env.command_preview.clone(),
         STATUS_OK => format!("Installed bird skill bundle into {}", env.install_dir),
         _ => {
+            let label = if env.status == STATUS_SKIPPED {
+                STATUS_SKIPPED
+            } else {
+                STATUS_ERROR
+            };
             let reason = env.reason.unwrap_or("unknown");
-            format!("error: {reason}: {}", env.install_dir)
+            format!("{label}: {reason}: {}", env.install_dir)
         }
     };
     let Some(legacy) = &env.legacy_install_dir else {
@@ -518,7 +566,9 @@ pub fn run_install_multi(
     stdout: &mut dyn Write,
 ) -> i32 {
     if all {
-        return run_for_all_hosts(dry_run, skill_env, out, stdout);
+        return run_for_all_hosts(ACTION_INSTALL, dry_run, out, stdout, |host| {
+            compute_install_envelope(host, dry_run, skill_env)
+        });
     }
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
@@ -526,26 +576,28 @@ pub fn run_install_multi(
     run_install(host, dry_run, skill_env, out, stdout)
 }
 
-/// Render a per-host envelope sequence as a single multi envelope.
+/// Build one envelope per host in [`KNOWN_HOSTS`] order with `envelope_for`
+/// and emit them as a single multi envelope carrying the worst exit code.
 fn run_for_all_hosts(
+    action: &'static str,
     dry_run: bool,
-    skill_env: &SkillEnv,
     out: &OutputConfig,
     stdout: &mut dyn Write,
+    envelope_for: impl Fn(SkillHost) -> InstallEnvelope,
 ) -> i32 {
     use clap::ValueEnum as _;
 
     let mut installations = Vec::with_capacity(KNOWN_HOSTS.len());
     let mut worst: i32 = 0;
     for host in SkillHost::value_variants() {
-        let env = compute_install_envelope(*host, dry_run, skill_env);
+        let env = envelope_for(*host);
         if env.status == STATUS_ERROR {
             worst = worst.max(env.exit_code.unwrap_or(1));
         }
         installations.push(env);
     }
     let multi = InstallMultiEnvelope {
-        action: ACTION_INSTALL,
+        action,
         status: if worst == 0 {
             if dry_run { STATUS_DRY_RUN } else { STATUS_OK }
         } else {
@@ -603,9 +655,10 @@ pub fn run_update(
     )
 }
 
-/// Multi-host wrapper for update. When `all` is set, runs [`run_update`] for
-/// every entry in [`KNOWN_HOSTS`]; otherwise dispatches to [`run_update`] for
-/// the single host.
+/// Multi-host wrapper for update. When `all` is set, refreshes every entry in
+/// [`KNOWN_HOSTS`] that holds a copy and reports the rest as skipped, in one
+/// multi envelope as `skill install --all` prints; otherwise dispatches to
+/// [`run_update`] for the single host.
 pub fn run_update_multi(
     host: Option<SkillHost>,
     all: bool,
@@ -615,15 +668,13 @@ pub fn run_update_multi(
     stdout: &mut dyn Write,
 ) -> i32 {
     if all {
-        use clap::ValueEnum as _;
-        let mut worst: i32 = 0;
-        for h in SkillHost::value_variants() {
-            let code = run_update(*h, dry_run, skill_env, out, stdout);
-            if code != 0 {
-                worst = worst.max(code);
+        return run_for_all_hosts(ACTION_UPDATE, dry_run, out, stdout, |host| {
+            if is_installed(host, skill_env) {
+                compute_update_envelope(host, dry_run, skill_env)
+            } else {
+                skipped_envelope(host, skill_env)
             }
-        }
-        return worst;
+        });
     }
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
