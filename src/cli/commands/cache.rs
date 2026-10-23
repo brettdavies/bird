@@ -56,10 +56,10 @@ pub fn run(
             common: OutputFlags { pretty },
         } => {
             let report = StoreReport::gather(paths, chrono::Utc::now());
-            if pretty {
-                write_pretty(stdout, &report).map_err(cache_io_err)?;
-            } else if out.is_raw_text() {
+            if out.is_raw_text() && !pretty {
                 write_raw(stdout, &report).map_err(cache_io_err)?;
+            } else if out.report_as_text(pretty) {
+                write_pretty(stdout, &report).map_err(cache_io_err)?;
             } else {
                 let value = serde_json::to_value(&report)
                     .map_err(|e| BirdError::from_source("cache", Box::new(e)))?;

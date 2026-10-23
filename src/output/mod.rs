@@ -64,6 +64,13 @@ impl OutputConfig {
         self.raw && self.format == OutputFormat::Text
     }
 
+    /// Whether a report bird assembles itself (`doctor`, `cache stats`,
+    /// `spend`) prints as its human-readable text: in text mode, or under
+    /// `--pretty` whatever the format.
+    pub fn report_as_text(&self, pretty: bool) -> bool {
+        pretty || self.format == OutputFormat::Text
+    }
+
     /// Write the ok envelope around `payload` in the active structured format.
     pub fn print_ok(
         &self,

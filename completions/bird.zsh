@@ -1728,7 +1728,7 @@ _bird__subcmd__bookmarks_commands() {
 _bird__subcmd__cache_commands() {
     local commands; commands=(
 'clear:Delete every stored response; the archive and the ledger stay' \
-'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
+'stats:Show the archive, stored responses, and ledger' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird cache commands' commands "$@"
@@ -1742,7 +1742,7 @@ _bird__subcmd__cache__subcmd__clear_commands() {
 _bird__subcmd__cache__subcmd__help_commands() {
     local commands; commands=(
 'clear:Delete every stored response; the archive and the ledger stay' \
-'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
+'stats:Show the archive, stored responses, and ledger' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird cache help commands' commands "$@"
@@ -1834,7 +1834,7 @@ _bird__subcmd__help__subcmd__bookmarks_commands() {
 _bird__subcmd__help__subcmd__cache_commands() {
     local commands; commands=(
 'clear:Delete every stored response; the archive and the ledger stay' \
-'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
+'stats:Show the archive, stored responses, and ledger' \
     )
     _describe -t commands 'bird help cache commands' commands "$@"
 }

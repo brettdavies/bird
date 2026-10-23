@@ -12,7 +12,8 @@ source of truth.
   full JSON. A name doctor does not report on is `unknown-command` (exit 2); its message lists the names it reports on
   and its `next_step` is `bird doctor --help`.
 
-Use **`--pretty`** for a human-readable summary in either case.
+In text mode, the default on a terminal, either report prints as a human-readable summary (as `--pretty` prints it);
+`--output json` prints it as one JSON document.
 
 We use a single entry point (`bird doctor` and optionally a command name) rather than `bird me --doctor` or
 `bird me doctor` so that “what’s wrong / what do I need?” is discoverable in one place and we avoid duplicating a flag

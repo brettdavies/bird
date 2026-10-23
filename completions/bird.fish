@@ -770,7 +770,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "clear" -d 'Delete every stored response; the archive and the ledger stay'
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "stats" -d 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)'
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "stats" -d 'Show the archive, stored responses, and ledger'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
@@ -824,7 +824,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "clear" -d 'Delete every stored response; the archive and the ledger stay'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "stats" -d 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)'
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "stats" -d 'Show the archive, stored responses, and ledger'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand completions" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
@@ -990,6 +990,6 @@ complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcomma
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "remove" -d 'Remove a user from the watchlist'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from watchlist" -f -a "list" -d 'Show the current watchlist'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from cache" -f -a "clear" -d 'Delete every stored response; the archive and the ledger stay'
-complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from cache" -f -a "stats" -d 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)'
+complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from cache" -f -a "stats" -d 'Show the archive, stored responses, and ledger'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
 complete -c bird -n "__fish_bird_using_subcommand help; and __fish_seen_subcommand_from skill" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'

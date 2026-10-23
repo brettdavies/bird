@@ -871,7 +871,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
             [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
             [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete every stored response; the archive and the ledger stay')
-            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -935,7 +935,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
         }
         'bird;cache;help' {
             [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete every stored response; the archive and the ledger stay')
-            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -1221,7 +1221,7 @@ Register-ArgumentCompleter -Native -CommandName 'bird' -ScriptBlock {
         }
         'bird;help;cache' {
             [CompletionResult]::new('clear', 'clear', [CompletionResultType]::ParameterValue, 'Delete every stored response; the archive and the ledger stay')
-            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)')
+            [CompletionResult]::new('stats', 'stats', [CompletionResultType]::ParameterValue, 'Show the archive, stored responses, and ledger')
             break
         }
         'bird;help;cache;clear' {
