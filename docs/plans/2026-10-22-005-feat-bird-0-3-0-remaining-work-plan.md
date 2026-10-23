@@ -939,7 +939,8 @@ prints that host as `error: not-installed: <dir>`. bird prints `skipped: not-ins
   6. Keep every xdk call bird drives under the process `Stop` (`src/shutdown.rs`), as `EmbeddedClient` does today, so
      a request in flight is dropped on SIGTERM or SIGINT with `cancelled` and exit 143 or 130.
   7. Keep today's store-failure rule in the observation path: a failure never changes the command's result and prints
-     one `[store] warning` line unless quiet, on every command, composed ones included.
+     one `[store] warning` line unless quiet, on every command, composed ones included. The hook writes it to the
+     runner's injected stderr, so in-process tests capture it; `BirdClient` writes it to the process's stderr.
 - **Execution note:** keep the existing cache tests' assertions, swap only the harness, and see them pass before
   deleting `BirdClient`'s transport code; move `tests/diag_quiet_lazy_eval_test.rs` onto the hook.
 - **Patterns to follow:** `src/db/client/get.rs` freshness rules; `src/db/client/entity.rs` cache keys.
@@ -1025,7 +1026,8 @@ prints that host as `error: not-installed: <dir>`. bird prints `skipped: not-ins
   3. The hook stores every page; `archive` prints one ok envelope with the posts gathered, the archive dir, the count
      written, and the last `next_cursor`.
   4. A page that cannot be fetched ends the run as `rank`'s does; a page that cannot be written exits non-zero with the
-     path, the OS error, and a `next_step` naming the archive-dir setting (KTD20).
+     path, the OS error, and a `next_step` naming the archive-dir setting (KTD20). A post whose X id fails the store's
+     id check is skipped with one warning and counted in the envelope; it is not a write failure and never exits `io`.
 - **Test scenarios:**
   - Scripted pages for 250 bookmarks archive in three requests and write 250 files.
   - `-n 120` stops after 120 posts.

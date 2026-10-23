@@ -73,6 +73,7 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #179 | Plan 005 U6: `build-examples` runs on pull requests only; `RELEASES.md` Versioning names the surface-growth check |
 | #182 | `src/skill_install/` split into `git.rs`, `render.rs`, and `update.rs`, as `xr` lays it out; no behavior change |
 | #178, #184, #191 | Plan 005 U23: `cargo test` on Windows and macOS through the shared `cross_os_tests` input (`brettdavies/.github` #92), a portable store-open failure in the quiet-gate test, and both rulesets requiring `ci / Windows test` and `ci / macOS test` (live rulesets match the committed JSON) |
+| #180, #181, #183, #186 to #190, #192 (stack #193) | Plan 005 U21 (plan 006 U1 to U9): a Markdown archive under `archive_dir` / `BIRD_ARCHIVE_DIR`, per-account JSON response files, a JSONL spend ledger, `bird cache` and doctor on the files (`xurl` renamed `xdk`), and `bird.db`, `cache.db`, and rusqlite removed |
 
 ## Stack 1: repo environment
 

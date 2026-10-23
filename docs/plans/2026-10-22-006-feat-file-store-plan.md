@@ -293,7 +293,7 @@ Entries marked ⚑ are calls the maintainer is most likely to revisit.
   default user for the app) is neither answered nor stored, so it can never share the app-only key. Normalization reuses
   `compute_raw_cache_key`'s rules in `src/db/client/entity.rs` (scheme and host as parsed, pairs sorted by key, the sort
   stable so repeated keys keep their order) with two changes. Each key and value is percent-encoded again when the query
-  is rebuilt, so `q=a%26b%3Dc` and `q=a&b=c` no longer collide. The `ids` and `usernames` lists are not sorted, because
+  is rebuilt, so `a=1%26b%3D2` and `a=1&b=2` no longer collide. The `ids` and `usernames` lists are not sorted, because
   a reply lists objects in the order asked and a sorted key would answer one order with another's bytes. Hashing keeps
   every name valid on all seven targets whatever the app is called; the per-account directory makes KTD13 one directory
   removal.
@@ -694,7 +694,7 @@ flowchart TB
   - `a_same_day_response_answers_the_same_request`: write then read for the same method, URL, and account returns the
     stored status and body.
   - `query_order_does_not_change_the_key`: `?a=1&b=2` and `?b=2&a=1` share a key.
-  - `an_encoded_ampersand_does_not_collide`: `?q=a%26b%3Dc` and `?q=a&b=c` get different keys.
+  - `an_encoded_ampersand_does_not_collide`: `?a=1%26b%3D2` and `?a=1&b=2` get different keys.
   - `id_list_order_is_part_of_the_key`: `ids=3,1,2` and `ids=1,2,3` get different keys.
   - `another_account_gets_no_answer`: written for (`default`, `alice`), read for (`default`, `bob`) misses; read for
     (`other`, `alice`) misses.
