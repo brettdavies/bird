@@ -24,7 +24,7 @@ function __fish_bird_using_subcommand
     contains -- $cmd[1] $argv
 end
 
-complete -c bird -n "__fish_bird_needs_command" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_needs_command" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_needs_command" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -35,8 +35,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_needs_command" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_needs_command" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_needs_command" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_needs_command" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_needs_command" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_needs_command" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_needs_command" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_needs_command" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_needs_command" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_needs_command" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -76,7 +76,7 @@ complete -c bird -n "__fish_bird_needs_command" -f -a "completions" -d 'Generate
 complete -c bird -n "__fish_bird_needs_command" -f -a "skill" -d 'Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host\'s skills dir)'
 complete -c bird -n "__fish_bird_needs_command" -f -a "schema" -d 'Print the JSON Schema of a command\'s output, or of the envelope'
 complete -c bird -n "__fish_bird_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand login" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -87,8 +87,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand login" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand login" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand login" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand login" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand login" -l no-browser -d 'Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched'
 complete -c bird -n "__fish_bird_using_subcommand login" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand login" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -101,7 +101,7 @@ complete -c bird -n "__fish_bird_using_subcommand login" -l refresh -d 'Send eve
 complete -c bird -n "__fish_bird_using_subcommand login" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand login" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand login" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand me" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -112,8 +112,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand me" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand me" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand me" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand me" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand me" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand me" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand me" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -126,7 +126,7 @@ complete -c bird -n "__fish_bird_using_subcommand me" -l refresh -d 'Send every 
 complete -c bird -n "__fish_bird_using_subcommand me" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand me" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand me" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -137,8 +137,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand bookmarks" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -161,8 +161,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand profile" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand profile" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand profile" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand profile" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand profile" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand profile" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand profile" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -179,7 +179,7 @@ complete -c bird -n "__fish_bird_using_subcommand search" -l sort -d 'Sort resul
 complete -c bird -n "__fish_bird_using_subcommand search" -l min-likes -d 'Minimum like count threshold' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l max-results -d 'Maximum results per page (10-100, default: 100)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l pages -d 'Number of pages to fetch (1-10, default: 1)' -r
-complete -c bird -n "__fish_bird_using_subcommand search" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -190,8 +190,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand search" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand search" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand search" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand search" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand search" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand search" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand search" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -205,7 +205,7 @@ complete -c bird -n "__fish_bird_using_subcommand search" -l no-cache -d 'Read a
 complete -c bird -n "__fish_bird_using_subcommand search" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand search" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l max-pages -d 'Maximum number of search result pages (default: 10, max: 25)' -r
-complete -c bird -n "__fish_bird_using_subcommand thread" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -216,8 +216,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand thread" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand thread" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand thread" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand thread" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand thread" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -230,7 +230,7 @@ complete -c bird -n "__fish_bird_using_subcommand thread" -l refresh -d 'Send ev
 complete -c bird -n "__fish_bird_using_subcommand thread" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand thread" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand thread" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -241,8 +241,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -260,7 +260,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -f -a "remove" -d 'Remove a user from the watchlist'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -f -a "list" -d 'Show the current watchlist'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and not __fish_seen_subcommand_from fetch add remove list help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -271,8 +271,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from fetch" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -294,8 +294,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from add" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -317,8 +317,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l json -d 'Shorthand for `--output json`'
@@ -332,7 +332,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from remove" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -343,8 +343,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from list" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -362,7 +362,7 @@ complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from help" -f -a "list" -d 'Show the current watchlist'
 complete -c bird -n "__fish_bird_using_subcommand watchlist; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c bird -n "__fish_bird_using_subcommand spend" -l since -d 'Show spend since this date (YYYY-MM-DD; default: 30 days ago)' -r
-complete -c bird -n "__fish_bird_using_subcommand spend" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand spend" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand spend" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -373,8 +373,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand spend" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand spend" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand spend" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand spend" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand spend" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand spend" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand spend" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand spend" -l sync -d 'Also fetch X\'s actual usage (GET /2/usage/tweets) to set beside the estimates'
 complete -c bird -n "__fish_bird_using_subcommand spend" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand spend" -l json -d 'Shorthand for `--output json`'
@@ -389,7 +389,7 @@ complete -c bird -n "__fish_bird_using_subcommand spend" -l no-cache -d 'Read an
 complete -c bird -n "__fish_bird_using_subcommand spend" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand spend" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l media-id -d 'Media ID to attach' -r
-complete -c bird -n "__fish_bird_using_subcommand tweet" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -400,8 +400,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand tweet" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand tweet" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand tweet" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l json -d 'Shorthand for `--output json`'
@@ -415,7 +415,7 @@ complete -c bird -n "__fish_bird_using_subcommand tweet" -l refresh -d 'Send eve
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand tweet" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand reply" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -426,8 +426,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand reply" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand reply" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand reply" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand reply" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand reply" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l json -d 'Shorthand for `--output json`'
@@ -441,7 +441,7 @@ complete -c bird -n "__fish_bird_using_subcommand reply" -l refresh -d 'Send eve
 complete -c bird -n "__fish_bird_using_subcommand reply" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand reply" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand reply" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand like" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -452,8 +452,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand like" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand like" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand like" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand like" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand like" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand like" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand like" -l json -d 'Shorthand for `--output json`'
@@ -467,7 +467,7 @@ complete -c bird -n "__fish_bird_using_subcommand like" -l refresh -d 'Send ever
 complete -c bird -n "__fish_bird_using_subcommand like" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand like" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand like" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand unlike" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -478,8 +478,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand unlike" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand unlike" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand unlike" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l json -d 'Shorthand for `--output json`'
@@ -493,7 +493,7 @@ complete -c bird -n "__fish_bird_using_subcommand unlike" -l refresh -d 'Send ev
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand unlike" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand repost" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -504,8 +504,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand repost" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand repost" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand repost" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand repost" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand repost" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l json -d 'Shorthand for `--output json`'
@@ -519,7 +519,7 @@ complete -c bird -n "__fish_bird_using_subcommand repost" -l refresh -d 'Send ev
 complete -c bird -n "__fish_bird_using_subcommand repost" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand repost" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand repost" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand unrepost" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -530,8 +530,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand unrepost" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand unrepost" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand unrepost" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unrepost" -l json -d 'Shorthand for `--output json`'
@@ -555,8 +555,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand follow" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand follow" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand follow" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand follow" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand follow" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand follow" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand follow" -l json -d 'Shorthand for `--output json`'
@@ -580,8 +580,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand unfollow" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand unfollow" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand unfollow" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unfollow" -l json -d 'Shorthand for `--output json`'
@@ -605,8 +605,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand dm" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand dm" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand dm" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand dm" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand dm" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand dm" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand dm" -l json -d 'Shorthand for `--output json`'
@@ -630,8 +630,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand block" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand block" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand block" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand block" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand block" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand block" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand block" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand block" -l json -d 'Shorthand for `--output json`'
@@ -655,8 +655,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand unblock" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand unblock" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand unblock" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand unblock" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unblock" -l json -d 'Shorthand for `--output json`'
@@ -680,8 +680,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand mute" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand mute" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand mute" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand mute" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand mute" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand mute" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand mute" -l json -d 'Shorthand for `--output json`'
@@ -705,8 +705,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand unmute" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand unmute" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand unmute" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand unmute" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l json -d 'Shorthand for `--output json`'
@@ -720,7 +720,7 @@ complete -c bird -n "__fish_bird_using_subcommand unmute" -l refresh -d 'Send ev
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand unmute" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand doctor" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -731,8 +731,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand doctor" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand doctor" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -745,7 +745,7 @@ complete -c bird -n "__fish_bird_using_subcommand doctor" -l refresh -d 'Send ev
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand doctor" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -756,8 +756,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -772,7 +772,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "clear" -d 'Delete every stored response; the archive and the ledger stay'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "stats" -d 'Show the archive, stored responses, and ledger'
 complete -c bird -n "__fish_bird_using_subcommand cache; and not __fish_seen_subcommand_from clear stats help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -783,10 +783,10 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s f -l force -d 'Skip the interactive confirmation prompt (alias: --yes)'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l dry-run -d 'Validate inputs and print the would-be request, then exit without calling the API'
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l dry-run -d 'Print the stored-responses directory that would be cleared, and remove nothing'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -798,7 +798,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from clear" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -809,8 +809,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l pretty -d 'Pretty-print human-readable output'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from stats" -l jsonl -d 'Shorthand for `--output jsonl`'
@@ -826,7 +826,7 @@ complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "clear" -d 'Delete every stored response; the archive and the ledger stay'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "stats" -d 'Show the archive, stored responses, and ledger'
 complete -c bird -n "__fish_bird_using_subcommand cache; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand completions" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -837,8 +837,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand completions" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand completions" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand completions" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand completions" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand completions" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand completions" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -850,7 +850,7 @@ complete -c bird -n "__fish_bird_using_subcommand completions" -l refresh -d 'Se
 complete -c bird -n "__fish_bird_using_subcommand completions" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand completions" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand completions" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -861,8 +861,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l json -d 'Shorthand for `--output json`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -l jsonl -d 'Shorthand for `--output jsonl`'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -s q -l quiet -d 'Suppress informational stderr output (keep only fatal errors)'
@@ -877,7 +877,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_sub
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'
 complete -c bird -n "__fish_bird_using_subcommand skill; and not __fish_seen_subcommand_from install update help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -888,8 +888,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l all -d 'Install into every supported host in one invocation'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l dry-run -d 'Print the planned clone command without spawning git'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l json -d 'Shorthand for `--output json`'
@@ -903,7 +903,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l no-cache -d 'Read and write no stored responses, notes, or ledger records'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -l cache-only -d 'Answer only from stored responses; never make API requests'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from install" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -914,8 +914,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l all -d 'Update every supported host that has a copy; report the rest as skipped'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l dry-run -d 'Print the planned operation without touching the filesystem'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from update" -l json -d 'Shorthand for `--output json`'
@@ -932,7 +932,7 @@ complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcomm
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "install" -d 'Clone the bird skill bundle into a host\'s canonical skills directory'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "update" -d 'Remove the existing destination and re-clone the bird skill bundle'
 complete -c bird -n "__fish_bird_using_subcommand skill; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c bird -n "__fish_bird_using_subcommand schema" -s u -l username -d 'Username for multi-user token selection (maps to xurl -u)' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -s u -l username -d 'Signed-in account to use when the app holds tokens for several (as `xr -u`)' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -s o -l output -d 'Output format (text, json, jsonl, ndjson). Defaults to json when piped' -r -f -a "text\t'Default: colored, human-readable'
 json\t'Machine-readable JSON envelope, no color'
 jsonl\t'Streaming line-delimited JSON (one object per line; no wrapper)'
@@ -943,8 +943,8 @@ never\t'Never emit colors'"
 complete -c bird -n "__fish_bird_using_subcommand schema" -l timeout -d 'Network timeout in seconds (default 30) for each X API request' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l limit -d 'Maximum number of results to return on list-style commands (default 100, ceiling 1000)' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l cursor -d 'Pagination cursor token for list-style commands (X API `pagination_token`/`next_token`)' -r
-complete -c bird -n "__fish_bird_using_subcommand schema" -l app -d 'Active xurl app name (multi-app token store selection). Precedence: `--app` flag wins over `BIRD_APP` env, which wins over xurl\'s stored default app. `XURL_APP` is intentionally ignored; bird emits a migration warning on first use when `XURL_APP` is set but `BIRD_APP` is not' -r
-complete -c bird -n "__fish_bird_using_subcommand schema" -l auth -d 'Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`, `none`. `none` is rejected at parse time for commands whose `auth_matrix::supported_auth` returns a non-empty scheme list' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -l app -d 'App in the token store to use. `--app` wins over `BIRD_APP`, which wins over the store\'s default app. bird does not read `XURL_APP`; when it is set and `BIRD_APP` is not, commands that call the X API print a warning' -r
+complete -c bird -n "__fish_bird_using_subcommand schema" -l auth -d 'Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`. `none` is refused for a command whose X API endpoint requires authentication' -r
 complete -c bird -n "__fish_bird_using_subcommand schema" -l list -d 'List every schema name and title instead of printing a schema'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l all -d 'Print every schema in one object keyed by name'
 complete -c bird -n "__fish_bird_using_subcommand schema" -l json -d 'Shorthand for `--output json`'

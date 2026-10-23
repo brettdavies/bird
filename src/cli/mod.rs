@@ -30,7 +30,7 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    /// Username for multi-user token selection (maps to xurl -u).
+    /// Signed-in account to use when the app holds tokens for several (as `xr -u`).
     #[arg(long, short = 'u', global = true)]
     pub username: Option<String>,
 
@@ -124,17 +124,16 @@ pub struct Cli {
     #[arg(long, global = true, value_name = "TOKEN", alias = "page")]
     pub cursor: Option<String>,
 
-    /// Active xurl app name (multi-app token store selection). Precedence:
-    /// `--app` flag wins over `BIRD_APP` env, which wins over xurl's stored
-    /// default app. `XURL_APP` is intentionally ignored; bird emits a
-    /// migration warning on first use when `XURL_APP` is set but `BIRD_APP`
-    /// is not.
+    /// App in the token store to use. `--app` wins over `BIRD_APP`, which
+    /// wins over the store's default app. bird does not read `XURL_APP`;
+    /// when it is set and `BIRD_APP` is not, commands that call the X API
+    /// print a warning.
     #[arg(long, global = true, env = "BIRD_APP", value_name = "NAME")]
     pub app: Option<String>,
 
-    /// Per-call auth scheme override. Values: `app`, `oauth1`, `oauth2`,
-    /// `none`. `none` is rejected at parse time for commands whose
-    /// `auth_matrix::supported_auth` returns a non-empty scheme list.
+    /// Per-call auth scheme override: `app`, `oauth1`, `oauth2`, or `none`.
+    /// `none` is refused for a command whose X API endpoint requires
+    /// authentication.
     #[arg(long, global = true, value_name = "SCHEME")]
     pub auth: Option<String>,
 }
@@ -383,7 +382,7 @@ pub enum Command {
     /// Show what is available: the X API client, auth, commands, and the file store.
     #[command(after_help = include_str!("../../examples/doctor.txt"))]
     Doctor {
-        /// Scope report to this command only (e.g. me, bookmarks, get).
+        /// Scope report to this command only (e.g. me, bookmarks, search).
         command: Option<String>,
         #[command(flatten)]
         common: OutputFlags,
@@ -473,7 +472,12 @@ pub enum SkillAction {
 #[derive(clap::Subcommand, Debug)]
 pub enum CacheAction {
     /// Delete every stored response; the archive and the ledger stay.
-    #[command(after_help = include_str!("../../examples/cache-clear.txt"))]
+    #[command(
+        after_help = include_str!("../../examples/cache-clear.txt"),
+        mut_arg("dry_run", |arg| arg.help(
+            "Print the stored-responses directory that would be cleared, and remove nothing"
+        ))
+    )]
     Clear {
         #[command(flatten)]
         guard: WriteGuard,
