@@ -20,11 +20,12 @@ rustfmt on staged `.rs`, shellcheck and `shfmt -i 2 -ci -bn` on staged shell, ac
 on a staged workflow, and the core-env guard on a staged test script.
 
 `pre-push` mirrors CI: `cargo fmt`, `cargo clippy --all-targets` with warnings denied, `cargo test`, the MSRV check, the
-doc build with `-D warnings`, `cargo deny check`, the R20 output guard, a Windows compatibility scan, and the Windows
-cross-target clippy, then shellcheck, shfmt, actionlint, and the guards over every tracked file. It runs the Rust
-battery only when the push reaches a cargo input, so a markdown-only push finishes in seconds. The scoping fails open:
-an unrecognized path runs everything, and running the hook by hand sweeps the whole repo. A step whose tool is missing
-says so on its own line, so a skip never reads as a pass. `tests/hook_ci_parity.rs` names the CI job behind every step.
+doc build with `-D warnings`, `cargo deny check`, the output-discipline check (`scripts/lint-stdio.sh`), a Windows
+compatibility scan, and the Windows cross-target clippy, then shellcheck, shfmt, actionlint, and the guards over every
+tracked file. It runs the Rust battery only when the push reaches a cargo input, so a markdown-only push finishes in
+seconds. The scoping fails open: an unrecognized path runs everything, and running the hook by hand sweeps the whole
+repo. A step whose tool is missing says so on its own line, so a skip never reads as a pass. `tests/hook_ci_parity.rs`
+names the CI job behind every step.
 
 The package check (`cargo publish --dry-run`) and the markdownlint job run in CI only. The live-API checks stay manual
 by design; [`RELEASES-PREFLIGHT.md`](RELEASES-PREFLIGHT.md) lists them, and every live call is billed per object, so

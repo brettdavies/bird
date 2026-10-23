@@ -50,9 +50,9 @@ its JSON Schema.
 
 ### Writer injection
 
-The rule, enforced as R20 by `guard-r20.yml` and the pre-push hook, that every user-visible line goes through an
-injected `&mut dyn Write` or an `OutputConfig` method. Only the binary shim and the fatal-error chokepoint write to the
-process streams directly, which is what lets tests capture every byte bird prints.
+The rule, enforced by `scripts/lint-stdio.sh` in CI's `Output discipline` job and in the pre-push hook, that every
+user-visible line goes through an injected `&mut dyn Write` or an `OutputConfig` method. Only the binary shim and the
+fatal-error chokepoint write to the process streams directly, which is what lets tests capture every byte bird prints.
 
 ## Commands
 

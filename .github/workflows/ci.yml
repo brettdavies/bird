@@ -39,6 +39,10 @@ jobs:
       # failed job, so the run's colour matches what a human scanning the
       # Actions tab should act on.
       advisories_blocking: true
+      docs: true
+      msrv: true
+      lint_stdio: true
+      workflow_concurrency: true
 
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that

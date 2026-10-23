@@ -311,12 +311,15 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
 - MSRV: **1.94**. The toolchain channel pinned in `rust-toolchain.toml` is the supply-chain anchor; rustup verifies
   component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
 - No `unwrap()` in production code paths.
+- `bash scripts/lint-stdio.sh` — no output macro (`println!`, `eprintln!`, and kin) in `src/` outside `src/main.rs` and
+  `src/error/fatal.rs`; output goes to an injected writer.
+- `bash scripts/check-workflow-concurrency.sh` — every workflow concurrency group leads with a literal token.
 
 The hook pair at `scripts/hooks/` shares one library (`_lib.sh`). `pre-commit` checks the staged files: rustfmt,
 shellcheck, `shfmt -i 2 -ci -bn`, actionlint, concurrency-group namespacing, and the core-env guard. `pre-push` mirrors
-CI over the tracked set: fmt, clippy, test, MSRV, rustdoc with `-D warnings`, deny, the R20 output guard, the Windows
-libc grep and cross-clippy, plus the same file linters. It runs the Rust battery only when the push reaches a cargo
-input. `tests/hook_ci_parity.rs` names the CI job behind every pre-push step. Set
+CI over the tracked set: fmt, clippy, test, MSRV, rustdoc with `-D warnings`, deny, the output-discipline check
+(`scripts/lint-stdio.sh`), the Windows libc grep and cross-clippy, plus the same file linters. It runs the Rust battery
+only when the push reaches a cargo input. `tests/hook_ci_parity.rs` names the CI job behind every pre-push step. Set
 `git config core.hooksPath scripts/hooks` once per clone.
 
 ## Testing

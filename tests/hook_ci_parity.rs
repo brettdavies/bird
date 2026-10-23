@@ -12,22 +12,15 @@ enum Mirror {
     RustCi(&'static str),
     /// A job of the shared `lint-basics.yml`, which `ci.yml` calls.
     LintBasics(&'static str),
-    /// A bird workflow whose run step carries every one of these fragments,
-    /// as the hook step does.
-    Workflow {
-        file: &'static str,
-        fragments: &'static [&'static str],
+    /// An opt-in job of the shared `rust-ci.yml`, which runs only when
+    /// `ci.yml` sets this input to `true`.
+    RustCiOptIn {
+        job: &'static str,
+        input: &'static str,
     },
     /// No CI job runs this check; the reason says what the hook covers alone.
     HookOnly(&'static str),
 }
-
-const R20: &[&str] = &[
-    r"'\b(println|eprintln|print|eprint|out_println|out_print|diag)!'",
-    "--glob 'src/**/*.rs'",
-    "--glob '!src/main.rs'",
-    "--glob '!src/error/fatal.rs'",
-];
 
 const GATES: &[(&str, Mirror)] = &[
     ("fmt", Mirror::RustCi("Fmt, clippy, test")),
@@ -35,18 +28,24 @@ const GATES: &[(&str, Mirror)] = &[
     ("test", Mirror::RustCi("Fmt, clippy, test")),
     (
         "msrv",
-        Mirror::HookOnly("rust-ci.yml compiles on the pinned toolchain only"),
+        Mirror::RustCiOptIn {
+            job: "MSRV",
+            input: "msrv",
+        },
     ),
     (
         "doc",
-        Mirror::HookOnly("rust-ci.yml builds no rustdoc with -D warnings"),
+        Mirror::RustCiOptIn {
+            job: "Doc build",
+            input: "docs",
+        },
     ),
     ("deny", Mirror::RustCi("Security audit")),
     (
-        "r20",
-        Mirror::Workflow {
-            file: "guard-r20.yml",
-            fragments: R20,
+        "output discipline",
+        Mirror::RustCiOptIn {
+            job: "Output discipline",
+            input: "lint_stdio",
         },
     ),
     (
@@ -65,7 +64,10 @@ const GATES: &[(&str, Mirror)] = &[
     ("actionlint", Mirror::LintBasics("actionlint")),
     (
         "concurrency namespacing",
-        Mirror::HookOnly("no shared job runs check-workflow-concurrency.sh"),
+        Mirror::RustCiOptIn {
+            job: "Workflow concurrency",
+            input: "workflow_concurrency",
+        },
     ),
     (
         "core-env guard",
@@ -119,7 +121,6 @@ fn every_hook_step_names_its_ci_job() {
 #[test]
 fn every_ci_job_a_gate_names_is_called() {
     let ci = read(".github/workflows/ci.yml");
-    let hook = read("scripts/hooks/pre-push");
     for (label, gate) in GATES {
         match gate {
             Mirror::RustCi(job) => assert!(
@@ -132,18 +133,16 @@ fn every_ci_job_a_gate_names_is_called() {
                     "{label}: ci.yml calls no lint-basics.yml for {job}"
                 )
             }
-            Mirror::Workflow { file, fragments } => {
-                let workflow = read(&format!(".github/workflows/{file}"));
-                for fragment in *fragments {
-                    assert!(
-                        workflow.contains(fragment),
-                        "{label}: {file} lacks {fragment}"
-                    );
-                    assert!(
-                        hook.contains(fragment),
-                        "{label}: pre-push lacks {fragment}"
-                    );
-                }
+            Mirror::RustCiOptIn { job, input } => {
+                assert!(
+                    ci.contains(RUST_CI),
+                    "{label}: ci.yml calls no rust-ci.yml for {job}"
+                );
+                assert!(
+                    ci.lines()
+                        .any(|line| line.trim() == format!("{input}: true")),
+                    "{label}: ci.yml does not set `{input}: true`, so {job} never runs"
+                );
             }
             Mirror::HookOnly(reason) => {
                 assert!(!reason.is_empty(), "{label}: HookOnly needs a reason")
@@ -162,7 +161,7 @@ fn every_reusable_ci_calls_has_a_hook_step() {
         .collect();
     for uses in called {
         let mirrored = GATES.iter().any(|(_, gate)| match gate {
-            Mirror::RustCi(_) => uses.starts_with(RUST_CI),
+            Mirror::RustCi(_) | Mirror::RustCiOptIn { .. } => uses.starts_with(RUST_CI),
             Mirror::LintBasics(_) => uses.starts_with(LINT_BASICS),
             _ => false,
         });
