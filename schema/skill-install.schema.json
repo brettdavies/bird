@@ -51,6 +51,10 @@
       "type": "string",
       "description": "Kebab-case reason on an error."
     },
+    "legacy_install_dir": {
+      "type": "string",
+      "description": "A copy of the bundle at another location the host still reads, such as Codex's `~/.codex/skills/bird`. `skill update` removes it; `skill install` leaves it in place."
+    },
     "message": {
       "type": "string"
     },

@@ -269,13 +269,13 @@ where
     }
 
     if let Command::Skill { action } = &cli.command {
-        let home = env.xdk.home.as_deref();
+        let skill_env = env.skill_env();
         let code = match *action {
             SkillAction::Install { host, all, dry_run } => {
-                skill_install::run_install_multi(host, all, dry_run, home, &out, stdout)
+                skill_install::run_install_multi(host, all, dry_run, &skill_env, &out, stdout)
             }
             SkillAction::Update { host, all, dry_run } => {
-                skill_install::run_update_multi(host, all, dry_run, home, &out, stdout)
+                skill_install::run_update_multi(host, all, dry_run, &skill_env, &out, stdout)
             }
         };
         return ExitCode::from((code.clamp(0, 255)) as u8);

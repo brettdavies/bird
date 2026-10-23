@@ -11,11 +11,57 @@
   },
   "install": {
     "claude_code": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.claude/skills/bird",
-    "codex": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.codex/skills/bird",
+    "codex": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.agents/skills/bird",
     "cursor": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.cursor/skills/bird",
     "factory": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.factory/skills/bird",
     "kiro": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.kiro/skills/bird",
     "opencode": "git clone --depth 1 https://github.com/brettdavies/bird-skill.git ~/.config/opencode/skills/bird"
+  },
+  "config_dir_env": {
+    "claude_code": {
+      "var": "CLAUDE_CONFIG_DIR",
+      "replaces": "~/.claude",
+      "source": "https://code.claude.com/docs/en/claude-directory"
+    },
+    "codex": {
+      "var": null,
+      "source": "https://developers.openai.com/codex/skills",
+      "note": "Codex reads user skills from $HOME/.agents/skills, which no variable relocates; CODEX_HOME moves only the deprecated $CODEX_HOME/skills location."
+    },
+    "cursor": {
+      "var": null,
+      "source": "https://cursor.com/docs/skills",
+      "note": "No documented variable relocates ~/.cursor/skills; CURSOR_CONFIG_DIR covers only the CLI settings file."
+    },
+    "factory": {
+      "var": null,
+      "source": "https://docs.factory.ai/cli/configuration/skills",
+      "note": "No documented variable relocates ~/.factory."
+    },
+    "kiro": {
+      "var": "KIRO_HOME",
+      "replaces": "~/.kiro",
+      "source": "https://kiro.dev/docs/reference/settings/"
+    },
+    "opencode": {
+      "var": "OPENCODE_CONFIG_DIR",
+      "replaces": "~/.config/opencode",
+      "source": "https://opencode.ai/docs/config/"
+    }
+  },
+  "base_dir_env": {
+    "opencode": {
+      "var": "XDG_CONFIG_HOME",
+      "replaces": "~/.config",
+      "source": "https://github.com/anomalyco/opencode/blob/dev/packages/core/src/global.ts"
+    }
+  },
+  "legacy_destinations": {
+    "codex": {
+      "path": "~/.codex/skills/bird",
+      "source": "https://github.com/openai/codex/blob/main/codex-rs/ext/skills/src/host_roots.rs",
+      "note": "Codex still reads this deprecated location, so a copy here appears beside the one at the destination."
+    }
   },
   "update": "cd <install-dir> && git pull --ff-only",
   "uninstall": "rm -rf <install-dir>"

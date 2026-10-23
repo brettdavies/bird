@@ -791,3 +791,183 @@ fn skill_install_ignores_the_process_home() {
         serde_json::from_str(stdout.trim()).expect("install envelope JSON");
     assert_eq!(envelope["reason"], "home-not-set");
 }
+
+/// The envelope `bird skill <verb> <host> --dry-run --output json` prints
+/// against `env`, with its exit code.
+fn skill_dry_run(env: &common::TestEnv, verb: &str, host: &str) -> (u8, serde_json::Value) {
+    let (exit, stdout, stderr) = common::run_in_process(
+        &["bird", "skill", verb, host, "--dry-run", "--output", "json"],
+        env,
+    );
+    let envelope = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("skill {verb} envelope JSON: {e}: {stdout:?} {stderr:?}"));
+    (exit, envelope)
+}
+
+/// Sets `var` to `value` among the host directory variables `env` captured.
+fn with_skill_dir(env: &mut common::TestEnv, var: &str, value: &std::path::Path) {
+    env.env
+        .skill_dirs
+        .insert(var.to_string(), value.display().to_string());
+}
+
+#[test]
+fn claude_config_dir_relocates_the_claude_code_destination() {
+    let mut env = common::TestEnv::new();
+    let config = tempfile::TempDir::new().expect("test: config tempdir");
+    with_skill_dir(&mut env, "CLAUDE_CONFIG_DIR", config.path());
+
+    for verb in ["install", "update"] {
+        let (exit, envelope) = skill_dry_run(&env, verb, "claude_code");
+        assert_eq!(exit, 0, "{verb}: {envelope}");
+        assert_eq!(
+            envelope["install_dir"],
+            config.path().join("skills/bird").display().to_string(),
+            "{verb}"
+        );
+    }
+}
+
+#[test]
+fn bird_skill_home_stands_in_for_home_in_the_codex_destination() {
+    let mut env = common::TestEnv::new();
+    let skill_home = tempfile::TempDir::new().expect("test: skill home tempdir");
+    env.env.skill_home = Some(skill_home.path().display().to_string());
+
+    let (exit, envelope) = skill_dry_run(&env, "install", "codex");
+    assert_eq!(exit, 0, "{envelope}");
+    assert_eq!(
+        envelope["install_dir"],
+        skill_home
+            .path()
+            .join(".agents/skills/bird")
+            .display()
+            .to_string()
+    );
+}
+
+#[test]
+fn xdg_config_home_moves_the_opencode_destination() {
+    let mut env = common::TestEnv::new();
+    let config = tempfile::TempDir::new().expect("test: XDG tempdir");
+    with_skill_dir(&mut env, "XDG_CONFIG_HOME", config.path());
+
+    let (exit, envelope) = skill_dry_run(&env, "install", "opencode");
+    assert_eq!(exit, 0, "{envelope}");
+    assert_eq!(
+        envelope["install_dir"],
+        config
+            .path()
+            .join("opencode/skills/bird")
+            .display()
+            .to_string()
+    );
+}
+
+/// For opencode, its own config-dir variable wins over `BIRD_SKILL_HOME`,
+/// which wins over `XDG_CONFIG_HOME`, which wins over `HOME`.
+#[test]
+fn opencode_destination_variables_resolve_in_xr_order() {
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    let skill_home = tempfile::TempDir::new().expect("test: skill home tempdir");
+    let xdg = tempfile::TempDir::new().expect("test: XDG tempdir");
+    let opencode = tempfile::TempDir::new().expect("test: opencode tempdir");
+
+    let mut env = common::TestEnv::new();
+    env.env.xdk.home = Some(home.path().display().to_string());
+    env.env.skill_home = Some(skill_home.path().display().to_string());
+    with_skill_dir(&mut env, "XDG_CONFIG_HOME", xdg.path());
+    with_skill_dir(&mut env, "OPENCODE_CONFIG_DIR", opencode.path());
+
+    let planned =
+        |env: &common::TestEnv| skill_dry_run(env, "install", "opencode").1["install_dir"].clone();
+
+    assert_eq!(
+        planned(&env),
+        opencode.path().join("skills/bird").display().to_string()
+    );
+    env.env.skill_dirs.remove("OPENCODE_CONFIG_DIR");
+    assert_eq!(
+        planned(&env),
+        skill_home
+            .path()
+            .join(".config/opencode/skills/bird")
+            .display()
+            .to_string()
+    );
+    env.env.skill_home = None;
+    assert_eq!(
+        planned(&env),
+        xdg.path()
+            .join("opencode/skills/bird")
+            .display()
+            .to_string()
+    );
+    env.env.skill_dirs.remove("XDG_CONFIG_HOME");
+    assert_eq!(
+        planned(&env),
+        home.path()
+            .join(".config/opencode/skills/bird")
+            .display()
+            .to_string()
+    );
+}
+
+#[test]
+fn a_codex_install_reports_the_legacy_copy() {
+    let mut env = common::TestEnv::new();
+    let home = tempfile::TempDir::new().expect("test: home tempdir");
+    env.env.xdk.home = Some(home.path().display().to_string());
+    let legacy = home.path().join(".codex/skills/bird");
+    std::fs::create_dir_all(&legacy).expect("test: create the legacy copy");
+
+    for verb in ["install", "update"] {
+        let (exit, envelope) = skill_dry_run(&env, verb, "codex");
+        assert_eq!(exit, 0, "{verb}: {envelope}");
+        assert_eq!(
+            envelope["install_dir"],
+            home.path()
+                .join(".agents/skills/bird")
+                .display()
+                .to_string(),
+            "{verb}"
+        );
+        assert_eq!(
+            envelope["legacy_install_dir"],
+            legacy.display().to_string(),
+            "{verb}"
+        );
+    }
+    assert!(legacy.exists(), "a dry run leaves the legacy copy in place");
+}
+
+/// With no skill variable and no `HOME` in the injected environment every
+/// host reports `home-not-set`, whatever the test process itself has set.
+#[test]
+fn no_skill_variable_and_no_home_is_home_not_set_for_every_host() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, _) = common::run_in_process(
+        &[
+            "bird",
+            "skill",
+            "install",
+            "--all",
+            "--dry-run",
+            "--output",
+            "json",
+        ],
+        &env,
+    );
+
+    assert_eq!(exit, 1, "stdout {stdout:?}");
+    let envelope: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("install envelope JSON");
+    let installations = envelope["installations"]
+        .as_array()
+        .expect("installations array");
+    assert_eq!(installations.len(), bird::skill_install::KNOWN_HOSTS.len());
+    for installation in installations {
+        assert_eq!(installation["reason"], "home-not-set", "{installation}");
+        assert_eq!(installation["next_step"]["action"], "fix-input");
+    }
+}

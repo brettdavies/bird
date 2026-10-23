@@ -1,7 +1,7 @@
 //! `bird skill install <host>` — clone the bird skill bundle into a host's
 //! canonical skills directory using a build-generated host map and a hardened
 //! `git clone` invocation. The companion `bird skill update <host>` removes
-//! the destination and re-clones.
+//! the destination, and any copy at the host's legacy location, and re-clones.
 //!
 //! Pipeline:
 //!
@@ -12,8 +12,10 @@
 //!   resolve_host(SkillHost) -> (url, dest_template)
 //!         |
 //!         v
-//!   expand_tilde_with(dest_template, home)  -- home unset --> MissingHome
-//!         |                                                  (reason=home-not-set)
+//!   skill_env.destination(host)
+//!     host config-dir var, else BIRD_SKILL_HOME,
+//!     else host base-dir var, else HOME
+//!         |                   -- none set --> MissingHome (reason=home-not-set)
 //!         v
 //!      dry_run? --yes--> emit envelope (mode=dry-run, would_succeed)
 //!         |
@@ -43,19 +45,26 @@
 //!   layer of user-controlled git config and block credential prompts.
 //!
 //! Mirrors the `xurl-rs` / `agentnative-cli` pattern so all three CLIs reject
-//! the same malformed inputs and apply identical hardening.
+//! the same malformed inputs, resolve the same destinations, and apply
+//! identical hardening.
 
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use crate::output::envelope::NextStep;
 use crate::output::{OutputConfig, OutputFormat};
 
-// `SkillHost`, `KNOWN_HOSTS`, `resolve_host`, and `host_envelope_str` are
-// auto-generated at build time from `src/skill_install/skill.json`. Edit the
-// JSON file to add or remove hosts; `cargo build` regenerates this file.
+mod destination;
+
+pub use destination::{DestinationStatus, SkillEnv, check_destination, expand_tilde_with};
+
+// `SkillHost`, `KNOWN_HOSTS`, `resolve_host`, `host_envelope_str`,
+// `config_dir_env`, `CONFIG_DIR_VARS`, `base_dir_env`, `BASE_DIR_VARS`, and
+// `legacy_destination` are auto-generated at build time from
+// `src/skill_install/skill.json`. Edit the JSON file to add or remove hosts or
+// change a host's variables; `cargo build` regenerates this file.
 include!(concat!(env!("OUT_DIR"), "/generated_hosts.rs"));
 
 /// `git clone` config flags applied via `-c key=value` pairs, in token order
@@ -99,11 +108,16 @@ pub const GIT_HARDEN_ENV_SET: &[(&str, &str)] = &[
 /// Typed install error — closed set matching the envelope `reason` taxonomy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallError {
+    /// Neither the host's config- or base-directory variable,
+    /// `BIRD_SKILL_HOME`, nor `HOME` is set, so a `~` destination cannot
+    /// expand.
     MissingHome,
     DestNotEmpty,
     DestIsFile,
     GitNotFound,
-    GitCloneFailed { code: i32 },
+    GitCloneFailed {
+        code: i32,
+    },
 }
 
 impl InstallError {
@@ -117,77 +131,6 @@ impl InstallError {
             InstallError::GitCloneFailed { .. } => "git-clone-failed",
         }
     }
-}
-
-/// Snapshot of what `check_destination` found at the resolved path.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DestinationStatus {
-    Absent,
-    EmptyDir,
-    NonEmptyDir,
-    File,
-}
-
-impl DestinationStatus {
-    /// Kebab-case identifier for the JSON envelope `destination_status` field.
-    pub fn as_envelope_str(self) -> &'static str {
-        match self {
-            DestinationStatus::Absent => "absent",
-            DestinationStatus::EmptyDir => "empty-dir",
-            DestinationStatus::NonEmptyDir => "non-empty-dir",
-            DestinationStatus::File => "file",
-        }
-    }
-}
-
-/// Expand a leading `~` or `~/` to `home`, the `HOME` the runner captured.
-/// Pure passthrough on inputs that do not start with `~`. `MissingHome` only
-/// fires when the input actually begins with `~` and `home` is unset or empty.
-pub fn expand_tilde_with(template: &str, home: Option<&str>) -> Result<PathBuf, InstallError> {
-    let needs_home = template == "~" || template.starts_with("~/");
-    if !needs_home {
-        return Ok(PathBuf::from(template));
-    }
-    let home = home
-        .filter(|s| !s.is_empty())
-        .ok_or(InstallError::MissingHome)?;
-    if template == "~" {
-        return Ok(PathBuf::from(home));
-    }
-    let rest = template
-        .strip_prefix("~/")
-        .expect("template starts with ~/ per the branch guard");
-    let mut p = PathBuf::from(home);
-    p.push(rest);
-    Ok(p)
-}
-
-/// Canonicalizes the path so a symlinked skills directory resolves to its
-/// real target before the check runs. Returns `Absent`/`EmptyDir` on success;
-/// `DestIsFile` for a regular file, `DestNotEmpty` for a populated directory.
-pub fn check_destination(path: &Path) -> Result<DestinationStatus, InstallError> {
-    match path.try_exists() {
-        Ok(false) => return Ok(DestinationStatus::Absent),
-        Ok(true) => {}
-        Err(_) => return Err(InstallError::DestNotEmpty),
-    }
-
-    let canonical = fs::canonicalize(path).map_err(|_| InstallError::DestNotEmpty)?;
-    let metadata = fs::metadata(&canonical).map_err(|_| InstallError::DestNotEmpty)?;
-
-    if metadata.is_file() {
-        return Err(InstallError::DestIsFile);
-    }
-
-    if metadata.is_dir() {
-        let mut entries = fs::read_dir(&canonical).map_err(|_| InstallError::DestNotEmpty)?;
-        if entries.next().is_some() {
-            return Err(InstallError::DestNotEmpty);
-        }
-        return Ok(DestinationStatus::EmptyDir);
-    }
-
-    Err(InstallError::DestIsFile)
 }
 
 /// Build the hardened `git clone` command. Pure constructor — no spawn, no
@@ -231,6 +174,12 @@ pub struct InstallEnvelope {
     pub exit_code: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<&'static str>,
+    /// A copy of the bundle found at a location other than `install_dir` that
+    /// the host still reads, such as Codex's deprecated `~/.codex/skills`.
+    /// `skill update` removes it and installs at `install_dir`; `skill
+    /// install` leaves it in place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub legacy_install_dir: Option<String>,
     /// What the caller should do next, when a recovery step exists.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_step: Option<NextStep>,
@@ -248,7 +197,7 @@ impl InstallEnvelope {
                 Some(NextStep::run_command(format!("bird skill update {host}")))
             }
             "git-clone-failed" => Some(NextStep::retry(None)),
-            "home-not-set" | "destination-is-file" | "git-not-found" => {
+            "home-not-set" | "destination-is-file" | "git-not-found" | REASON_REMOVE_FAILED => {
                 Some(NextStep::fix_input(None))
             }
             _ => None,
@@ -271,39 +220,48 @@ const ACTION_UPDATE: &str = "skill-update";
 const STATUS_DRY_RUN: &str = "dry_run";
 const STATUS_OK: &str = "ok";
 const STATUS_ERROR: &str = "error";
+const REASON_REMOVE_FAILED: &str = "remove-failed";
 
 /// Compute the envelope without performing I/O (dry-run) or, in install mode,
-/// after spawning `git`.
+/// after spawning `git`. A copy at the host's legacy location is named in the
+/// envelope and left in place.
 pub fn compute_install_envelope(
     host: SkillHost,
     dry_run: bool,
-    home: Option<&str>,
+    skill_env: &SkillEnv,
 ) -> InstallEnvelope {
-    install_envelope(host, dry_run, home).with_next_step()
+    let mut envelope = install_envelope(host, dry_run, skill_env);
+    envelope.legacy_install_dir = skill_env
+        .legacy_copy(host)
+        .map(|path| path.display().to_string());
+    envelope.with_next_step()
 }
 
-fn install_envelope(host: SkillHost, dry_run: bool, home: Option<&str>) -> InstallEnvelope {
+/// The envelope for a destination that cannot resolve: the template and its
+/// literal `~` are the most specific thing to report.
+fn missing_home_envelope(action: &'static str, host: SkillHost, dry_run: bool) -> InstallEnvelope {
     let (url, dest_template) = resolve_host(host);
+    InstallEnvelope {
+        action,
+        host: host_envelope_str(host),
+        install_dir: dest_template.to_string(),
+        command_preview: format_clone_command(url, dest_template),
+        destination_status: DestinationStatus::Absent.as_envelope_str(),
+        status: STATUS_ERROR,
+        would_succeed: if dry_run { Some(false) } else { None },
+        exit_code: Some(1),
+        reason: Some(InstallError::MissingHome.reason()),
+        legacy_install_dir: None,
+        next_step: None,
+    }
+}
+
+fn install_envelope(host: SkillHost, dry_run: bool, skill_env: &SkillEnv) -> InstallEnvelope {
+    let (url, _) = resolve_host(host);
     let host_str = host_envelope_str(host);
 
-    let dest = match expand_tilde_with(dest_template, home) {
-        Ok(p) => p,
-        Err(InstallError::MissingHome) => {
-            let command_preview = format_clone_command(url, dest_template);
-            return InstallEnvelope {
-                action: ACTION_INSTALL,
-                host: host_str,
-                install_dir: dest_template.to_string(),
-                command_preview,
-                destination_status: DestinationStatus::Absent.as_envelope_str(),
-                status: STATUS_ERROR,
-                would_succeed: if dry_run { Some(false) } else { None },
-                exit_code: Some(1),
-                reason: Some(InstallError::MissingHome.reason()),
-                next_step: None,
-            };
-        }
-        Err(_) => unreachable!("expand_tilde_with only emits MissingHome"),
+    let Ok(dest) = skill_env.destination(host) else {
+        return missing_home_envelope(ACTION_INSTALL, host, dry_run);
     };
 
     let dest_display = dest.display().to_string();
@@ -327,6 +285,7 @@ fn install_envelope(host: SkillHost, dry_run: bool, home: Option<&str>) -> Insta
                 would_succeed: if dry_run { Some(false) } else { None },
                 exit_code: Some(1),
                 reason: Some(e.reason()),
+                legacy_install_dir: None,
                 next_step: None,
             };
         }
@@ -346,50 +305,106 @@ fn install_envelope(host: SkillHost, dry_run: bool, home: Option<&str>) -> Insta
             would_succeed: Some(true),
             exit_code: Some(0),
             reason: None,
+            legacy_install_dir: None,
             next_step: None,
         };
     }
 
     let mut cmd = build_clone_command(url, &dest);
-    match spawn_git_clone(&mut cmd) {
-        Ok(()) => InstallEnvelope {
-            action: ACTION_INSTALL,
+    let (status, exit_code, reason) = match spawn_git_clone(&mut cmd) {
+        Ok(()) => (STATUS_OK, 0, None),
+        Err(e @ InstallError::GitCloneFailed { code }) => (STATUS_ERROR, code, Some(e.reason())),
+        Err(e) => (STATUS_ERROR, 1, Some(e.reason())),
+    };
+    InstallEnvelope {
+        action: ACTION_INSTALL,
+        host: host_str,
+        install_dir: dest_display,
+        command_preview,
+        destination_status: dest_status_str,
+        status,
+        would_succeed: None,
+        exit_code: Some(exit_code),
+        reason,
+        legacy_install_dir: None,
+        next_step: None,
+    }
+}
+
+/// Resolve one host's update outcome without emitting it. Removes the existing
+/// destination, and any copy at the host's legacy location, then re-runs the
+/// install unless `dry_run` is set, so the returned envelope reports what
+/// actually happened.
+pub fn compute_update_envelope(
+    host: SkillHost,
+    dry_run: bool,
+    skill_env: &SkillEnv,
+) -> InstallEnvelope {
+    update_envelope(host, dry_run, skill_env).with_next_step()
+}
+
+fn update_envelope(host: SkillHost, dry_run: bool, skill_env: &SkillEnv) -> InstallEnvelope {
+    let (url, _) = resolve_host(host);
+    let host_str = host_envelope_str(host);
+
+    let Ok(dest) = skill_env.destination(host) else {
+        return missing_home_envelope(ACTION_UPDATE, host, dry_run);
+    };
+
+    let dest_display = dest.display().to_string();
+    let command_preview = format_clone_command(url, &dest_display);
+    let dest_exists = dest.exists();
+    let legacy = skill_env.legacy_copy(host);
+    let legacy_install_dir = legacy.as_ref().map(|path| path.display().to_string());
+    let dest_label = if dest_exists {
+        DestinationStatus::NonEmptyDir.as_envelope_str()
+    } else {
+        DestinationStatus::Absent.as_envelope_str()
+    };
+
+    if dry_run {
+        return InstallEnvelope {
+            action: ACTION_UPDATE,
             host: host_str,
             install_dir: dest_display,
             command_preview,
-            destination_status: dest_status_str,
-            status: STATUS_OK,
-            would_succeed: None,
+            destination_status: dest_label,
+            status: STATUS_DRY_RUN,
+            // Update clears the destination first, so an occupied directory is
+            // not the blocker it is for a plain install.
+            would_succeed: Some(true),
             exit_code: Some(0),
             reason: None,
+            legacy_install_dir,
             next_step: None,
-        },
-        Err(InstallError::GitCloneFailed { code }) => InstallEnvelope {
-            action: ACTION_INSTALL,
+        };
+    }
+
+    let to_remove = [dest_exists.then_some(dest.as_path()), legacy.as_deref()];
+    if to_remove
+        .into_iter()
+        .flatten()
+        .any(|dir| fs::remove_dir_all(dir).is_err())
+    {
+        return InstallEnvelope {
+            action: ACTION_UPDATE,
             host: host_str,
             install_dir: dest_display,
             command_preview,
-            destination_status: dest_status_str,
-            status: STATUS_ERROR,
-            would_succeed: None,
-            exit_code: Some(code),
-            reason: Some(InstallError::GitCloneFailed { code }.reason()),
-            next_step: None,
-        },
-        Err(InstallError::GitNotFound) => InstallEnvelope {
-            action: ACTION_INSTALL,
-            host: host_str,
-            install_dir: dest_display,
-            command_preview,
-            destination_status: dest_status_str,
+            destination_status: dest_label,
             status: STATUS_ERROR,
             would_succeed: None,
             exit_code: Some(1),
-            reason: Some(InstallError::GitNotFound.reason()),
+            reason: Some(REASON_REMOVE_FAILED),
+            legacy_install_dir,
             next_step: None,
-        },
-        Err(_) => unreachable!("spawn_git_clone only emits GitCloneFailed / GitNotFound"),
+        };
     }
+
+    let mut envelope = install_envelope(host, false, skill_env);
+    envelope.action = ACTION_UPDATE;
+    envelope.legacy_install_dir = legacy_install_dir;
+    envelope
 }
 
 /// Spawn the prepared `git clone` command and reduce the result to typed
@@ -405,19 +420,33 @@ fn spawn_git_clone(cmd: &mut Command) -> Result<(), InstallError> {
     }
 }
 
-/// Render a single install envelope per the active output format.
+/// Render a single install envelope per the active output format. Text mode
+/// adds a note line when the envelope names a copy at the host's legacy
+/// location.
 fn render_envelope(env: &InstallEnvelope, format: &OutputFormat) -> String {
     if format.is_json() {
         return render_structured(env, format);
     }
-    match env.status {
+    let summary = match env.status {
         STATUS_DRY_RUN => env.command_preview.clone(),
         STATUS_OK => format!("Installed bird skill bundle into {}", env.install_dir),
         _ => {
             let reason = env.reason.unwrap_or("unknown");
             format!("error: {reason}: {}", env.install_dir)
         }
-    }
+    };
+    let Some(legacy) = &env.legacy_install_dir else {
+        return summary;
+    };
+    let note = if env.action == ACTION_UPDATE {
+        format!("note: {legacy} holds another copy; update removes it along with the destination")
+    } else {
+        format!(
+            "note: {legacy} holds another copy; `bird skill update {}` removes it",
+            env.host
+        )
+    };
+    format!("{summary}\n{note}")
 }
 
 /// Render a multi-host envelope per the active output format.
@@ -448,24 +477,32 @@ fn render_structured<T: serde::Serialize>(env: &T, format: &OutputFormat) -> Str
     }
 }
 
-/// Orchestrate the install pipeline for a single host. Writes the envelope to
-/// `stdout` and returns the exit code. `home` is the `HOME` the runner
-/// captured; `~` destinations expand against it alone.
-pub fn run_install(
-    host: SkillHost,
-    dry_run: bool,
-    home: Option<&str>,
-    out: &OutputConfig,
-    stdout: &mut dyn Write,
-) -> i32 {
-    let envelope = compute_install_envelope(host, dry_run, home);
-    let rendered = render_envelope(&envelope, &out.format);
+/// Write `envelope` to `stdout` and return its exit code.
+fn emit(envelope: &InstallEnvelope, out: &OutputConfig, stdout: &mut dyn Write) -> i32 {
+    let rendered = render_envelope(envelope, &out.format);
     let _ = writeln!(stdout, "{rendered}");
     if envelope.status == STATUS_ERROR {
         envelope.exit_code.unwrap_or(1)
     } else {
         0
     }
+}
+
+/// Orchestrate the install pipeline for a single host. Writes the envelope to
+/// `stdout` and returns the exit code. `skill_env` is the environment the
+/// runner captured; the destination resolves against it alone.
+pub fn run_install(
+    host: SkillHost,
+    dry_run: bool,
+    skill_env: &SkillEnv,
+    out: &OutputConfig,
+    stdout: &mut dyn Write,
+) -> i32 {
+    emit(
+        &compute_install_envelope(host, dry_run, skill_env),
+        out,
+        stdout,
+    )
 }
 
 /// Multi-host wrapper: when `all` is set, iterates every entry in
@@ -476,23 +513,23 @@ pub fn run_install_multi(
     host: Option<SkillHost>,
     all: bool,
     dry_run: bool,
-    home: Option<&str>,
+    skill_env: &SkillEnv,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
     if all {
-        return run_for_all_hosts(dry_run, home, out, stdout);
+        return run_for_all_hosts(dry_run, skill_env, out, stdout);
     }
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
     };
-    run_install(host, dry_run, home, out, stdout)
+    run_install(host, dry_run, skill_env, out, stdout)
 }
 
 /// Render a per-host envelope sequence as a single multi envelope.
 fn run_for_all_hosts(
     dry_run: bool,
-    home: Option<&str>,
+    skill_env: &SkillEnv,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
@@ -501,7 +538,7 @@ fn run_for_all_hosts(
     let mut installations = Vec::with_capacity(KNOWN_HOSTS.len());
     let mut worst: i32 = 0;
     for host in SkillHost::value_variants() {
-        let env = compute_install_envelope(*host, dry_run, home);
+        let env = compute_install_envelope(*host, dry_run, skill_env);
         if env.status == STATUS_ERROR {
             worst = worst.max(env.exit_code.unwrap_or(1));
         }
@@ -548,71 +585,32 @@ fn emit_missing_host_envelope(out: &OutputConfig, stdout: &mut dyn Write) -> i32
     2
 }
 
-/// Orchestrate the update pipeline for a single host. Semantics: remove the
-/// existing destination (if present) and re-run the install. When `dry_run`
+/// Orchestrate the update pipeline for a single host: remove the existing
+/// destination and any legacy copy, then re-run the install. When `dry_run`
 /// is set, emit a `skill-update` envelope describing the resolved operation
 /// without touching the filesystem or spawning `git`.
 pub fn run_update(
     host: SkillHost,
     dry_run: bool,
-    home: Option<&str>,
+    skill_env: &SkillEnv,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
-    let (_, dest_template) = resolve_host(host);
-    let host_str = host_envelope_str(host);
-
-    let dest = match expand_tilde_with(dest_template, home) {
-        Ok(p) => p,
-        Err(InstallError::MissingHome) => {
-            let rendered = render_update_error(host_str, dest_template, dry_run, "home-not-set");
-            let _ = writeln!(stdout, "{rendered}");
-            return 1;
-        }
-        Err(_) => unreachable!("expand_tilde_with only emits MissingHome"),
-    };
-
-    if dry_run {
-        let rendered = render_update_dry_run(host_str, &dest.display().to_string(), dest.exists());
-        let _ = writeln!(stdout, "{rendered}");
-        return 0;
-    }
-
-    if dest.exists()
-        && let Err(e) = fs::remove_dir_all(&dest)
-    {
-        let rendered = render_update_error(
-            host_str,
-            &dest.display().to_string(),
-            false,
-            &format!("remove-failed: {e}"),
-        );
-        let _ = writeln!(stdout, "{rendered}");
-        return 1;
-    }
-
-    let env = compute_install_envelope(host, false, home);
-    let mut rendered = render_envelope(&env, &out.format);
-    if env.status == STATUS_OK {
-        rendered = rendered.replace(ACTION_INSTALL, ACTION_UPDATE);
-    }
-    let _ = writeln!(stdout, "{rendered}");
-    if env.status == STATUS_ERROR {
-        env.exit_code.unwrap_or(1)
-    } else {
-        0
-    }
+    emit(
+        &compute_update_envelope(host, dry_run, skill_env),
+        out,
+        stdout,
+    )
 }
 
-/// Multi-host wrapper for update. When `all` is set, updates every entry in
-/// [`KNOWN_HOSTS`] whose destination currently exists, skipping hosts that
-/// aren't installed. Otherwise dispatches to [`run_update`] for the single
-/// host.
+/// Multi-host wrapper for update. When `all` is set, runs [`run_update`] for
+/// every entry in [`KNOWN_HOSTS`]; otherwise dispatches to [`run_update`] for
+/// the single host.
 pub fn run_update_multi(
     host: Option<SkillHost>,
     all: bool,
     dry_run: bool,
-    home: Option<&str>,
+    skill_env: &SkillEnv,
     out: &OutputConfig,
     stdout: &mut dyn Write,
 ) -> i32 {
@@ -620,7 +618,7 @@ pub fn run_update_multi(
         use clap::ValueEnum as _;
         let mut worst: i32 = 0;
         for h in SkillHost::value_variants() {
-            let code = run_update(*h, dry_run, home, out, stdout);
+            let code = run_update(*h, dry_run, skill_env, out, stdout);
             if code != 0 {
                 worst = worst.max(code);
             }
@@ -630,104 +628,81 @@ pub fn run_update_multi(
     let Some(host) = host else {
         return emit_missing_host_envelope(out, stdout);
     };
-    run_update(host, dry_run, home, out, stdout)
-}
-
-fn render_update_dry_run(host: &str, install_dir: &str, dest_exists: bool) -> String {
-    let json = serde_json::json!({
-        "action": ACTION_UPDATE,
-        "host": host,
-        "install_dir": install_dir,
-        "destination_status": if dest_exists { "non-empty-dir" } else { "absent" },
-        "status": STATUS_DRY_RUN,
-        "would_succeed": true,
-        "exit_code": 0,
-    });
-    serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{\"status\":\"error\"}".to_string())
-}
-
-fn render_update_error(host: &str, install_dir: &str, dry_run: bool, reason: &str) -> String {
-    let json = serde_json::json!({
-        "action": ACTION_UPDATE,
-        "host": host,
-        "install_dir": install_dir,
-        "status": STATUS_ERROR,
-        "would_succeed": if dry_run { Some(false) } else { None },
-        "exit_code": 1,
-        "reason": reason,
-        "next_step": NextStep::fix_input(None),
-    });
-    serde_json::to_string_pretty(&json).unwrap_or_else(|_| "{\"status\":\"error\"}".to_string())
+    run_update(host, dry_run, skill_env, out, stdout)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use clap::ValueEnum;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
 
     fn skill_repo_url() -> &'static str {
         resolve_host(SkillHost::ClaudeCode).0
     }
 
-    #[test]
-    fn expand_tilde_replaces_leading_tilde_slash_with_home() {
-        let got = expand_tilde_with("~/.claude/skills/bird", Some("/home/test"))
-            .expect("HOME present + ~/ prefix should expand cleanly");
-        assert_eq!(got, PathBuf::from("/home/test/.claude/skills/bird"));
+    /// A skill environment with only `HOME`, at `home`.
+    fn at(home: &TempDir) -> SkillEnv {
+        SkillEnv {
+            home: home.path().to_str().map(String::from),
+            ..SkillEnv::default()
+        }
+    }
+
+    /// The first host with a legacy location, with a copy created there under
+    /// `home`.
+    fn host_with_legacy_copy(home: &TempDir) -> (SkillHost, PathBuf) {
+        let host = SkillHost::value_variants()
+            .iter()
+            .copied()
+            .find(|&host| legacy_destination(host).is_some())
+            .expect("a host with a legacy location");
+        let legacy = expand_tilde_with(
+            legacy_destination(host).expect("found above"),
+            home.path().to_str(),
+        )
+        .expect("home is set in the test");
+        std::fs::create_dir_all(&legacy).expect("create the legacy copy");
+        (host, legacy)
     }
 
     #[test]
-    fn expand_tilde_missing_home_only_when_input_starts_with_tilde() {
-        let err = expand_tilde_with("~/anything", None)
-            .expect_err("HOME unset + tilde input should be MissingHome");
-        assert_eq!(err, InstallError::MissingHome);
+    fn install_names_a_legacy_copy_and_leaves_it_in_place() {
+        let home = TempDir::new().expect("tempdir");
+        let (host, legacy) = host_with_legacy_copy(&home);
 
-        let err_empty =
-            expand_tilde_with("~", Some("")).expect_err("HOME empty string is treated as unset");
-        assert_eq!(err_empty, InstallError::MissingHome);
+        let envelope = compute_install_envelope(host, true, &at(&home));
+        assert_eq!(envelope.legacy_install_dir.as_deref(), legacy.to_str());
+        assert!(legacy.exists(), "install leaves the legacy copy alone");
+
+        let text = render_envelope(&envelope, &OutputFormat::Text);
+        assert!(
+            text.contains(&format!("bird skill update {}", envelope.host)),
+            "{text}"
+        );
     }
 
     #[test]
-    fn expand_tilde_no_tilde_passthrough() {
-        let got = expand_tilde_with("/abs/path", Some("/home/test"))
-            .expect("non-tilde input never errors");
-        assert_eq!(got, PathBuf::from("/abs/path"));
+    fn an_update_dry_run_names_the_legacy_copy_and_removes_nothing() {
+        let home = TempDir::new().expect("tempdir");
+        let (host, legacy) = host_with_legacy_copy(&home);
 
-        let got_no_home =
-            expand_tilde_with("/abs/path", None).expect("non-tilde input ignores HOME");
-        assert_eq!(got_no_home, PathBuf::from("/abs/path"));
+        let envelope = compute_update_envelope(host, true, &at(&home));
+        assert_eq!(envelope.action, "skill-update");
+        assert_eq!(envelope.status, "dry_run");
+        assert_eq!(envelope.legacy_install_dir.as_deref(), legacy.to_str());
+        assert!(legacy.exists(), "a dry run removes nothing");
     }
 
     #[test]
-    fn check_destination_absent_for_nonexistent_path() {
-        let tmp = tempfile::tempdir().expect("tempdir creation");
-        let target = tmp.path().join("does-not-exist");
-        let status = check_destination(&target).expect("absent path should be Ok(Absent)");
-        assert_eq!(status, DestinationStatus::Absent);
-    }
-
-    #[test]
-    fn check_destination_empty_dir() {
-        let tmp = tempfile::tempdir().expect("tempdir creation");
-        let status = check_destination(tmp.path()).expect("empty tempdir should be Ok(EmptyDir)");
-        assert_eq!(status, DestinationStatus::EmptyDir);
-    }
-
-    #[test]
-    fn check_destination_non_empty_dir_errors() {
-        let tmp = tempfile::tempdir().expect("tempdir creation");
-        std::fs::write(tmp.path().join("placeholder"), b"x").expect("write placeholder");
-        let err = check_destination(tmp.path()).expect_err("populated dir should be DestNotEmpty");
-        assert_eq!(err, InstallError::DestNotEmpty);
-    }
-
-    #[test]
-    fn check_destination_regular_file_errors() {
-        let tmp = tempfile::tempdir().expect("tempdir creation");
-        let target = tmp.path().join("a-file");
-        std::fs::write(&target, b"contents").expect("write file");
-        let err = check_destination(&target).expect_err("file should be DestIsFile");
-        assert_eq!(err, InstallError::DestIsFile);
+    fn update_without_home_is_an_error_naming_the_reason() {
+        let envelope = compute_update_envelope(SkillHost::ClaudeCode, true, &SkillEnv::default());
+        assert_eq!(envelope.action, "skill-update");
+        assert_eq!(envelope.status, "error");
+        assert_eq!(envelope.reason, Some("home-not-set"));
+        assert_eq!(envelope.exit_code, Some(1));
+        assert_eq!(envelope.would_succeed, Some(false));
     }
 
     #[test]
