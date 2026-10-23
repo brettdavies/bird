@@ -8,9 +8,9 @@
 use std::io;
 use std::path::Path;
 
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use super::alias;
 use super::frontmatter::{Stored, region_parts, split};
 use super::note::{Note, region_block};
 use super::yaml::{Field, entry};
@@ -63,24 +63,6 @@ impl MergeError {
             Self::Changed => io::Error::other(NoteChanged),
         }
     }
-}
-
-/// `aliases` after a rewrite: bird's alias first, then the old username's,
-/// then every stored alias, each once.
-fn merged_aliases(note: &Note, stored: &serde_json::Map<String, Value>) -> Option<Field> {
-    let mut out: Vec<String> = match note.get("aliases") {
-        Some(Field::List(items)) => items.clone(),
-        _ => Vec::new(),
-    };
-    if let Some(old) = stored.get("username").and_then(Value::as_str) {
-        out.push(format!("@{old}"));
-    }
-    if let Some(list) = stored.get("aliases").and_then(Value::as_array) {
-        out.extend(list.iter().filter_map(Value::as_str).map(str::to_string));
-    }
-    let mut seen = std::collections::HashSet::new();
-    out.retain(|a| seen.insert(a.clone()));
-    (!out.is_empty()).then_some(Field::List(out))
 }
 
 fn sha256(bytes: &[u8]) -> Vec<u8> {
@@ -152,7 +134,7 @@ fn merge(note: &Note, stored: &Stored<'_>, stamp: &str) -> Option<String> {
         let value = match key {
             "archived_at" | "updated_at" => None,
             "bird_format" => Some(Field::Int(super::note::BIRD_FORMAT)),
-            "aliases" => merged_aliases(note, &stored.parsed),
+            "aliases" => alias::merged(note, stored),
             _ => note.value(key, Some(stored)),
         };
         if let Some(v) = &value

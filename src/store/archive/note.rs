@@ -6,7 +6,7 @@ use super::frontmatter::Stored;
 use super::known::Known;
 use super::media::{self, Attachment};
 use super::yaml::{Field, entry};
-use super::{post, user};
+use super::{alias, post, user};
 
 /// The line that opens bird's region in a note body.
 pub const REGION_BEGIN: &str = "<!-- bird:begin -->";
@@ -51,6 +51,7 @@ const POST_KEYS: &[&str] = &[
     "links",
     "media",
     "media_keys",
+    "aliases",
     "archived_at",
     "updated_at",
     "bird_format",
@@ -157,28 +158,26 @@ impl Note {
         }
     }
 
-    /// bird's value for `key` with `stored` merged in: a post's `media` and
-    /// `media_keys` keep the stored URL of each key the response did not
-    /// include; every other key is the observation's.
+    /// bird's value for `key` with `stored` merged in: a post's `aliases`
+    /// reads the merged author and time, and its `media` and `media_keys`
+    /// keep the stored URL of each key the response did not include; every
+    /// other key is the observation's.
     pub fn value(&self, key: &str, stored: Option<&Stored<'_>>) -> Option<Field> {
-        let RegionSource::Post {
-            attachments: Some(attached),
-            ..
-        } = &self.source
-        else {
+        let RegionSource::Post { text, attachments } = &self.source else {
             return self.get(key).cloned();
         };
-        let urls = match key {
-            "media" => true,
-            "media_keys" => false,
-            _ => return self.get(key).cloned(),
-        };
         let known = Known::new(&self.keys, stored);
-        let items: Vec<String> = media::resolve(attached, &known)
-            .iter()
-            .map(|m| if urls { m.url } else { m.key }.to_string())
-            .collect();
-        (!items.is_empty()).then_some(Field::List(items))
+        match (key, attachments) {
+            ("aliases", _) => alias::post_alias(&known, text).map(|a| Field::List(vec![a])),
+            ("media" | "media_keys", Some(attached)) => {
+                let items: Vec<String> = media::resolve(attached, &known)
+                    .iter()
+                    .map(|m| if key == "media" { m.url } else { m.key }.to_string())
+                    .collect();
+                (!items.is_empty()).then_some(Field::List(items))
+            }
+            _ => self.get(key).cloned(),
+        }
     }
 
     /// bird's frontmatter entries in key order, with the given timestamps.
@@ -189,7 +188,7 @@ impl Note {
                 "archived_at" => Some(Field::Str(archived_at.to_string())),
                 "updated_at" => Some(Field::Str(updated_at.to_string())),
                 "bird_format" => Some(Field::Int(BIRD_FORMAT)),
-                _ => self.get(key).cloned(),
+                _ => self.value(key, None),
             };
             if let Some(value) = value {
                 out.push_str(&entry(key, &value));

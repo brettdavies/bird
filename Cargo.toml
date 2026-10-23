@@ -58,6 +58,7 @@ tokio = { version = "1", features = ["rt", "net", "time", "macros"] }
 tokio-util = "0.7"
 open = "5"
 serde-saphyr = { version = "2.0.0", default-features = false, features = ["deserialize"] }
+unicode-segmentation = "1.13"
 
 [dependencies.xdk]
 package = "xdk-rs"

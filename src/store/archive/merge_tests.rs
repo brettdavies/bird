@@ -7,7 +7,7 @@ use super::*;
 
 const SEARCH: &str = "https://api.x.com/2/tweets/1849";
 
-fn at(hour: u32) -> chrono::DateTime<chrono::Utc> {
+pub(super) fn at(hour: u32) -> chrono::DateTime<chrono::Utc> {
     use chrono::TimeZone;
     chrono::Utc
         .with_ymd_and_hms(2026, 10, 22, hour, 0, 0)
@@ -23,14 +23,14 @@ fn post(likes: u64, text: &str) -> Value {
     })
 }
 
-struct Fixture {
+pub(super) struct Fixture {
     _dir: tempfile::TempDir,
-    archive: Archive,
+    pub(super) archive: Archive,
     warnings: Arc<Mutex<Vec<u8>>>,
     root: PathBuf,
 }
 
-fn fixture() -> Fixture {
+pub(super) fn fixture() -> Fixture {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().join("archive");
     let warnings = Arc::new(Mutex::new(Vec::<u8>::new()));
@@ -45,11 +45,11 @@ fn fixture() -> Fixture {
 }
 
 impl Fixture {
-    fn note(&self) -> PathBuf {
+    pub(super) fn note(&self) -> PathBuf {
         self.root.join("posts").join("1849.md")
     }
 
-    fn read(&self, path: &Path) -> String {
+    pub(super) fn read(&self, path: &Path) -> String {
         std::fs::read_to_string(path).expect("read note")
     }
 
@@ -92,14 +92,14 @@ fn user_keys_and_text_survive_a_metrics_update() {
     assert!(f.warned().is_empty(), "{}", f.warned());
 }
 
-fn mtime(path: &Path) -> std::time::SystemTime {
+pub(super) fn mtime(path: &Path) -> std::time::SystemTime {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
         .expect("mtime")
 }
 
 /// Sets `path`'s mtime an hour back, so a rewrite would visibly move it.
-fn age(path: &Path) {
+pub(super) fn age(path: &Path) {
     let file = std::fs::File::options()
         .write(true)
         .open(path)
@@ -163,7 +163,7 @@ fn archived_at_survives_every_rewrite() {
     }
 }
 
-fn frontmatter(text: &str) -> Value {
+pub(super) fn frontmatter(text: &str) -> Value {
     let fm = text
         .strip_prefix("---\n")
         .and_then(|t| t.split_once("\n---\n"))
