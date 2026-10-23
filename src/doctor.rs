@@ -37,6 +37,24 @@ const COMMAND_NAMES: &[&str] = &[
     "spend_sync",
 ];
 
+/// Refuses a scope word that names no command doctor reports on, listing the
+/// names it does.
+pub(crate) fn check_scope(scope: Option<&str>) -> Result<(), crate::error::BirdError> {
+    match scope {
+        Some(word) if !COMMAND_NAMES.contains(&word) => {
+            Err(crate::error::BirdError::unknown_command(
+                word,
+                None,
+                format!(
+                    "doctor has no command named {word}; it reports on: {}",
+                    COMMAND_NAMES.join(", ")
+                ),
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// `true` when the named command's API endpoint requires any auth scheme
 /// other than `AuthType::None`.
 fn command_needs_auth(name: &str) -> bool {

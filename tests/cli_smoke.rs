@@ -1223,6 +1223,45 @@ fn doctor_names_xdk() {
     assert!(!stdout.contains("bird.db"), "{stdout}");
 }
 
+/// A scope word doctor does not report on is refused, so an agent that
+/// mistypes a command name does not read the full report as success.
+#[test]
+fn doctor_refuses_a_command_it_does_not_report() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, stderr) = common::run_in_process(
+        &["bird", "--output", "json", "doctor", "nosuchcommand"],
+        &env,
+    );
+    assert_eq!(exit, 2, "stderr {stderr:?}");
+    assert!(stdout.is_empty(), "no report on stdout: {stdout}");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "unknown-command");
+    assert_eq!(json["exit_code"], 2);
+    assert_eq!(json["command"], "nosuchcommand");
+    assert_eq!(json["next_step"]["action"], "show-help");
+    assert_eq!(json["next_step"]["command"], "bird doctor --help");
+    let message = json["message"].as_str().expect("message");
+    let (_, reported, _) = common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    let reported: serde_json::Value = serde_json::from_str(reported.trim()).expect("doctor");
+    for name in reported["commands"].as_object().expect("commands").keys() {
+        assert!(
+            message.contains(name.as_str()),
+            "{name} unlisted: {message}"
+        );
+    }
+}
+
+#[test]
+fn doctor_scoped_to_a_reported_command_succeeds() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "doctor", "me"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("doctor");
+    let commands = doc["commands"].as_object().expect("commands");
+    assert_eq!(commands.keys().collect::<Vec<_>>(), ["me"]);
+}
+
 // --- The 0.2.0 store ------------------------------------------------------------
 
 fn seed_legacy(env: &common::TestEnv, names: &[&str]) {

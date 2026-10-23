@@ -9,7 +9,8 @@ source of truth.
   commands (login, me, bookmarks, profile, search, thread, watchlist, spend).
 - **`bird doctor <command>`** — Scoped report: same auth and config, but the commands section lists only the given
   command (e.g. `bird doctor me`). Lets humans and agents ask “what do I need to run `bird me`?” without parsing the
-  full JSON.
+  full JSON. A name doctor does not report on is `unknown-command` (exit 2); its message lists the names it reports on
+  and its `next_step` is `bird doctor --help`.
 
 Use **`--pretty`** for a human-readable summary in either case.
 

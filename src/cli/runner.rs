@@ -443,6 +443,10 @@ where
     } = &cli.command
     {
         let scope = command.as_deref();
+        if let Err(err) = doctor::check_scope(scope) {
+            let _ = out.print_error(stderr, &err, &hint_ctx);
+            return ExitCode::from(err.exit_code());
+        }
         let pretty = *pretty;
         let use_emoji = use_color && pretty;
         match doctor::run_doctor(&client, &config, &out, stdout, pretty, scope, use_emoji) {
