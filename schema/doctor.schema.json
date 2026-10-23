@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "bird doctor payload",
-  "description": "The ok document `bird doctor` prints under --output json: `status` beside the fields of the `DoctorReport` struct in src/doctor.rs: embedded X API client status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and entity-store health.",
+  "description": "The ok document `bird doctor` prints under --output json: `status` beside the fields of the `DoctorReport` struct in src/doctor.rs: embedded X API client status, per-app auth state with presence-only credential reporting, per-command accepted/credentialed scheme matrix, and the file store's locations.",
   "type": "object",
-  "required": ["status", "xurl", "auth", "commands"],
+  "required": ["status", "xdk", "auth", "commands", "cache"],
   "properties": {
     "status": {
       "const": "ok"
     },
-    "xurl": {
+    "xdk": {
       "type": "object",
       "description": "The embedded X API client (xdk-rs): the linked version and whether the client was built.",
       "required": ["available"],
@@ -139,24 +139,150 @@
       }
     },
     "cache": {
-      "type": ["object", "null"],
-      "description": "Entity-store health; null when no cache is configured.",
+      "type": "object",
+      "description": "The file store: the archive, the response files, and the spend ledger, the same object `bird cache stats` prints.",
+      "required": [
+        "archive",
+        "responses",
+        "ledger",
+        "healthy"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "exists": { "type": "boolean" },
-        "size_mb": { "type": "number" },
-        "max_size_mb": { "type": "integer" },
-        "posts": { "type": "integer" },
-        "users": { "type": "integer" },
-        "raw_responses": { "type": "integer" },
-        "healthy": { "type": "boolean" },
-        "schema_version": {
-          "type": "integer",
-          "description": "The store's schema version: the last migration applied."
+        "archive": {
+          "type": "object",
+          "description": "The Markdown archive.",
+          "required": [
+            "path",
+            "exists",
+            "source",
+            "writable",
+            "posts",
+            "users",
+            "bookmarks",
+            "likes",
+            "size_mb"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The archive directory."
+            },
+            "exists": {
+              "type": "boolean",
+              "description": "Whether the location exists yet."
+            },
+            "source": {
+              "enum": [
+                "default",
+                "config",
+                "env"
+              ],
+              "description": "Which input chose the archive directory: the default, `archive_dir` in config.toml, or `BIRD_ARCHIVE_DIR`."
+            },
+            "writable": {
+              "type": "boolean",
+              "description": "Whether bird can write the directory, or its nearest existing ancestor when it does not exist."
+            },
+            "posts": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Notes under `posts/`."
+            },
+            "users": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Notes under `users/`."
+            },
+            "bookmarks": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Notes under `bookmarks/`."
+            },
+            "likes": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Notes under `likes/`."
+            },
+            "size_mb": {
+              "type": "number",
+              "description": "Total size of bird's notes, in MB."
+            }
+          },
+          "additionalProperties": false
+        },
+        "responses": {
+          "type": "object",
+          "description": "The per-account response files.",
+          "required": [
+            "path",
+            "exists",
+            "writable",
+            "files",
+            "fresh",
+            "size_mb"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The response files directory."
+            },
+            "exists": {
+              "type": "boolean",
+              "description": "Whether the location exists yet."
+            },
+            "writable": {
+              "type": "boolean",
+              "description": "Whether bird can write the directory, or its nearest existing ancestor when it does not exist."
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Stored response files."
+            },
+            "fresh": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Response files written today (UTC), which still answer requests."
+            },
+            "size_mb": {
+              "type": "number",
+              "description": "Total size of the response files, in MB."
+            }
+          },
+          "additionalProperties": false
+        },
+        "ledger": {
+          "type": "object",
+          "description": "The spend ledger.",
+          "required": [
+            "path",
+            "exists",
+            "size_mb"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The spend ledger file."
+            },
+            "exists": {
+              "type": "boolean",
+              "description": "Whether the location exists yet."
+            },
+            "size_mb": {
+              "type": "number",
+              "description": "Size of the ledger, in MB."
+            }
+          },
+          "additionalProperties": false
+        },
+        "healthy": {
+          "type": "boolean",
+          "description": "True when the archive, the responses directory, and the ledger's directory are all writable."
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "linked_xurl_version": {
+    "linked_xdk_version": {
       "type": "string",
       "description": "Version of the xdk-rs crate linked into this bird build."
     }

@@ -1,7 +1,8 @@
-//! bird doctor: living view of xurl status, auth state, command availability, and entity store health.
+//! bird doctor: living view of the embedded xdk-rs client, auth state, command availability, and the file store.
 
 use crate::config::ResolvedConfig;
 use crate::store::BirdClient;
+use crate::store::report::StoreReport;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -48,7 +49,7 @@ fn command_needs_auth(name: &str) -> bool {
 /// The embedded X API client: the xdk-rs version linked into this build and
 /// whether the client was built.
 #[derive(Clone, Debug, Serialize)]
-pub struct XurlStatus {
+pub struct XdkStatus {
     pub version: Option<String>,
     pub available: bool,
     /// Why the client could not be built; present only when `available` is
@@ -135,31 +136,16 @@ pub struct CommandStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct CacheStatus {
-    pub path: String,
-    pub exists: bool,
-    pub size_mb: f64,
-    pub max_size_mb: u64,
-    pub posts: u64,
-    pub users: u64,
-    pub raw_responses: u64,
-    pub healthy: bool,
-    /// The store's schema version; absent when the store could not be read.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema_version: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize)]
 pub struct DoctorReport {
-    pub xurl: XurlStatus,
+    pub xdk: XdkStatus,
     pub auth: AuthState,
     pub commands: HashMap<String, CommandStatus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache: Option<CacheStatus>,
-    /// Version of the xurl crate linked into this bird build, populated
+    /// The file store: archive, response files, and ledger.
+    pub cache: StoreReport,
+    /// Version of the xdk-rs crate linked into this bird build, populated
     /// from `xdk::CRATE_VERSION`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub linked_xurl_version: Option<String>,
+    pub linked_xdk_version: Option<String>,
 }
 
 /// Map a bird command name to the `(method, path_template)` pair used to
@@ -203,9 +189,9 @@ fn command_template(name: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-fn build_xurl_status(client: &BirdClient) -> XurlStatus {
+fn build_xdk_status(client: &BirdClient) -> XdkStatus {
     let reason = client.client_unavailable_reason();
-    XurlStatus {
+    XdkStatus {
         version: Some(xdk::CRATE_VERSION.to_string()),
         available: reason.is_none(),
         reason,
@@ -345,12 +331,12 @@ fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
 /// Command availability based on xurl + auth state. Populates the new
 /// R17b fields `accepted_schemes`, `credentialed_schemes`, and `reachable`
 /// against the resolved active app.
-fn build_commands_section(xurl: &XurlStatus, auth: &AuthState) -> HashMap<String, CommandStatus> {
-    let xurl_available = xurl.available;
+fn build_commands_section(xdk: &XdkStatus, auth: &AuthState) -> HashMap<String, CommandStatus> {
+    let xurl_available = xdk.available;
     let unavailable_reason = || {
         format!(
             "X API client unavailable: {}",
-            xurl.reason.as_deref().unwrap_or("unknown error")
+            xdk.reason.as_deref().unwrap_or("unknown error")
         )
     };
     let mut cmds = HashMap::new();
@@ -425,9 +411,9 @@ pub(crate) fn report(
     config: &ResolvedConfig,
     scope: Option<&str>,
 ) -> DoctorReport {
-    let xurl = build_xurl_status(client);
+    let xdk = build_xdk_status(client);
     let auth = build_auth_state(config);
-    let mut commands = build_commands_section(&xurl, &auth);
+    let mut commands = build_commands_section(&xdk, &auth);
     if let Some(cmd) = scope
         && let Some(status) = commands.remove(cmd)
     {
@@ -435,46 +421,15 @@ pub(crate) fn report(
         commands.insert(cmd.to_string(), status);
     }
 
-    let cache = match client.db_stats() {
-        Some(Ok(stats)) => {
-            let path = client
-                .db_path()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "unknown".to_string());
-            Some(CacheStatus {
-                path,
-                exists: true,
-                size_mb: (stats.size_mb() * 10.0).round() / 10.0,
-                max_size_mb: stats.max_size_mb() as u64,
-                posts: stats.post_count,
-                users: stats.user_count,
-                raw_responses: stats.raw_response_count,
-                healthy: stats.healthy(),
-                schema_version: Some(stats.schema_version),
-            })
-        }
-        Some(Err(_)) => Some(CacheStatus {
-            path: "unknown".to_string(),
-            exists: false,
-            size_mb: 0.0,
-            max_size_mb: 100,
-            posts: 0,
-            users: 0,
-            raw_responses: 0,
-            healthy: false,
-            schema_version: None,
-        }),
-        None => None,
-    };
-
-    let linked_xurl_version = Some(xdk::CRATE_VERSION.to_string());
+    let cache = StoreReport::gather(&config.store, chrono::Utc::now());
+    let linked_xdk_version = Some(xdk::CRATE_VERSION.to_string());
 
     DoctorReport {
-        xurl,
+        xdk,
         auth,
         commands,
         cache,
-        linked_xurl_version,
+        linked_xdk_version,
     }
 }
 
@@ -483,8 +438,8 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
     let mut out = String::new();
 
     out.push_str(&format!("{}\n", output::section("X API client", use_color)));
-    if report.xurl.available {
-        if let Some(ref version) = report.xurl.version {
+    if report.xdk.available {
+        if let Some(ref version) = report.xdk.version {
             out.push_str(&format!(
                 "  version: {}\n",
                 output::muted(version, use_color)
@@ -499,11 +454,11 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
             "  status: {}\n",
             output::error("unavailable", use_color)
         ));
-        if let Some(ref reason) = report.xurl.reason {
+        if let Some(ref reason) = report.xdk.reason {
             out.push_str(&format!("  {reason}\n"));
         }
     }
-    if let Some(ref linked) = report.linked_xurl_version {
+    if let Some(ref linked) = report.linked_xdk_version {
         out.push_str(&format!(
             "  linked_crate_version: {}\n",
             output::muted(linked, use_color)
@@ -626,45 +581,38 @@ fn format_pretty(report: &DoctorReport, use_color: bool, use_emoji: bool) -> Str
         ));
     }
 
-    if let Some(ref cache) = report.cache {
-        out.push_str(&format!("\n{}\n", output::section("Cache", use_color)));
-        out.push_str(&format!(
-            "  path: {}\n",
-            output::muted(&cache.path, use_color)
-        ));
-        out.push_str(&format!(
-            "  size: {}\n",
-            output::muted(
-                &format!("{:.1} MB / {} MB", cache.size_mb, cache.max_size_mb),
-                use_color
-            )
-        ));
-        out.push_str(&format!(
-            "  posts: {}\n",
-            output::muted(&cache.posts.to_string(), use_color)
-        ));
-        out.push_str(&format!(
-            "  users: {}\n",
-            output::muted(&cache.users.to_string(), use_color)
-        ));
-        out.push_str(&format!(
-            "  raw_responses: {}\n",
-            output::muted(&cache.raw_responses.to_string(), use_color)
-        ));
-        let status = if cache.healthy {
-            "healthy"
-        } else {
-            "unhealthy"
-        };
-        out.push_str(&format!(
-            "  status: {}\n",
-            if cache.healthy {
-                output::success(status, use_color)
-            } else {
-                output::error(status, use_color)
-            }
-        ));
-    }
+    let cache = &report.cache;
+    let line =
+        |label: &str, value: String| format!("  {label}: {}\n", output::muted(&value, use_color));
+    out.push_str(&format!("\n{}\n", output::section("Cache", use_color)));
+    let archive = &cache.archive;
+    out.push_str(&line(
+        "archive",
+        format!("{} ({})", archive.path, archive.source.as_str()),
+    ));
+    out.push_str(&line(
+        "notes",
+        format!(
+            "{} posts, {} users, {} bookmarks, {} likes, {:.1} MB",
+            archive.posts, archive.users, archive.bookmarks, archive.likes, archive.size_mb
+        ),
+    ));
+    let responses = &cache.responses;
+    out.push_str(&line("responses", responses.path.clone()));
+    out.push_str(&line(
+        "stored",
+        format!(
+            "{} files, {} from today, {:.1} MB",
+            responses.files, responses.fresh, responses.size_mb
+        ),
+    ));
+    out.push_str(&line("ledger", cache.ledger.path.clone()));
+    let status = if cache.healthy {
+        output::success("healthy", use_color)
+    } else {
+        output::error("unhealthy", use_color)
+    };
+    out.push_str(&format!("  status: {status}\n"));
 
     out
 }
@@ -723,9 +671,7 @@ mod tests {
         ResolvedConfig {
             username: None,
             config_dir: dir.clone(),
-            cache_path: dir.join("bird.db"),
             cache_enabled: false,
-            cache_max_size_mb: 100,
             store: crate::store::StorePaths::under(&dir),
             token_store: Some(dir.join("no-such-store").join("auth.yml")),
             xdk_env: xdk::config::EnvOverrides::default(),
@@ -769,9 +715,9 @@ mod tests {
             std::sync::Arc::new(std::sync::Mutex::new(std::io::sink())),
         );
         let r = report(&client, &isolated_config(), None);
-        assert!(!r.xurl.available);
+        assert!(!r.xdk.available);
         assert_eq!(
-            r.xurl.reason.as_deref(),
+            r.xdk.reason.as_deref(),
             Some("cannot start the async runtime")
         );
         let me = &r.commands["me"];
@@ -789,11 +735,11 @@ mod tests {
     fn doctor_report_built_client_is_available_without_reason() {
         let client = no_cache_client();
         let r = report(&client, &isolated_config(), None);
-        assert!(r.xurl.available);
-        assert!(r.xurl.reason.is_none());
+        assert!(r.xdk.available);
+        assert!(r.xdk.reason.is_none());
         let json = serde_json::to_value(&r).expect("serialize");
-        assert!(json["xurl"].get("reason").is_none());
-        assert!(json["xurl"].get("path").is_none());
+        assert!(json["xdk"].get("reason").is_none());
+        assert!(json["xdk"].get("path").is_none());
     }
 
     #[test]
@@ -801,7 +747,7 @@ mod tests {
         let client = no_cache_client();
         let r = report(&client, &isolated_config(), None);
         let json = serde_json::to_string(&r).expect("test");
-        assert!(json.contains("xurl"));
+        assert!(json.contains("\"xdk\""));
         assert!(json.contains("auth"));
         assert!(json.contains("commands"));
         assert!(json.contains("active_app"));

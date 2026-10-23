@@ -274,7 +274,7 @@ pub fn run(
             config.username.as_deref(),
         ),
         Command::Cache { action } => {
-            commands::cache::run(client, out, stdout, stderr, action, no_interactive)
+            commands::cache::run(&config.store, out, stdout, stderr, action, no_interactive)
         }
         // Pre-dispatched by the runner before `run` is invoked
         // (`Completions`, `Skill`, `Schema`, `Doctor`); arms kept for

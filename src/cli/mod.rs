@@ -104,15 +104,15 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub examples: bool,
 
-    /// Bypass store read, still write response to store.
+    /// Send every read instead of answering it from a stored response; still store the reply.
     #[arg(long, global = true)]
     pub refresh: bool,
 
-    /// Disable entity store entirely (no read, no write).
+    /// Read and write no stored responses, notes, or ledger records.
     #[arg(long, global = true)]
     pub no_cache: bool,
 
-    /// Only serve from local store; never make API requests.
+    /// Answer only from stored responses; never make API requests.
     #[arg(long, global = true)]
     pub cache_only: bool,
 
@@ -380,7 +380,7 @@ pub enum Command {
         guard: WriteGuard,
     },
 
-    /// Show what is available: xurl status, commands, and entity store health.
+    /// Show what is available: the X API client, auth, commands, and the file store.
     #[command(after_help = include_str!("../../examples/doctor.txt"))]
     Doctor {
         /// Scope report to this command only (e.g. me, bookmarks, get).
@@ -389,7 +389,7 @@ pub enum Command {
         common: OutputFlags,
     },
 
-    /// Manage the HTTP response cache.
+    /// Report the file store and clear its stored responses.
     #[command(after_help = include_str!("../../examples/cache.txt"))]
     Cache {
         #[command(subcommand)]
@@ -472,13 +472,13 @@ pub enum SkillAction {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum CacheAction {
-    /// Delete all cache entries.
+    /// Delete every stored response; the archive and the ledger stay.
     #[command(after_help = include_str!("../../examples/cache-clear.txt"))]
     Clear {
         #[command(flatten)]
         guard: WriteGuard,
     },
-    /// Show cache status (JSON default, --pretty for human-readable).
+    /// Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable).
     #[command(after_help = include_str!("../../examples/cache-stats.txt"))]
     Stats {
         #[command(flatten)]
