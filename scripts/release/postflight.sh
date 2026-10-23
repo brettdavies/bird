@@ -22,7 +22,7 @@
 #
 # Subcommands:
 #   release        release.yml (release-lib.yml on a library tag) on the tag push (conclusion=success)
-#   tap            homebrew-tap update-formula + Publish bottles SUCCESS (SKIPs on a library tag)
+#   tap            homebrew-tap update-formula + Publish formula SUCCESS (SKIPs on a library tag)
 #   finalize       finalize-release.yml callback ran (cross-repo dispatch loop closed; SKIPs on a library tag)
 #   make-latest    GitHub Release is non-draft, non-prerelease, and releases/latest matches.
 #                  On a library tag the check inverts: latest must NOT be it (make_latest: false)
@@ -251,7 +251,7 @@ resolve_env_url() {
 
 # Gate: release.yml ----------------------------------------------------------
 
-# Every downstream run (tap update-formula, Publish bottles, finalize-release)
+# Every downstream run (tap update-formula, Publish formula, finalize-release)
 # is matched by name and start time against the release.yml run for this tag.
 # Matching by name alone returns the previous release's runs when this
 # release's are still queued, which reads as a false pass; the tap repo is
@@ -323,7 +323,7 @@ gate_release() {
 # Gate: homebrew-tap ---------------------------------------------------------
 
 gate_tap() {
-  header "homebrew-tap dispatch + bottles publish"
+  header "homebrew-tap dispatch + formula publish"
   if [[ "$(release_line)" == "library" ]]; then
     gate_skip "tap chain" "library release ($(resolve_tag)): rust-lib-release.yml dispatches no Homebrew update"
     return
@@ -359,25 +359,29 @@ gate_tap() {
     fi
   fi
 
-  # Publish bottles = workflow_run triggered by the CI completion on the formula-bump PR
+  # The tap's publish workflow = workflow_run triggered by the CI completion on
+  # the formula-bump PR. It is named `Publish formula`; a tap that carries the
+  # workflow under the name `Publish bottles` is matched too, and the gate
+  # reports the run under the name it has.
   local pb
   pb=$(gh run list --repo "$tap" --event workflow_run --limit 10 \
     --json databaseId,status,conclusion,displayTitle,createdAt \
-    --jq "[.[] | select(.displayTitle == \"Publish bottles\" and .createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
+    --jq "[.[] | select((.displayTitle == \"Publish formula\" or .displayTitle == \"Publish bottles\") and .createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
   if [[ -z "$pb" || "$pb" == "null" ]]; then
-    gate_skip "tap Publish bottles" "no run since release.yml started ($since); CI on the formula PR may still be running"
+    gate_skip "tap Publish formula" "no run since release.yml started ($since); CI on the formula PR may still be running"
     return
   fi
-  local pb_status pb_conclusion pb_id
+  local pb_status pb_conclusion pb_id pb_title
   pb_status=$(printf '%s' "$pb" | jaq -r .status)
   pb_conclusion=$(printf '%s' "$pb" | jaq -r .conclusion)
   pb_id=$(printf '%s' "$pb" | jaq -r .databaseId)
+  pb_title=$(printf '%s' "$pb" | jaq -r .displayTitle)
   if [[ "$pb_status" == "completed" && "$pb_conclusion" == "success" ]]; then
-    gate_pass "tap Publish bottles run $pb_id success (bottle commit pushed to $tap main)"
+    gate_pass "tap $pb_title run $pb_id success (formula bump pushed to $tap main)"
   elif [[ "$pb_status" == "completed" ]]; then
-    gate_fail "tap Publish bottles run $pb_id" "conclusion=$pb_conclusion"
+    gate_fail "tap $pb_title run $pb_id" "conclusion=$pb_conclusion"
   else
-    gate_skip "tap Publish bottles run $pb_id" "status=$pb_status"
+    gate_skip "tap $pb_title run $pb_id" "status=$pb_status"
   fi
 }
 
@@ -404,7 +408,7 @@ gate_finalize() {
     --json databaseId,status,conclusion,createdAt \
     --jq "[.[] | select(.createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
   if [[ -z "$fr" || "$fr" == "null" ]]; then
-    gate_skip "finalize-release.yml run" "no callback since release.yml started ($since); Publish bottles may still be running on $TAP_REPO"
+    gate_skip "finalize-release.yml run" "no callback since release.yml started ($since); the tap's publish run may still be running on $TAP_REPO"
     return
   fi
   local fr_status fr_conclusion fr_id
