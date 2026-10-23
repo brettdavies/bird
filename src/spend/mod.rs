@@ -1,11 +1,13 @@
-//! Usage command: API cost visibility from local SQLite + X API sync (default).
-//! Reads the `usage` table for estimated costs; fetches actuals from GET /2/usage/tweets by default.
+//! Usage command: API cost visibility from the local ledger + X API sync (default).
+//! Reads the ledger for estimated costs; fetches actuals from GET /2/usage/tweets by default.
 //! Use `--local` to skip the API and show only local estimates.
 
 mod pretty;
 mod sync;
 
-use crate::db::{ActualUsageDay, BirdClient, DailyUsage, EndpointUsage, UsageSummary};
+use crate::db::BirdClient;
+use crate::store::ledger::Ledger;
+use crate::store::spend_view::{self, ActualUsageDay, DailyUsage, EndpointUsage, UsageSummary};
 
 /// Parse --since into a YYYYMMDD integer for date_ymd column filtering.
 fn parse_since(since: Option<&str>) -> Result<i64, Box<dyn std::error::Error + Send + Sync>> {
@@ -47,8 +49,10 @@ fn ymd_to_display(ymd: i64) -> String {
 /// BufWriter is dropped on unwind, flushing buffered bytes in debug builds.
 /// In release builds bird uses `panic = "abort"`, so mid-stream aborts may
 /// truncate — accepted property of streaming output.
+#[allow(clippy::too_many_arguments)]
 pub fn run_spend(
     client: &mut BirdClient,
+    ledger: Option<&Ledger>,
     cfg: &crate::output::OutputConfig,
     stdout: &mut dyn std::io::Write,
     stderr: &mut dyn std::io::Write,
@@ -61,34 +65,35 @@ pub fn run_spend(
     let quiet = cfg.suppress_diag();
     let since_ymd = parse_since(since)?;
 
-    // Check DB availability (graceful degradation per D5)
-    if client.db().is_none() {
-        let msg = if client.db_disabled() {
-            "Usage tracking requires the store. Remove --no-cache to enable."
-        } else {
-            "Store database is unavailable. Run `bird cache clear` to reset."
-        };
+    let Some(ledger) = ledger else {
         if !quiet {
-            writeln!(stderr, "[spend] {}", msg).ok();
+            writeln!(
+                stderr,
+                "[spend] Usage tracking requires the store. Remove --no-cache to enable."
+            )
+            .ok();
         }
         if !pretty {
             cfg.print_ok(&mut out, serde_json::to_value(empty_report(since_ymd))?)?;
         }
         out.flush()?;
         return Ok(());
-    }
-
-    // Query local data (db() is Some, verified above; re-borrow scoped to avoid API call below)
-    let (summary, daily, top_endpoints) = {
-        let db = client
-            .db()
-            .expect("invariant: db().is_none() short-circuits above");
-        (
-            db.query_usage_summary(since_ymd)?,
-            db.query_daily_usage(since_ymd)?,
-            db.query_top_endpoints(since_ymd)?,
-        )
     };
+
+    let contents = ledger.read()?;
+    if contents.skipped > 0 && !quiet {
+        writeln!(
+            stderr,
+            "[store] warning: skipped {} unreadable line(s) in {}",
+            contents.skipped,
+            ledger.path().display()
+        )
+        .ok();
+    }
+    let records = contents.records;
+    let summary = spend_view::summary(&records, since_ymd);
+    let daily = spend_view::daily(&records, since_ymd);
+    let top_endpoints = spend_view::top_endpoints(&records, since_ymd);
 
     if summary.total_calls == 0 && local && !quiet {
         writeln!(
@@ -119,25 +124,15 @@ pub fn run_spend(
             }
         }
 
-        match sync::sync_actual_usage(client, stderr, quiet)? {
+        match sync::sync_actual_usage(client, Some(ledger), stderr, quiet)? {
             Some(sync_data) => {
                 sync_status = "success";
                 (Some(sync_data.daily), sync_data.cap, sync_data.per_app)
             }
-            None => {
-                let fallback = client
-                    .db()
-                    .and_then(|db| db.query_actual_usage(since_ymd).ok())
-                    .flatten();
-                (fallback, None, vec![])
-            }
+            None => (spend_view::actuals(&records, since_ymd), None, vec![]),
         }
     } else {
-        let fallback = client
-            .db()
-            .and_then(|db| db.query_actual_usage(since_ymd).ok())
-            .flatten();
-        (fallback, None, vec![])
+        (spend_view::actuals(&records, since_ymd), None, vec![])
     };
 
     let since_display = since
@@ -285,11 +280,17 @@ mod tests {
     #[test]
     fn run_spend_local_skips_api() {
         let mut client = sync_client(vec![]);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ledger = Ledger::at(
+            dir.path().join("spend.jsonl"),
+            dir.path().join("spend.lock"),
+        );
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
         run_spend(
             &mut client,
+            Some(&ledger),
             &cfg,
             &mut stdout,
             &mut stderr,
@@ -312,11 +313,17 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ledger = Ledger::at(
+            dir.path().join("spend.jsonl"),
+            dir.path().join("spend.lock"),
+        );
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
         run_spend(
             &mut client,
+            Some(&ledger),
             &cfg,
             &mut stdout,
             &mut stderr,
@@ -330,11 +337,17 @@ mod tests {
     #[test]
     fn run_spend_default_with_empty_mock_errors() {
         let mut client = sync_client(vec![]);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ledger = Ledger::at(
+            dir.path().join("spend.jsonl"),
+            dir.path().join("spend.lock"),
+        );
         let cfg = quiet_cfg();
         let mut stdout: Vec<u8> = Vec::new();
         let mut stderr: Vec<u8> = Vec::new();
         let result = run_spend(
             &mut client,
+            Some(&ledger),
             &cfg,
             &mut stdout,
             &mut stderr,

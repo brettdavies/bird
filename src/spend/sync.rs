@@ -1,9 +1,11 @@
-//! `/2/usage/tweets` sync: pull actual usage from X API, persist to DB, return shaped data.
+//! `/2/usage/tweets` sync: pull actual usage from X API, append it to the
+//! ledger, return shaped data.
 
 use super::{AppDailyUsage, ProjectCap, SyncData};
 use crate::cli::auth_scheme::AuthType;
 use crate::db::{ActualUsageDay, BirdClient, RequestContext};
 use crate::output;
+use crate::store::ledger::{self, ActualRecord, Ledger, Record};
 
 /// Parse a JSON value that may be an integer or a string-encoded integer.
 fn parse_usage_count(v: &serde_json::Value) -> u64 {
@@ -15,6 +17,7 @@ fn parse_usage_count(v: &serde_json::Value) -> u64 {
 /// Sync actual usage from X API via xurl with `--auth app` (Bearer token).
 pub(super) fn sync_actual_usage(
     client: &mut BirdClient,
+    ledger: Option<&Ledger>,
     stderr: &mut dyn std::io::Write,
     quiet: bool,
 ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
@@ -96,20 +99,7 @@ pub(super) fn sync_actual_usage(
         }
     }
 
-    let db = match client.db() {
-        Some(db) => db,
-        None => {
-            if !quiet {
-                writeln!(
-                    stderr,
-                    "[spend] Cache database unavailable for storing actuals. Showing local data only."
-                )
-                .ok();
-            }
-            return Ok(None);
-        }
-    };
-
+    let now = chrono::Utc::now();
     let mut results = Vec::new();
     for day_entry in daily {
         let date_str = day_entry
@@ -121,16 +111,28 @@ pub(super) fn sync_actual_usage(
 
         let usage_count = day_entry.get("usage").map(parse_usage_count).unwrap_or(0);
 
-        db.upsert_actual_usage(date, usage_count)?;
+        if let Some(ledger) = ledger {
+            let record = Record::Actual(ActualRecord {
+                v: ledger::FORMAT,
+                date: date.to_string(),
+                post_count: i64::try_from(usage_count).unwrap_or(i64::MAX),
+                synced_at: now.to_rfc3339(),
+            });
+            if let Err(e) = ledger.append(&record, now)
+                && !quiet
+            {
+                writeln!(
+                    stderr,
+                    "[store] warning: ledger append failed for {}: {e}",
+                    ledger.path().display()
+                )
+                .ok();
+            }
+        }
         results.push(ActualUsageDay {
             date: date.to_string(),
             tweet_count: usage_count,
-            synced_at: Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .expect("invariant: system clock is past UNIX_EPOCH")
-                    .as_secs() as i64,
-            ),
+            synced_at: Some(now.timestamp()),
         });
     }
 
@@ -170,7 +172,7 @@ mod tests {
         client: &mut BirdClient,
     ) -> Result<Option<SyncData>, Box<dyn std::error::Error + Send + Sync>> {
         let mut stderr: Vec<u8> = Vec::new();
-        sync_actual_usage(client, &mut stderr, true)
+        sync_actual_usage(client, None, &mut stderr, true)
     }
 
     #[test]
@@ -339,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_persists_to_db() {
+    fn sync_appends_actuals_to_the_ledger() {
         let api_response = serde_json::json!({
             "data": {
                 "daily_project_usage": {
@@ -351,13 +353,16 @@ mod tests {
             }
         });
         let mut client = sync_client(vec![api_response]);
-        do_sync(&mut client).expect("test");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ledger = Ledger::at(
+            dir.path().join("spend.jsonl"),
+            dir.path().join("spend.lock"),
+        );
+        let mut stderr: Vec<u8> = Vec::new();
+        sync_actual_usage(&mut client, Some(&ledger), &mut stderr, true).expect("test");
 
-        let actuals = client
-            .db()
-            .expect("test")
-            .query_actual_usage(20260301)
-            .expect("test");
+        let records = ledger.read().expect("read").records;
+        let actuals = crate::store::spend_view::actuals(&records, 20260301);
         assert!(actuals.is_some());
         let days = actuals.expect("test");
         assert_eq!(days.len(), 2);
