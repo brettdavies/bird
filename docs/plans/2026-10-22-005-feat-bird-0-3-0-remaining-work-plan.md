@@ -1,5 +1,5 @@
 ---
-title: bird 1.0.0 remaining work - Plan
+title: bird 0.3.0 remaining work - Plan
 type: feat
 date: 2026-10-22
 origin: docs/brainstorms/2026-10-22-bird-extends-xr-requirements.md
@@ -9,11 +9,11 @@ product_contract_source: ce-brainstorm
 execution: code
 ---
 
-# bird 1.0.0 remaining work - Plan
+# bird 0.3.0 remaining work - Plan
 
 ## Goal Capsule
 
-- **Objective:** bird 1.0.0 is installable from crates.io, GitHub releases, and Homebrew, and a bird user drives every
+- **Objective:** bird 0.3.0 is installable from crates.io, GitHub releases, and Homebrew, and a bird user drives every
   `xr` API command with `xr`'s verbs, flags, and output, with bird's cache, spend ledger, ranking, and own commands on
   top, from one binary that passes `anc audit` with zero failures.
 - **Means:** bird composes the xurl-rs command layer on an xdk-rs client carrying bird's cache hook (KTD5, KTD6, KTD9);
@@ -37,15 +37,15 @@ execution: code
 ## Product Contract
 
 Product Contract preservation: carried from plan 003 with R-, F-, and AE-IDs kept. Changed: R1, R18, R19, R23, R24, R29
-rewritten and R9 to R11, R25 to R28, R32 to R34 removed, because pagination leaves 1.0.0; F2, AE4, and AE6 removed with
-them. Added: R35 to R46 and AE8 to AE10 for the 1.0.0 work plan 003 did not cover.
+rewritten and R9 to R11, R25 to R28, R32 to R34 removed, because pagination leaves 0.3.0; F2, AE4, and AE6 removed with
+them. Added: R35 to R46 and AE8 to AE10 for the 0.3.0 work plan 003 did not cover.
 
 ### Summary
 
 bird stops re-implementing `xr`: its command set becomes `xr`'s API commands, composed in-process, plus the commands
 only bird has, and every request goes through one xdk-rs client that carries bird's cache as a hook. Composed list
 commands page exactly as `xr`'s do; bird's own `rank` and `thread` follow `next_token` themselves.
-Around that, bird finishes its CI parity, moves onto xdk-rs from crates.io, publishes 1.0.0 once to every channel, and
+Around that, bird finishes its CI parity, moves onto xdk-rs from crates.io, publishes 0.3.0 once to every channel, and
 brings bird-skill and the agent-native scorecard up to the released surface.
 
 ### Problem Frame
@@ -53,7 +53,7 @@ brings bird-skill and the agent-native scorecard up to the released surface.
 Stacks 1, 2, and 4, stack 5 items 1 and 2, and stack 6 items 2, 3, and 5 have landed on `dev` (#129 to #170), and plan
 003 designed the composition this plan carries forward. What remains spans three owners: bird's own repository work,
 capabilities only the xurl-rs team can ship, and release surfaces in other repositories. The maintainer dropped
-pagination from 1.0.0 for a from-scratch redesign, which removes the list loop, the budget policy, and the query cache
+pagination from 0.3.0 for a from-scratch redesign, which removes the list loop, the budget policy, and the query cache
 plan 003 depended on, so its unit sequence no longer holds.
 
 ### Key Decisions
@@ -65,8 +65,8 @@ plan 003 depended on, so its unit sequence no longer holds.
 - **bird writes no code in xurl-rs.** bird's needs go to the xurl-rs team as requests, and bird adapts to the names and
   shapes that ship. (session-settled: user-directed, chosen over bird opening the xdk-rs and xurl-rs PRs itself: the
   xurl-rs team owns its repository's design and timing.) Governs R3 to R8, R12 to R16, R24, R30, R31.
-- **Pagination leaves 1.0.0 and is redesigned from scratch later; the pagination draft is deleted.** (session-settled:
-  user-directed, chosen over shipping the list loop, budget policy, and query cache in 1.0.0, and over moving the
+- **Pagination leaves 0.3.0 and is redesigned from scratch later; the pagination draft is deleted.** (session-settled:
+  user-directed, chosen over shipping the list loop, budget policy, and query cache in 0.3.0, and over moving the
   draft's bird-owned rules into bird's design doc: the maintainer wants pagination designed again from a clean start.)
   Governs R1, R35 to R37.
 - **Ranking is a bird command, `bird rank`, that follows X's `next_token` itself up to its limit.** (session-settled:
@@ -79,6 +79,15 @@ plan 003 depended on, so its unit sequence no longer holds.
 - **`block`, `unblock`, and `blocked` stay, as `xr`'s.** Governs R17.
 - **bird's raw HTTP verbs do not return.** Removed in #164. Governs R21.
 - **bird keeps its `BIRD_*` environment names.** Governs R19.
+- **bird's store is files, not a database: a Markdown archive plus JSON response files.** (session-settled:
+  user-directed, chosen over SQLite with a JSONL export and over a Markdown-only store: the default must be Markdown for
+  a local knowledge base, and repeat requests still print `xr`'s exact output.) Governs R48.
+- **0.3.0 deletes the 0.2.0 `bird.db` on first run, and nothing else in bird refers to it.** (session-settled:
+  user-directed, chosen over leaving it in place or importing it.) Governs R48.
+- **`bird archive bookmarks|likes|posts` fetches a whole personal collection in one run.** (session-settled:
+  user-approved, chosen over documenting a `--cursor` loop and over keeping bird's own `bookmarks`: composed `bookmarks`
+  returns one page per run.) Governs R49.
+- **The next release is 0.3.0, a minor release; bird stays at major 0.** (session-settled: user-directed.) Governs R42.
 
 ### Requirements
 
@@ -127,15 +136,16 @@ plan 003 depended on, so its unit sequence no longer holds.
 - R22. `bird usage` and `bird usage credits` are `xr`'s; bird's estimate ledger and estimate-against-actual view live
   under `bird spend`.
 
-**Pagination at 1.0.0**
+**Pagination at 0.3.0**
 
 - R35. A composed list command pages as `xr`'s does: one request per run, `--limit` as `xr` clamps it, `--cursor`
   addressing the next page, and the next cursor in `meta`.
-- R36. bird's own commands that read more than one page (`rank`, `thread`) follow `next_token` themselves, one
-  request per page, within their own bounds, through one shared loop; `watchlist fetch` reads one page per watched user.
-- R37. A GET is answered from the store only by a stored full response for the same request (method, normalized URL,
+- R36. bird's own commands that read more than one page (`rank`, `thread`, `archive`) follow `next_token` themselves,
+  one request per page, within their own bounds, through one shared loop; `watchlist fetch` reads one page per watched
+  user.
+- R37. A GET is answered from the store only by the JSON response file for the same request (method, normalized URL,
   and account) written the same UTC day; under `--cache-only` any other request fails with bird's cache-miss error
-  before it is sent. Entity rows are still written from every observation, for bird's store.
+  before it is sent. Every observation also writes its posts and users into the Markdown archive (R48).
 
 **Ranking**
 
@@ -143,6 +153,15 @@ plan 003 depended on, so its unit sequence no longer holds.
   `--max-posts` posts (1 to 1000, default 100; the global `--limit` keeps `xr`'s per-call meaning and does not size a
   rank run) through the search request `xr search` sends, following `next_token`, then ranks once
   by the chosen public metric and drops posts below `--min-likes`.
+
+**Store and archive**
+
+- R48. bird keeps no database: each post, user, and bookmark it reads is a Markdown file with YAML frontmatter in an
+  archive directory the user can point at a notes vault; each response is a JSON file that answers the same request
+  later; the spend ledger is a JSONL file; 0.3.0 removes a 0.2.0 `bird.db` on first run.
+- R49. `bird archive bookmarks|likes|posts [-n/--max-posts N]` follows `next_token` to the end of the collection or N
+  posts, stores every page, reports the archive directory and the count written, and fails with a non-zero exit when a
+  page cannot be fetched or written.
 
 **Spend**
 
@@ -167,16 +186,16 @@ plan 003 depended on, so its unit sequence no longer holds.
 
 **Release and distribution**
 
-- R41. bird 1.0.0 depends on xdk-rs, and on xurl-rs once composed, from crates.io with no git dependency.
-- R42. bird 1.0.0 is published once, after every other requirement here holds, to crates.io, a GitHub release with the
+- R41. bird 0.3.0 depends on xdk-rs, and on xurl-rs once composed, from crates.io with no git dependency.
+- R42. bird 0.3.0 is published once, after every other requirement here holds, to crates.io, a GitHub release with the
   seven attested target archives, and the Homebrew tap's prebuilt-archive formula with credential-setup caveats, and
   `scripts/release/postflight.sh` passes.
 - R43. `anc audit` on the release commit shows zero failures.
 
 **External surfaces**
 
-- R44. bird-skill describes the 1.0.0 surface, and its `contract` check runs against the released binary.
-- R45. agentnative-site carries a scorecard for bird 1.0.0, and bird's README carries its badge.
+- R44. bird-skill describes the 0.3.0 surface, and its `contract` check runs against the released binary.
+- R45. agentnative-site carries a scorecard for bird 0.3.0, and bird's README carries its badge.
 - R46. bird's `next_step.action` uses xdk's `NextAction` once the xdk-rs release bird pins carries every action bird
   emits. Deferred to follow-up work with U18: it changes no output bird prints.
 
@@ -208,7 +227,8 @@ plan 003 depended on, so its unit sequence no longer holds.
 
 ### Scope Boundaries
 
-- In: U1 to U17 and U19 in bird, bird-skill, the Homebrew tap, and agentnative-site; the requests to the xurl-rs team.
+- In: U1 to U17 and U19 to U22 in bird, bird-skill, the Homebrew tap, and agentnative-site; the requests to the xurl-rs
+  team.
 - Out: any bird-authored change in xurl-rs or xurl-rs-skill; `xr`'s raw mode and meta commands (`schema`, `completions`,
   `version`, `examples`, `skill`, `validate`) in bird; any change to `xr`'s verbs, flags, or envelopes.
 - Considered and not built:
@@ -245,12 +265,12 @@ plan 003 depended on, so its unit sequence no longer holds.
 
 Entries marked ⚑ are developer calls the maintainer is most likely to want to revisit.
 
-- KTD1. **Requests 2 and 4 are withdrawn, and plan 003's U10, U11, U15, and U16 leave 1.0.0.** The list loop, the budget
+- KTD1. **Requests 2 and 4 are withdrawn, and plan 003's U10, U11, U15, and U16 leave 0.3.0.** The list loop, the budget
   policy, the spend guard on it, the page context, the local list source, `thread` and `watchlist` on the loop, and the
   query cache all express the pagination contract's rules (identity, page sizing, cursors, stop reasons, replay), which
   the redesign rewrites. Building any of them now would bind the redesign to the draft. Instantiates the pagination Key
   Decision; governs R35 to R37.
-- KTD2. ⚑ **The query cache and `--cache-only` list replay leave 1.0.0 with pagination, though they were added to 1.0.0
+- KTD2. ⚑ **The query cache and `--cache-only` list replay leave 0.3.0 with pagination, though they were added to 0.3.0
   earlier.** When the plan for the design docs proposed moving the draft's bird-owned rules, `--cache-only` replay among
   them, into bird's doc, the maintainer answered to drop pagination fully. The query cache's identity, ordering,
   end-cursor, and replay rules are contract D7.2 and D7.4, and its tables are stored data a redesign would migrate.
@@ -261,46 +281,46 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
   prints exactly what `xr` prints (R14), so any bird paging would make the two answer the same input differently.
   Governs R35.
 - KTD4. **bird's own commands call xdk's typed shortcuts, and its multi-page ones share one page loop.** `rank`,
-  `thread`, and `watchlist fetch` call xdk's typed post-read and search shortcuts on the hooked client, so their posts
-  and users carry xdk's normalized vocabulary (`post_count`) at 1.0.0. `rank` and `thread` follow `next_token` through
-  one `search_pages` function in `src/search_pages.rs`: a query, fields, and a stop rule (`Posts(n)` for `rank`,
-  `Pages(n)` for `thread`), returning the deduped posts, merged `includes`, the last `next_token`, and whether the run
-  completed; a page that fails returns its error. `watchlist fetch` makes one search per watched user. The redesign
-  decides whether a crate loop replaces `search_pages`. Governs R36.
+  `thread`, `archive`, and `watchlist fetch` call xdk's typed shortcuts on the hooked client, so their posts and users
+  carry xdk's normalized vocabulary (`post_count`) at 0.3.0. `rank`, `thread`, and `archive` follow `next_token` through
+  one `follow_pages` function in `src/pages.rs`: a fetch-one-page closure and a post bound (`-n/--max-posts` on each
+  command), returning the deduped posts, merged `includes`, the last `next_token`, and whether the run completed; a
+  page that fails returns its error. `watchlist fetch` makes one search per watched user. The redesign
+  decides whether a crate loop replaces `follow_pages`. Governs R36.
 - KTD5. **bird adapts at one seam per upstream capability.** The client factory and the hook live in `src/xurl_client/`,
   composition in `src/cli/compose.rs`; a shipped name or shape that differs from its request changes those files and
   nothing else.
 - KTD6. **bird's cache moves behind the hook, and the hook replaces bird's test seam.** `BirdClient`'s read and write
-  logic (`src/db/client/`) becomes bird's hook. It answers a GET only from a stored full response (`data`, `includes`,
-  `meta`) for the same request (KTD8's key) written the same UTC day, so a cached answer prints what `xr` printed the
-  first time; entity, stored-response, and ledger writes from the observation keep today's rules. The
-  batch-ID partition has no caller left and is removed. `XurlClient` and `MockXurlClient` retire: bird's hook is a cache
-  policy over an inner responder, which proceeds in production and answers from a script in tests (bodies and error
-  statuses alike); when the inner responder answers, bird runs its own observation path, since xdk observes only sent
-  requests. Observations are filed by the request's endpoint template, not its path prefix, so a timeline, mentions,
-  liked-posts, or bookmarks page stores posts. Under `--cache-only` bird always installs a hook, and when no store is
-  usable (`--no-cache`, caching disabled, or a store that fails to open) that hook declines every request. The hook
-  answers, and writes entities or stored responses, only for `GET`; every other method proceeds (or declines under
-  `--cache-only`) and is recorded only in the ledger, as writes are today. Direct-message responses (`/2/dm_events`,
-  `/2/dm_conversations`) are never stored. Governs R18, R20, R37.
+  logic (`src/db/client/`) becomes bird's hook over the file store (KTD19). It answers a GET only from the JSON response
+  file (`data`, `includes`, `meta`) for the same request (KTD8's key) written the same UTC day, so a cached answer
+  prints what `xr` printed the first time; each observation writes the Markdown archive, the response file, and the
+  ledger. The batch-ID partition has no caller left and is removed. `XurlClient` and `MockXurlClient` retire: bird's
+  hook is a cache policy over an inner responder, which proceeds in production and answers from a script in tests
+  (bodies and error statuses alike); when the inner responder answers, bird runs its own observation path, since xdk
+  observes only sent requests. Observations are filed by the request's endpoint template, not its path prefix, so a
+  timeline, mentions, liked-posts, or bookmarks page stores posts. Under `--cache-only` bird always installs a hook, and
+  when no store is usable (`--no-cache`, caching disabled, or a store that fails to open) that hook declines every
+  request. The hook answers, and writes entities or stored responses, only for `GET`; every other method proceeds (or
+  declines under `--cache-only`) and is recorded only in the ledger, as writes are today. Direct-message responses
+  (`/2/dm_events`, `/2/dm_conversations`) are never stored. Governs R18, R20, R37.
 - KTD7. **bird's hook declines with bird's own reason.** A decline carries a reason the caller chooses, a message, and
   an optional recovery step (Request 1), so a composed command under `--cache-only` prints `reason: cache-miss` through
   `xr`'s renderer, and bird's own commands print it through the same emitter (Request 3). Its exit code is the one
   xdk-rs gives the declined error; bird's `cache-miss` exits 1 today, and moves to xdk's code if that differs, as every
   other code bird reports comes from `xdk::Error::exit_code`.
 - KTD8. **bird relies on one hook consultation before every JSON request and one observation after its final attempt**
-  (Request 1). Entity rows stay keyed by id; stored responses are keyed on the method, the normalized rendered URL, and
+  (Request 1). Archive files are named by id; response files are keyed on the method, the normalized rendered URL, and
   the app and user the request went out under (`sent_as` when writing; the requested username, else the active app's
   default user, when answering), extending `compute_raw_cache_key` in `src/db/client/entity.rs`.
 - KTD9. **bird composes by clap flattening and rebinds environment names after building the command.** bird's root
   flattens the library's global flags and bird's own; its command enum flattens the API commands beside bird's; each
   composed argument's `XURL_*` name is rebound to `BIRD_*` on the built `clap::Command` before matching. bird supplies a
   client factory that receives `Config` and `Auth` with `xr`'s flags applied (Request 3).
-- KTD10. ⚑ **1.0.0 waits for the releases carrying Requests 1 and 3 rather than shipping before composition.**
-  Composition retires 18 verbs and replaces bird's global flags, so a 1.0.0 cut before it would need a 2.0.0 for the
-  same users months later; the backlog's hard-cutover rule wants one break. The alternative is to cut 1.0.0 now on
-  bird's own verbs and compose in 2.0.0, which trades a second break for an earlier release.
-- KTD11. ⚑ **No pre-flight spend guard in 1.0.0.** bird keeps its post-response cost estimate on stderr (`src/cost.rs`)
+- KTD10. ⚑ **0.3.0 waits for the releases carrying Requests 1 and 3 rather than shipping before composition.**
+  Composition retires 18 verbs and replaces bird's global flags, so a 0.3.0 cut before it would need a 0.4.0 for the
+  same users months later; the backlog's hard-cutover rule wants one break. The alternative is to cut 0.3.0 now on
+  bird's own verbs and compose in 0.4.0, which trades a second break for an earlier release.
+- KTD11. ⚑ **No pre-flight spend guard in 0.3.0.** bird keeps its post-response cost estimate on stderr (`src/cost.rs`)
   and the `bird spend` ledger; `rank`'s ceiling of 1000 posts, the ceiling bird's `--limit` has today, bounds a run at
   about $5 at bird's current post price before any expanded users. The guard was a policy on the list loop and returns
   with the pagination redesign.
@@ -312,13 +332,13 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
   R29.
 - KTD13. **bird opens the token store as `xr` does.** It calls xdk's `adopt_directory_layout` on the first command that
   opens the store, so a single-file `~/.xurl` moves into `~/.xurl/auth.yml` once, as the next `xr` release moves it
-  (`xr` 4.3.0 does not read the moved store, and the 1.0.0 changelog says so); `ResolvedPaths::token_store` becomes
+  (`xr` 4.3.0 does not read the moved store, and the 0.3.0 changelog says so); `ResolvedPaths::token_store` becomes
   xdk's resolved default path, with tests injecting a temporary one. bird and `xr` share the store, and the composed
   `auth` commands read it through the same layout. Governs R41.
 - KTD14. **One design doc replaces three.** `docs/designs/2026-10-22-bird-and-xr.md` ("What goes in bird and what goes
   in xr") replaces `docs/designs/2026-09-04-xurl-bird-seam.md` and `docs/designs/2026-09-04-bird-client-conformance.md`,
   and `docs/designs/2026-09-03-pagination-and-result-bounding.md` is deleted. It ships to `main`. Governs R23, R24.
-- KTD15. **The Homebrew formula moves to prebuilt archives in the tap with the 1.0.0 bump.** It follows the path xurl-rs
+- KTD15. **The Homebrew formula moves to prebuilt archives in the tap with the 0.3.0 bump.** It follows the path xurl-rs
   (tap #142) and agentnative (tap #151) took, needs the attested archives #157 turned on, and lands tap #123's
   credential caveats in the same step. Governs R42.
 - KTD16. **The release smoke uses free endpoints only.** It runs `bird doctor`, `bird auth status`, `bird usage`, `bird
@@ -327,6 +347,15 @@ Entries marked ⚑ are developer calls the maintainer is most likely to want to 
   post or a user. Governs R42.
 - KTD17. **`ci / Agent-native audit` is required on both `dev` and `main`.** (session-settled: user-approved, chosen
   over requiring it on `dev` only: matches xurl-rs and holds zero failures on the release PR.) Governs R38, R43.
+- KTD19. **The store is files (Markdown archive, JSON response files, JSONL ledger), designed in its own plan before
+  U8.** U20 decides the archive's layout, filenames (safe on every release target: no `:`, no Windows reserved names),
+  YAML frontmatter fields, the response files' location and key, the ledger format, the archive-dir setting (a config
+  key and its `BIRD_*` variable, pointable at a notes vault), and how `bird cache stats` and `clear` work on files. U21
+  builds it in place of `bird.db` and rusqlite, which also removes the store migrations (#166's M4 included).
+- KTD20. **`bird archive` fails loudly; every other command warns.** A command whose job is storing exits non-zero
+  with a structured error (the path, the OS error, a `next_step` naming the archive-dir setting, the posts fetched) when
+  a page cannot be written; printing commands keep the eng review's rule: a store failure never changes their result
+  and prints one `[store] warning`.
 - KTD18. **bird's skill installer reads its host table from `src/skill_install/skill.json` in `xr`'s shape.** The file
   gains `config_dir_env`, `base_dir_env`, and `legacy_destinations`, Codex installs to `~/.agents/skills/bird` with
   `~/.codex/skills/bird` as its legacy destination, and `BIRD_SKILL_HOME` takes the place of `XURL_SKILL_HOME`;
@@ -342,11 +371,11 @@ flowchart TB
     ROOT["clap root: xr's global flags + bird's; xr's API commands + bird's commands"]
     OWN["bird commands: rank, thread, watchlist, cache, doctor, schema, spend, skill"]
     FAC["client factory"]
-    HOOK["cache hook: same-request answers; entity, response, and ledger writes"]
+    HOOK["cache hook: same-request answers from response files; archive, response, and ledger writes"]
   end
   RUN["xurl-rs command layer: xr's handlers and envelopes"]
   CL["xdk-rs Client: JSON send path"]
-  DB[("bird.db")]
+  DB[("archive dir (Markdown) and response files (JSON)")]
   X["api.x.com"]
   ROOT -->|API command| RUN
   ROOT -->|bird command| OWN
@@ -365,7 +394,7 @@ What plan 003's units became:
 | U8 `bird spend`                              | landed (#169) |                                                     |
 | U9 cache behind the hook                     | U8            | carried, with same-request answers (KTD6)           |
 | U10 spend guard as a budget policy           | dropped       | pagination redesign (KTD1, KTD11)                   |
-| U11 thread and watchlist on the loop         | dropped       | xdk's typed calls; thread on `search_pages` (KTD4)  |
+| U11 thread and watchlist on the loop         | dropped       | xdk's typed calls; thread on `follow_pages` (KTD4)  |
 | U12 compose `xr`'s API commands              | U9            | carried, list commands keep `xr`'s semantics (KTD3) |
 | U15 query cache store                        | dropped       | pagination redesign (KTD2)                          |
 | U16 `--cache-only` list replay               | dropped       | pagination redesign (KTD2)                          |
@@ -382,6 +411,7 @@ flowchart TB
     U2["U2 skill installer parity"]
     U3["U3 PR template re-vendor (after dotfiles#288)"]
     U19["U19 cost table on X's current prices"]
+    U20["U20 file store design"] --> U21["U21 file store replaces bird.db"]
   end
   subgraph B["Phase B: after the user merges .github #84 to #89"]
     U4["U4 shared CI consumer stack"] --> U5["U5 required checks in the rulesets"]
@@ -392,11 +422,12 @@ flowchart TB
   end
   subgraph D["Phase D: after the releases with Requests 1 and 3"]
     U8["U8 cache behind the hook"] --> U10["U10 bird rank"] --> U9["U9 compose xr"]
+    U10 --> U22["U22 bird archive"] --> U12
     U9 --> U11["U11 schema and envelopes"] --> U12["U12 documents and completions"]
   end
   subgraph E["Phase E: the cut"]
     U16["U16 bird-skill content, promoted at the tag"] --> U14
-    U13["U13 release smoke gate"] --> U14["U14 cut 1.0.0"] --> U15["U15 Homebrew formula"]
+    U13["U13 release smoke gate"] --> U14["U14 cut 0.3.0"] --> U15["U15 Homebrew formula"]
   end
   subgraph F["Phase F: after the release"]
     U17["U17 agentnative-site scorecard and badge"]
@@ -405,6 +436,7 @@ flowchart TB
   REQ1["xdk-rs release with Request 1"] --> U8
   REQ3["xurl-rs release with Request 3"] --> U9
   U7 --> U8
+  U21 --> U8
   U5 --> U14
   U12 --> U13
   U1 --> U12
@@ -413,9 +445,9 @@ flowchart TB
   REQ7["Request 7"] -.-> U11
 ```
 
-U2, U3, and U19 have no dependency inside this plan. U16's content is written on bird-skill's `dev` against the release
-candidate once U12 lands and reaches bird-skill's `main` in U14's tag step, so no released bird pairs with a skill that
-names retired verbs; its contract check and bird-skill's first tag follow the release.
+U2, U3, U19, and U20 have no dependency inside this plan; U21 follows U20. U16's content is written on bird-skill's
+`dev` against the release candidate once U12 lands and reaches bird-skill's `main` in U14's tag step, so no released
+bird pairs with a skill that names retired verbs; its contract check and bird-skill's first tag follow the release.
 
 ### Assumptions
 
@@ -426,7 +458,7 @@ names retired verbs; its contract check and bird-skill's first tag follow the re
 - `xr`'s webhooks family (xurl-rs #333 to #339), if it ships before U9, arrives in bird as composed API commands, and
   bird adds no webhook surface of its own.
 - Reads of `/2/usage/tweets` and `/2/usage/credits` are free under pay-per-use pricing.
-- The tap's prebuilt-archive bump path (tap #153, #157, #158) lands before bird's 1.0.0 bump; otherwise the bump takes
+- The tap's prebuilt-archive bump path (tap #153, #157, #158) lands before bird's 0.3.0 bump; otherwise the bump takes
   the path tap #142 used for xurl-rs.
 - dotfiles#288 may merge after the cut; U3 then follows the release and does not gate it.
 
@@ -452,8 +484,8 @@ bird is moving to compose `xr`'s commands in-process instead of re-implementing 
 on the xdk-rs client it supplies. bird writes no xurl-rs code. This is what bird needs, in priority order, with the
 interface bird plans to code against and the behavior bird will test. Names and exact signatures are yours; bird adapts
 to what ships. Every request is additive, and `xr` without an embedder behaves exactly as it does today. Requests 1 and
-3 gate bird's 1.0.0; the rest do not. Numbers 2 and 4 are unused: bird does not ask for a list loop or for `xr`'s list
-commands on one, because pagination is being redesigned after bird 1.0.0.
+3 gate bird's 0.3.0; the rest do not. Numbers 2 and 4 are unused: bird does not ask for a list loop or for `xr`'s list
+commands on one, because pagination is being redesigned after bird 0.3.0.
 
 Already in flight, and bird's first dependency: an xdk-rs on crates.io with serde-saphyr in place of serde_yaml
 (RUSTSEC-2024-0449), `xdk::store::locate_store`, and `xdk::store::adopt_directory_layout`.
@@ -634,6 +666,9 @@ together.
 | U2   | Skill installer destinations as `xr`'s          | `src/skill_install/`                                  | none                                |
 | U3   | PR template re-vendor                           | `.github/pull_request_template.md`                    | dotfiles#288                        |
 | U19  | Cost table on X's current prices                | `src/cost.rs`                                         | none                                |
+| U20  | File store design                               | `docs/plans/`                                         | none                                |
+| U21  | File store replaces `bird.db`                   | `src/db/`, `src/doctor.rs`, `Cargo.toml`              | U20                                 |
+| U22  | `bird archive bookmarks|likes|posts`            | `src/archive.rs`, `src/pages.rs`                      | U10                                 |
 | U4   | Shared CI consumer stack                        | `.github/workflows/`, `scripts/`                      | `.github` #84 to #89 merged         |
 | U5   | Required checks in the rulesets                 | `.github/rulesets/`                                   | U4; user approval                   |
 | U6   | CI and runbook residue                          | `.github/workflows/build-examples.yml`, `RELEASES.md` | U4                                  |
@@ -644,11 +679,11 @@ together.
 | U11  | `bird schema` and envelopes through `xr`'s code | `src/schema_print.rs`, `src/output/`                  | U9; Request 7                       |
 | U12  | Documents and completions                       | `AGENTS.md`, `README.md`, `docs/`, `completions/`     | U11, U1                             |
 | U13  | Release smoke gate                              | `scripts/release/preflight.sh`                        | U12                                 |
-| U14  | Cut 1.0.0                                       | version carriers, release branch                      | U13, U5, U3 or its deferral         |
+| U14  | Cut 0.3.0                                       | version carriers, release branch                      | U13, U5, U3 or its deferral         |
 | U15  | Homebrew formula on prebuilt archives           | brettdavies/homebrew-tap                              | U14                                 |
 | U16  | bird-skill content and first release            | brettdavies/bird-skill                                | U12; promoted at U14                |
 | U17  | agentnative-site scorecard and badge            | brettdavies/agentnative-site, `README.md`             | U14                                 |
-| U18  | xdk `NextAction` (follow-up, outside 1.0.0)     | `src/output/envelope.rs`                              | an xdk-rs release with every action |
+| U18  | xdk `NextAction` (follow-up, outside 0.3.0)     | `src/output/envelope.rs`                              | an xdk-rs release with every action |
 
 ### U1. The bird and `xr` design doc
 
@@ -666,7 +701,7 @@ together.
      commands are the ones `xr` cannot have (cache, spend, rank, watchlist, thread, the merged schema list, doctor,
      skill); money and persistent state live in bird; a capability every embedder would need is a request to the xurl-rs
      team, never a bird fork.
-  3. State how bird pages at 1.0.0 (R35, R36), with no pagination contract.
+  3. State how bird pages at 0.3.0 (R35, R36), with no pagination contract.
   4. Fold in the conformance tests bird runs: no HTTP-client crate among bird's direct dependencies; no bird command
      that performs what a composed `xr` command performs, while bird's own commands call the endpoints they need through
      the hooked client; the composed parity test (U9); `anc audit` at zero failures.
@@ -731,6 +766,41 @@ together.
   - Creating a post estimates $0.015, and a post whose text carries a URL estimates $0.20.
   - A cache hit estimates $0.00, as today.
 - **Verification:** every rate in `src/cost.rs` cites X's pricing page and matches it on the day the unit lands.
+
+### U20. File store design
+
+- **Goal:** one plan fixes how bird stores what it reads on disk, before any code replaces `bird.db`.
+- **Requirements:** R48; KTD19.
+- **Dependencies:** none; lands now.
+- **Files:** `docs/plans/` (a new plan, run through `ce-plan` and an eng review).
+- **Approach:** decide the archive layout and filenames (safe on all seven release targets), the YAML frontmatter fields
+  per entity (post, user, bookmark), the response files' location and key (method, normalized URL, account; the eng
+  review's DM exclusion and per-account rules), same-day freshness by file mtime, the JSONL ledger's fields, the
+  archive-dir setting (config key, `BIRD_*` variable, default under bird's data dir), atomic writes (write then rename),
+  and how `bird cache stats` and `bird cache clear` read and clear files.
+- **Test expectation:** none -- a plan; its review is the check.
+- **Verification:** U21 and U8 can be built from it without a further design question.
+
+### U21. File store replaces `bird.db`
+
+- **Goal:** bird reads and writes the archive, response files, and ledger, and links no SQLite.
+- **Requirements:** R48; KTD19; D11 and D13 of the DX review.
+- **Dependencies:** U20.
+- **Files:** `src/db/` (the store, entity, and usage modules replaced), `src/spend/`, `src/cli/runner.rs`,
+  `src/doctor.rs`, `schema/doctor.schema.json`, `Cargo.toml` (rusqlite and rusqlite_migration removed), the store
+  tests, `tests/doctor_schema_runtime.rs`.
+- **Approach:**
+  1. Build the file store per U20 behind the interface `BirdClient` uses today, so U8 moves it behind the hook later.
+  2. Remove SQLite: the store migrations (M4 included), rusqlite, and the bundled SQLite build.
+  3. On first run, delete a 0.2.0 `bird.db` and its `-wal`/`-shm` files; nothing else refers to it.
+  4. doctor's `xurl` object becomes `xdk` and `linked_xurl_version` becomes `linked_xdk_version`; its `cache` section
+     reports the archive dir, the response files, and their counts.
+- **Test scenarios:**
+  - A post read twice the same UTC day is answered from its response file the second time.
+  - The archive holds one Markdown file per post with the frontmatter U20 fixes.
+  - A 0.2.0 `bird.db` in the data dir is gone after the first command.
+  - `bird doctor --output json` carries `xdk` and `linked_xdk_version` and no `bird.db` key.
+- **Verification:** `cargo tree -i rusqlite` is empty, and the doctor schema parity test passes.
 
 ### U4. Shared CI consumer stack
 
@@ -803,10 +873,11 @@ together.
 - **Goal:** every request bird sends goes through one hooked `xdk::Client`, and bird's cache and ledger work as that
   hook.
 - **Requirements:** R18, R20, R37; KTD6, KTD7, KTD8.
-- **Dependencies:** U7; the xdk-rs release that carries Request 1.
+- **Dependencies:** U7; U21; the xdk-rs release that carries Request 1.
 - **Files:** `Cargo.toml`, `src/xurl_client/mod.rs` (the client factory), `src/xurl_client/hook.rs` (new),
-  `src/xurl_client/mock.rs` (the scripted test hook), `src/db/client/`, `src/db/mod.rs`, `src/cli/runner.rs`,
-  `src/cli/dispatch.rs`, the handlers that call `BirdClient::get` and `request`, the tests that use `MockXurlClient`.
+  `src/xurl_client/mock.rs` (the scripted test hook), `src/db/client/` (over U21's file store), `src/db/mod.rs`,
+  `src/cli/runner.rs`, `src/cli/dispatch.rs`, the handlers that call `BirdClient::get` and `request`, the tests that use
+  `MockXurlClient`.
 - **Approach:**
   1. Implement bird's hook from `BirdClient`'s read path with KTD6's rules, honoring `--refresh` and
      `--no-cache`; it answers and stores only `GET`, never stores direct-message responses, and keys stored responses
@@ -855,11 +926,12 @@ together.
 - **Requirements:** R29, R36; KTD4, KTD12.
 - **Dependencies:** U8.
 - **Files:** `src/rank.rs` (new), `src/cli/mod.rs`, `src/cli/dispatch.rs`, `schema/rank.schema.json` (new),
-  `tests/rank.rs` (new), `examples/rank.txt` (new), `src/search_pages.rs` (new), `src/thread.rs`,
+  `tests/rank.rs` (new), `examples/rank.txt` (new), `src/pages.rs` (new), `src/thread.rs`,
   `src/watchlist/check.rs`.
 - **Approach:**
   1. Build the search call `xr search` builds through xdk's search shortcut on bird's hooked client, and follow
-     `next_token` through `search_pages` (KTD4, KTD12); move `thread`'s loop onto it with `Pages(n)`.
+     `next_token` through `follow_pages` (KTD4, KTD12); move `thread`'s loop onto it, with `thread -n/--max-posts N`
+     (default 1000, cap 2500) in place of `--max-pages`.
   2. After the last page, rank and filter per KTD12.
   3. Print the success envelope: `data` the ranked posts, `includes` as fetched, `meta` with the last `next_cursor` and
      a `rank` field carrying `by`, `min_likes`, and the number dropped.
@@ -880,14 +952,36 @@ together.
   - `--min-likes 5` drops posts with fewer than five likes and reports the number dropped.
   - A post repeated across pages appears once.
   - A scripted 429 on page 3 of `-n 250` exits 3 with the rate-limit reason and names 200 posts gathered.
-  - `search_pages` stops at `Posts(n)`, at `Pages(n)`, and when a page carries no `next_token`, and dedups ids across
-    pages.
+  - `follow_pages` stops at the post bound and when a page carries no `next_token`, and dedups ids across pages.
+  - `bird thread <id> -n 250` stops at 250 posts, and `--max-pages` is an unknown argument.
   - `--dry-run` prints the first request and sends nothing.
   - `--cache-only` fails with the cache-miss error and sends nothing.
   - A user object in `bird thread` output carries `post_count`, and `bird watchlist fetch` makes one typed search per
     watched user.
 - **Verification:** `bird rank`, `bird thread`, and `bird watchlist fetch` hold no request URL of their own; their
   requests come from xdk's typed shortcuts.
+
+### U22. `bird archive bookmarks|likes|posts`
+
+- **Goal:** one run fetches a whole personal collection into the archive.
+- **Requirements:** R49, R36; KTD4, KTD20.
+- **Dependencies:** U10 (the shared loop); U8 (the hook that stores each page).
+- **Files:** `src/archive.rs` (new), `src/cli/mod.rs`, `src/cli/dispatch.rs`, `schema/archive.schema.json` (new),
+  `tests/archive.rs` (new), `examples/archive.txt` (new).
+- **Approach:**
+  1. For each collection, call the xdk list shortcut `xr`'s matching command uses (bookmarks, liked posts, the user's
+     own posts) through `follow_pages` until the end or `-n/--max-posts N`.
+  2. The hook stores every page; `archive` prints one ok envelope with the posts gathered, the archive dir, the count
+     written, and the last `next_cursor`.
+  3. A page that cannot be fetched ends the run as `rank`'s does; a page that cannot be written exits non-zero with the
+     path, the OS error, and a `next_step` naming the archive-dir setting (KTD20).
+- **Test scenarios:**
+  - Scripted pages for 250 bookmarks archive in three requests and write 250 files.
+  - `-n 120` stops after 120 posts.
+  - A read-only archive dir makes `bird archive bookmarks` exit non-zero and name the path.
+  - A 429 on page 2 exits with the rate-limit reason and names the posts gathered.
+  - `bird archive likes` and `bird archive posts` call the same list shortcuts `xr likes` and `xr timeline` do.
+- **Verification:** `archive` holds no request URL of its own, and its envelope validates against its schema.
 
 ### U9. bird composes `xr`'s API commands
 
@@ -908,7 +1002,9 @@ together.
      `bookmarks`, `dm`, `block`, `unblock`, `mute`, `unmute`, and the rest of `xr`'s verbs) return as composed
      commands; `login`, `me`, `profile`, and `tweet` are gone (F3). `search --sort`, `--min-likes`, and `--pages` go
      with bird's `search`; bird's `--page` alias, `-v` count, and `--pretty` give way to `xr`'s flags (R19).
-  4. Run `compose::run` under bird's `Stop`, so a composed command stopped mid-request prints `cancelled` and exits 130
+  4. Rewrite bird's own hints and doctor reasons that name `bird login` to `bird auth oauth2 [--no-browser]`, and make
+     the unknown-command error link `docs/migrating/v0.3.0.md` (no table of retired names).
+  5. Run `compose::run` under bird's `Stop`, so a composed command stopped mid-request prints `cancelled` and exits 130
      or 143; with nothing in flight the signal takes its default action.
 - **Test scenarios:**
   - Covers AE3. For `like`, `read`, `user`, `search`, and `usage credits`, bird and a direct library `run`, each on a
@@ -945,18 +1041,36 @@ together.
 
 ### U12. Documents and completions
 
-- **Goal:** bird's documents describe the composed verb set and 1.0.0's paging, and the completions match the binary.
+- **Goal:** bird's documents describe the composed verb set and 0.3.0's paging, and the completions match the binary.
 - **Requirements:** R17, R23, R35 to R37.
 - **Dependencies:** U11, U1.
-- **Files:** `AGENTS.md`, `README.md`, `docs/CLI_DESIGN.md`, `docs/DEVELOPER.md`, `CONCEPTS.md`, `completions/`,
-  `examples/`, `src/skill_install/skill.json` (`description`), `src/cli/mod.rs` (bird-owned help strings),
-  `tests/help_vocabulary.rs` (new).
-- **Approach:** rewrite the command reference with `spend` and `rank`, the global-flag table, and the exit-code table
-  (with `cache-miss` at xdk's declined code); describe composed paging and `--cache-only` per R35 to R37; regenerate
-  completions from the composed tree; rewrite every bird-owned subcommand's help string to the 1.0.0 design.
+- **Files:** `AGENTS.md`, `README.md`, `MIGRATING.md` (new), `docs/migrating/v0.3.0.md` (new), the archive format page
+  (new, under `docs/`), `docs/CLI_DESIGN.md`, `docs/DEVELOPER.md`, `CONCEPTS.md`, `Cargo.toml` (description, keywords),
+  `completions/`, `examples/`, `src/skill_install/skill.json` (`description`), `src/cli/mod.rs` (bird-owned help
+  strings), `tests/help_vocabulary.rs` (new).
+- **Approach:**
+  1. README: open with archiving X data into a local store you own, the free same-day repeat, and spend tracking, and
+     point general X CLI users to `xr`; Cargo.toml's description and keywords follow.
+  2. README install: `brew install brettdavies/tap/bird` as one command; `cargo install` needs Rust 1.94+ and a C
+     compiler; drop the "No config or app creation needed" line.
+  3. README "Before you start: an X app": bird's own full guide, mirroring xr's (Read and Write, confidential client,
+     `http://localhost:8080/callback`, bearer token for public reads, Pay-per-use package, Production environment, the
+     `client-forbidden` / `client-not-enrolled` fix), with a non-vault way to pipe the client secret.
+  4. README quick start: `bird auth apps add` → `bird auth oauth2` → `bird archive bookmarks` twice → `bird spend` and
+     `bird cache stats`, with each command's expected output (the second run shows as a $0.00 cache hit).
+  5. MIGRATING.md and `docs/migrating/v0.3.0.md` in xurl-rs's format: a 0.2.0 to 0.3.0 table for verbs, flags,
+     envelopes, exit codes, the store, and doctor keys; no alias window; the first-run removal of `bird.db` and the
+     local spend history in it.
+  6. A reference page for the archive format (layout, filename rules, frontmatter fields).
+  7. The command reference with `archive`, `spend`, and `rank`, the global-flag table, and the exit-code table (with
+     `cache-miss` at xdk's declined code); bird's own error reasons carry `next_step.docs` anchors in
+     `docs/CLI_DESIGN.md`; composed paging and `--cache-only` per R35 to R37.
+  8. Regenerate completions from the composed tree; rewrite every bird-owned subcommand's help string to the 0.3.0
+     design.
 - **Test scenarios:**
-  - One table-driven test over bird's own subcommands' help fails if any names `xurl`, `tweet`, or an HTTP response
-    cache.
+  - One table-driven test over bird's own subcommands' help, hints, and doctor reasons fails if any names `xurl`,
+    `tweet`, `bird login`, or an HTTP response cache.
+  - The README quick start, run on a clean HOME with a test app, prints the expected output it documents.
 - **Verification:** no bird document names a retired verb, `BIRD_XURL_PATH`, a subprocess transport, or `--max-spend`.
 
 ### U13. Release smoke gate
@@ -977,20 +1091,23 @@ together.
 - **Verification:** the gate passes on the release branch once the user approves the live run, and the X usage endpoints
   show no new post or user reads.
 
-### U14. Cut 1.0.0
+### U14. Cut 0.3.0
 
-- **Goal:** bird 1.0.0 is tagged and published from `main`.
+- **Goal:** bird 0.3.0 is tagged and published from `main`.
 - **Requirements:** R41 to R43.
 - **Dependencies:** U13; U5; U3 merged or recorded as following the release; every other unit in Phases A to D merged.
 - **Files:** the version carriers RELEASES.md lists (`Cargo.toml`, `Cargo.lock`, `completions/`), `CHANGELOG.md`
-  (generated), the release branch.
+  (generated), the release branch, `RELEASES-POSTFLIGHT.md`, `RELEASES.md`, `RELEASES-RATIONALE.md`.
 - **Approach:**
-  1. Cut `release/v1.0.0` from `main` and overlay `dev` per RELEASES.md; bump the version carriers; generate the
+  1. Cut `release/v0.3.0` from `main` and overlay `dev` per RELEASES.md; bump the version carriers; generate the
      changelog from the PR bodies.
   2. Run every `scripts/release/preflight.sh` gate; the live smoke runs after the user approves it.
   3. Open the release PR to `main`; it merges through the admin bypass once green.
   4. Tag after the user approves; `release.yml` publishes; run `scripts/sync-dev-after-release.sh`, then
      `scripts/release/postflight.sh`.
+  5. RELEASES-POSTFLIGHT.md carries a timed fresh run the maintainer does each release: a clean HOME and a test X app,
+     `brew install brettdavies/tap/bird` → `bird auth apps add` → `bird auth oauth2` → first `bird archive bookmarks`,
+     time recorded; over 2 minutes is a release-notes item, not a block. RELEASES.md's versioning text names 0.3.0.
 - **Execution note:** this is release mechanics; verify against the published artifacts, not unit tests.
 - **Test expectation:** none -- release; the preflight and postflight gates are the checks.
 - **Verification:** `postflight.sh` passes for the GitHub release, the crates.io publish, and the Homebrew formula
@@ -998,23 +1115,23 @@ together.
 
 ### U15. Homebrew formula on prebuilt archives
 
-- **Goal:** `brew install brettdavies/tap/bird` installs the attested 1.0.0 archive and prints credential-setup caveats.
+- **Goal:** `brew install brettdavies/tap/bird` installs the attested 0.3.0 archive and prints credential-setup caveats.
 - **Requirements:** R42; KTD15.
 - **Dependencies:** U14's published release with attestations.
 - **Files (brettdavies/homebrew-tap):** `Formula/bird.rb`, plus whatever the tap's prebuilt bump path changes.
-- **Approach:** take the 1.0.0 bump through the tap's prebuilt path, as tap #142 did for xurl-rs, verifying each archive
+- **Approach:** take the 0.3.0 bump through the tap's prebuilt path, as tap #142 did for xurl-rs, verifying each archive
   against its attestation before pinning its checksum; land tap #123's caveats with it, so both reach the tap's `main`
   together.
 - **Patterns to follow:** tap #142 and #151;
   `docs/solutions/integration-issues/homebrew-tap-automated-formula-updates-via-dispatch.md`;
   `docs/solutions/architecture-patterns/homebrew-all-bottle-publishing-pipeline-architecture-2026-04-20.md`.
 - **Test expectation:** none -- formula; the tap's CI and `brew install` from the tap are the checks.
-- **Verification:** a clean `brew install brettdavies/tap/bird` reports 1.0.0, builds nothing from source, and prints
+- **Verification:** a clean `brew install brettdavies/tap/bird` reports 0.3.0, builds nothing from source, and prints
   the caveats.
 
 ### U16. bird-skill content and first release
 
-- **Goal:** bird-skill describes the 1.0.0 surface from the moment 1.0.0 ships, and its `contract` check runs against
+- **Goal:** bird-skill describes the 0.3.0 surface from the moment 0.3.0 ships, and its `contract` check runs against
   the released binary.
 - **Requirements:** R44.
 - **Dependencies:** U12 for steps 1, 2, and 5, which merge to bird-skill's `main` in U14's tag step; U14 for steps 3
@@ -1024,32 +1141,33 @@ together.
   `src/skill_install/skill.json` (`update`) in bird.
 - **Approach:**
   1. On bird-skill's `dev`, work through the stale-passage list in backlog stack 7 item 1 against the release-candidate
-     binary built from U12's `dev`.
-  2. Point the write-op gate at the 1.0.0 envelope (`status`, `reason`, `exit_code`).
+     binary built from U12's `dev`, and teach `bird archive`, the Markdown archive, `bird spend`, and doctor's `xdk`
+     keys.
+  2. Point the write-op gate at the 0.3.0 envelope (`status`, `reason`, `exit_code`).
   3. Add the contract harness against the released binary and make `contract` a required check after the user approves
      the ruleset change.
   4. Cut bird-skill's first tagged release, after the user approves the tag, so `VERSION` and `CHANGELOG.md` arrive.
   5. Describe `update` in bird's `skill.json` as the re-clone `bird skill update` performs.
 - **Test scenarios:**
-  - The write-op gate refuses a write without `--force` by reading the 1.0.0 `confirmation-required` envelope.
-  - `tests/run.sh` passes against the stub `bird` updated to 1.0.0's envelopes.
+  - The write-op gate refuses a write without `--force` by reading the 0.3.0 `confirmation-required` envelope.
+  - `tests/run.sh` passes against the stub `bird` updated to 0.3.0's envelopes.
   - Eval 01's call-count criterion holds with the ledger recording cache hits.
 - **Verification:** no passage in the bundle names a retired verb, the subprocess transport, `BIRD_XURL_PATH`, or
   `kind`.
 
 ### U17. agentnative-site scorecard and badge
 
-- **Goal:** the agent-native registry scores bird 1.0.0, and bird's README shows the badge.
+- **Goal:** the agent-native registry scores bird 0.3.0, and bird's README shows the badge.
 - **Requirements:** R45.
 - **Dependencies:** U14.
-- **Files:** brettdavies/agentnative-site `registry.yaml`, `scorecards/bird-v1.0.0.json` (via
+- **Files:** brettdavies/agentnative-site `registry.yaml`, `scorecards/bird-v0.3.0.json` (via
   `scripts/regen-scorecards.sh`); bird `README.md`.
-- **Approach:** regenerate bird's scorecard at 1.0.0 with the site's script, open the site PR, and add the badge to
+- **Approach:** regenerate bird's scorecard at 0.3.0 with the site's script, open the site PR, and add the badge to
   bird's README in a bird PR once the scorecard is live.
 - **Test expectation:** none -- generated scorecard and a badge; the site's CI is the check.
-- **Verification:** the site serves bird 1.0.0's scorecard with zero failures, and the README badge resolves.
+- **Verification:** the site serves bird 0.3.0's scorecard with zero failures, and the README badge resolves.
 
-### U18. xdk `NextAction` (follow-up work, outside 1.0.0)
+### U18. xdk `NextAction` (follow-up work, outside 0.3.0)
 
 - **Goal:** bird's `next_step.action` is xdk's enum, not a copy.
 - **Requirements:** R46.
@@ -1078,8 +1196,8 @@ together.
 
 ## Definition of Done
 
-- U1 to U17 and U19 merged in their repositories, or recorded in the backlog with the reason they are not done.
-- bird 1.0.0 is on crates.io, on a GitHub release with seven attested archives, and in the Homebrew tap as a prebuilt
+- U1 to U17 and U19 to U22 merged in their repositories, or recorded in the backlog with the reason they are not done.
+- bird 0.3.0 is on crates.io, on a GitHub release with seven attested archives, and in the Homebrew tap as a prebuilt
   formula, and `postflight.sh` passes.
 - bird `dev` and `main` are green on their tips, with no open PRs, Dependabot PRs, or alerts; `cargo deny check` is
   clean with no ignores; `anc audit` shows zero failures.

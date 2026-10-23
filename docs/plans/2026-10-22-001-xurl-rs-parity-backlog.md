@@ -33,7 +33,7 @@ xdk-rs or xurl-rs code (lane C's bird units, lane E) waits for the release that 
 | B    | Stack 1 items 5-6: CI jobs and the changelog-bump check in `brettdavies/.github`                      | Short plan: jobs, inputs; xurl-rs's adoption is a request to the xurl-rs team                    |
 | C    | Stack 3                                                                                               | Design; the xdk-rs and xurl-rs work is a request to the xurl-rs team, who ship on their schedule |
 | D    | Stack 4; stack 5 items 1-2 (bird's own wire vocabulary and store, raw HTTP and block/unblock removal) | One plan now; renames of verbs `xr` will supply wait for lane C                                  |
-| E    | Stack 5 item 3 (pagination)                                                                           | Dropped from 1.0.0: pagination is redesigned after the release (plan 005 KTD1)                   |
+| E    | Stack 5 item 3 (pagination)                                                                           | Dropped from 0.3.0: pagination is redesigned after the release (plan 005 KTD1)                   |
 | F    | Stack 7                                                                                               | No for the bird-skill repo structure; its content follows the settled CLI surface                |
 
 Plans:
@@ -43,10 +43,12 @@ Plans:
   `docs/plans/2026-10-22-003-feat-bird-extends-xr-plan.md`, the composition design; plan 005 carries its remaining units
   and its requests to the xurl-rs team.
 - Lane D: `docs/plans/2026-10-22-004-feat-xr-output-contract-and-post-vocabulary-plan.md` (units U1 to U9).
-- Everything left before 1.0.0: `docs/plans/2026-10-22-005-feat-bird-1-0-0-remaining-work-plan.md`, its phases, and its
-  units U1 to U18.
+- Everything left before 0.3.0: `docs/plans/2026-10-22-005-feat-bird-0-3-0-remaining-work-plan.md`, its phases, and its
+  units U1 to U22 (U18 follows the release). Its eng and DX reviews added U19 (cost table on X's current prices), U20
+  and U21 (a Markdown archive and JSON response files in place of `bird.db`), and U22 (`bird archive
+  bookmarks|likes|posts`).
 
-bird ships once, after every stack lands, as the release the 2026-09-02 cutover plan targets (1.0.0). Its critical path
+bird ships once, after every stack lands, as 0.3.0: a minor release, with bird staying at major 0. Its critical path
 runs through xurl-rs: the current xurl-rs release, which bird adopts from crates.io (stack 6 item 1); stack 3's xdk-rs
 request hook and xurl-rs command-layer surface; the releases that carry them; then bird's composition and the cut.
 
@@ -135,11 +137,11 @@ X-approvable CLI. bird composes `xr`'s commands instead of re-implementing them.
 4. bird: compose `xr`'s tree; retire each bird verb `xr` already has. `xr usage credits` arrives this way.
 5. bird's own design doc replaces the seam, conformance, and pagination drafts in `docs/designs/` (plan 005 U1), citing
    xurl-rs `AGENTS.md` § "Where a change goes" for the line between xdk-rs and xurl-rs.
-6. Not done: `xr`'s list verbs on a list loop. Pagination leaves 1.0.0, so bird asks for no list loop and composed list
+6. Not done: `xr`'s list verbs on a list loop. Pagination leaves 0.3.0, so bird asks for no list loop and composed list
    commands keep one call per run.
 7. Product decisions: `bird spend` holds the local cost ledger (`usage` is `xr`'s); bird composes `xr`'s `auth` family
    and `bird login` is removed; pagination, with its list loop, budget policy, query cache, and `--cache-only` list
-   replay, is redesigned from scratch after 1.0.0; `search --sort likes --min-likes` becomes
+   replay, is redesigned from scratch after 0.3.0; `search --sort likes --min-likes` becomes
    `bird rank <query> [--by ...] [--min-likes N]`, which follows `next_cursor` itself up to its limit and ranks once
    after the last page.
 
@@ -167,7 +169,7 @@ matches whether a command is composed from `xr` or bird's own.
    cache rows once.
 2. Verbs under `xr`'s names; raw HTTP verbs removed. `block` and `unblock` are not removed: `xr` ships `block`,
    `unblock`, and `blocked` (xurl-rs#165), so they arrive with stack 3's composition.
-3. Not done for 1.0.0: the pagination and cost contract. Pagination is redesigned from scratch after the release;
+3. Not done for 0.3.0: the pagination and cost contract. Pagination is redesigned from scratch after the release;
    composed list commands page as `xr`'s do, and bird's own multi-page commands follow `next_token` (plan 005 R35, R36).
 
 ## Stack 6: release
@@ -196,7 +198,7 @@ exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on
 5. **Runbooks.** Compare `RELEASES.md`, `RELEASES-PREFLIGHT.md`, `RELEASES-POSTFLIGHT.md`, and `RELEASES-RATIONALE.md`
    against the template and xurl-rs; `docs/designs/` holds only bird's own design doc (plan 005 U1), which ships to
    `main`.
-6. **Version and cut** (`RELEASES.md`): one release after every stack, as 1.0.0, then the live `preflight.sh smoke`, the
+6. **Version and cut** (`RELEASES.md`): one release after every stack, as 0.3.0, then the live `preflight.sh smoke`, the
    tag, and `postflight.sh`.
 
 ## Stack 7: external surfaces
@@ -211,7 +213,7 @@ exit-code and error-id changes. `scripts/release/preflight.sh` gates the cut; on
    reporting. `VERSION` and `CHANGELOG.md` arrive with bird-skill's first tagged release (its release branch writes
    them). `templates/tests/` is not added: it holds agentnative-skill's CLI-authoring test templates, which bird-skill
    has no counterpart for. Its `contract` check (a harness against a released bird binary, as xurl-rs-skill's) follows
-   bird 1.0.0. The content pass, after stacks 3 to 5, covers: the subprocess-era transport passages (SKILL.md,
+   bird 0.3.0. The content pass, after stacks 3 to 5, covers: the subprocess-era transport passages (SKILL.md,
    `references/xr-bridge.md`, `agent-flags.md`, `escalation.md`, `error-envelope.md`, `templates/watchlist-monitor.md`,
    eval 01); exit codes 3, 4, 5 and a 429 at exit 3; the envelope kinds and stack 4's envelope, which the write-op gate
    parses; the verbs bird retires; `references/skill-install.md`'s `--force`; eval 01's call-count criterion; and
