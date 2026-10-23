@@ -4,13 +4,17 @@
 //! What a response archives is decided by its endpoint shape, not a path
 //! prefix, so a liked-posts or timeline page files posts and never users.
 
+pub mod frontmatter;
 pub mod markdown;
+pub mod merge;
 pub mod note;
 pub mod post;
 pub mod relation;
 pub mod user;
 pub mod yaml;
 
+#[cfg(test)]
+mod merge_tests;
 #[cfg(test)]
 mod tests;
 
@@ -21,11 +25,11 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use self::merge::MergeError;
 use self::note::{Kind, Note, valid_id};
 use self::post::{Includes, post_note};
 use self::relation::relation_note;
 use self::user::user_note;
-use super::atomic::{self, Durability};
 use super::status::{Area, StoreStatus};
 
 /// Shapes whose `data` holds posts.
@@ -186,11 +190,12 @@ impl Archive {
 
     fn write(&self, note: &Note, stamp: &str) {
         let path = self.root.join(&note.path);
-        if path.exists() {
-            return;
-        }
-        if let Err(e) = atomic::write(&path, note.render(stamp).as_bytes(), Durability::Unsynced) {
-            self.status.fail(Area::Archive, "archive write", &path, &e);
+        if let Err(e) = merge::write_note(&path, note, stamp) {
+            let what = match e {
+                MergeError::Io(_) => "archive write",
+                MergeError::Unparseable(_) | MergeError::Changed => "archive merge",
+            };
+            self.status.fail(Area::Archive, what, &path, &e.to_io());
         }
     }
 }
