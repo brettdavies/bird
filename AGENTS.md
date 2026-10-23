@@ -157,7 +157,9 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   the [`brettdavies/bird-skill`](https://github.com/brettdavies/bird-skill) bundle repo. `skill.json` is the build-time
   manifest; `build.rs` codegens `SkillHost`, `KNOWN_HOSTS`, `resolve_host`, and each host's directory variables and
   legacy location from it. `destination.rs` resolves a host's directory from the `SkillEnv` the runner builds out of
-  `EnvOverrides` (`HOME`, `BIRD_SKILL_HOME`, and the host variables, each captured once).
+  `EnvOverrides` (`HOME`, `BIRD_SKILL_HOME`, and the host variables, each captured once). `git.rs` builds and spawns the
+  hardened clone, `update.rs` holds the update verb and the `--all` skip rule, and `render.rs` renders and writes the
+  envelopes; `mod.rs` keeps the envelope types and the install verb.
 
 ## Transport dependency
 
