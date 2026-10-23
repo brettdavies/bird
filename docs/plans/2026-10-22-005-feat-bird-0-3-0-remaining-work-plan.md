@@ -1017,6 +1017,7 @@ together.
   - `bird auth status` runs `xr`'s `auth status` against bird's token store.
   - Every argument with an environment binding reads a `BIRD_` name; `XURL_OUTPUT=json` does not change bird's output.
   - `bird --help` lists exactly `xr`'s API verbs and bird's own commands.
+  - No HTTP-client crate (reqwest, hyper, ureq, isahc) is among bird's direct dependencies (a test over `cargo metadata`).
   - `bird --cache-only like <id>` declines before any request.
   - SIGTERM during a scripted slow answer ends `bird rank` and the composed `bird search` with exit 143 and
     `cancelled`.

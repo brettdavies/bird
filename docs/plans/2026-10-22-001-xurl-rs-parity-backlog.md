@@ -54,17 +54,14 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 
 ## Landed
 
-| PR   | Change                                                                                                 |
-| ---- | ------------------------------------------------------------------------------------------------------ |
-| #123 | rustls, rustls-webpki, webpki-roots advisories cleared                                                 |
-| #124 | `release-matrix-check.yml`: the seven release targets build on dependency and toolchain changes        |
-| #125 | xdk-rs replaces the xurl-rs 2.x library; xdk's error reason and exit code; store-only credentials work |
-| #126 | `bird doctor` reports whether the embedded client was built; subprocess-era residue removed            |
-| #127 | `error-envelope` schema admits exit codes 3, 4, 5; envelope docs match the emitter                     |
-| #128 | login, doctor, and the runner take the token store, xdk environment, and stdin as injected inputs      |
-| #120 | `docs/SECRETS.md` names the release token by UUID                                                      |
-| #121 | Dependabot: `dtolnay/rust-toolchain` bump                                                              |
-| #122 | Dependabot: cargo minor/patch group                                                                    |
+| PRs | Change |
+| --- | --- |
+| #120 to #128 | advisories cleared; release-matrix build check; xdk-rs replaces the xurl-rs 2.x library; doctor reports the embedded client; envelope schema admits exit codes 3, 4, 5; login, doctor, and the runner take the token store, xdk environment, and stdin as injected inputs; Dependabot bumps |
+| #129, #131 to #133, #143, #145 to #147, #149 to #154, #170 | Stack 1: canonical files re-vendored; CI on pull requests with blocking advisories; template hook pair; `dirs` 7.0; `deny.toml` on the seven release targets; CONTRIBUTING, SECURITY, CONCEPTS; `.anc.toml` domain verbs; issue forms; examples workflow pin; Windows binstall archive; env-mutation guard; committed and live rulesets (main requires one review) |
+| #135, #137, #138 | Stack 2: no panicking diagnostic writer; SIGTERM and SIGINT cancel the request in flight; skill install expands `~` against the runner's HOME |
+| #160, #162 to #166, #168, #169 | Stacks 4 and 5 (items 1 and 2): xr's error, ok, and dry-run envelopes; `bird schema` in xr's forms; raw HTTP verbs removed; post vocabulary on the wire and in the store; bird-owned output says post; `bird spend` |
+| #156 to #158 | Stack 6 items 2, 3, 5: `dev` holds everything `main` does; attested archives and both musl builds; versioning text |
+| #171 | Plan 005 U1: `docs/designs/2026-10-22-bird-and-xr.md` replaces the seam, pagination, and conformance drafts |
 
 ## Stack 1: repo environment
 
