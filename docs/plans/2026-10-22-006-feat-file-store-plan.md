@@ -112,7 +112,8 @@ collides when a query value contains `&` or `=` (`normalize_url` rebuilds the qu
 **Failure handling**
 
 - R16. A store failure never changes a printing command's output or exit code and prints one `[store] warning` line per
-  run, none under `--quiet`.
+  run, none under `--quiet` or a JSON mode, as `xr` prints no warning under a JSON mode; `bird cache stats` and
+  doctor's `cache` section report the store's health (`healthy`, each location's `writable`) in every mode.
 - R17. An invalid `archive_dir` value (relative, or not a directory) fails with bird's `config-error` and a `next_step`
   naming the setting.
 - R18. `bird archive` fails with a structured error naming the path and the OS error when a note cannot be written (plan
