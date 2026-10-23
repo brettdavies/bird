@@ -346,6 +346,28 @@ fn accepted_schemes_for(method: &str, template: &str) -> Vec<String> {
     wires
 }
 
+/// Why `bird login` cannot sign in, when neither `CLIENT_ID` nor the active
+/// app supplies a client id: the refusal `bird login` itself prints.
+fn no_client_id_reason(auth: &AuthState) -> Option<String> {
+    let target = auth.active_app.as_str();
+    let ready = auth.env.client_id_set || auth.apps.get(target).is_some_and(|a| a.client_id_set);
+    if ready {
+        return None;
+    }
+    let mut names: Vec<&String> = auth.apps.keys().collect();
+    names.sort();
+    let alternative = names
+        .into_iter()
+        .find(|name| *name != target && auth.apps[*name].client_id_set);
+    let (message, _) = crate::output::hints::client_credentials_missing(
+        target,
+        false,
+        alternative.map(String::as_str),
+        false,
+    );
+    Some(message)
+}
+
 /// Command availability based on xurl + auth state. Populates the new
 /// R17b fields `accepted_schemes`, `credentialed_schemes`, and `reachable`
 /// against the resolved active app.
@@ -363,22 +385,24 @@ fn build_commands_section(xdk: &XdkStatus, auth: &AuthState) -> HashMap<String, 
         .map(|app| credentialed_for_app(app, &auth.env))
         .unwrap_or_default();
     let authenticated = !credentialed.is_empty();
+    let no_client_id = no_client_id_reason(auth);
+    let sign_in_ready = xurl_available && no_client_id.is_none();
 
     for &name in COMMAND_NAMES {
         if name == "login" {
-            let reason = if xurl_available {
-                None
-            } else {
+            let reason = if !xurl_available {
                 Some(unavailable_reason())
+            } else {
+                no_client_id.clone()
             };
             cmds.insert(
                 name.to_string(),
                 CommandStatus {
-                    available: xurl_available,
+                    available: sign_in_ready,
                     reason,
                     accepted_schemes: Vec::new(),
                     credentialed_schemes: Vec::new(),
-                    reachable: xurl_available,
+                    reachable: sign_in_ready,
                 },
             );
             continue;
@@ -405,7 +429,11 @@ fn build_commands_section(xdk: &XdkStatus, auth: &AuthState) -> HashMap<String, 
         let reason = if !xurl_available {
             Some(unavailable_reason())
         } else if needs_auth && !authenticated {
-            Some("not authenticated. Run `bird login`.".into())
+            Some(
+                no_client_id
+                    .clone()
+                    .unwrap_or_else(|| "not authenticated. Run `bird login`.".into()),
+            )
         } else {
             None
         };

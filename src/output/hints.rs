@@ -17,6 +17,41 @@ use crate::error::BirdError;
 pub const REGISTER_APP_TEMPLATE: &str =
     "<secret-command> | xr auth apps add <name> --client-id <client-id> --client-secret-file -";
 
+/// The refusal when the app a sign-in would use has no client id: the
+/// message, and the step that answers it.
+///
+/// With another app carrying a client id, the step signs in against it;
+/// otherwise the message names both ways to supply one, the environment or
+/// `xr`'s registration, and the step is registration. `alternative` is the
+/// first such app in the store's name order.
+#[must_use]
+pub fn client_credentials_missing(
+    target: &str,
+    app_explicit: bool,
+    alternative: Option<&str>,
+    headless: bool,
+) -> (String, NextStep) {
+    if let Some(other) = alternative {
+        let command = sign_in_command(Some(other), headless);
+        return (
+            format!(
+                "app {target:?} has no client credentials; app {other:?} does. Run: {}",
+                sign_in_command(Some(other), false)
+            ),
+            NextStep::select_app(command),
+        );
+    }
+    let prose = if app_explicit {
+        format!("app {target:?} has no client credentials.")
+    } else {
+        "no app carries client credentials.".to_string()
+    };
+    (
+        format!("{prose} Set CLIENT_ID and CLIENT_SECRET, or run: {REGISTER_APP_TEMPLATE}"),
+        NextStep::register_app(REGISTER_APP_TEMPLATE.to_string()),
+    )
+}
+
 /// A recovery hint: prose for a human, a typed step for an agent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hint {
@@ -55,6 +90,26 @@ pub fn for_error(error: &BirdError, ctx: &HintContext) -> Option<Hint> {
     match error.reason() {
         Reason::ConfirmationRequired => return Some(confirm_hint(&ctx.invocation)),
         Reason::InvalidArgs | Reason::UnknownCommand => return Some(show_help_hint(&ctx.help)),
+        Reason::ClientCredentialsMissing => {
+            return ctx.snapshot.as_ref().map(|snapshot| {
+                let target = snapshot.active_app.as_str();
+                let alternative = snapshot
+                    .apps_with_client_id()
+                    .into_iter()
+                    .find(|name| name != target);
+                let (_, next_step) = client_credentials_missing(
+                    target,
+                    false,
+                    alternative.as_deref(),
+                    ctx.structured,
+                );
+                // The message already names the step.
+                Hint {
+                    text_lines: Vec::new(),
+                    next_step,
+                }
+            });
+        }
         Reason::CacheMiss => return Some(cache_miss_hint(&ctx.invocation)),
         _ => {}
     }

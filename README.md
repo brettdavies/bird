@@ -67,8 +67,15 @@ export CLIENT_ID=<your_client_id>
 export CLIENT_SECRET=<your_client_secret>
 ```
 
-Or store an app once via the optional [xurl-rs CLI](https://github.com/brettdavies/xurl-rs) (`xr auth app`); bird reads
-the same token store. After credentials are in place, run `bird login` for OAuth2.
+Or store an app once with the optional [xurl-rs CLI](https://github.com/brettdavies/xurl-rs); bird reads the same
+token store:
+
+```bash
+<secret-command> | xr auth apps add <name> --client-id <client-id> --client-secret-file -
+```
+
+`<secret-command>` is whatever prints the client secret (`op read ...`, `cat secret.txt`). After credentials are in
+place, run `bird login` for OAuth2.
 
 Verify your setup: `bird doctor`
 
@@ -234,7 +241,8 @@ bird's own config is minimal: `username`, `watchlist`, and `archive_dir`.
 Username priority: `--username` flag > config file > `X_API_USERNAME` env var.
 
 Authentication and token storage are handled by `xdk-rs`, in the `~/.xurl` token store `xr` also uses. To use your own X
-Developer app, export `CLIENT_ID` / `CLIENT_SECRET` or store it with `xr auth app` (see
+Developer app, export `CLIENT_ID` / `CLIENT_SECRET` or store it with
+`xr auth apps add <name> --client-id <client-id> --client-secret-file -` (see
 [xurl-rs](https://github.com/brettdavies/xurl-rs)).
 
 ---

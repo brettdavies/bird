@@ -124,6 +124,65 @@ fn login_headless_refuses_an_app_without_client_credentials() {
     }
 }
 
+/// `xr`'s registration invocation, as its own `auth status` hint gives it.
+const XR_REGISTER: &str =
+    "<secret-command> | xr auth apps add <name> --client-id <client-id> --client-secret-file -";
+
+/// Asserts `text` names both ways to supply client credentials and never
+/// sends the reader to a sign-in that cannot succeed.
+fn assert_names_both_credential_fixes(text: &str) {
+    assert!(text.contains("no app carries client credentials"), "{text}");
+    assert!(text.contains("CLIENT_ID and CLIENT_SECRET"), "{text}");
+    assert!(text.contains(XR_REGISTER), "{text}");
+    assert!(!text.contains("bird login"), "{text}");
+    assert!(!text.contains("xr auth app`"), "{text}");
+}
+
+#[test]
+fn login_without_client_credentials_names_both_fixes() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process_with_stdin(
+        &["bird", "login", "--no-browser", "--output", "json"],
+        &env,
+        &mut common::PanicOnRead,
+    );
+    assert_eq!(exit, 2, "stderr {stderr:?}");
+    let envelope = common::stderr_envelope(&stderr);
+    assert_names_both_credential_fixes(envelope["message"].as_str().expect("message"));
+    assert_eq!(envelope["next_step"]["action"], "register-app");
+    assert_eq!(envelope["next_step"]["template"], XR_REGISTER);
+}
+
+/// With no app carrying client credentials, `bird login` cannot succeed, so
+/// doctor does not offer it: every command that needs auth, and login
+/// itself, names the two fixes.
+#[test]
+fn doctor_without_client_credentials_names_both_fixes() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("doctor");
+    for name in ["me", "search", "login"] {
+        let status = &doc["commands"][name];
+        assert_eq!(status["available"], false, "{name}: {status}");
+        assert_names_both_credential_fixes(status["reason"].as_str().expect("reason"));
+    }
+}
+
+/// A client id in the environment makes sign-in possible, so doctor sends an
+/// unauthenticated command to `bird login`.
+#[test]
+fn doctor_with_a_client_id_sends_to_login() {
+    let mut env = common::TestEnv::new();
+    env.env.xdk.client_id = Some("client-id".into());
+    let (_, stdout, stderr) = common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("doctor");
+    let me = doc["commands"]["me"]["reason"].as_str().expect("reason");
+    assert!(me.contains("bird login"), "{me} {stderr}");
+    assert_eq!(doc["commands"]["login"]["available"], true);
+}
+
 /// `bird doctor` reads the token store the runner was handed, not the
 /// machine's `~/.xurl`: an app seeded into the test's store is the only app
 /// the report lists.
