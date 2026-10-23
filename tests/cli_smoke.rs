@@ -1472,3 +1472,33 @@ fn malformed_config_toml_is_a_config_error() {
     let message = json["message"].as_str().expect("message");
     assert!(message.contains("config.toml"), "{message}");
 }
+
+/// The refusal carries the parser's position and a step that names the file,
+/// so the reader goes straight to the broken line.
+#[test]
+fn malformed_config_toml_names_its_line_column_and_file() {
+    let env = common::TestEnv::new();
+    let config = env.paths.config_dir.join("config.toml");
+    std::fs::write(&config, "username = \"jack\"\narchive_dir = ~/Notes/X\n").expect("write");
+    let path = config.display().to_string();
+
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "cache", "stats"], &env);
+    assert_eq!(exit, 78, "stderr {stderr:?}");
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "config-error");
+    let message = json["message"].as_str().expect("message");
+    assert!(message.contains("line 2, column 15"), "{message}");
+    assert!(message.contains(&path), "{message}");
+    assert_eq!(json["command"], path.as_str());
+    assert_eq!(json["next_step"]["action"], "fix-input");
+    let template = json["next_step"]["template"].as_str().expect("template");
+    assert!(template.ends_with(&path), "{template}");
+
+    let (_, _, text) =
+        common::run_in_process(&["bird", "--output", "text", "cache", "stats"], &env);
+    assert!(
+        text.contains(&format!("Fix line 2, column 15 of {path}")),
+        "{text}"
+    );
+}
