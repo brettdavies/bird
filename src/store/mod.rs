@@ -3,8 +3,10 @@
 
 pub mod archive;
 pub mod atomic;
+pub mod ledger;
 pub mod paths;
 pub mod responses;
+pub mod spend_view;
 pub mod status;
 
 pub use paths::{ArchiveDirError, ArchiveSource, StorePaths};

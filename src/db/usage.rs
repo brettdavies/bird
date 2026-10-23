@@ -18,35 +18,7 @@ pub struct UsageLogEntry<'a> {
     pub username: Option<&'a str>,
 }
 
-#[derive(Debug, serde::Serialize)]
-pub struct UsageSummary {
-    pub total_cost: f64,
-    pub total_calls: i64,
-    pub cache_hits: i64,
-    pub estimated_savings: f64,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct DailyUsage {
-    pub date_ymd: i64,
-    pub cost: f64,
-    pub calls: i64,
-    pub cache_hits: i64,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct EndpointUsage {
-    pub endpoint: String,
-    pub cost: f64,
-    pub calls: i64,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct ActualUsageDay {
-    pub date: String,
-    pub tweet_count: u64,
-    pub synced_at: Option<i64>,
-}
+pub use crate::store::spend_view::{ActualUsageDay, DailyUsage, EndpointUsage, UsageSummary};
 
 // -- BirdDb usage methods --
 

@@ -98,7 +98,7 @@ pub fn run(
             since,
             sync,
             common: OutputFlags { pretty },
-        } => commands::spend::run(client, out, stdout, stderr, since, sync, pretty),
+        } => commands::spend::run(client, &config, out, stdout, stderr, since, sync, pretty),
         Command::Tweet {
             text,
             media_id,
