@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use super::super::store::{BirdDb, PostRow};
 use super::entity::{compute_raw_cache_key, is_entity_endpoint};
 use super::{ApiResponse, BirdClient, RequestContext};
+use crate::cost;
 
 /// Extract batch IDs from `ids=` or `usernames=` query parameter.
 pub(super) fn extract_batch_ids(parsed: &url::Url) -> Option<Vec<String>> {
@@ -160,7 +161,12 @@ impl BirdClient {
                     check_tweet_freshness(db, &tweet_id)
                 };
                 if let Some(resp) = hit {
-                    self.log_api_call(url, "GET", resp.json.as_ref(), true, ctx.username);
+                    self.log_api_call(
+                        cost::Request::get(url),
+                        resp.json.as_ref(),
+                        true,
+                        ctx.username,
+                    );
                     return Ok(resp);
                 }
             }
@@ -173,7 +179,12 @@ impl BirdClient {
                     check_user_freshness(db, &username)
                 };
                 if let Some(resp) = hit {
-                    self.log_api_call(url, "GET", resp.json.as_ref(), true, ctx.username);
+                    self.log_api_call(
+                        cost::Request::get(url),
+                        resp.json.as_ref(),
+                        true,
+                        ctx.username,
+                    );
                     return Ok(resp);
                 }
             }
@@ -188,7 +199,12 @@ impl BirdClient {
                 try_raw_response(db, url)
             };
             if let Some(resp) = hit {
-                self.log_api_call(url, "GET", resp.json.as_ref(), true, ctx.username);
+                self.log_api_call(
+                    cost::Request::get(url),
+                    resp.json.as_ref(),
+                    true,
+                    ctx.username,
+                );
                 return Ok(resp);
             }
             return Err(Box::new(crate::error::CacheMiss));
@@ -206,7 +222,12 @@ impl BirdClient {
             }
         }
 
-        self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
+        self.log_api_call(
+            cost::Request::get(url),
+            response.json.as_ref(),
+            false,
+            ctx.username,
+        );
         Ok(response)
     }
 
@@ -232,7 +253,12 @@ impl BirdClient {
         ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
         let response = self.xurl_get(url, ctx)?;
-        self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
+        self.log_api_call(
+            cost::Request::get(url),
+            response.json.as_ref(),
+            false,
+            ctx.username,
+        );
         Ok(response)
     }
 
@@ -255,7 +281,12 @@ impl BirdClient {
         // All fresh -> serve entirely from store
         if ids_to_fetch.is_empty() {
             let response = build_store_response(&from_store)?;
-            self.log_api_call(url, "GET", response.json.as_ref(), true, ctx.username);
+            self.log_api_call(
+                cost::Request::get(url),
+                response.json.as_ref(),
+                true,
+                ctx.username,
+            );
             return Ok(response);
         }
 
@@ -265,7 +296,12 @@ impl BirdClient {
                 return Err(Box::new(crate::error::CacheMiss));
             }
             let response = build_store_response(&from_store)?;
-            self.log_api_call(url, "GET", response.json.as_ref(), true, ctx.username);
+            self.log_api_call(
+                cost::Request::get(url),
+                response.json.as_ref(),
+                true,
+                ctx.username,
+            );
             return Ok(response);
         }
 
@@ -277,7 +313,12 @@ impl BirdClient {
             {
                 self.decompose_and_upsert(url, jv);
             }
-            self.log_api_call(url, "GET", response.json.as_ref(), false, ctx.username);
+            self.log_api_call(
+                cost::Request::get(url),
+                response.json.as_ref(),
+                false,
+                ctx.username,
+            );
             return Ok(response);
         }
 
@@ -326,7 +367,12 @@ impl BirdClient {
             merged_json["errors"] = errors.clone();
         }
 
-        self.log_api_call(&fetch_url, "GET", Some(&api_json), false, ctx.username);
+        self.log_api_call(
+            cost::Request::get(&fetch_url),
+            Some(&api_json),
+            false,
+            ctx.username,
+        );
 
         Ok(ApiResponse {
             status: response_status,

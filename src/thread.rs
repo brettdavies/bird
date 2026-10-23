@@ -132,7 +132,11 @@ fn fetch_root(
     }
 
     let root_response = response.json.ok_or("invalid JSON from post lookup")?;
-    let estimate = cost::estimate_cost(&root_response, &root_url, response.cache_hit);
+    let estimate = cost::estimate_cost(
+        &cost::Request::get(&root_url),
+        &root_response,
+        response.cache_hit,
+    );
     cost::display_cost(cfg, stderr, &estimate);
 
     // Check for errors array (X API returns 200 + errors for not-found)
@@ -225,7 +229,8 @@ fn paginate_conversation(
         }
 
         let page = response.json.ok_or("invalid JSON from search")?;
-        let estimate = cost::estimate_cost(&page, &search_url, response.cache_hit);
+        let estimate =
+            cost::estimate_cost(&cost::Request::get(&search_url), &page, response.cache_hit);
         cost::display_cost(cfg, stderr, &estimate);
 
         let data = match page.get("data").and_then(|d| d.as_array()) {

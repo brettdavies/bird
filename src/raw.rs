@@ -10,7 +10,7 @@ use std::collections::HashMap;
 ///
 /// Signature takes `&OutputConfig` and injected stdout/stderr writers
 /// (Plan 2 U2/U6). `stderr` receives the cost-display line emitted by
-/// `cost::display_cost` for GET requests.
+/// `cost::display_cost`.
 #[allow(clippy::too_many_arguments)]
 pub fn run_raw(
     client: &mut BirdClient,
@@ -54,14 +54,18 @@ pub fn run_raw(
         body,
         &ctx,
     )?;
-    if method_upper == "GET" {
-        let estimate = cost::estimate_cost(
-            response.json.as_ref().unwrap_or(&serde_json::Value::Null),
-            path,
-            response.cache_hit,
-        );
-        cost::display_cost(cfg, stderr, &estimate);
-    }
+    let request = cost::Request {
+        method: &method_upper,
+        url: path,
+        body,
+        caller_id: None,
+    };
+    let estimate = cost::estimate_cost(
+        &request,
+        response.json.as_ref().unwrap_or(&serde_json::Value::Null),
+        response.cache_hit,
+    );
+    cost::display_cost(cfg, stderr, &estimate);
 
     if !response.is_success() {
         return Err(format!(

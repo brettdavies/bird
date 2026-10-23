@@ -70,7 +70,7 @@ pub fn run_search(
 
         let page = response.json.ok_or("invalid JSON from search")?;
 
-        let estimate = cost::estimate_cost(&page, &url, response.cache_hit);
+        let estimate = cost::estimate_cost(&cost::Request::get(&url), &page, response.cache_hit);
         cost::display_cost(cfg, stderr, &estimate);
 
         // Break on empty data (handles phantom next_token)

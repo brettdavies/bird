@@ -8,6 +8,7 @@ use xdk::api::{RequestOptions, RequestTarget};
 
 use super::{ApiResponse, BirdClient, RequestContext};
 use crate::cli::auth_scheme::AuthType;
+use crate::cost::{self, CostEstimate};
 use crate::xurl_client::XurlClient;
 
 /// Map bird's `AuthType` enum to xdk-rs's wire-string vocabulary
@@ -25,6 +26,12 @@ pub(super) fn auth_type_to_xurl_wire(at: &AuthType) -> String {
         AuthType::Bearer => "app".to_string(),
         AuthType::None => String::new(),
     }
+}
+
+/// A write verb's response and the estimate for each request it sent.
+pub struct WriteOutcome {
+    pub json: serde_json::Value,
+    pub costs: Vec<CostEstimate>,
 }
 
 impl BirdClient {
@@ -47,11 +54,12 @@ impl BirdClient {
     /// Reads `/2/users/me` through the embedded transport and extracts
     /// `data.id`. Used by write verbs whose API endpoint is keyed on the
     /// caller's user id (likes, retweets, following, muting, blocking).
-    pub fn fetch_me_id(
-        &self,
+    fn fetch_me_id(
+        &mut self,
         ctx: &RequestContext<'_>,
+        costs: &mut Vec<CostEstimate>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let json = self.xurl_send_raw_url("GET", "https://api.x.com/2/users/me", "", ctx)?;
+        let json = self.send_priced("GET", "https://api.x.com/2/users/me", "", ctx, costs)?;
         json.get("data")
             .and_then(|d| d.get("id"))
             .and_then(|v| v.as_str())
@@ -62,13 +70,14 @@ impl BirdClient {
     /// Reads `/2/users/by/username/{username}` through the embedded
     /// transport and extracts `data.id`. Used by write verbs whose target
     /// is named by username (follow/unfollow/dm/block/unblock/mute/unmute).
-    pub fn fetch_user_id_by_username(
-        &self,
+    fn fetch_user_id_by_username(
+        &mut self,
         username: &str,
         ctx: &RequestContext<'_>,
+        costs: &mut Vec<CostEstimate>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("https://api.x.com/2/users/by/username/{username}");
-        let json = self.xurl_send_raw_url("GET", &url, "", ctx)?;
+        let json = self.send_priced("GET", &url, "", ctx, costs)?;
         json.get("data")
             .and_then(|d| d.get("id"))
             .and_then(|v| v.as_str())
@@ -76,102 +85,144 @@ impl BirdClient {
             .ok_or_else(|| format!("/2/users/by/username/{username} did not return data.id").into())
     }
 
+    /// Sends one request, logs it to the spend ledger, and appends its
+    /// estimate to `costs`.
+    fn send_priced(
+        &mut self,
+        method: &str,
+        url: &str,
+        body: &str,
+        ctx: &RequestContext<'_>,
+        costs: &mut Vec<CostEstimate>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        let json = self.xurl_send_raw_url(method, url, body, ctx)?;
+        let request = cost::Request {
+            method,
+            url,
+            body: Some(body).filter(|b| !b.is_empty()),
+            caller_id: None,
+        };
+        costs.push(self.log_api_call(request, Some(&json), false, ctx.username));
+        Ok(json)
+    }
+
     /// Dispatches an [`EmbeddedWriteCall`](crate::cli::commands::writes::spec::EmbeddedWriteCall)
     /// through the embedded transport, resolving `/me` and target-by-username as
-    /// needed, then issuing the real X API call. Returns the parsed JSON response
-    /// on success.
+    /// needed, then issuing the real X API call. Returns the write's response
+    /// and the estimate for every request the verb sent, lookups included.
     pub fn execute_embedded_write(
-        &self,
+        &mut self,
         call: crate::cli::commands::writes::spec::EmbeddedWriteCall,
         ctx: &RequestContext<'_>,
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<WriteOutcome, Box<dyn std::error::Error + Send + Sync>> {
         use crate::cli::commands::writes::spec::EmbeddedWriteCall as Call;
-        match call {
+        let mut costs = Vec::new();
+        let json = match call {
             Call::TweetCreate { text, media_id } => {
                 let mut body = serde_json::json!({ "text": text });
                 if let Some(id) = media_id {
                     body["media"] = serde_json::json!({ "media_ids": [id] });
                 }
-                self.xurl_send_raw_url("POST", "https://api.x.com/2/tweets", &body.to_string(), ctx)
+                self.send_priced(
+                    "POST",
+                    "https://api.x.com/2/tweets",
+                    &body.to_string(),
+                    ctx,
+                    &mut costs,
+                )
             }
             Call::Reply { parent_id, text } => {
                 let body = serde_json::json!({
                     "text": text,
                     "reply": { "in_reply_to_tweet_id": parent_id },
                 });
-                self.xurl_send_raw_url("POST", "https://api.x.com/2/tweets", &body.to_string(), ctx)
+                self.send_priced(
+                    "POST",
+                    "https://api.x.com/2/tweets",
+                    &body.to_string(),
+                    ctx,
+                    &mut costs,
+                )
             }
             Call::Like { tweet_id } => {
-                let me_id = self.fetch_me_id(ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/likes");
                 let body = serde_json::json!({ "tweet_id": tweet_id });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
             Call::Unlike { tweet_id } => {
-                let me_id = self.fetch_me_id(ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/likes/{tweet_id}");
-                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+                self.send_priced("DELETE", &url, "", ctx, &mut costs)
             }
             Call::Repost { tweet_id } => {
-                let me_id = self.fetch_me_id(ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/retweets");
                 let body = serde_json::json!({ "tweet_id": tweet_id });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
             Call::Unrepost { tweet_id } => {
-                let me_id = self.fetch_me_id(ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/retweets/{tweet_id}");
-                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+                self.send_priced("DELETE", &url, "", ctx, &mut costs)
             }
             Call::Follow { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/following");
                 let body = serde_json::json!({ "target_user_id": target_id });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
             Call::Unfollow { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/following/{target_id}");
-                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+                self.send_priced("DELETE", &url, "", ctx, &mut costs)
             }
             Call::Mute { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/muting");
                 let body = serde_json::json!({ "target_user_id": target_id });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
             Call::Unmute { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/muting/{target_id}");
-                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+                self.send_priced("DELETE", &url, "", ctx, &mut costs)
             }
             Call::Block { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/blocking");
                 let body = serde_json::json!({ "target_user_id": target_id });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
             Call::Unblock { target_username } => {
-                let me_id = self.fetch_me_id(ctx)?;
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let me_id = self.fetch_me_id(ctx, &mut costs)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/users/{me_id}/blocking/{target_id}");
-                self.xurl_send_raw_url("DELETE", &url, "", ctx)
+                self.send_priced("DELETE", &url, "", ctx, &mut costs)
             }
             Call::Dm {
                 target_username,
                 text,
             } => {
-                let target_id = self.fetch_user_id_by_username(&target_username, ctx)?;
+                let target_id =
+                    self.fetch_user_id_by_username(&target_username, ctx, &mut costs)?;
                 let url = format!("https://api.x.com/2/dm_conversations/with/{target_id}/messages");
                 let body = serde_json::json!({ "text": text });
-                self.xurl_send_raw_url("POST", &url, &body.to_string(), ctx)
+                self.send_priced("POST", &url, &body.to_string(), ctx, &mut costs)
             }
-        }
+        }?;
+        Ok(WriteOutcome { json, costs })
     }
 
     /// Dispatch a request through xurl using a `RequestTarget::RawUrl`. Used
@@ -223,6 +274,13 @@ impl BirdClient {
         body: Option<&str>,
         ctx: &RequestContext<'_>,
     ) -> Result<ApiResponse, Box<dyn std::error::Error + Send + Sync>> {
+        // Owned-read pricing compares the path's `{id}` to the caller, so the
+        // ledger needs the rendered path, not the template.
+        let rendered = path_params
+            .iter()
+            .fold(path_template.to_string(), |path, (key, value)| {
+                path.replace(&format!("{{{key}}}"), value)
+            });
         let opts = RequestOptions {
             method: method.to_uppercase(),
             target: RequestTarget::Template {
@@ -246,11 +304,13 @@ impl BirdClient {
             .with_xurl(|x| x.send_request(&opts))
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::new(e) })?;
 
-        // Cost categorization and usage logging key on a rendered URL today;
-        // approximate it from the template since path-param substitution is
-        // immaterial to bucket selection (`/users/` substring match).
-        let pseudo_url = format!("https://api.x.com{path_template}");
-        self.log_api_call(&pseudo_url, method, Some(&json), false, ctx.username);
+        let request = cost::Request {
+            method,
+            url: &rendered,
+            body,
+            caller_id: None,
+        };
+        self.log_api_call(request, Some(&json), false, ctx.username);
 
         Ok(ApiResponse {
             status: 200,
@@ -536,13 +596,13 @@ mod tests {
         let mock = MockXurlClient::new();
         mock.push_value("send_request", serde_json::json!({"data": {"id": "42"}}));
         mock.push_value("send_request", serde_json::json!({"data": {"liked": true}}));
-        let (client, handle) = client_with_mock(mock);
+        let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
             auth_type: &AuthType::OAuth2User,
             username: None,
         };
-        let json = client
+        let outcome = client
             .execute_embedded_write(
                 EmbeddedWriteCall::Like {
                     tweet_id: "999".to_string(),
@@ -550,7 +610,20 @@ mod tests {
                 &ctx,
             )
             .expect("like must dispatch");
-        assert_eq!(json["data"]["liked"], true);
+        assert_eq!(outcome.json["data"]["liked"], true);
+        let priced: Vec<_> = outcome
+            .costs
+            .iter()
+            .map(|c| (c.users_read, c.write, c.estimated_usd))
+            .collect();
+        assert_eq!(
+            priced,
+            vec![
+                (1, None, 0.010),
+                (0, Some(cost::WriteRate::UserInteractionCreate), 0.015),
+            ],
+            "the /me lookup is a user read, the like a User Interaction: Create"
+        );
 
         let calls = handle.calls();
         assert_eq!(calls.len(), 2, "must dispatch /me then the like POST");
@@ -589,7 +662,7 @@ mod tests {
             "send_request",
             serde_json::json!({"data": {"following": true}}),
         );
-        let (client, handle) = client_with_mock(mock);
+        let (mut client, handle) = client_with_mock(mock);
 
         let ctx = RequestContext {
             auth_type: &AuthType::OAuth2User,
@@ -621,6 +694,74 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_str(calls[2].args["data"].as_str().expect("data")).expect("json");
         assert_eq!(body["target_user_id"], "target-9");
+    }
+
+    fn client_with_store(mock: MockXurlClient) -> BirdClient {
+        BirdClient::new_test(Box::new(mock), crate::db::store::in_memory_db())
+    }
+
+    fn ledger_total(client: &BirdClient) -> (i64, f64) {
+        let summary = client
+            .db()
+            .expect("store")
+            .query_usage_summary(0)
+            .expect("summary");
+        (summary.total_calls, summary.total_cost)
+    }
+
+    #[test]
+    fn embedded_post_create_logs_its_price() {
+        use crate::cli::commands::writes::spec::EmbeddedWriteCall;
+
+        let mock = MockXurlClient::new();
+        mock.push_value(
+            "send_request",
+            serde_json::json!({"data": {"id": "1", "text": "hi"}}),
+        );
+        let mut client = client_with_store(mock);
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        client
+            .execute_embedded_write(
+                EmbeddedWriteCall::TweetCreate {
+                    text: "hi".to_string(),
+                    media_id: None,
+                },
+                &ctx,
+            )
+            .expect("post must dispatch");
+
+        let (calls, cost) = ledger_total(&client);
+        assert_eq!(calls, 1);
+        assert!((cost - 0.015).abs() < 1e-9, "got ${cost}");
+    }
+
+    #[test]
+    fn embedded_like_logs_caller_lookup_and_interaction() {
+        use crate::cli::commands::writes::spec::EmbeddedWriteCall;
+
+        let mock = MockXurlClient::new();
+        mock.push_value("send_request", serde_json::json!({"data": {"id": "42"}}));
+        mock.push_value("send_request", serde_json::json!({"data": {"liked": true}}));
+        let mut client = client_with_store(mock);
+        let ctx = RequestContext {
+            auth_type: &AuthType::OAuth2User,
+            username: None,
+        };
+        client
+            .execute_embedded_write(
+                EmbeddedWriteCall::Like {
+                    tweet_id: "999".to_string(),
+                },
+                &ctx,
+            )
+            .expect("like must dispatch");
+
+        let (calls, cost) = ledger_total(&client);
+        assert_eq!(calls, 2, "the /2/users/me lookup and the like");
+        assert!((cost - 0.025).abs() < 1e-9, "got ${cost}");
     }
 
     /// `bird raw GET /2/users/{id}/likes -p id=foo;bar` — bird's deleted

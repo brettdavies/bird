@@ -59,8 +59,8 @@ pub fn run_bookmarks(
         .ok_or("no data.id in /2/users/me response")?;
 
     let me_estimate = cost::estimate_cost(
+        &cost::Request::get("https://api.x.com/2/users/me"),
         &me_json,
-        "https://api.x.com/2/users/me",
         me_response.cache_hit,
     );
     cost::display_cost(cfg, stderr, &me_estimate);
@@ -120,7 +120,11 @@ pub fn run_bookmarks(
         }
 
         let page = response.json.ok_or("invalid JSON from bookmarks")?;
-        let page_estimate = cost::estimate_cost(&page, &url, response.cache_hit);
+        let page_request = cost::Request {
+            caller_id: Some(user_id),
+            ..cost::Request::get(&url)
+        };
+        let page_estimate = cost::estimate_cost(&page_request, &page, response.cache_hit);
         cost::display_cost(cfg, stderr, &page_estimate);
 
         if let Some(data) = page.get("data").and_then(|d| d.as_array()) {

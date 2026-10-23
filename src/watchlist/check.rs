@@ -164,7 +164,8 @@ fn execute_check(
     let json = response.json.ok_or("invalid JSON from search")?;
 
     // Cost display per account
-    let estimate = crate::cost::estimate_cost(&json, url, response.cache_hit);
+    let estimate =
+        crate::cost::estimate_cost(&crate::cost::Request::get(url), &json, response.cache_hit);
     crate::cost::display_cost(cfg, stderr, &estimate);
 
     let post_count = json

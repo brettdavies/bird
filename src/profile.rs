@@ -68,7 +68,7 @@ pub fn run_profile(
         return Err(format!("profile failed: {}", detail).into());
     }
 
-    let estimate = cost::estimate_cost(&json, &url, response.cache_hit);
+    let estimate = cost::estimate_cost(&cost::Request::get(&url), &json, response.cache_hit);
     cost::display_cost(cfg, stderr, &estimate);
 
     if opts.pretty {
