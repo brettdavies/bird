@@ -20,13 +20,34 @@ enum Class {
     General,
 }
 
-/// The `--cache-only` miss: the local store holds no entry for the request.
-#[derive(Debug)]
-pub struct CacheMiss;
+/// The `--cache-only` miss: no response is stored today (UTC) for the
+/// request and account. Its `Display` is the refusal's whole message.
+#[derive(Debug, Default)]
+pub struct CacheMiss {
+    /// The request as `METHOD /path`, when bird has it.
+    pub request: Option<String>,
+}
+
+impl CacheMiss {
+    /// The miss for `method` on `url`, named by the URL's path.
+    pub fn for_request(method: &str, url: &str) -> Self {
+        let path = url::Url::parse(url)
+            .map(|u| u.path().to_string())
+            .unwrap_or_else(|_| url.split('?').next().unwrap_or(url).to_string());
+        Self {
+            request: Some(format!("{method} {path}")),
+        }
+    }
+}
 
 impl std::fmt::Display for CacheMiss {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("entity not in local store; run without --cache-only to fetch")
+        let request = self.request.as_deref().unwrap_or("this request");
+        write!(
+            f,
+            "--cache-only: no response is stored today (UTC) for {request} and this account; \
+             a stored response answers only the UTC day it was written"
+        )
     }
 }
 
@@ -448,7 +469,7 @@ mod tests {
     fn non_xdk_sources_take_the_reason_of_the_failure() {
         let message = BirdError::from_source("cache", "post ID must be numeric".into());
         assert_eq!((message.error_id(), message.exit_code()), ("validation", 1));
-        let miss = BirdError::from_source("thread", Box::new(CacheMiss));
+        let miss = BirdError::from_source("thread", Box::new(CacheMiss::default()));
         assert_eq!((miss.error_id(), miss.exit_code()), ("cache-miss", 1));
         let io = BirdError::from_source("cache", Box::new(std::io::Error::other("disk full")));
         assert_eq!((io.error_id(), io.exit_code()), ("io", 5));

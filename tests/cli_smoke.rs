@@ -210,6 +210,36 @@ fn cache_only_miss_is_a_cache_miss() {
     let envelope = common::stderr_envelope(&stderr);
     assert_eq!(envelope["reason"], "cache-miss");
     assert_eq!(envelope["next_step"]["action"], "fix-input");
+    assert_eq!(
+        envelope["next_step"]["template"],
+        "bird profile jack --output json"
+    );
+    let message = envelope["message"].as_str().expect("message");
+    for words in [
+        "--cache-only",
+        "GET /2/users/by/username/jack",
+        "today (UTC)",
+        "this account",
+        "only the UTC day it was written",
+    ] {
+        assert!(message.contains(words), "{words:?} missing: {message}");
+    }
+    assert!(!message.contains("entity"), "{message}");
+}
+
+#[test]
+fn cache_only_miss_text_names_the_command_to_send() {
+    let env = common::TestEnv::new();
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &["bird", "--output", "text", "--cache-only", "search", "rust"],
+        &env,
+    );
+    assert_eq!(exit, 1, "stderr {stderr:?}");
+    assert!(stderr.contains("GET /2/tweets/search/recent"), "{stderr}");
+    assert!(
+        stderr.contains("bird --output text search rust"),
+        "{stderr}"
+    );
 }
 
 // --- Content-asserting migrations from cli_smoke_subprocess.rs (Plan 2 U11) -
