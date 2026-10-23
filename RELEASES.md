@@ -457,12 +457,15 @@ drift the next regeneration overwrites.
 
 Two rulesets are committed under `.github/rulesets/` and applied to the repo via the GitHub API:
 
-- `protect-main.json` (required signatures, linear history, squash-only merges via PR, required status checks
-  (`ci / Fmt, clippy, test`, `ci / Package check`, `ci / Security audit (bans licenses sources)`, `ci / Changelog`,
-  `guard-docs / check-forbidden-docs`, `guard-provenance / check-provenance`,
-  `guard-release / check-release-branch-name`), creation/deletion blocked, non-fast-forward blocked).
-- `protect-dev.json` (required signatures, deletion blocked, non-fast-forward blocked). PR-only norm is convention +
-  `guard-release-branch` on the main side.
+- `protect-main.json`: changes arrive by PR with one approving review, squash merges only, signed commits, linear
+  history; creation, deletion, and non-fast-forward pushes are blocked. It requires the `scope` and `ci` checks plus the
+  three `guard-*` checks.
+- `protect-dev.json`: changes arrive by PR, squash merges only, signed commits, linear history; deletion and
+  non-fast-forward pushes are blocked. It requires the `scope` and `ci` checks (less `ci / Changelog`, which runs only
+  on PRs to `main`) plus `changelog-bump`.
+
+Each file's `required_status_checks` list names every required check. A new CI job is advisory until its check is listed
+there and the ruleset is applied again.
 
 ### Applying changes
 
