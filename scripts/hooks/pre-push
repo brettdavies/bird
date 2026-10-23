@@ -134,16 +134,13 @@ else
   fi
 fi
 
-# Paths that cannot change what cargo builds, tests, documents, packages, or
-# audits: markdown (no test and no doc comment reads a .md file), the
-# gitignored .context/, the license texts, and the .github files no test reads.
-# Workflows stay cargo inputs because tests/hook_ci_parity.rs reads them.
-# Deliberately narrow: a path wrongly called inert skips the battery.
-INERT_RE='(\.md$|^\.context/|^LICENSE-|^\.github/(ISSUE_TEMPLATE/|rulesets/|dependabot\.yml$))'
-
+# The paths that can change what cargo builds, tests, documents, or packages,
+# by scripts/cargo-inputs.sh: the classifier CI's `Change scope` job runs, so
+# the hook and CI skip the Rust battery on the same changes. A classifier that
+# fails runs the battery.
 cargo_changed=""
 if ! $scope_all; then
-  cargo_changed=$(grep -Ev "$INERT_RE" <<<"$changed" | grep -v '^$' || true)
+  cargo_changed=$(bash scripts/cargo-inputs.sh <<<"$changed") || scope_all=true
 fi
 
 # code_touched: true unless every changed path is inert.

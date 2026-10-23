@@ -77,6 +77,9 @@ const GATES: &[(&str, Mirror)] = &[
 
 const RUST_CI: &str = "uses: brettdavies/.github/.github/workflows/rust-ci.yml@";
 const LINT_BASICS: &str = "uses: brettdavies/.github/.github/workflows/lint-basics.yml@";
+const CHANGE_SCOPE: &str = "uses: brettdavies/.github/.github/workflows/rust-change-scope.yml@";
+/// The classifier `rust-change-scope.yml` runs when the caller names none.
+const CARGO_INPUTS: &str = "scripts/cargo-inputs.sh";
 
 fn read(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
@@ -160,6 +163,9 @@ fn every_reusable_ci_calls_has_a_hook_step() {
         .filter(|line| line.starts_with("uses: "))
         .collect();
     for uses in called {
+        if uses.starts_with(CHANGE_SCOPE) {
+            continue;
+        }
         let mirrored = GATES.iter().any(|(_, gate)| match gate {
             Mirror::RustCi(_) | Mirror::RustCiOptIn { .. } => uses.starts_with(RUST_CI),
             Mirror::LintBasics(_) => uses.starts_with(LINT_BASICS),
@@ -168,6 +174,24 @@ fn every_reusable_ci_calls_has_a_hook_step() {
         assert!(
             mirrored,
             "ci.yml calls `{uses}`, which no pre-push step mirrors"
+        );
+    }
+}
+
+/// CI's `Change scope` job and the hook's push-range scoping skip the Rust
+/// battery on the same verdict only when both run the same classifier.
+#[test]
+fn change_scope_and_hook_share_one_classifier() {
+    let ci = read(".github/workflows/ci.yml");
+    let hook = read("scripts/hooks/pre-push");
+    if ci
+        .lines()
+        .map(str::trim)
+        .any(|line| line.starts_with(CHANGE_SCOPE))
+    {
+        assert!(
+            hook.contains(&format!("bash {CARGO_INPUTS}")),
+            "pre-push does not scope its Rust battery with {CARGO_INPUTS}"
         );
     }
 }
