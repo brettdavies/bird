@@ -51,12 +51,16 @@ impl<'a> Known<'a> {
         match self.observed(key) {
             Some(Field::List(items)) => items.iter().map(String::as_str).collect(),
             Some(_) => Vec::new(),
-            None => self
-                .stored(key)
-                .and_then(Value::as_array)
-                .map(|items| items.iter().filter_map(Value::as_str).collect())
-                .unwrap_or_default(),
+            None => self.stored_list(key),
         }
+    }
+
+    /// The strings list `key` holds in the stored note alone.
+    pub fn stored_list(&self, key: &str) -> Vec<&'a str> {
+        self.stored(key)
+            .and_then(Value::as_array)
+            .map(|items| items.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default()
     }
 
     /// The first line of the stored region that `matches` accepts.

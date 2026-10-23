@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use super::frontmatter::Stored;
 use super::known::Known;
+use super::media::{self, Attachment};
 use super::yaml::{Field, entry};
 use super::{post, user};
 
@@ -49,6 +50,7 @@ const POST_KEYS: &[&str] = &[
     "mentions",
     "links",
     "media",
+    "media_keys",
     "archived_at",
     "updated_at",
     "bird_format",
@@ -109,13 +111,12 @@ impl Kind {
 /// What a note's region shows besides bird's keys.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RegionSource {
-    /// A post's text, and the `(type, url)` of each media item the response
-    /// included.
+    /// A post's text, and the media keys its response names.
     Post {
         /// The text as X sent it.
         text: String,
-        /// The attached media the response's `includes` named.
-        media: Vec<(String, String)>,
+        /// Each media key, or `None` when the response names none.
+        attachments: Option<Vec<Attachment>>,
     },
     /// A user's region, which reads bird's keys alone.
     User,
@@ -148,10 +149,36 @@ impl Note {
     pub fn region(&self, stored: Option<&Stored<'_>>) -> String {
         let known = Known::new(&self.keys, stored);
         match &self.source {
-            RegionSource::Post { text, media } => post::region(&known, text, media),
+            RegionSource::Post { text, attachments } => {
+                post::region(&known, text, attachments.as_deref())
+            }
             RegionSource::User => user::region(&known),
             RegionSource::Fixed(region) => region.clone(),
         }
+    }
+
+    /// bird's value for `key` with `stored` merged in: a post's `media` and
+    /// `media_keys` keep the stored URL of each key the response did not
+    /// include; every other key is the observation's.
+    pub fn value(&self, key: &str, stored: Option<&Stored<'_>>) -> Option<Field> {
+        let RegionSource::Post {
+            attachments: Some(attached),
+            ..
+        } = &self.source
+        else {
+            return self.get(key).cloned();
+        };
+        let urls = match key {
+            "media" => true,
+            "media_keys" => false,
+            _ => return self.get(key).cloned(),
+        };
+        let known = Known::new(&self.keys, stored);
+        let items: Vec<String> = media::resolve(attached, &known)
+            .iter()
+            .map(|m| if urls { m.url } else { m.key }.to_string())
+            .collect();
+        (!items.is_empty()).then_some(Field::List(items))
     }
 
     /// bird's frontmatter entries in key order, with the given timestamps.

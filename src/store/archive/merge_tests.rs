@@ -417,3 +417,66 @@ fn a_thinner_user_entry_keeps_the_profile_region() {
         .observe(SEARCH_PAGE, &jills_page(true), None, at(2));
     assert_eq!(f.read(&path), first);
 }
+
+/// Post 1849 naming `keys` as its media, with the `includes.media` entry of
+/// each of `included`.
+fn photos_page(keys: &[&str], included: &[&str]) -> Value {
+    let media: Vec<Value> = included
+        .iter()
+        .map(|k| json!({"media_key": k, "type": "photo", "url": format!("https://pbs.twimg.com/{k}.jpg")}))
+        .collect();
+    json!({
+        "data": {"id": "1849", "text": "pics", "attachments": {"media_keys": keys}},
+        "includes": {"media": media}
+    })
+}
+
+#[test]
+fn a_missing_media_entry_keeps_the_stored_one_in_key_order() {
+    let f = fixture();
+    let both = photos_page(&["3_1", "3_2"], &["3_1", "3_2"]);
+    f.archive.observe(SEARCH, &both, None, at(1));
+    let first = f.read(&f.note());
+    let urls = json!([
+        "https://pbs.twimg.com/3_1.jpg",
+        "https://pbs.twimg.com/3_2.jpg"
+    ]);
+    assert_eq!(frontmatter(&first)["media"], urls);
+
+    let one = photos_page(&["3_1", "3_2"], &["3_2"]);
+    f.archive.observe(SEARCH, &one, None, at(2));
+    let after = f.read(&f.note());
+    assert_eq!(frontmatter(&after)["media"], urls);
+    assert_eq!(after, first);
+}
+
+#[test]
+fn different_media_keys_replace_the_list() {
+    let f = fixture();
+    let both = photos_page(&["3_1", "3_2"], &["3_1", "3_2"]);
+    f.archive.observe(SEARCH, &both, None, at(1));
+    let edited = photos_page(&["3_9"], &["3_9"]);
+    f.archive.observe(SEARCH, &edited, None, at(2));
+    let after = f.read(&f.note());
+    assert_eq!(
+        frontmatter(&after)["media"],
+        json!(["https://pbs.twimg.com/3_9.jpg"])
+    );
+    let (_, body) = split_note(&after);
+    assert!(
+        body.contains("[photo](https://pbs.twimg.com/3_9.jpg)"),
+        "{body}"
+    );
+    assert!(!body.contains("3_1.jpg"), "{body}");
+}
+
+#[test]
+fn a_page_without_attachments_keeps_the_media() {
+    let f = fixture();
+    let both = photos_page(&["3_1", "3_2"], &["3_1", "3_2"]);
+    f.archive.observe(SEARCH, &both, None, at(1));
+    let first = f.read(&f.note());
+    let bare = json!({"data": {"id": "1849", "text": "pics"}});
+    f.archive.observe(SEARCH, &bare, None, at(2));
+    assert_eq!(f.read(&f.note()), first);
+}

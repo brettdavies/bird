@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use super::known::Known;
-use super::markdown::{escape_text, link, safe_url};
+use super::markdown::escape_text;
+use super::media::{self, Attachment};
 use super::note::{
     Kind, Note, RegionSource, display_time, int_key, list_key, str_key, str_of, valid_id,
 };
@@ -54,6 +55,11 @@ impl<'a> Includes<'a> {
     pub fn username(&self, id: &str) -> Option<&'a str> {
         self.usernames.get(id).copied()
     }
+
+    /// The media entry for `key`, when the response included it.
+    pub fn media(&self, key: &str) -> Option<&'a Value> {
+        self.media.get(key).copied()
+    }
 }
 
 /// The post id a referenced-post entry of `kind` points at.
@@ -86,25 +92,6 @@ fn entity_strings(post: &Value, list: &str, field: &str, fallback: Option<&str>)
         .unwrap_or_default()
 }
 
-/// The `(type, url)` of each attached media item the response included.
-fn media(post: &Value, includes: &Includes<'_>) -> Vec<(String, String)> {
-    post.get("attachments")
-        .and_then(|a| a.get("media_keys"))
-        .and_then(Value::as_array)
-        .map(|keys| {
-            keys.iter()
-                .filter_map(Value::as_str)
-                .filter_map(|k| includes.media.get(k))
-                .filter_map(|m| {
-                    let url = str_of(m, "url").or_else(|| str_of(m, "preview_image_url"))?;
-                    let kind = str_of(m, "type").unwrap_or("media");
-                    Some((kind.to_string(), url.to_string()))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// The note for `post`, or the offending id when it cannot name a file.
 pub fn post_note(post: &Value, includes: &Includes<'_>) -> Result<Note, String> {
     let id = str_of(post, "id").unwrap_or_default();
@@ -114,7 +101,7 @@ pub fn post_note(post: &Value, includes: &Includes<'_>) -> Result<Note, String> 
     let url = format!("https://x.com/i/status/{id}");
     let author_id = str_of(post, "author_id").filter(|a| valid_id(a));
     let author = author_id.and_then(|a| includes.username(a));
-    let attached = media(post, includes);
+    let attached = media::attachments(post, includes);
 
     let mut keys = vec![
         ("type", Field::Str("x-post".into())),
@@ -161,10 +148,19 @@ pub fn post_note(post: &Value, includes: &Includes<'_>) -> Result<Note, String> 
         "links",
         entity_strings(post, "urls", "expanded_url", Some("url")),
     );
+    let found = attached
+        .as_deref()
+        .map(|a| media::resolve(a, &Known::new(&[], None)))
+        .unwrap_or_default();
     list_key(
         &mut keys,
         "media",
-        attached.iter().map(|(_, u)| u.clone()).collect(),
+        found.iter().map(|m| m.url.to_string()).collect(),
+    );
+    list_key(
+        &mut keys,
+        "media_keys",
+        found.iter().map(|m| m.key.to_string()).collect(),
     );
 
     let text = post
@@ -178,14 +174,14 @@ pub fn post_note(post: &Value, includes: &Includes<'_>) -> Result<Note, String> 
         keys,
         source: RegionSource::Post {
             text: text.to_string(),
-            media: attached,
+            attachments: attached,
         },
     })
 }
 
 /// A post's region: its text, a line linking its author's note with its UTC
 /// time and X URL, a line per referenced post, and a link per media item.
-pub fn region(known: &Known<'_>, text: &str, media: &[(String, String)]) -> String {
+pub fn region(known: &Known<'_>, text: &str, attached: Option<&[Attachment]>) -> String {
     let mut meta = Vec::new();
     if let Some(a) = known.str("author_id").filter(|a| valid_id(a)) {
         let name = known
@@ -203,29 +199,6 @@ pub fn region(known: &Known<'_>, text: &str, media: &[(String, String)]) -> Stri
             lines.push(format!("{label} [post {target}]({target}.md)"));
         }
     }
-    if media.is_empty() {
-        lines.extend(
-            known
-                .list("media")
-                .into_iter()
-                .map(|u| stored_media(known, u)),
-        );
-    } else {
-        lines.extend(media.iter().map(|(kind, url)| link(kind, url)));
-    }
+    lines.extend(media::lines(known, attached));
     lines.join("\n")
-}
-
-/// The link for a media URL the response did not include: the stored
-/// region's line for it, which names its type, else a `media` link.
-fn stored_media(known: &Known<'_>, url: &str) -> String {
-    let line = safe_url(url).and_then(|href| {
-        let tail = format!("]({href})");
-        known.stored_line(|l| {
-            l.strip_suffix(tail.as_str())
-                .and_then(|l| l.strip_prefix('['))
-                .is_some_and(|label| !label.contains("]("))
-        })
-    });
-    line.map_or_else(|| link("media", url), str::to_string)
 }
