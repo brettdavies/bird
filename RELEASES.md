@@ -117,6 +117,12 @@ output reads a structured format. The token store belongs to xdk-rs.
 A minor can carry fixes, and a major can carry both. A new xdk-rs requirement moves bird's version only by what it
 changes in bird's own contract.
 
+On every PR except a release PR to `main`, the `changelog-bump / Surface growth needs a minor section` check holds a
+minor to its section. It runs `scripts/check-surface-bump.sh`, which compares the commands, flags, and flag values in
+`completions/bird.bash` and the schema leaves under `schema/` between the base and the head, and fails when the surface
+grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`.
+Environment variables, exit codes, and the config format have no generated artifact, so review covers them.
+
 ### X API changes
 
 X ships additive API changes often and does not version them.
