@@ -17,7 +17,6 @@ pub mod cli;
 pub mod bookmarks;
 pub mod config;
 pub mod cost;
-pub mod db;
 pub mod doctor;
 pub mod error;
 pub mod fields;

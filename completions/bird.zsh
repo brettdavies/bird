@@ -42,9 +42,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '-V[Print version]' \
@@ -88,9 +88,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -125,9 +125,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -162,9 +162,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -197,9 +197,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X/Twitter username (with or without @):_default' \
@@ -239,9 +239,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':query -- Search query (X API search syntax):_default' \
@@ -278,9 +278,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':post_id -- Post ID (the root post or any reply in the thread):_default' \
@@ -316,9 +316,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_bird__subcmd__watchlist_commands" \
@@ -360,9 +360,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -394,9 +394,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X username (with or without @):_default' \
@@ -432,9 +432,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- X username to remove:_default' \
@@ -469,9 +469,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -548,9 +548,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -588,9 +588,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':text -- Tweet text:_default' \
@@ -628,9 +628,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to reply to:_default' \
@@ -669,9 +669,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to like:_default' \
@@ -709,9 +709,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to unlike:_default' \
@@ -749,9 +749,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to repost:_default' \
@@ -789,9 +789,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':tweet_id -- Tweet ID to unrepost:_default' \
@@ -827,9 +827,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to follow:_default' \
@@ -865,9 +865,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unfollow:_default' \
@@ -903,9 +903,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to message:_default' \
@@ -942,9 +942,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to block:_default' \
@@ -980,9 +980,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unblock:_default' \
@@ -1018,9 +1018,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to mute:_default' \
@@ -1056,9 +1056,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':username -- Username to unmute:_default' \
@@ -1094,9 +1094,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '::command -- Scope report to this command only (e.g. me, bookmarks, get):_default' \
@@ -1131,9 +1131,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_bird__subcmd__cache_commands" \
@@ -1178,9 +1178,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -1215,9 +1215,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 && ret=0
@@ -1283,9 +1283,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
@@ -1320,9 +1320,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 ":: :_bird__subcmd__skill_commands" \
@@ -1366,9 +1366,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '::host -- Target host (omit and pass --all to install everywhere):(claude_code codex cursor factory kiro opencode)' \
@@ -1405,9 +1405,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '::host -- Target host (omit and pass --all to update everywhere):(claude_code codex cursor factory kiro opencode)' \
@@ -1476,9 +1476,9 @@ never\:"Never emit colors"))' \
 '--no-interactive[Disable interactive prompts (refuse anything that would block on stdin)]' \
 '--raw[Emit unstyled, compact output\: pipe-safe text, and \`json\` on one line]' \
 '--examples[Print curated examples block and exit]' \
-'--refresh[Bypass store read, still write response to store]' \
-'--no-cache[Disable entity store entirely (no read, no write)]' \
-'--cache-only[Only serve from local store; never make API requests]' \
+'--refresh[Send every read instead of answering it from a stored response; still store the reply]' \
+'--no-cache[Read and write no stored responses, notes, or ledger records]' \
+'--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '::name -- Command whose output schema to print, or `envelope`:_default' \
@@ -1705,8 +1705,8 @@ _bird_commands() {
 'unblock:Unblock a user (via xurl)' \
 'mute:Mute a user (via xurl)' \
 'unmute:Unmute a user (via xurl)' \
-'doctor:Show what is available\: xurl status, commands, and entity store health' \
-'cache:Manage the HTTP response cache' \
+'doctor:Show what is available\: the X API client, auth, commands, and the file store' \
+'cache:Report the file store and clear its stored responses' \
 'completions:Generate shell completions' \
 'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
 'schema:Print the JSON Schema of a command'\''s output, or of the envelope' \
@@ -1727,8 +1727,8 @@ _bird__subcmd__bookmarks_commands() {
 (( $+functions[_bird__subcmd__cache_commands] )) ||
 _bird__subcmd__cache_commands() {
     local commands; commands=(
-'clear:Delete all cache entries' \
-'stats:Show cache status (JSON default, --pretty for human-readable)' \
+'clear:Delete every stored response; the archive and the ledger stay' \
+'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird cache commands' commands "$@"
@@ -1741,8 +1741,8 @@ _bird__subcmd__cache__subcmd__clear_commands() {
 (( $+functions[_bird__subcmd__cache__subcmd__help_commands] )) ||
 _bird__subcmd__cache__subcmd__help_commands() {
     local commands; commands=(
-'clear:Delete all cache entries' \
-'stats:Show cache status (JSON default, --pretty for human-readable)' \
+'clear:Delete every stored response; the archive and the ledger stay' \
+'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'bird cache help commands' commands "$@"
@@ -1811,8 +1811,8 @@ _bird__subcmd__help_commands() {
 'unblock:Unblock a user (via xurl)' \
 'mute:Mute a user (via xurl)' \
 'unmute:Unmute a user (via xurl)' \
-'doctor:Show what is available\: xurl status, commands, and entity store health' \
-'cache:Manage the HTTP response cache' \
+'doctor:Show what is available\: the X API client, auth, commands, and the file store' \
+'cache:Report the file store and clear its stored responses' \
 'completions:Generate shell completions' \
 'skill:Manage the bird agent-skill bundle (clone from brettdavies/bird-skill into a host'\''s skills dir)' \
 'schema:Print the JSON Schema of a command'\''s output, or of the envelope' \
@@ -1833,8 +1833,8 @@ _bird__subcmd__help__subcmd__bookmarks_commands() {
 (( $+functions[_bird__subcmd__help__subcmd__cache_commands] )) ||
 _bird__subcmd__help__subcmd__cache_commands() {
     local commands; commands=(
-'clear:Delete all cache entries' \
-'stats:Show cache status (JSON default, --pretty for human-readable)' \
+'clear:Delete every stored response; the archive and the ledger stay' \
+'stats:Show the archive, stored responses, and ledger (JSON default, --pretty for human-readable)' \
     )
     _describe -t commands 'bird help cache commands' commands "$@"
 }

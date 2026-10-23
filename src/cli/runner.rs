@@ -410,7 +410,6 @@ where
         xurl_client,
         store::StoreSetup {
             paths: config.store.clone(),
-            legacy_db: config.cache_path.clone(),
             account: store_account,
         },
         cache_opts,

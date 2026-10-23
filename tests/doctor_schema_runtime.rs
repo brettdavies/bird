@@ -50,14 +50,14 @@ fn doctor_runtime_keys_present_in_schema() {
 
     // Top-level shape.
     let top_required = schema_required(&schema, "schema");
-    for key in ["xurl", "auth", "commands"] {
+    for key in ["xdk", "auth", "commands"] {
         assert!(
             top_required.iter().any(|k| k == key),
             "top-level required: missing `{key}`",
         );
     }
     let top_props = schema_property_names(&schema, "schema");
-    for key in ["xurl", "auth", "commands", "cache", "linked_xurl_version"] {
+    for key in ["xdk", "auth", "commands", "cache", "linked_xdk_version"] {
         assert!(
             top_props.iter().any(|k| k == key),
             "top-level properties: missing `{key}`",
@@ -140,14 +140,14 @@ fn doctor_runtime_keys_present_in_schema() {
         );
     }
 
-    // Embedded client status: exactly the keys `XurlStatus` can emit.
-    let xurl = schema.pointer("/properties/xurl").expect("xurl subschema");
-    let mut xurl_props = schema_property_names(xurl, "/properties/xurl");
-    xurl_props.sort();
+    // Embedded client status: exactly the keys `XdkStatus` can emit.
+    let xdk = schema.pointer("/properties/xdk").expect("xdk subschema");
+    let mut xdk_props = schema_property_names(xdk, "/properties/xdk");
+    xdk_props.sort();
     assert_eq!(
-        xurl_props,
+        xdk_props,
         ["available", "reason", "version"],
-        "xurl.properties must match the fields `XurlStatus` serializes",
+        "xdk.properties must match the fields `XdkStatus` serializes",
     );
 
     // Per-command shape.
@@ -169,11 +169,46 @@ fn doctor_runtime_keys_present_in_schema() {
     }
 }
 
+/// A store report for a location that does not exist: every count zero.
+fn fixture_store_report() -> bird::store::report::StoreReport {
+    let root = std::env::temp_dir().join("bird-doctor-fixture-never-created");
+    bird::store::report::StoreReport::gather(
+        &bird::store::StorePaths::under(&root),
+        chrono::Utc::now(),
+    )
+}
+
+/// Every key the store report serializes is declared by `cache` in the doctor
+/// schema, at each level.
+#[test]
+fn the_cache_section_matches_the_schema() {
+    let schema = load_schema();
+    let value = serde_json::to_value(fixture_store_report()).expect("report");
+    let cache = schema
+        .pointer("/properties/cache")
+        .expect("cache subschema");
+    let declared = schema_property_names(cache, "/properties/cache");
+    for (key, child) in value.as_object().expect("report object") {
+        assert!(declared.contains(key), "cache emits undeclared `{key}`");
+        if let Some(fields) = child.as_object() {
+            let path = format!("/properties/cache/properties/{key}");
+            let sub = schema.pointer(&path).expect("location subschema");
+            let declared = schema_property_names(sub, &path);
+            for field in fields.keys() {
+                assert!(
+                    declared.contains(field),
+                    "cache.{key} emits undeclared `{field}`"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn doctor_report_serializes_match_schema_keys() {
     use bird::doctor::{
-        AppCredentials, AuthState, BearerTokenPresence, CacheStatus, CommandStatus, DoctorReport,
-        EnvCredentials, OAuth1TokenPresence, OAuth2TokenPresence, XurlStatus,
+        AppCredentials, AuthState, BearerTokenPresence, CommandStatus, DoctorReport,
+        EnvCredentials, OAuth1TokenPresence, OAuth2TokenPresence, XdkStatus,
     };
     use std::collections::HashMap;
 
@@ -220,7 +255,7 @@ fn doctor_report_serializes_match_schema_keys() {
         },
     );
     let report = DoctorReport {
-        xurl: XurlStatus {
+        xdk: XdkStatus {
             version: Some("0.2.0".to_string()),
             available: false,
             reason: Some("cannot start the async runtime".to_string()),
@@ -235,40 +270,30 @@ fn doctor_report_serializes_match_schema_keys() {
             },
         },
         commands,
-        cache: Some(CacheStatus {
-            path: "/tmp/cache.db".to_string(),
-            exists: true,
-            size_mb: 0.5,
-            max_size_mb: 100,
-            posts: 1,
-            users: 1,
-            raw_responses: 0,
-            healthy: true,
-            schema_version: Some(4),
-        }),
-        linked_xurl_version: None,
+        cache: fixture_store_report(),
+        linked_xdk_version: None,
     };
 
     let value = serde_json::to_value(&report).expect("DoctorReport must serialize cleanly");
 
     // Walk the value and assert the expected keys are present.
     let obj = value.as_object().expect("top-level object");
-    for key in ["xurl", "auth", "commands", "cache"] {
+    for key in ["xdk", "auth", "commands", "cache"] {
         assert!(obj.contains_key(key), "serialized report missing `{key}`");
     }
 
     // The fixture's client failed to build, so `reason` is emitted too.
     let schema = load_schema();
-    let xurl_props = schema_property_names(
-        schema.pointer("/properties/xurl").expect("xurl subschema"),
-        "/properties/xurl",
+    let xdk_props = schema_property_names(
+        schema.pointer("/properties/xdk").expect("xdk subschema"),
+        "/properties/xdk",
     );
-    let xurl_obj = obj["xurl"].as_object().expect("xurl object");
-    assert!(xurl_obj.contains_key("reason"), "xurl missing `reason`");
-    for key in xurl_obj.keys() {
+    let xdk_obj = obj["xdk"].as_object().expect("xdk object");
+    assert!(xdk_obj.contains_key("reason"), "xdk missing `reason`");
+    for key in xdk_obj.keys() {
         assert!(
-            xurl_props.iter().any(|k| k == key),
-            "xurl emits `{key}`, which the schema does not declare",
+            xdk_props.iter().any(|k| k == key),
+            "xdk emits `{key}`, which the schema does not declare",
         );
     }
 
@@ -317,7 +342,7 @@ fn doctor_report_serializes_match_schema_keys() {
 fn serialized_report_omits_credential_material() {
     use bird::doctor::{
         AppCredentials, AuthState, BearerTokenPresence, CommandStatus, DoctorReport,
-        EnvCredentials, OAuth1TokenPresence, OAuth2TokenPresence, XurlStatus,
+        EnvCredentials, OAuth1TokenPresence, OAuth2TokenPresence, XdkStatus,
     };
     use std::collections::HashMap;
 
@@ -369,7 +394,7 @@ fn serialized_report_omits_credential_material() {
         },
     );
     let report = DoctorReport {
-        xurl: XurlStatus {
+        xdk: XdkStatus {
             version: Some("0.2.0".to_string()),
             available: true,
             reason: None,
@@ -384,8 +409,8 @@ fn serialized_report_omits_credential_material() {
             },
         },
         commands,
-        cache: None,
-        linked_xurl_version: None,
+        cache: fixture_store_report(),
+        linked_xdk_version: None,
     };
 
     let json = serde_json::to_string(&report).expect("serialize report");

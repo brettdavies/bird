@@ -1,36 +1,149 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "bird cache stats",
-  "description": "The ok document `bird cache stats` prints under --output json. With no store it carries only `healthy: false`.",
+  "description": "The ok document `bird cache stats` prints under --output json: the archive, response files, and spend ledger, the same object `bird doctor` reports as `cache`.",
   "type": "object",
   "required": [
     "status",
+    "archive",
+    "responses",
+    "ledger",
     "healthy"
   ],
   "properties": {
     "status": {
       "const": "ok"
     },
-    "path": {
-      "type": "string"
+    "archive": {
+      "type": "object",
+      "description": "The Markdown archive.",
+      "required": [
+        "path",
+        "exists",
+        "source",
+        "writable",
+        "posts",
+        "users",
+        "bookmarks",
+        "likes",
+        "size_mb"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The archive directory."
+        },
+        "exists": {
+          "type": "boolean",
+          "description": "Whether the location exists yet."
+        },
+        "source": {
+          "enum": [
+            "default",
+            "config",
+            "env"
+          ],
+          "description": "Which input chose the archive directory: the default, `archive_dir` in config.toml, or `BIRD_ARCHIVE_DIR`."
+        },
+        "writable": {
+          "type": "boolean",
+          "description": "Whether bird can write the directory, or its nearest existing ancestor when it does not exist."
+        },
+        "posts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Notes under `posts/`."
+        },
+        "users": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Notes under `users/`."
+        },
+        "bookmarks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Notes under `bookmarks/`."
+        },
+        "likes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Notes under `likes/`."
+        },
+        "size_mb": {
+          "type": "number",
+          "description": "Total size of bird's notes, in MB."
+        }
+      },
+      "additionalProperties": false
     },
-    "size_mb": {
-      "type": "number"
+    "responses": {
+      "type": "object",
+      "description": "The per-account response files.",
+      "required": [
+        "path",
+        "exists",
+        "writable",
+        "files",
+        "fresh",
+        "size_mb"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The response files directory."
+        },
+        "exists": {
+          "type": "boolean",
+          "description": "Whether the location exists yet."
+        },
+        "writable": {
+          "type": "boolean",
+          "description": "Whether bird can write the directory, or its nearest existing ancestor when it does not exist."
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Stored response files."
+        },
+        "fresh": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Response files written today (UTC), which still answer requests."
+        },
+        "size_mb": {
+          "type": "number",
+          "description": "Total size of the response files, in MB."
+        }
+      },
+      "additionalProperties": false
     },
-    "max_size_mb": {
-      "type": "integer"
-    },
-    "posts": {
-      "type": "integer"
-    },
-    "users": {
-      "type": "integer"
-    },
-    "raw_responses": {
-      "type": "integer"
+    "ledger": {
+      "type": "object",
+      "description": "The spend ledger.",
+      "required": [
+        "path",
+        "exists",
+        "size_mb"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The spend ledger file."
+        },
+        "exists": {
+          "type": "boolean",
+          "description": "Whether the location exists yet."
+        },
+        "size_mb": {
+          "type": "number",
+          "description": "Size of the ledger, in MB."
+        }
+      },
+      "additionalProperties": false
     },
     "healthy": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "True when the archive, the responses directory, and the ledger's directory are all writable."
     }
   },
   "additionalProperties": false

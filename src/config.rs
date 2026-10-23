@@ -14,9 +14,7 @@ use crate::store::paths::ARCHIVE_DIR_VAR;
 pub struct ResolvedConfig {
     pub username: Option<String>,
     pub config_dir: PathBuf,
-    pub cache_path: PathBuf,
     pub cache_enabled: bool,
-    pub cache_max_size_mb: u64,
     /// The file store's locations: archive, response files, and ledger.
     pub store: StorePaths,
     /// The xdk-rs token store, from [`ResolvedPaths::token_store`].
@@ -212,15 +210,12 @@ impl ResolvedConfig {
             .or(file_config.username)
             .or(env_username);
 
-        let cache_path = config_dir.join("bird.db");
         let cache_enabled = env.cache_enabled.unwrap_or(true);
 
         Ok(ResolvedConfig {
             username,
             config_dir,
-            cache_path,
             cache_enabled,
-            cache_max_size_mb: 100,
             store,
             token_store: paths.token_store,
             xdk_env: env.xdk,
@@ -302,7 +297,7 @@ mod tests {
         )
         .expect("load_with_paths succeeds");
         assert_eq!(cfg.config_dir, paths.config_dir);
-        assert_eq!(cfg.cache_path, paths.config_dir.join("bird.db"));
+        assert!(cfg.store.archive_dir.starts_with(&paths.data_dir));
     }
 
     #[test]
@@ -312,8 +307,6 @@ mod tests {
         // returns Ok with the expected shape.
         let cfg = ResolvedConfig::load(ArgOverrides::default()).expect("load succeeds");
         assert!(cfg.config_dir.ends_with("bird"));
-        assert_eq!(cfg.cache_path, cfg.config_dir.join("bird.db"));
-        assert_eq!(cfg.cache_max_size_mb, 100);
     }
 
     #[test]

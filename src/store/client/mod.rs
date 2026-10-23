@@ -15,7 +15,6 @@ pub use embedded::WriteOutcome;
 
 use crate::cli::auth_scheme::AuthType;
 use crate::cost;
-use crate::db::store::BirdDb;
 use crate::store::endpoint::normalize_endpoint;
 use crate::store::file_store::{FileStore, StoreAccount};
 use crate::store::ledger::{self, Record, RequestRecord};
@@ -27,7 +26,7 @@ use crate::xurl_client::XurlClient;
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 /// Request context for usage logging and auth tracking.
@@ -59,8 +58,6 @@ pub struct CacheOpts {
 pub struct StoreSetup {
     /// The file store's locations.
     pub paths: StorePaths,
-    /// The 0.2.0 database `bird cache` and `bird doctor` still report.
-    pub legacy_db: PathBuf,
     /// The app and default user requests go out under.
     pub account: StoreAccount,
 }
@@ -70,7 +67,6 @@ impl StoreSetup {
     pub fn under(root: &Path) -> Self {
         Self {
             paths: StorePaths::under(root),
-            legacy_db: root.join("bird.db"),
             account: StoreAccount::default(),
         }
     }
@@ -152,7 +148,6 @@ pub struct BirdClient {
     pub(super) xurl: Mutex<Box<dyn XurlClient + Send>>,
     pub(super) store: FileStore,
     pub(super) account: StoreAccount,
-    pub(super) legacy: Option<BirdDb>,
     pub(super) cache_opts: CacheOpts,
     /// Username threaded into `RequestOptions.username` for multi-user token
     /// selection.
@@ -178,17 +173,13 @@ impl BirdClient {
     ) -> Self {
         let status = StoreStatus::new(quiet, stderr);
         let store = FileStore::new(&setup.paths, status);
-        let legacy = if cache_opts.no_store {
-            None
-        } else {
+        if !cache_opts.no_store {
             store.prune(chrono::Utc::now());
-            BirdDb::open(&setup.legacy_db, 100).ok()
-        };
+        }
         Self {
             xurl: Mutex::new(xurl),
             store,
             account: setup.account,
-            legacy,
             cache_opts,
             username,
             caller_id: None,
@@ -219,21 +210,6 @@ impl BirdClient {
         );
         client._scratch = Some(scratch);
         client
-    }
-
-    /// The legacy store's stats, while `bird cache` still reports it.
-    pub fn db_stats(&self) -> Option<Result<crate::db::store::StoreStats, rusqlite::Error>> {
-        self.legacy.as_ref().map(|db| db.stats())
-    }
-
-    /// Clears the legacy store, while `bird cache` still manages it.
-    pub fn db_clear(&self) -> Option<Result<u64, rusqlite::Error>> {
-        self.legacy.as_ref().map(|db| db.clear())
-    }
-
-    /// The legacy store's path.
-    pub fn db_path(&self) -> Option<PathBuf> {
-        self.legacy.as_ref().and_then(|db| db.path())
     }
 
     /// Whether the store is disabled (`--no-cache`).

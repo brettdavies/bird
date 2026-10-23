@@ -16,8 +16,10 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::atomic::{self, Durability};
-pub use key::{Account, account_key, is_answerable, request_key};
-use key::{is_account_dir_name, is_request_file_name, normalize_url};
+use key::normalize_url;
+pub use key::{
+    Account, account_key, is_account_dir_name, is_answerable, is_request_file_name, request_key,
+};
 
 const FORMAT: u32 = 1;
 const PRUNED_MARKER: &str = ".pruned";

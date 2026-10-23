@@ -1101,6 +1101,128 @@ fn a_dry_run_clears_nothing() {
     }
 }
 
+/// Seeds one note, one ledger line, and one response file; returns their
+/// paths.
+fn seed_store(
+    env: &common::TestEnv,
+) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    let data = env.paths.data_dir.join("bird");
+    let note = data.join("archive").join("posts").join("1849.md");
+    let ledger = data.join("spend.jsonl");
+    let response = env
+        .paths
+        .cache_dir
+        .join("bird")
+        .join("responses")
+        .join("0123456789abcdef")
+        .join(format!("{}.json", "a".repeat(64)));
+    for (path, bytes) in [
+        (&note, &b"---\ntype: \"x-post\"\n---\n"[..]),
+        (&ledger, &b"{}\n"[..]),
+        (&response, &b"{}"[..]),
+    ] {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+        std::fs::write(path, bytes).expect("seed");
+    }
+    (note, ledger, response)
+}
+
+#[test]
+fn clear_keeps_the_archive_and_ledger() {
+    let env = common::TestEnv::new();
+    let (note, ledger, response) = seed_store(&env);
+    let (exit, stdout, stderr) = common::run_in_process(
+        &["bird", "--output", "json", "cache", "clear", "--force"],
+        &env,
+    );
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("ok document");
+    let message = doc["message"].as_str().expect("message");
+    assert!(message.contains("Cleared 1 stored responses"), "{message}");
+    assert!(!response.exists(), "the response file must go");
+    assert!(note.exists(), "the archive must stay");
+    assert!(ledger.exists(), "the ledger must stay");
+}
+
+#[test]
+fn clear_without_force_asks_first() {
+    let env = common::TestEnv::new();
+    let (_, _, response) = seed_store(&env);
+    let (exit, _stdout, stderr) = common::run_in_process(
+        &[
+            "bird",
+            "--no-interactive",
+            "--output",
+            "json",
+            "cache",
+            "clear",
+        ],
+        &env,
+    );
+    assert_eq!(exit, 1);
+    let json = common::stderr_envelope(&stderr);
+    assert_eq!(json["reason"], "confirmation-required");
+    assert!(response.exists(), "nothing is removed without confirmation");
+}
+
+#[test]
+fn stats_report_the_three_locations() {
+    let env = common::TestEnv::new();
+    seed_store(&env);
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "cache", "stats"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("stats");
+    assert_eq!(doc["status"], "ok");
+    assert_eq!(doc["archive"]["posts"], 1);
+    assert_eq!(doc["archive"]["source"], "default");
+    assert_eq!(doc["responses"]["files"], 1);
+    assert_eq!(doc["ledger"]["exists"], true);
+    assert_eq!(doc["healthy"], true);
+    for retired in ["max_size_mb", "raw_responses", "schema_version"] {
+        assert!(doc.get(retired).is_none(), "{retired} must be gone: {doc}");
+    }
+}
+
+fn object_keys(value: &serde_json::Value) -> Vec<String> {
+    let mut keys: Vec<String> = value.as_object().expect("object").keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+#[test]
+fn doctor_and_stats_share_the_cache_shape() {
+    let env = common::TestEnv::new();
+    let (_, stats, _) =
+        common::run_in_process(&["bird", "--output", "json", "cache", "stats"], &env);
+    let (_, doctor, _) = common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    let mut stats: serde_json::Value = serde_json::from_str(stats.trim()).expect("stats");
+    let doctor: serde_json::Value = serde_json::from_str(doctor.trim()).expect("doctor");
+    stats.as_object_mut().expect("object").remove("status");
+    assert_eq!(object_keys(&doctor["cache"]), object_keys(&stats));
+    for location in ["archive", "responses", "ledger"] {
+        assert_eq!(
+            object_keys(&doctor["cache"][location]),
+            object_keys(&stats[location]),
+            "{location}"
+        );
+    }
+}
+
+#[test]
+fn doctor_names_xdk() {
+    let env = common::TestEnv::new();
+    let (exit, stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "json", "doctor"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).expect("doctor");
+    assert!(doc.get("xdk").is_some(), "{doc}");
+    assert!(doc.get("linked_xdk_version").is_some(), "{doc}");
+    assert!(doc.get("xurl").is_none(), "{doc}");
+    assert!(doc.get("linked_xurl_version").is_none(), "{doc}");
+    assert!(!stdout.contains("bird.db"), "{stdout}");
+}
+
 // --- Store locations --------------------------------------------------------
 
 /// A relative `archive_dir` would scatter notes across working directories,

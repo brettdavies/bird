@@ -1,27 +1,26 @@
-//! `bird cache clear` and `bird cache stats` — local entity store management.
+//! `bird cache clear` and `bird cache stats` — the store's response files,
+//! archive, and ledger.
 
 use crate::cli::dispatch::{GuardOutcome, require_confirmation};
 use crate::cli::{CacheAction, OutputFlags};
 use crate::error::BirdError;
 use crate::output::OutputConfig;
-use crate::store;
+use crate::store::StorePaths;
+use crate::store::report::StoreReport;
+use crate::store::responses::Responses;
 use std::io::Write;
 
 pub fn run(
-    client: &mut store::BirdClient,
+    paths: &StorePaths,
     out: &OutputConfig,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     action: CacheAction,
     no_interactive: bool,
 ) -> Result<(), BirdError> {
-    let quiet = out.suppress_diag();
     match action {
         CacheAction::Clear { guard } => {
-            let target = client
-                .db_path()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "<store>".to_string());
+            let target = paths.responses_dir.display().to_string();
             match require_confirmation(
                 "clear",
                 "LOCAL",
@@ -37,96 +36,84 @@ pub fn run(
                 GuardOutcome::DryRun | GuardOutcome::Declined => return Ok(()),
                 GuardOutcome::Proceed => {}
             }
-            match client.db_clear() {
-                Some(Ok(count)) => {
-                    let stats = client.db_stats().and_then(|r| r.ok());
-                    let size_str =
-                        stats.map_or("0.0".to_string(), |s| format!("{:.1}", s.size_mb()));
-                    let message = format!("Cleared {} stored entities ({} MB).", count, size_str);
-                    if out.format.is_json() {
-                        out.print_ok_message(stdout, &message)
-                            .map_err(cache_io_err)?;
-                    } else if !quiet {
-                        writeln!(stderr, "{message}").ok();
-                    }
-                }
-                Some(Err(e)) => {
-                    return Err(BirdError::general(
-                        "cache",
-                        format!("failed to clear store: {}", e).into(),
-                    ));
-                }
-                None => {
-                    if !quiet {
-                        writeln!(stderr, "Store is not available.").ok();
-                    }
-                }
+            let cleared = Responses::new(paths.responses_dir.clone())
+                .clear()
+                .map_err(|e| BirdError::from_source("cache", Box::new(e)))?;
+            let message = format!(
+                "Cleared {} stored responses ({:.1} MB); kept the archive at {}.",
+                cleared.files,
+                cleared.bytes as f64 / (1024.0 * 1024.0),
+                paths.archive_dir.display()
+            );
+            if out.format.is_json() {
+                out.print_ok_message(stdout, &message)
+                    .map_err(cache_io_err)?;
+            } else if !out.suppress_diag() {
+                writeln!(stderr, "{message}").ok();
             }
         }
         CacheAction::Stats {
             common: OutputFlags { pretty },
         } => {
-            match client.db_stats() {
-                Some(Ok(stats)) => {
-                    let path = client
-                        .db_path()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string());
-                    let data = serde_json::json!({
-                        "path": path,
-                        "size_mb": (stats.size_mb() * 10.0).round() / 10.0,
-                        "max_size_mb": stats.max_size_mb() as u64,
-                        "posts": stats.post_count,
-                        "users": stats.user_count,
-                        "raw_responses": stats.raw_response_count,
-                        "healthy": stats.healthy(),
-                    });
-                    if pretty {
-                        writeln!(stdout, "Store: {}", path).map_err(cache_io_err)?;
-                        writeln!(
-                            stdout,
-                            "Size:  {:.1} MB / {:.0} MB limit",
-                            stats.size_mb(),
-                            stats.max_size_mb()
-                        )
-                        .map_err(cache_io_err)?;
-                        writeln!(stdout, "Posts:  {}", stats.post_count).map_err(cache_io_err)?;
-                        writeln!(stdout, "Users:  {}", stats.user_count).map_err(cache_io_err)?;
-                        writeln!(stdout, "Raw:    {}", stats.raw_response_count)
-                            .map_err(cache_io_err)?;
-                    } else if out.is_raw_text() {
-                        // --raw text: one key=value per line, pipe-safe.
-                        writeln!(stdout, "path={}", path).map_err(cache_io_err)?;
-                        writeln!(stdout, "size_mb={:.1}", stats.size_mb()).map_err(cache_io_err)?;
-                        writeln!(stdout, "max_size_mb={:.0}", stats.max_size_mb())
-                            .map_err(cache_io_err)?;
-                        writeln!(stdout, "posts={}", stats.post_count).map_err(cache_io_err)?;
-                        writeln!(stdout, "users={}", stats.user_count).map_err(cache_io_err)?;
-                        writeln!(stdout, "raw_responses={}", stats.raw_response_count)
-                            .map_err(cache_io_err)?;
-                        writeln!(stdout, "healthy={}", stats.healthy()).map_err(cache_io_err)?;
-                    } else {
-                        out.print_ok(stdout, data).map_err(cache_io_err)?;
-                    }
-                }
-                Some(Err(e)) => {
-                    return Err(BirdError::general(
-                        "cache",
-                        format!("failed to read store stats: {}", e).into(),
-                    ));
-                }
-                None => {
-                    if !pretty && !out.is_raw_text() {
-                        out.print_ok(stdout, serde_json::json!({"healthy": false}))
-                            .map_err(cache_io_err)?;
-                    } else if !quiet {
-                        writeln!(stderr, "Store is not available.").ok();
-                    }
-                }
+            let report = StoreReport::gather(paths, chrono::Utc::now());
+            if pretty {
+                write_pretty(stdout, &report).map_err(cache_io_err)?;
+            } else if out.is_raw_text() {
+                write_raw(stdout, &report).map_err(cache_io_err)?;
+            } else {
+                let value = serde_json::to_value(&report)
+                    .map_err(|e| BirdError::from_source("cache", Box::new(e)))?;
+                out.print_ok(stdout, value).map_err(cache_io_err)?;
             }
         }
     }
     Ok(())
+}
+
+fn write_pretty(w: &mut dyn Write, r: &StoreReport) -> std::io::Result<()> {
+    let a = &r.archive;
+    writeln!(w, "Archive:   {} ({})", a.path, a.source.as_str())?;
+    writeln!(
+        w,
+        "  posts {}, users {}, bookmarks {}, likes {}, {:.1} MB",
+        a.posts, a.users, a.bookmarks, a.likes, a.size_mb
+    )?;
+    let s = &r.responses;
+    writeln!(w, "Responses: {}", s.path)?;
+    writeln!(
+        w,
+        "  {} files, {} from today, {:.1} MB",
+        s.files, s.fresh, s.size_mb
+    )?;
+    writeln!(w, "Ledger:    {}", r.ledger.path)?;
+    writeln!(w, "  {:.1} MB", r.ledger.size_mb)?;
+    let status = if r.healthy { "healthy" } else { "unhealthy" };
+    writeln!(w, "Status:    {status}")
+}
+
+/// One `key=value` per line, pipe-safe.
+fn write_raw(w: &mut dyn Write, r: &StoreReport) -> std::io::Result<()> {
+    let a = &r.archive;
+    writeln!(w, "archive.path={}", a.path)?;
+    writeln!(w, "archive.source={}", a.source.as_str())?;
+    writeln!(w, "archive.exists={}", a.exists)?;
+    writeln!(w, "archive.writable={}", a.writable)?;
+    writeln!(w, "archive.posts={}", a.posts)?;
+    writeln!(w, "archive.users={}", a.users)?;
+    writeln!(w, "archive.bookmarks={}", a.bookmarks)?;
+    writeln!(w, "archive.likes={}", a.likes)?;
+    writeln!(w, "archive.size_mb={:.1}", a.size_mb)?;
+    let s = &r.responses;
+    writeln!(w, "responses.path={}", s.path)?;
+    writeln!(w, "responses.exists={}", s.exists)?;
+    writeln!(w, "responses.writable={}", s.writable)?;
+    writeln!(w, "responses.files={}", s.files)?;
+    writeln!(w, "responses.fresh={}", s.fresh)?;
+    writeln!(w, "responses.size_mb={:.1}", s.size_mb)?;
+    writeln!(w, "ledger.path={}", r.ledger.path)?;
+    writeln!(w, "ledger.exists={}", r.ledger.exists)?;
+    writeln!(w, "ledger.size_mb={:.1}", r.ledger.size_mb)?;
+    writeln!(w, "healthy={}", r.healthy)
 }
 
 fn cache_io_err(e: std::io::Error) -> BirdError {

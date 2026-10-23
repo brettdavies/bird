@@ -106,13 +106,13 @@ pub(super) fn normalize_url(url: &str) -> String {
 }
 
 /// Whether `name` is a response file's name: a request key plus `.json`.
-pub(super) fn is_request_file_name(name: &str) -> bool {
+pub fn is_request_file_name(name: &str) -> bool {
     name.strip_suffix(".json")
         .is_some_and(|stem| is_hex(stem, REQUEST_KEY_LEN))
 }
 
 /// Whether `name` is an account directory's name.
-pub(super) fn is_account_dir_name(name: &str) -> bool {
+pub fn is_account_dir_name(name: &str) -> bool {
     is_hex(name, ACCOUNT_KEY_LEN)
 }
 
