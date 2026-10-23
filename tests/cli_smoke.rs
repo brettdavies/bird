@@ -699,6 +699,39 @@ fn every_subcommand_help_has_example() {
     }
 }
 
+/// Help that bird writes describes bird: no internal symbols, no `xurl`
+/// naming for the token store's app and account, no removed command as an
+/// example, and a `cache clear --dry-run` that says it removes nothing.
+#[test]
+fn help_names_no_internals_or_removed_commands() {
+    let env = common::TestEnv::new();
+    let help = |args: &[&str]| {
+        let mut argv = vec!["bird"];
+        argv.extend_from_slice(args);
+        argv.push("--help");
+        let (exit, stdout, stderr) = common::run_in_process(&argv, &env);
+        assert_eq!(exit, 0, "{args:?}: {stderr}");
+        stdout
+    };
+    let top = help(&[]);
+    assert!(!top.contains("auth_matrix"), "{top}");
+    // The help body of `-u`, `--app`, and `--auth`: the line after each.
+    let lines: Vec<&str> = top.lines().collect();
+    for flag in ["--username <USERNAME>", "--app <NAME>", "--auth <SCHEME>"] {
+        let at = lines
+            .iter()
+            .position(|l| l.contains(flag))
+            .unwrap_or_else(|| panic!("{flag} missing: {top}"));
+        let body = lines[at + 1].replace("XURL_APP", "");
+        assert!(!body.contains("xurl"), "{flag}: {body}");
+    }
+    let doctor = help(&["doctor"]);
+    assert!(!doctor.contains(", get)"), "{doctor}");
+    let clear = help(&["cache", "clear"]);
+    assert!(!clear.contains("calling the API"), "{clear}");
+    assert!(clear.contains("remove nothing"), "{clear}");
+}
+
 /// Nested subcommands also need their own example blocks (anc walks each).
 #[test]
 fn nested_subcommand_help_has_example() {

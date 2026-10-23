@@ -145,11 +145,12 @@ No config or app creation needed.
 
 ## File store
 
-bird keeps no database. Each post, user, bookmark, and like it reads becomes a Markdown note with YAML frontmatter under
-`~/.local/share/bird/archive/` (set `archive_dir` in `config.toml` or `BIRD_ARCHIVE_DIR` to put it inside a notes
-vault). A later fetch updates bird's fields and keeps everything you added to a note. Each read's response is also kept
-for the rest of the UTC day, per account, so the same read again prints the same output and sends nothing. A 0.2.0 store
-is removed on the first run.
+bird keeps no database. Each post, user, bookmark, and like it reads becomes a Markdown note with YAML frontmatter in
+the archive directory: `~/.local/share/bird/archive/` on Linux, `~/Library/Application Support/bird/archive/` on macOS,
+and `%APPDATA%\bird\archive\` on Windows ([Config](#config) lists every location). Set `archive_dir` in `config.toml` or
+`BIRD_ARCHIVE_DIR` to put it inside a notes vault. A later fetch updates bird's fields and keeps everything you added to
+a note. Each read's response is also kept for the rest of the UTC day, per account, so the same read again prints the
+same output and sends nothing. A 0.2.0 store is removed on the first run.
 
 ```bash
 bird search "rust" --refresh     # Send the read, store the fresh response
@@ -224,12 +225,24 @@ schemes it accepts, and the active app. `--output json` is indented; `--raw` pri
 
 ## Config
 
-bird's own config is minimal: `username`, `watchlist`, and `archive_dir`.
+bird's own config is minimal: `username`, `watchlist`, and `archive_dir`, in an optional `config.toml`. The file and the
+store's default locations depend on the OS:
 
-- **Config file (optional):** `~/.config/bird/config.toml`
-- **Archive:** `~/.local/share/bird/archive/`; `archive_dir` or `BIRD_ARCHIVE_DIR` moves it
-- **Response files:** `~/.cache/bird/responses/`
-- **Spend ledger:** `~/.local/share/bird/spend.jsonl`
+| OS      | Config file                                      | Archive                                      | Response files                    | Spend ledger                                     |
+| ------- | ------------------------------------------------ | -------------------------------------------- | --------------------------------- | ------------------------------------------------ |
+| Linux   | `~/.config/bird/config.toml`                     | `~/.local/share/bird/archive`                | `~/.cache/bird/responses`         | `~/.local/share/bird/spend.jsonl`                |
+| macOS   | `~/Library/Application Support/bird/config.toml` | `~/Library/Application Support/bird/archive` | `~/Library/Caches/bird/responses` | `~/Library/Application Support/bird/spend.jsonl` |
+| Windows | `%APPDATA%\bird\config.toml`                     | `%APPDATA%\bird\archive`                     | `%LOCALAPPDATA%\bird\responses`   | `%APPDATA%\bird\spend.jsonl`                     |
+
+On Linux, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` move them as they move other tools' files.
+`bird cache stats` prints the paths in effect and which setting chose the archive (`default`, `config`, or `env`).
+
+To keep the archive in a notes vault, set `archive_dir` in `config.toml`; `BIRD_ARCHIVE_DIR` wins over it for a run that
+sets it. The path must be absolute or start with `~/`:
+
+```toml
+archive_dir = "~/Notes/X"
+```
 
 Username priority: `--username` flag > config file > `X_API_USERNAME` env var.
 

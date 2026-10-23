@@ -15,8 +15,8 @@ _bird() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -31,8 +31,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -60,8 +60,8 @@ never\:"Never emit colors"))' \
         case $line[1] in
             (login)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -76,8 +76,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--no-browser[Print the authorization URL on stdout and read the redirect URL back from stdin. No browser is launched]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -97,8 +97,8 @@ never\:"Never emit colors"))' \
 ;;
 (me)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -113,8 +113,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -134,8 +134,8 @@ never\:"Never emit colors"))' \
 ;;
 (bookmarks)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -150,8 +150,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -185,8 +185,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -211,8 +211,8 @@ _arguments "${_arguments_options[@]}" : \
 '--min-likes=[Minimum like count threshold]:MIN_LIKES:_default' \
 '--max-results=[Maximum results per page (10-100, default\: 100)]:MAX_RESULTS:_default' \
 '--pages=[Number of pages to fetch (1-10, default\: 1)]:PAGES:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -227,8 +227,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -250,8 +250,8 @@ never\:"Never emit colors"))' \
 (thread)
 _arguments "${_arguments_options[@]}" : \
 '--max-pages=[Maximum number of search result pages (default\: 10, max\: 25)]:MAX_PAGES:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -266,8 +266,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -288,8 +288,8 @@ never\:"Never emit colors"))' \
 ;;
 (watchlist)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -304,8 +304,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -333,8 +333,8 @@ never\:"Never emit colors"))' \
         case $line[1] in
             (fetch)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -349,8 +349,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -383,8 +383,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -418,8 +418,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -442,8 +442,8 @@ never\:"Never emit colors"))' \
 ;;
 (list)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -458,8 +458,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -519,8 +519,8 @@ esac
 (spend)
 _arguments "${_arguments_options[@]}" : \
 '--since=[Show spend since this date (YYYY-MM-DD; default\: 30 days ago)]:SINCE:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -535,8 +535,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--sync[Also fetch X'\''s actual usage (GET /2/usage/tweets) to set beside the estimates]' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -558,8 +558,8 @@ never\:"Never emit colors"))' \
 (tweet)
 _arguments "${_arguments_options[@]}" : \
 '--media-id=[Media ID to attach]:MEDIA_ID:_default' \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -574,8 +574,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -598,8 +598,8 @@ never\:"Never emit colors"))' \
 ;;
 (reply)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -614,8 +614,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -639,8 +639,8 @@ never\:"Never emit colors"))' \
 ;;
 (like)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -655,8 +655,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -679,8 +679,8 @@ never\:"Never emit colors"))' \
 ;;
 (unlike)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -695,8 +695,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -719,8 +719,8 @@ never\:"Never emit colors"))' \
 ;;
 (repost)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -735,8 +735,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -759,8 +759,8 @@ never\:"Never emit colors"))' \
 ;;
 (unrepost)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -775,8 +775,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -813,8 +813,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -851,8 +851,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -889,8 +889,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -928,8 +928,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -966,8 +966,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1004,8 +1004,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1042,8 +1042,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
@@ -1066,8 +1066,8 @@ never\:"Never emit colors"))' \
 ;;
 (doctor)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1082,8 +1082,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1099,13 +1099,13 @@ never\:"Never emit colors"))' \
 '--cache-only[Answer only from stored responses; never make API requests]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-'::command -- Scope report to this command only (e.g. me, bookmarks, get):_default' \
+'::command -- Scope report to this command only (e.g. me, bookmarks, search):_default' \
 && ret=0
 ;;
 (cache)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1120,8 +1120,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -1148,8 +1148,8 @@ never\:"Never emit colors"))' \
         case $line[1] in
             (clear)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1164,11 +1164,11 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '-f[Skip the interactive confirmation prompt (alias\: --yes)]' \
 '--force[Skip the interactive confirmation prompt (alias\: --yes)]' \
-'--dry-run[Validate inputs and print the would-be request, then exit without calling the API]' \
+'--dry-run[Print the stored-responses directory that would be cleared, and remove nothing]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -1187,8 +1187,8 @@ never\:"Never emit colors"))' \
 ;;
 (stats)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1203,8 +1203,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--pretty[Pretty-print human-readable output]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
@@ -1256,8 +1256,8 @@ esac
 ;;
 (completions)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1272,8 +1272,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -1293,8 +1293,8 @@ never\:"Never emit colors"))' \
 ;;
 (skill)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1309,8 +1309,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
 '(-o --output)--jsonl[Shorthand for \`--output jsonl\`]' \
 '-q[Suppress informational stderr output (keep only fatal errors)]' \
@@ -1337,8 +1337,8 @@ never\:"Never emit colors"))' \
         case $line[1] in
             (install)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1353,8 +1353,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--all[Install into every supported host in one invocation]' \
 '--dry-run[Print the planned clone command without spawning git]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -1376,8 +1376,8 @@ never\:"Never emit colors"))' \
 ;;
 (update)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1392,8 +1392,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '--all[Update every supported host that has a copy; report the rest as skipped]' \
 '--dry-run[Print the planned operation without touching the filesystem]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
@@ -1447,8 +1447,8 @@ esac
 ;;
 (schema)
 _arguments "${_arguments_options[@]}" : \
-'-u+[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
-'--username=[Username for multi-user token selection (maps to xurl -u)]:USERNAME:_default' \
+'-u+[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
+'--username=[Signed-in account to use when the app holds tokens for several (as \`xr -u\`)]:USERNAME:_default' \
 '-o+[Output format (text, json, jsonl, ndjson). Defaults to json when piped]:OUTPUT:((text\:"Default\: colored, human-readable"
 json\:"Machine-readable JSON envelope, no color"
 jsonl\:"Streaming line-delimited JSON (one object per line; no wrapper)"
@@ -1463,8 +1463,8 @@ never\:"Never emit colors"))' \
 '--timeout=[Network timeout in seconds (default 30) for each X API request]:TIMEOUT:_default' \
 '--limit=[Maximum number of results to return on list-style commands (default 100, ceiling 1000)]:N:_default' \
 '--cursor=[Pagination cursor token for list-style commands (X API \`pagination_token\`/\`next_token\`)]:TOKEN:_default' \
-'--app=[Active xurl app name (multi-app token store selection). Precedence\: \`--app\` flag wins over \`BIRD_APP\` env, which wins over xurl'\''s stored default app. \`XURL_APP\` is intentionally ignored; bird emits a migration warning on first use when \`XURL_APP\` is set but \`BIRD_APP\` is not]:NAME:_default' \
-'--auth=[Per-call auth scheme override. Values\: \`app\`, \`oauth1\`, \`oauth2\`, \`none\`. \`none\` is rejected at parse time for commands whose \`auth_matrix\:\:supported_auth\` returns a non-empty scheme list]:SCHEME:_default' \
+'--app=[App in the token store to use. \`--app\` wins over \`BIRD_APP\`, which wins over the store'\''s default app. bird does not read \`XURL_APP\`; when it is set and \`BIRD_APP\` is not, commands that call the X API print a warning]:NAME:_default' \
+'--auth=[Per-call auth scheme override\: \`app\`, \`oauth1\`, \`oauth2\`, or \`none\`. \`none\` is refused for a command whose X API endpoint requires authentication]:SCHEME:_default' \
 '(--all)--list[List every schema name and title instead of printing a schema]' \
 '--all[Print every schema in one object keyed by name]' \
 '(-o --output --jsonl)--json[Shorthand for \`--output json\`]' \
