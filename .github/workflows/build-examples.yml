@@ -4,16 +4,12 @@
 # example would otherwise only surface when a downstream consumer copied
 # the snippet. Mirrors the per-repo wrapper pattern used by the other
 # guard workflows.
+#
+# pull_request only, as in ci.yml: merges to main and dev are squash merges, so
+# the merged tree equals the PR head this workflow already built.
 name: Build examples
 
 on:
-  push:
-    branches: [main, dev]
-    tags-ignore: ['**']
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE-*'
-      - 'docs/**'
   pull_request:
 
 permissions:
