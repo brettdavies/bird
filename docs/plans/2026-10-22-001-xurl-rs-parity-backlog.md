@@ -76,6 +76,7 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #180, #181, #183, #186 to #190, #192 (stack #193) | Plan 005 U21 (plan 006 U1 to U9): a Markdown archive under `archive_dir` / `BIRD_ARCHIVE_DIR`, per-account JSON response files, a JSONL spend ledger, `bird cache` and doctor on the files (`xurl` renamed `xdk`), and `bird.db`, `cache.db`, and rusqlite removed |
 | #195, #196 | `deny.toml` drops the getrandom 0.3 and windows-sys 0.52 skips nothing matches; a note's body renders from its merged keys, so a thinner response keeps the author, links, media, and profile |
 | #194, #197 | Workflows drop `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`; a note keeps a post's stored media (with a new `media_keys` key) when a response omits one item's entry |
+| #202 | Post notes carry an `aliases` entry (`@author date: first words`) so Obsidian's quick switcher and link autocomplete find them; a stored alias list that already holds bird's keeps the user's order |
 
 ## Stack 1: repo environment
 

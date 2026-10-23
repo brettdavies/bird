@@ -149,7 +149,7 @@ collides when a query value contains `&` or `=` (`normalize_url` rebuilds the qu
     and response files keep whole bodies for the day; evidence to change the call: a user needing a field the
     frontmatter tables omit.
   - Human-readable filenames (date, author, first words). They change with edits and renames and need per-OS sanitizing;
-    Obsidian's `aliases` key gives user notes a readable link name instead.
+    Obsidian's `aliases` key gives post and user notes a readable link name instead.
   - Write-once notes. Metrics and renamed usernames would never update.
   - A `bird cache clear --archive` flag (KTD17).
   - An `--archive-dir` flag. `BIRD_ARCHIVE_DIR` covers a one-run override; a flag can follow if a user asks.
@@ -251,7 +251,11 @@ Entries marked ⚑ are calls the maintainer is most likely to revisit.
   YAML forbids unescaped (DEL, C1 controls, U+2028, U+2029, U+FEFF). Ids are always strings, because Obsidian reads
   numbers as JavaScript doubles and a 19-digit id loses digits. A key is written only when its source field is present.
   Lists are block sequences, the style Obsidian writes. bird never writes `tags`, the key vault users own; `aliases` on
-  a user note is the one merged key (KTD8). Field tables are in the High-Level Technical Design.
+  a post or user note is the one merged key (KTD8). A post's alias is `@<author> <YYYY-MM-DD>: <text>`, built from the
+  merged keys: the author and the UTC date drop out when unknown; the text is the region's text with entities decoded,
+  whitespace collapsed, `https://t.co/` tokens dropped, and `[ ] | # ^` removed, cut at 60 Unicode scalar values on a
+  grapheme and word boundary with `…` appended. Bookmark and like notes carry no alias. Field tables are in the
+  High-Level Technical Design.
 - KTD7. **The note body is a bird region between `<!-- bird:begin -->` and `<!-- bird:end -->`, and post text is escaped
   only where Markdown or Obsidian would read it as syntax.** X's `&amp;`, `&lt;`, and `&gt;` are decoded first. The
   escaper backslash-escapes `\`, `` ` ``, `*`, `[`, `]`, `<`, `|`, and `$` everywhere; `_` at a word boundary; `#`
@@ -267,7 +271,9 @@ Entries marked ⚑ are calls the maintainer is most likely to revisit.
   `https://x.com/i/user/<id>`, which never change. Media are links, not embeds, so opening a note fetches nothing.
 - KTD8. **A rewrite merges: bird's keys update, everything else stays.** The steps, in the rewrite flowchart below: bird
   keys present in the new observation overwrite, bird keys it lacks keep their stored value, `archived_at` is kept,
-  `aliases` is the union with bird's alias first, frontmatter entries with other keys are copied verbatim in their order
+  `aliases` is kept exactly as stored when it already holds every alias bird computes, and is otherwise bird's alias
+  first, then a user note's previous `@username`, then each stored alias once (numbers, booleans, and a single string
+  count as aliases), frontmatter entries with other keys are copied verbatim in their order
   after bird's keys, and only the region's text is replaced. The region is rendered from the merged keys, so an
   observation that lacks a value the note holds (an author absent from `includes.users`, a thinner user entry) keeps
   that value in the body as in the frontmatter; post text is the one exception (Risks). A note whose bird keys and
@@ -522,6 +528,7 @@ the keys spread that JSON into named fields bird's `POST_FIELDS` and `EXPANSIONS
 | `links`                                                                                          | list of strings | `entities.urls[].expanded_url`, else `url`                                                  |
 | `media`                                                                                          | list of strings | `includes.media` entries named in `attachments.media_keys`: `url`, else `preview_image_url` |
 | `media_keys`                                                                                     | list of strings | `attachments.media_keys`, in order; pairs each `media` entry with its key                   |
+| `aliases`                                                                                        | list of strings | `@<author> <YYYY-MM-DD>: <text>` (KTD6), merged with the stored list                        |
 | `archived_at`, `updated_at`                                                                      | string          | first write; last content change                                                            |
 | `bird_format`                                                                                    | integer, 1      | constant                                                                                    |
 
