@@ -158,7 +158,7 @@ plan 003 depended on, so its unit sequence no longer holds.
 
 - R48. bird keeps no database: each post, user, and bookmark it reads is a Markdown file with YAML frontmatter in an
   archive directory the user can point at a notes vault; each response is a JSON file that answers the same request
-  later; the spend ledger is a JSONL file; 0.3.0 removes a 0.2.0 `bird.db` on first run.
+  later; the spend ledger is a JSONL file; 0.3.0 removes a 0.2.0 `bird.db`, and any older `cache.db`, on first run.
 - R49. `bird archive bookmarks|likes|posts [-n/--max-posts N]` follows `next_token` to the end of the collection or N
   posts, stores every page, reports the archive directory and the count written, and fails with a non-zero exit when a
   page cannot be fetched or written.
@@ -412,6 +412,7 @@ flowchart TB
     U3["U3 PR template re-vendor (after dotfiles#288)"]
     U19["U19 cost table on X's current prices"]
     U20["U20 file store design"] --> U21["U21 file store replaces bird.db"]
+    U23["U23 store tests on Windows and macOS"]
   end
   subgraph B["Phase B: after the user merges .github #84 to #89"]
     U4["U4 shared CI consumer stack"] --> U5["U5 required checks in the rulesets"]
@@ -438,6 +439,7 @@ flowchart TB
   U7 --> U8
   U21 --> U8
   U5 --> U14
+  U23 --> U14
   U12 --> U13
   U1 --> U12
   U12 --> U16
@@ -445,7 +447,8 @@ flowchart TB
   REQ7["Request 7"] -.-> U11
 ```
 
-U2, U3, U19, and U20 have no dependency inside this plan; U21 follows U20. U16's content is written on bird-skill's
+U2, U3, U19, U20, and U23 have no dependency inside this plan; U21 follows U20, and U23's shared input waits for the
+user's merge. U16's content is written on bird-skill's
 `dev` against the release candidate once U12 lands and reaches bird-skill's `main` in U14's tag step, so no released
 bird pairs with a skill that names retired verbs; its contract check and bird-skill's first tag follow the release.
 
@@ -650,6 +653,20 @@ tiers", and since February 2026 programmatic replies on self-serve tiers are all
 verbs as they are; a hint in `xr` that names the tier when X refuses them would reach bird's users too. Reading likes
 (`GET /2/users/{id}/liked_tweets`) is unaffected: X prices it as an owned read.
 
+### Request 12. A typed shortcut for a user's own posts
+
+xdk-rs has list shortcuts for a user's bookmarks, liked posts, mentions, and home timeline, but none for
+`GET /2/users/{id}/tweets`, the posts a user wrote. `bird archive posts` sends that request through the generic request
+until a shortcut exists, and moves to it when one ships.
+
+Acceptance bird tests: `bird archive posts` builds its request from the shortcut and holds no request path of its own.
+
+### Request 13. `xr skill update --all` text for a skipped host
+
+`xr skill update --all` reports a host with nothing installed as `status: "skipped"` and exits 0, and its text output
+prints that host as `error: not-installed: <dir>`. bird prints `skipped: not-installed: <dir>` for the same envelope
+(#175); a `skipped` arm in `xr`'s text renderer would make the two read alike.
+
 ### Request traceability
 
 | Request                 | Requirements | bird units that wait for it                                       |
@@ -661,6 +678,8 @@ verbs as they are; a hint in `xr` that names the tier when X refuses them would 
 | 6. Normalizer           | R30          | stored responses only; bird's own commands decode through xdk     |
 | 7. Schema list envelope | R31          | U11                                                               |
 | 8 to 10. Upkeep         | R39          | none                                                              |
+| 12. User-posts shortcut | R49          | none; U22 sends the request itself until it ships                 |
+| 13. Skipped-host text   | R40          | none                                                              |
 
 ---
 
@@ -675,13 +694,14 @@ verbs as they are; a hint in `xr` that names the tier when X refuses them would 
 | U3   | PR template re-vendor                           | `.github/pull_request_template.md`                    | dotfiles#288                        |
 | U19  | Cost table on X's current prices                | `src/cost.rs`                                         | none                                |
 | U20  | File store design                               | `docs/plans/`                                         | none                                |
-| U21  | File store replaces `bird.db`                   | `src/db/`, `src/doctor.rs`, `Cargo.toml`              | U20                                 |
-| U22  | `bird archive bookmarks|likes|posts`            | `src/archive.rs`, `src/pages.rs`                      | U10                                 |
+| U21  | File store replaces `bird.db`                   | `src/store/`, `src/doctor.rs`, `Cargo.toml`           | U20                                 |
+| U22  | `bird archive` for bookmarks, likes, and posts  | `src/archive.rs`, `src/pages.rs`                      | U10                                 |
+| U23  | Store tests on Windows and macOS                | `rust-ci.yml` input, `.github/workflows/ci.yml`       | user merge of the shared input      |
 | U4   | Shared CI consumer stack                        | `.github/workflows/`, `scripts/`                      | `.github` #84 to #89 merged         |
 | U5   | Required checks in the rulesets                 | `.github/rulesets/`                                   | U4; user approval                   |
 | U6   | CI and runbook residue                          | `.github/workflows/build-examples.yml`, `RELEASES.md` | U4                                  |
 | U7   | xdk-rs from crates.io                           | `Cargo.toml`, `src/config.rs`                         | in-flight release                   |
-| U8   | bird's cache behind the hook                    | `src/xurl_client/`, `src/db/client/`                  | U7; Request 1 release               |
+| U8   | bird's cache behind the hook                    | `src/xurl_client/`, `src/store/`                      | U7; U21; Request 1 release          |
 | U10  | `bird rank`                                     | `src/rank.rs`, `src/cli/`                             | U8                                  |
 | U9   | bird composes `xr`'s API commands               | `src/cli/`                                            | U10; Request 3 release              |
 | U11  | `bird schema` and envelopes through `xr`'s code | `src/schema_print.rs`, `src/output/`                  | U9; Request 7                       |
@@ -794,21 +814,39 @@ verbs as they are; a hint in `xr` that names the tier when X refuses them would 
 - **Goal:** bird reads and writes the archive, response files, and ledger, and links no SQLite.
 - **Requirements:** R48; KTD19; D11 and D13 of the DX review.
 - **Dependencies:** U20.
-- **Files:** `src/db/` (the store, entity, and usage modules replaced), `src/spend/`, `src/cli/runner.rs`,
-  `src/doctor.rs`, `schema/doctor.schema.json`, `Cargo.toml` (rusqlite and rusqlite_migration removed), the store
-  tests, `tests/doctor_schema_runtime.rs`.
-- **Approach:**
-  1. Build the file store per U20 behind the interface `BirdClient` uses today, so U8 moves it behind the hook later.
-  2. Remove SQLite: the store migrations (M4 included), rusqlite, and the bundled SQLite build.
-  3. On first run, delete a 0.2.0 `bird.db` and its `-wal`/`-shm` files; nothing else refers to it.
-  4. doctor's `xurl` object becomes `xdk` and `linked_xurl_version` becomes `linked_xdk_version`; its `cache` section
-     reports the archive dir, the response files, and their counts.
-- **Test scenarios:**
+- **Files:** as `docs/plans/2026-10-22-006-feat-file-store-plan.md` U1 to U9 list them: `src/store/` (new) in place of
+  `src/db/`, `src/config.rs`, `src/spend/`, `src/cli/runner.rs`, `src/doctor.rs`, `schema/doctor.schema.json`,
+  `Cargo.toml` (rusqlite and rusqlite_migration removed), `CONCEPTS.md`, `AGENTS.md`, the store tests,
+  `tests/doctor_schema_runtime.rs`.
+- **Approach:** build plan 006's U1 to U9 as one stack in its unit order, behind the interface `BirdClient` uses today
+  so U8 moves the store behind the hook later. Plan 006 owns each unit's detail: the archive, response files, ledger,
+  note merge, `bird cache`, doctor's `cache` section and its `xurl` to `xdk` rename, and the removal of `bird.db` and
+  `cache.db`.
+- **Test scenarios:** plan 006's, among them:
   - A post read twice the same UTC day is answered from its response file the second time.
-  - The archive holds one Markdown file per post with the frontmatter U20 fixes.
-  - A 0.2.0 `bird.db` in the data dir is gone after the first command.
+  - The archive holds one Markdown file per post with plan 006's frontmatter.
+  - A 0.2.0 `bird.db` and an older `cache.db` in bird's config directory are gone after the first command.
   - `bird doctor --output json` carries `xdk` and `linked_xdk_version` and no `bird.db` key.
 - **Verification:** `cargo tree -i rusqlite` is empty, and the doctor schema parity test passes.
+
+### U23. Store tests on Windows and macOS
+
+- **Goal:** the file store's renames, locks, and permissions are tested on every OS bird releases for, not only
+  compiled.
+- **Requirements:** R38, R48.
+- **Dependencies:** none to open; the user's merge of the `brettdavies/.github` input, a shared CI contract.
+- **Files:** `brettdavies/.github` `.github/workflows/rust-ci.yml` (a new opt-in input), bird
+  `.github/workflows/ci.yml`, any bird test that assumes a Unix path or mode, and `.github/rulesets/protect-dev.json`
+  and `protect-main.json` once the new checks report.
+- **Approach:**
+  1. Add an opt-in input to `rust-ci.yml`, off by default so no other caller changes, that runs `cargo test --all` on
+     `windows-latest` and `macos-latest` with the same `docs_only` skip as the Linux test job.
+  2. bird's `ci.yml` turns it on; a test that fails only off Linux is fixed in bird, behind `cfg` only where the
+     behavior is Unix-only (file modes).
+  3. Once both checks report on `dev`, they join the rulesets with the user's approval, as U5's did.
+- **Test expectation:** none -- workflow; the new jobs are the check.
+- **Verification:** on a bird PR, the Windows and macOS test jobs run as many tests as the Linux job, less the
+  `cfg(unix)` ones, and pass.
 
 ### U4. Shared CI consumer stack
 
@@ -883,7 +921,8 @@ verbs as they are; a hint in `xr` that names the tier when X refuses them would 
 - **Requirements:** R18, R20, R37; KTD6, KTD7, KTD8.
 - **Dependencies:** U7; U21; the xdk-rs release that carries Request 1.
 - **Files:** `Cargo.toml`, `src/xurl_client/mod.rs` (the client factory), `src/xurl_client/hook.rs` (new),
-  `src/xurl_client/mock.rs` (the scripted test hook), `src/db/client/` (over U21's file store), `src/db/mod.rs`,
+  `src/xurl_client/mock.rs` (the scripted test hook), `src/store/` (U21's `FileStore`, its clear-on-write call, and
+  the endpoint shape table),
   `src/cli/runner.rs`, `src/cli/dispatch.rs`, the handlers that call `BirdClient::get` and `request`, the tests that use
   `MockXurlClient`.
 - **Approach:**
@@ -977,19 +1016,26 @@ verbs as they are; a hint in `xr` that names the tier when X refuses them would 
 - **Files:** `src/archive.rs` (new), `src/cli/mod.rs`, `src/cli/dispatch.rs`, `schema/archive.schema.json` (new),
   `tests/archive.rs` (new), `examples/archive.txt` (new).
 - **Approach:**
-  1. For each collection, call the xdk list shortcut `xr`'s matching command uses (bookmarks, liked posts, the user's
-     own posts) through `follow_pages` until the end or `-n/--max-posts N`.
-  2. The hook stores every page; `archive` prints one ok envelope with the posts gathered, the archive dir, the count
+  1. Page each collection through `follow_pages` until the end or `-n/--max-posts N`: bookmarks and liked posts on the
+     xdk list shortcuts `xr bookmarks` and `xr likes` use, and the user's own posts on `GET /2/users/{id}/tweets`,
+     which neither xdk-rs nor `xr` has a shortcut for. bird sends that one through its hooked client's generic request
+     and moves to the shortcut Request 12 asks for once it ships.
+  2. Add `note_tweet` to the post fields bird requests (`src/fields.rs` `POST_FIELDS`), so a post longer than 280
+     characters archives its whole text.
+  3. The hook stores every page; `archive` prints one ok envelope with the posts gathered, the archive dir, the count
      written, and the last `next_cursor`.
-  3. A page that cannot be fetched ends the run as `rank`'s does; a page that cannot be written exits non-zero with the
+  4. A page that cannot be fetched ends the run as `rank`'s does; a page that cannot be written exits non-zero with the
      path, the OS error, and a `next_step` naming the archive-dir setting (KTD20).
 - **Test scenarios:**
   - Scripted pages for 250 bookmarks archive in three requests and write 250 files.
   - `-n 120` stops after 120 posts.
   - A read-only archive dir makes `bird archive bookmarks` exit non-zero and name the path.
   - A 429 on page 2 exits with the rate-limit reason and names the posts gathered.
-  - `bird archive likes` and `bird archive posts` call the same list shortcuts `xr likes` and `xr timeline` do.
-- **Verification:** `archive` holds no request URL of its own, and its envelope validates against its schema.
+  - `bird archive bookmarks` and `bird archive likes` call the same list shortcuts `xr bookmarks` and `xr likes` do.
+  - `bird archive posts` sends `GET /2/users/<id>/tweets` for the authenticated user, never the home timeline.
+  - A scripted post carrying `note_tweet.text` archives the long text, not the truncated `text`.
+- **Verification:** `archive` holds no request URL of its own beyond the user-posts path Request 12 retires, and its
+  envelope validates against its schema.
 
 ### U9. bird composes `xr`'s API commands
 

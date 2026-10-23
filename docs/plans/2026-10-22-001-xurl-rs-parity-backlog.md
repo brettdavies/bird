@@ -44,9 +44,11 @@ Plans:
   and its requests to the xurl-rs team.
 - Lane D: `docs/plans/2026-10-22-004-feat-xr-output-contract-and-post-vocabulary-plan.md` (units U1 to U9).
 - Everything left before 0.3.0: `docs/plans/2026-10-22-005-feat-bird-0-3-0-remaining-work-plan.md`, its phases, and its
-  units U1 to U22 (U18 follows the release). Its eng and DX reviews added U19 (cost table on X's current prices), U20
+  units U1 to U23 (U18 follows the release). Its eng and DX reviews added U19 (cost table on X's current prices), U20
   and U21 (a Markdown archive and JSON response files in place of `bird.db`), and U22 (`bird archive
-  bookmarks|likes|posts`).
+  bookmarks|likes|posts`); the file store design added U23 (store tests on Windows and macOS).
+- The file store: `docs/plans/2026-10-22-006-feat-file-store-plan.md` (plan 005 U20); its units U1 to U9 build plan
+  005 U21.
 
 bird ships once, after every stack lands, as 0.3.0: a minor release, with bird staying at major 0. Its critical path
 runs through xurl-rs: the current xurl-rs release, which bird adopts from crates.io (stack 6 item 1); stack 3's xdk-rs
@@ -64,6 +66,9 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #171 | Plan 005 U1: `docs/designs/2026-10-22-bird-and-xr.md` replaces the seam, pagination, and conformance drafts |
 | #172, #173 | Plan 005 U2: skill destinations by xr's rules (`BIRD_SKILL_HOME`, Codex at `~/.agents/skills/bird`); U19: request pricing at X's current rates, writes included |
 | #130, #136, #140, #142, #148 | Stack 1 items 4 to 6: shared doc build, MSRV, completions freshness, output discipline, workflow concurrency, change scope, anc audit, and the surface-growth changelog check, through `brettdavies/.github` (#84 to #87, #89) |
+| #174, #176 | `.anc.toml` domain verbs match bird's current commands; plan 005 U5: both rulesets require the shared checks, `dev` also the surface-growth check (live rulesets match the committed JSON) |
+| #175 | `bird skill update --all` refreshes only hosts with a copy and reports the rest as skipped, in one envelope, as `xr` does |
+| none (plan) | Plan 005 U20: `docs/plans/2026-10-22-006-feat-file-store-plan.md`, the file store design U21 builds |
 
 ## Stack 1: repo environment
 

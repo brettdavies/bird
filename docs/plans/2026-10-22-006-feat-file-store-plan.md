@@ -23,7 +23,8 @@ execution: code
 - **Stop conditions:** a finding that contradicts one of the Key Decisions below stops for the maintainer. No unit
   changes what a composed command prints (plan 005 R14).
 - **Execution profile:** Phase A of plan 005, before its U8. One stack of PRs in unit order, no upstream dependency.
-- **Who finishes:** bird's lanes implement every unit; the maintainer reviews the KTDs marked ⚑ and the Open Questions.
+- **Who finishes:** bird's lanes implement every unit; the maintainer can mark up the ⚑ calls, each settled below under
+  Maintainer Calls with its reason.
 
 ---
 
@@ -119,8 +120,8 @@ collides when a query value contains `&` or `=` (`normalize_url` rebuilds the qu
 
 **Migration**
 
-- R19. The first command past config load removes `bird.db`, `bird.db-wal`, and `bird.db-shm` from bird's config
-  directory and says so once; bird links no SQLite.
+- R19. The first command past config load removes `bird.db` and the older `cache.db`, each with its `-wal` and `-shm`
+  files, from bird's config directory and says so once; bird links no SQLite.
 
 ### Acceptance Examples
 
@@ -133,8 +134,8 @@ collides when a query value contains `&` or `=` (`normalize_url` rebuilds the qu
   stored before the bookmark.
 - AE4. **Covers R16, R18.** With a read-only archive directory, `bird search rust` prints its results, exits 0, and
   prints one `[store] warning`; `bird archive bookmarks` exits 5 with `reason: io` and the archive path in `command`.
-- AE5. **Covers R19.** A config directory holding a 0.2.0 `bird.db` and its `-wal` and `-shm` files: after
-  `bird doctor`, all three are gone and stderr said so once.
+- AE5. **Covers R19.** A config directory holding a 0.2.0 `bird.db` with its `-wal` and `-shm` files and an older
+  `cache.db`: after `bird doctor`, all four are gone and stderr said so once.
 
 ### Scope Boundaries
 
@@ -170,29 +171,30 @@ collides when a query value contains `&` or `=` (`normalize_url` rebuilds the qu
 
 #### Deferred to Follow-Up Work
 
-- `note_tweet` in `src/fields.rs` `POST_FIELDS`, so long posts archive their whole text; bird renders `note_tweet.text`
-  when a response carries it.
-- A `cargo test` row on `windows-latest` and `macos-latest` in `brettdavies/.github`'s `rust-ci.yml`, which runs only
-  `cargo check` on Windows today (see Risks).
 - A `bird archive` re-render pass that rewrites every note at a new `bird_format`.
 
-### Open Questions
+Two items plan 005 owns: `note_tweet` in `src/fields.rs` `POST_FIELDS` (plan 005 U22), and a `cargo test` row on
+`windows-latest` and `macos-latest` in `brettdavies/.github`'s `rust-ci.yml` (plan 005 U23).
 
-None blocks implementation; each has a reversible default the units build.
+### Maintainer Calls
 
-- ⚑ Likes as a relation note (KTD5). Default: yes, because `bird archive likes` otherwise leaves no way to find the
-  liked posts in the vault.
-- ⚑ A denylist of state endpoints rather than an allowlist of content endpoints (KTD12). Default: denylist.
-- ⚑ A write removes its account's response files (KTD13). Default: yes.
-- ⚑ One ledger file with lock and compaction rather than one file per month (KTD15). Default: one file.
-- ⚑ The response key does not sort `ids=` and `usernames=` lists as `compute_raw_cache_key` does (KTD10). Default: exact
-  order.
-- ⚑ `cache.db`, the store before `bird.db`, is left where it is: the settled decision names only `bird.db`. Default:
-  untouched.
-- ⚑ `BIRD_ARCHIVE_DIR` wins over `config.toml`, the reverse of `username`'s order (KTD2). Default: the variable wins.
-- (plan 005 U22) `bird archive posts` is planned on the shortcut `xr timeline` uses, which is xdk's `GET_TIMELINE`
-  (`/2/users/{id}/timelines/reverse_chronological`, the home timeline); the user's own posts are `/2/users/{id}/tweets`,
-  for which xdk-rs at `f6cec23` has no shortcut.
+Each ⚑ call is settled; the units build it. The maintainer can mark any of them up.
+
+- ⚑ Likes are relation notes (KTD5), because `bird archive likes` otherwise leaves no way to find the liked posts in the
+  vault.
+- ⚑ A denylist of state endpoints, not an allowlist of content endpoints (KTD12). Together with KTD13 it keeps a stale
+  answer to a day and to reads the account has not changed, and an allowlist would leave every composed read missing
+  from it uncached.
+- ⚑ A write removes its account's response files (KTD13), because R20 needs a read after one's own write to be sent.
+- ⚑ One ledger file with lock and compaction (KTD15). The lock is a few lines of std within bird's MSRV, and one file
+  keeps `bird spend` a single read.
+- ⚑ The response key keeps `ids=` and `usernames=` lists in request order (KTD10), because a sorted key could answer one
+  order with another order's bytes and R7 promises the same bytes.
+- ⚑ `cache.db`, the store before `bird.db`, goes with it (KTD19). 0.2.0 copied its usage rows into `bird.db` and left
+  the file behind, so it holds nothing `bird.db` did not, and the Goal leaves no database on disk.
+- ⚑ `BIRD_ARCHIVE_DIR` wins over `config.toml` (KTD2), the usual variable-over-file order, so a test or agent run is
+  never redirected by the user's standing config.
+- `bird archive posts` reads the user's own posts, `/2/users/{id}/tweets`; plan 005 U22 owns how it calls it.
 
 ---
 
@@ -361,10 +363,12 @@ Entries marked ⚑ are calls the maintainer is most likely to revisit.
   the nearest existing ancestor's. `healthy` is true when every location is writable. Counts come from reading each
   directory. `max_size_mb`, `raw_responses`, and `schema_version` go: nothing caps the files, and there is no schema to
   version.
-- KTD19. **The 0.2.0 database is removed on every run past config load until it is gone.** `<config_dir>/bird/bird.db`,
-  `-wal`, and `-shm` are removed whatever the cache flags say, because nothing reads them and a `--no-cache` habit would
-  otherwise keep them forever. The removal prints `[store] removed the 0.2.0 store at <path>` once unless quiet. A
-  failed removal is a store failure under KTD16. `cache.db`'s import and the SQLite migrations go with rusqlite.
+- KTD19. **The SQLite stores are removed on every run past config load until they are gone.** `<config_dir>/bird/bird.db`
+  and `<config_dir>/bird/cache.db`, each with its `-wal` and `-shm` files, are removed whatever the cache flags say,
+  because nothing reads them and a `--no-cache` habit would otherwise keep them forever. `cache.db` goes too: 0.2.0
+  copied its usage rows into `bird.db` and left the file. The removal prints `[store] removed the 0.2.0 store at <path>`
+  once per removed store unless quiet. A failed removal is a store failure under KTD16. `cache.db`'s import and the
+  SQLite migrations go with rusqlite.
 - KTD20. **An answered request writes only its ledger record.** Its data reached the archive when it was first observed,
   so a cache hit leaves notes and response files alone.
 - KTD21. **What a response archives is decided by its endpoint shape, not a path prefix.** A shape is the template with
@@ -567,12 +571,12 @@ Relation note keys: `type` (`"x-bookmark"` or `"x-like"`), `account_id`, `accoun
 
 - **CI runs the store's tests on Linux only.** `rust-ci.yml` in `brettdavies/.github` runs `cargo check` on Windows and
   nothing on macOS, so rename-over-existing, file locks, and permissions on those targets are compiled, not tested. The
-  fix is a test row in the shared workflow (Deferred to Follow-Up Work); until it lands, the release's postflight fresh
-  run (plan 005 U14) on macOS is the only exercise outside Linux.
+  fix is a test row in the shared workflow (plan 005 U23); until it lands, the release's postflight fresh run (plan 005
+  U14) on macOS is the only exercise outside Linux.
 - **A note open in another Windows program can refuse the rename.** The write fails with the store warning, or
   `bird archive`'s error, and the next observation retries; no retry loop is built.
 - **A thinner observation can shorten a note's text.** A post first seen with `note_tweet` and later without it gets the
-  shorter `text` in its region; the follow-up adding `note_tweet` to `POST_FIELDS` narrows this.
+  shorter `text` in its region; plan 005 U22 adding `note_tweet` to `POST_FIELDS` narrows this.
 - **An editor reformatting bird's keys makes bird rewrite them in its own style on the next content change.** The
   semantic no-op check (KTD8) keeps reformatting alone from causing writes.
 - **Plan 005 depends on this plan's shapes.** U8 consumes `FileStore` and the shape table, U22 reads `StoreStatus`, U12
@@ -933,7 +937,8 @@ flowchart TB
   - `quiet_removal_prints_nothing`: under `--quiet` the files go and stderr is empty.
   - `a_failed_removal_warns_and_continues`: an undeletable `bird.db` (read-only directory, Unix) leaves the command's
     exit code alone and prints one store warning.
-  - `cache_db_is_left_alone`: a `cache.db` beside `bird.db` survives.
+  - `an_older_cache_db_is_removed_too`: a `cache.db` alone in the config directory is removed, with one removal
+    line.
 - **Verification:** `cargo tree -i rusqlite` is empty, `cargo deny check` passes, and no tracked file outside
   `docs/plans/`, `docs/brainstorms/`, and `CHANGELOG.md` names `bird.db` except the removal code, its tests, and the
   migration docs plan 005 U12 writes.
