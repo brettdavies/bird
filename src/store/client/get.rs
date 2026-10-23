@@ -45,7 +45,7 @@ impl BirdClient {
             return Ok(response);
         }
         if self.cache_opts.cache_only {
-            return Err(Box::new(crate::error::CacheMiss));
+            return Err(Box::new(crate::error::CacheMiss::for_request("GET", url)));
         }
 
         let response = self.xurl_get(url, ctx)?;

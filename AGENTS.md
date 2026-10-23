@@ -263,8 +263,9 @@ Three cache modes:
 - `--refresh` — send the read, then store the fresh response.
 - `--no-cache` — read and write nothing; a write still clears its account's response files.
 - `--cache-only` — answer from a same-day response file only; never send an API request. Errors with
-  `reason: "cache-miss"` (exit_code 1) when none is stored. Write commands (`tweet`, `like`, `follow`, etc.) reject
-  `--cache-only`.
+  `reason: "cache-miss"` (exit_code 1) when none is stored today (UTC) for the request and account: the message names
+  the request's method and path (`CacheMiss` in `src/error/mod.rs` holds the text), and `next_step.template` is the same
+  command without `--cache-only`. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only`.
 
 ## Exit codes
 

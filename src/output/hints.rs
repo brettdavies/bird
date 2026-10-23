@@ -52,12 +52,7 @@ pub fn for_error(error: &BirdError, ctx: &HintContext) -> Option<Hint> {
     match error.reason() {
         Reason::ConfirmationRequired => return Some(confirm_hint(&ctx.invocation)),
         Reason::InvalidArgs | Reason::UnknownCommand => return Some(show_help_hint(&ctx.help)),
-        Reason::CacheMiss => {
-            return Some(Hint {
-                text_lines: vec!["Run the command without --cache-only to fetch it.".into()],
-                next_step: NextStep::fix_input(None),
-            });
-        }
+        Reason::CacheMiss => return Some(cache_miss_hint(&ctx.invocation)),
         _ => {}
     }
     let source = error.xdk_source()?;
@@ -288,13 +283,43 @@ pub fn show_help_hint(help: &str) -> Hint {
     }
 }
 
-/// The hint for a refused confirmation: the same invocation with `--force`.
-#[must_use]
-pub fn confirm_hint(invocation: &[String]) -> Hint {
+/// The invocation as shell words, run as `bird`.
+fn invocation_words(invocation: &[String]) -> Vec<String> {
     let mut words: Vec<String> = invocation.iter().map(|arg| shell_word(arg)).collect();
     if let Some(program) = words.first_mut() {
         *program = "bird".to_string();
     }
+    words
+}
+
+/// The hint for a `--cache-only` miss: the same invocation without that
+/// flag, which sends the request.
+#[must_use]
+pub fn cache_miss_hint(invocation: &[String]) -> Hint {
+    let words = invocation_words(invocation);
+    let flags_end = words.iter().position(|w| w == "--").unwrap_or(words.len());
+    let template = words
+        .iter()
+        .enumerate()
+        .filter(|(i, w)| *i >= flags_end || *w != "--cache-only")
+        .map(|(_, w)| w.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Hint {
+        text_lines: vec![format!(
+            "Run it without --cache-only to send the request: {template}"
+        )],
+        next_step: NextStep {
+            template: (!template.is_empty()).then_some(template),
+            ..NextStep::fix_input(None)
+        },
+    }
+}
+
+/// The hint for a refused confirmation: the same invocation with `--force`.
+#[must_use]
+pub fn confirm_hint(invocation: &[String]) -> Hint {
+    let mut words = invocation_words(invocation);
     words.push("--force".to_string());
     let template = words.join(" ");
     Hint {
@@ -407,6 +432,24 @@ mod tests {
             Some("bird dm jack 'hi there' --force")
         );
         assert_eq!(hint.next_step.action, Action::Confirm);
+        assert!(hint.next_step.command.is_none());
+    }
+
+    #[test]
+    fn cache_miss_template_drops_only_the_flag_before_the_separator() {
+        let hint = cache_miss_hint(&argv(&[
+            "/usr/bin/bird",
+            "--cache-only",
+            "search",
+            "from:jack",
+            "--",
+            "--cache-only",
+        ]));
+        assert_eq!(
+            hint.next_step.template.as_deref(),
+            Some("bird search from:jack -- --cache-only")
+        );
+        assert_eq!(hint.next_step.action, Action::FixInput);
         assert!(hint.next_step.command.is_none());
     }
 
