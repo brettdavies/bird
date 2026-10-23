@@ -62,6 +62,8 @@ request hook and xurl-rs command-layer surface; the releases that carry them; th
 | #160, #162 to #166, #168, #169 | Stacks 4 and 5 (items 1 and 2): xr's error, ok, and dry-run envelopes; `bird schema` in xr's forms; raw HTTP verbs removed; post vocabulary on the wire and in the store; bird-owned output says post; `bird spend` |
 | #156 to #158 | Stack 6 items 2, 3, 5: `dev` holds everything `main` does; attested archives and both musl builds; versioning text |
 | #171 | Plan 005 U1: `docs/designs/2026-10-22-bird-and-xr.md` replaces the seam, pagination, and conformance drafts |
+| #172, #173 | Plan 005 U2: skill destinations by xr's rules (`BIRD_SKILL_HOME`, Codex at `~/.agents/skills/bird`); U19: request pricing at X's current rates, writes included |
+| #130, #136, #140, #142, #148 | Stack 1 items 4 to 6: shared doc build, MSRV, completions freshness, output discipline, workflow concurrency, change scope, anc audit, and the surface-growth changelog check, through `brettdavies/.github` (#84 to #87, #89) |
 
 ## Stack 1: repo environment
 

@@ -642,6 +642,14 @@ together.
   bird-skill's `SECURITY.md` routes every report to bird's form.
 - Once plan 002's shared shellcheck job merges, the skill's in-repo shellcheck job can call it.
 
+### Request 11. Note: X's self-serve tiers no longer allow likes, follows, or quote posts
+
+X's changelog for April 2026 says "Following, Likes, and Quote-Posts via the API have been removed from all self-serve
+tiers", and since February 2026 programmatic replies on self-serve tiers are allowed only when the bot was summoned.
+`xr like`, `follow`, and `quote` (and an unsummoned `reply`) therefore fail on a self-serve app. bird composes those
+verbs as they are; a hint in `xr` that names the tier when X refuses them would reach bird's users too. Reading likes
+(`GET /2/users/{id}/liked_tweets`) is unaffected: X prices it as an owned read.
+
 ### Request traceability
 
 | Request                 | Requirements | bird units that wait for it                                       |
@@ -1072,6 +1080,7 @@ together.
   - One table-driven test over bird's own subcommands' help, hints, and doctor reasons fails if any names `xurl`,
     `tweet`, `bird login`, or an HTTP response cache.
   - The README quick start, run on a clean HOME with a test app, prints the expected output it documents.
+  - AGENTS.md's examples show `bird skill install <host>`, since a bare `bird skill install` fails with `missing-host`.
 - **Verification:** no bird document names a retired verb, `BIRD_XURL_PATH`, a subprocess transport, or `--max-spend`.
 
 ### U13. Release smoke gate
