@@ -31,7 +31,7 @@ Each command has defined **auth requirements** derived from the X API OpenAPI sp
 - **watchlist fetch**: any of bearer, OAuth 1.0a, or OAuth 2.0 user (same auth as search — runs `from:<username>` search
   queries).
 - **watchlist add/remove/list**: no auth required (local config.toml operations).
-- **spend**: no auth required (reads the local SQLite usage table).
+- **spend**: no auth required (reads the local spend ledger, `spend.jsonl`).
 - **spend --sync**: Bearer token only (fetches `GET /2/usage/tweets` from X API).
 - **login**: N/A (runs the OAuth2 PKCE browser flow through the embedded `xdk-rs` client; `--no-browser` runs the
   headless two-step flow).

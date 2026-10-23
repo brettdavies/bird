@@ -89,9 +89,9 @@ bird without arguments.
 | `--no-interactive`                  | `BIRD_NO_INTERACTIVE=1` | Refuse anything that would block on stdin.                                   |
 | `--raw`                             |                         | Emit unstyled, compact output: pipe-safe text, and `json` on one line.       |
 | `--examples`                        |                         | Print the curated examples block and exit zero.                              |
-| `--refresh`                         |                         | Bypass the entity store read; still write the response.                      |
-| `--no-cache`                        |                         | Disable the entity store entirely (no read, no write).                       |
-| `--cache-only`                      |                         | Serve from the local store only; never hit the API.                          |
+| `--refresh`                         |                         | Send every read instead of answering it from a stored response.              |
+| `--no-cache`                        | `BIRD_NO_CACHE=1`       | Read and write no stored responses, notes, or ledger records.                |
+| `--cache-only`                      |                         | Answer only from stored responses; never hit the API.                        |
 | `--limit <N>`                       |                         | Cap for list-style commands (default 100, ceiling 1000).                     |
 | `--cursor <TOKEN>`                  |                         | Pagination cursor (alias `--page`); responses surface `meta.next_cursor`.    |
 | `-u`, `--username <name>`           | `X_API_USERNAME`        | Multi-user token selection threaded into the embedded request options.       |
@@ -102,6 +102,8 @@ Additional env vars without flag pairs:
   (`xr auth app`).
 - `XURL_TOKEN_STORE` — token store path in place of `~/.xurl/auth.yml`, the same variable `xr` reads; the OAuth2 pending
   state sits beside it.
+- `BIRD_ARCHIVE_DIR` — where the Markdown archive lives, ahead of `archive_dir` in `config.toml`; absolute or `~/`-led.
+  See [File store](#file-store).
 - `BIRD_SKILL_HOME` — stands in for `HOME` in every `bird skill` destination, as `XURL_SKILL_HOME` does for `xr`. A
   host's own config-directory variable (`CLAUDE_CONFIG_DIR`, `KIRO_HOME`, `OPENCODE_CONFIG_DIR`) wins over it; see
   [Agent-skill bundle](#agent-skill-bundle).
@@ -110,7 +112,7 @@ Additional env vars without flag pairs:
 ## Architecture
 
 ```text
-bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
+bird (CLI + file store + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
 ```
 
 - `src/main.rs` — thin binary entrypoint (≤30 LOC): SIGPIPE restore, tracing init, delegates to `bird::cli::run_argv()`.
@@ -132,21 +134,23 @@ bird (CLI + entity store + intelligence) --> xdk-rs (embedded library: auth + HT
   generic `send_request`; bird renders every request itself) and `EmbeddedClient` (an `xdk::api::Client` plus the
   current-thread tokio runtime that blocks on its async calls); `mock.rs` is the `MockXurlClient` test double;
   `ConstructionStub` reports a client that failed to build.
-- `src/db/` — SQLite entity store: `store/` (per-entity table modules + migrations; `Connection` wrapped in
-  `std::sync::Mutex` for the Send + Sync gate), `client/` (entity-aware client wrapping `XurlClient`, split into
-  per-shape request modules including the `embedded` seam), `usage.rs` (per-call cost ledger).
+- `src/store/` — the file store: `paths.rs` (the three locations and the archive-dir setting), `responses/` (per-account
+  response files), `archive/` (Markdown notes and their merge), `ledger.rs` and `spend_view.rs` (the JSONL spend ledger
+  and what `bird spend` computes from it), `report.rs` (what `bird cache stats` and doctor report), `status.rs` (the
+  run's first store failure, warned once), `atomic.rs` (write-then-rename), `legacy.rs` (removes the 0.2.0 SQLite
+  files), and `client/` (`BirdClient` over `XurlClient`, including the `embedded` seam).
 - `src/bookmarks.rs`, `src/raw.rs`, `src/profile.rs`, `src/search.rs`, `src/thread.rs`, `src/watchlist/`, `src/spend/` —
   per-command handlers; streaming where the endpoint paginates.
 - `src/doctor.rs` — diagnostic report (linked xdk-rs crate version, per-app auth state, per-command accepted vs.
-  credentialed schemes, cache health).
+  credentialed schemes, the file store).
 - `src/cli/auth_scheme.rs` — `AuthType` enum (`OAuth2User`, `OAuth1`, `Bearer`, `None`); bird's request-time scheme
-  identifier rendered to xdk's wire vocabulary by `db::client::embedded::auth_type_to_xurl_wire`.
+  identifier rendered to xdk's wire vocabulary by `store::client::embedded::auth_type_to_xurl_wire`.
 - `src/output/` — `OutputConfig`, color helpers, ANSI sanitization, and the one emitter per envelope (`print_ok`,
   `print_dry_run`, `print_error`) taking an injected `&mut dyn Write`; `envelope.rs` holds `xr`'s envelope types and
   `hints.rs` the recovery-step chooser.
 - `src/error/` — `BirdError`: the envelope reason and exit code of every failure, an `xdk::Error`'s taken from its
   `kind` and `exit_code`.
-- `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config, 0600 DB; Unix-only
+- `src/config.rs` — `ResolvedConfig`, `ResolvedPaths`, `EnvOverrides`, file permissions (0644 config; Unix-only
   `set_permissions`). `ResolvedConfig::load_with_paths(overrides, paths, env)` is the canonical injectable loader.
   `ResolvedPaths::token_store` and `EnvOverrides::xdk` carry the xdk-rs token store and environment: when a store is
   named (`XURL_TOKEN_STORE`, or a test's temporary one), nothing below the runner reads `$HOME` or the process
@@ -230,14 +234,35 @@ bird schema --all                 # every schema in one object keyed by name
 
 Bare `bird schema` is a usage error naming those forms.
 
-## Cache modes
+## File store
 
-The entity store sits in front of every read command. Three modes:
+bird keeps no database. What it reads lands in three places:
 
-- `--refresh` — bypass the store for the read, then write the fresh response back.
-- `--no-cache` — neither read from nor write to the store.
-- `--cache-only` — read from the store only; never send an API request. Errors with `reason: "cache-miss"` (exit_code 1)
-  if the entry is missing. Write commands (`tweet`, `like`, `follow`, etc.) reject `--cache-only`.
+| Kind           | Default (Linux)                   | Holds                                                |
+| -------------- | --------------------------------- | ---------------------------------------------------- |
+| Archive        | `~/.local/share/bird/archive/`    | One Markdown note per post, user, bookmark, and like |
+| Response files | `~/.cache/bird/responses/`        | Each GET's 2xx body, per account, for the UTC day    |
+| Spend ledger   | `~/.local/share/bird/spend.jsonl` | One JSONL record per request sent or answered        |
+
+The archive moves with `BIRD_ARCHIVE_DIR`, then `archive_dir` in `config.toml`; a relative value is a `config-error`.
+Notes are named by X id (`posts/<id>.md`, `users/<id>.md`, `bookmarks/<account id>/<post id>.md`,
+`likes/<account id>/<post id>.md`); a later fetch rewrites bird's frontmatter keys and the region between
+`<!-- bird:begin -->` and `<!-- bird:end -->`, and keeps every other key and line. A GET repeated the same UTC day for
+the same account (the app and the user it goes out under) is answered from its response file and prints the same bytes;
+direct-message, usage, and media-upload reads are never stored. A write clears its account's response files. A store
+failure prints one `[store] warning` line and never changes a command's result. `bird cache stats` and doctor's `cache`
+section report all three locations; `bird cache clear` removes response files only.
+
+On its first run bird removes a 0.2.0 `bird.db` and an older `cache.db`, each with its `-wal` and `-shm` files, from
+`~/.config/bird/`, and says so once per store.
+
+Three cache modes:
+
+- `--refresh` — send the read, then store the fresh response.
+- `--no-cache` — read and write nothing; a write still clears its account's response files.
+- `--cache-only` — answer from a same-day response file only; never send an API request. Errors with
+  `reason: "cache-miss"` (exit_code 1) when none is stored. Write commands (`tweet`, `like`, `follow`, etc.) reject
+  `--cache-only`.
 
 ## Exit codes
 
@@ -267,10 +292,11 @@ stops with no envelope.
 
 bird does **not** store API tokens (xdk-rs does, in the `~/.xurl` token store `xr` shares). bird only owns:
 
-- `~/.config/bird/config.toml` — minimal user config (`username`, `watchlist`). Created at mode 0644.
-- `~/.config/bird/bird.db` — SQLite entity store. Created at mode 0600.
+- `~/.config/bird/config.toml` — minimal user config (`username`, `watchlist`, `archive_dir`). Created at mode 0644.
+- The [file store](#file-store): every file bird writes there is 0600 and every directory it creates 0700, because the
+  archive holds the user's bookmarks.
 
-Permission enforcement lives in `src/config.rs` behind `#[cfg(unix)]` (`std::os::unix::fs::PermissionsExt`).
+Permission enforcement lives in `src/config.rs` and `src/store/atomic.rs` behind `#[cfg(unix)]`.
 
 ## Agent-skill bundle
 

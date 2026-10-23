@@ -6,27 +6,38 @@ not a spec or catch-all.
 
 ## Store and cache
 
-### Entity store
+### File store
 
-The SQLite database at `~/.config/bird/bird.db` that sits in front of every read command. It keeps the posts, users, and
-bookmarks the API returned as individual rows, so a later read that asks for an entity the store already holds is
-answered locally instead of billed again.
+The files bird keeps in place of a database: the archive, the response files, and the cost ledger. A failure in any of
+them prints one `[store] warning` and never changes a command's result.
 
-### Raw response cache
+### Archive
 
-The content-addressed part of the entity store for endpoints whose responses are not split into entities. A request's
-canonical form is its key, so an identical request reads the stored body.
+One Markdown note per post, user, bookmark, and like bird has read, named by X id under a directory the user can point
+at a notes vault (`archive_dir`, `BIRD_ARCHIVE_DIR`). A later observation rewrites only bird's frontmatter keys and the
+region between `<!-- bird:begin -->` and `<!-- bird:end -->`; every other key and line is the user's.
+
+### Response file
+
+A GET's whole 2xx body, stored per account and keyed by the method and normalized URL. It answers the same request for
+the same account until the UTC day ends, so a repeat read prints what the first one printed and is not billed again. A
+write clears its account's response files; direct-message, usage, and media-upload reads are never stored.
+
+### Account
+
+The app a request goes out under and the user it is sent as (the requested username, else the app's default user; no
+user for an app-only request). Response files are kept per account, so one account's answer never serves another.
 
 ### Cache mode
 
-The per-invocation rule for how a read uses the entity store: the default reads and writes it, `--refresh` skips the
-read but writes the fresh response, `--no-cache` neither reads nor writes, and `--cache-only` reads and never sends a
+The per-invocation rule for how a read uses the response files: the default reads and writes them, `--refresh` skips the
+read but stores the fresh response, `--no-cache` neither reads nor writes, and `--cache-only` reads and never sends a
 request. Write commands accept no cache mode that would skip the API.
 
 ### Cost ledger
 
-The usage table that records an estimated cost for every API call bird sends. `bird spend` reports from it
-alone; `bird spend --sync` also fetches the actual figures X reports, so estimate and bill sit side by side.
+`spend.jsonl`, one record per request bird sends or answers, with its estimated cost. `bird spend` reports from it
+alone; `bird spend --sync` also appends the actual figures X reports, so estimate and bill sit side by side.
 
 ## Transport
 

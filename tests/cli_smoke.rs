@@ -1223,6 +1223,111 @@ fn doctor_names_xdk() {
     assert!(!stdout.contains("bird.db"), "{stdout}");
 }
 
+// --- The 0.2.0 store ------------------------------------------------------------
+
+fn seed_legacy(env: &common::TestEnv, names: &[&str]) {
+    for name in names {
+        std::fs::write(env.paths.config_dir.join(name), b"SQLite format 3").expect("seed");
+    }
+}
+
+fn removal_lines(stderr: &str) -> Vec<&str> {
+    stderr
+        .lines()
+        .filter(|l| l.starts_with("[store] removed the 0.2.0 store at "))
+        .collect()
+}
+
+#[test]
+fn the_first_run_removes_bird_db_and_its_sidecars() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db", "bird.db-wal", "bird.db-shm"]);
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    for name in ["bird.db", "bird.db-wal", "bird.db-shm"] {
+        assert!(!env.paths.config_dir.join(name).exists(), "{name} remains");
+    }
+    let lines = removal_lines(&stderr);
+    assert_eq!(lines.len(), 1, "{stderr}");
+    assert!(lines[0].ends_with("bird.db"), "{stderr}");
+}
+
+#[test]
+fn a_0_2_0_config_dir_is_left_with_no_database() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db", "bird.db-wal", "bird.db-shm", "cache.db"]);
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    for name in ["bird.db", "bird.db-wal", "bird.db-shm", "cache.db"] {
+        assert!(!env.paths.config_dir.join(name).exists(), "{name} remains");
+    }
+    assert_eq!(
+        removal_lines(&stderr).len(),
+        2,
+        "one line per store: {stderr}"
+    );
+}
+
+#[test]
+fn the_second_run_says_nothing() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db"]);
+    common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    assert_eq!(exit, 0);
+    assert!(removal_lines(&stderr).is_empty(), "{stderr}");
+}
+
+#[test]
+fn removal_ignores_cache_flags() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db"]);
+    common::run_in_process(&["bird", "--no-cache", "--output", "text", "doctor"], &env);
+    assert!(!env.paths.config_dir.join("bird.db").exists());
+}
+
+#[test]
+fn quiet_removal_prints_nothing() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db"]);
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "-q", "--output", "text", "doctor"], &env);
+    assert_eq!(exit, 0);
+    assert!(!env.paths.config_dir.join("bird.db").exists());
+    assert!(removal_lines(&stderr).is_empty(), "{stderr}");
+}
+
+#[test]
+fn an_older_cache_db_is_removed_too() {
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["cache.db"]);
+    let (_, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    assert!(!env.paths.config_dir.join("cache.db").exists());
+    let lines = removal_lines(&stderr);
+    assert_eq!(lines.len(), 1, "{stderr}");
+    assert!(lines[0].ends_with("cache.db"), "{stderr}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failed_removal_leaves_the_exit_code_alone() {
+    use std::os::unix::fs::PermissionsExt;
+    let env = common::TestEnv::new();
+    seed_legacy(&env, &["bird.db"]);
+    let dir = &env.paths.config_dir;
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o500)).expect("chmod");
+    let (exit, _stdout, stderr) =
+        common::run_in_process(&["bird", "--output", "text", "doctor"], &env);
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).expect("chmod back");
+    assert_eq!(exit, 0, "stderr {stderr:?}");
+    assert!(dir.join("bird.db").exists());
+    assert!(removal_lines(&stderr).is_empty(), "{stderr}");
+}
+
 // --- Store locations --------------------------------------------------------
 
 /// A relative `archive_dir` would scatter notes across working directories,

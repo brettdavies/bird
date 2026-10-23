@@ -9,7 +9,7 @@ mod common;
 #[test]
 fn success_envelope_has_data_and_meta_keys() {
     // `--examples` under `--output json` emits a success envelope without
-    // touching disk state, config, or sqlite.
+    // touching disk state, config, or the file store.
     let env = common::TestEnv::new();
     let (exit, stdout, _stderr) =
         common::run_in_process(&["bird", "--output", "json", "--examples"], &env);

@@ -164,8 +164,6 @@ impl BirdError {
             (Reason::Io, 5)
         } else if source.is::<serde_json::Error>() {
             (Reason::Serialization, 1)
-        } else if source.is::<rusqlite::Error>() {
-            (Reason::Internal, 1)
         } else {
             (Reason::Validation, 1)
         };

@@ -1,16 +1,17 @@
 # bird
 
 **bird** is a Rust CLI for the X (Twitter) API, built on `xdk-rs` from [xurl-rs](https://github.com/brettdavies/xurl-rs)
-for authentication and transport. It adds a local entity store, watchlist monitoring, usage tracking, thread
-reconstruction, and structured error output for agents.
+for authentication and transport. It adds a Markdown archive, same-day response files, watchlist monitoring, usage
+tracking, thread reconstruction, and structured error output for agents.
 
 ## Why bird?
 
 `xr`, the xurl-rs CLI, already provides authentication, curated commands, and raw API access. bird is built on the same
 X API library and adds capabilities `xr` doesn't have:
 
-- **Entity store** — Local SQLite cache with per-endpoint TTL. Reduces API calls, enables offline access, and supports
-  `--refresh`, `--no-cache`, and `--cache-only` modes.
+- **File store** — A Markdown note for every post, user, bookmark, and like bird reads, in a folder you can point at a
+  notes vault, plus same-day response files that answer a repeated read without a request. Supports `--refresh`,
+  `--no-cache`, and `--cache-only` modes.
 - **Thread reconstruction** — Rebuilds full conversation threads from a single tweet ID.
 - **Watchlist** — Monitor a list of users for recent activity without manual searches.
 - **Spend ledger** — Local history of API calls with cost estimates (`bird spend`); `--sync` adds X's actuals.
@@ -135,24 +136,27 @@ No config or app creation needed.
 | `bird login`                | Sign in via browser; `--no-browser` for agents                   |
 | `bird doctor`               | Diagnostics: X API client, auth, commands, store health          |
 | `bird doctor <cmd>`         | Scoped diagnostics for a single command                          |
-| `bird cache stats`          | Entity store status                                              |
-| `bird cache clear`          | Delete all cached entities                                       |
+| `bird cache stats`          | Archive, response files, and ledger status                       |
+| `bird cache clear`          | Delete stored responses; the archive stays                       |
 | `bird completions <shell>`  | Generate shell completions (bash, zsh, fish, powershell, elvish) |
 | `bird skill install <host>` | Install bird's agent skill into a host's skills directory        |
 
 ---
 
-## Entity store
+## File store
 
-bird maintains a local SQLite entity store that caches API responses with per-endpoint TTL. This reduces redundant API
-calls and provides offline access to previously fetched data.
+bird keeps no database. Each post, user, bookmark, and like it reads becomes a Markdown note with YAML frontmatter under
+`~/.local/share/bird/archive/` (set `archive_dir` in `config.toml` or `BIRD_ARCHIVE_DIR` to put it inside a notes
+vault). A later fetch updates bird's fields and keeps everything you added to a note. Each read's response is also kept
+for the rest of the UTC day, per account, so the same read again prints the same output and sends nothing. A 0.2.0 store
+is removed on the first run.
 
 ```bash
-bird search "rust" --refresh     # Bypass store, fetch fresh, update store
-bird search "rust" --no-cache    # Skip store entirely (no read, no write)
-bird search "rust" --cache-only  # Serve from store only, no API requests
-bird cache stats --pretty        # View store status
-bird cache clear                 # Wipe the store
+bird search "rust" --refresh     # Send the read, store the fresh response
+bird search "rust" --no-cache    # Read and write nothing
+bird search "rust" --cache-only  # Answer from today's stored response only, no API requests
+bird cache stats --pretty        # Archive, response files, and ledger
+bird cache clear                 # Delete stored responses; the archive stays
 ```
 
 ---
@@ -174,11 +178,12 @@ Colors and hyperlinks are disabled automatically when stdout is not a TTY or `TE
 
 ## Agent and non-interactive usage
 
-Authentication is handled by `xdk-rs`. For headless/CI environments where a browser is not available, use `bird
-login --no-browser` (alias `--headless`): bird prints the authorization URL on stdout, then reads the redirect URL back
-from stdin. Under `--output json` the prompt and result are wrapped in the standard envelope so agents can parse them
-programmatically. Tokens live in the `~/.xurl` token store that `xr` also uses; `XURL_BEARER_TOKEN` supplies an app-only
-bearer token without storing it. See [xurl-rs](https://github.com/brettdavies/xurl-rs) for the full set of variables.
+Authentication is handled by `xdk-rs`. For headless/CI environments where a browser is not available, use
+`bird login --no-browser` (alias `--headless`): bird prints the authorization URL on stdout, then reads the redirect URL
+back from stdin. Under `--output json` the prompt and result are wrapped in the standard envelope so agents can parse
+them programmatically. Tokens live in the `~/.xurl` token store that `xr` also uses; `XURL_BEARER_TOKEN` supplies an
+app-only bearer token without storing it. See [xurl-rs](https://github.com/brettdavies/xurl-rs) for the full set of
+variables.
 
 bird reads one environment variable of its own: `X_API_USERNAME` (or `--username`) to select which stored account to
 use.
@@ -197,17 +202,17 @@ The envelope is the one `xr` prints, so one parser reads both tools:
 {"status":"error","reason":"rate-limited","exit_code":3,"message":"...","next_step":{"action":"wait-and-retry","docs":"https://docs.x.com/resources/fundamentals/rate-limits"},"retry_after_secs":42,"retry_at":"2026-10-22T21:00:00Z"}
 ```
 
-| Field       | Type   | Description                                                                              |
-| ----------- | ------ | ---------------------------------------------------------------------------------------- |
-| `status`    | string | `error`                                                                                  |
-| `reason`    | string | Stable kebab-case reason; for an X API error, the reason `xr` reports                    |
-| `exit_code` | number | 1, 2 (usage), 3 (rate limit), 4 (404), 5 (no response), 77, 78, 130/143 (cancelled)      |
-| `message`   | string | Human-readable message                                                                   |
-| `next_step` | object | The recovery step, when one exists: `action`, then `command` or `template`, and `docs`   |
-| `command`   | string | The offending value: an unknown command word, or the command that needs `--force`        |
+| Field       | Type   | Description                                                                            |
+| ----------- | ------ | -------------------------------------------------------------------------------------- |
+| `status`    | string | `error`                                                                                |
+| `reason`    | string | Stable kebab-case reason; for an X API error, the reason `xr` reports                  |
+| `exit_code` | number | 1, 2 (usage), 3 (rate limit), 4 (404), 5 (no response), 77, 78, 130/143 (cancelled)    |
+| `message`   | string | Human-readable message                                                                 |
+| `next_step` | object | The recovery step, when one exists: `action`, then `command` or `template`, and `docs` |
+| `command`   | string | The offending value: an unknown command word, or the command that needs `--force`      |
 
-A rate limit with a known reset adds `retry_after_secs` and `retry_at`; an auth-scheme mismatch adds the endpoint,
-the schemes it accepts, and the active app. `--output json` is indented; `--raw` prints it on one line.
+A rate limit with a known reset adds `retry_after_secs` and `retry_at`; an auth-scheme mismatch adds the endpoint, the
+schemes it accepts, and the active app. `--output json` is indented; `--raw` prints it on one line.
 
 `bird schema envelope` prints the JSON Schema for this envelope and the success and dry-run ones.
 
@@ -215,10 +220,12 @@ the schemes it accepts, and the active app. `--output json` is indented; `--raw`
 
 ## Config
 
-bird's own config is minimal — just `username` and `watchlist`:
+bird's own config is minimal: `username`, `watchlist`, and `archive_dir`.
 
 - **Config file (optional):** `~/.config/bird/config.toml`
-- **Entity store:** `~/.config/bird/bird.db` (SQLite)
+- **Archive:** `~/.local/share/bird/archive/`; `archive_dir` or `BIRD_ARCHIVE_DIR` moves it
+- **Response files:** `~/.cache/bird/responses/`
+- **Spend ledger:** `~/.local/share/bird/spend.jsonl`
 
 Username priority: `--username` flag > config file > `X_API_USERNAME` env var.
 

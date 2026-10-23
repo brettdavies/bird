@@ -7,6 +7,7 @@ pub mod client;
 pub mod endpoint;
 pub mod file_store;
 pub mod ledger;
+pub mod legacy;
 pub mod paths;
 pub mod report;
 pub mod responses;

@@ -101,7 +101,7 @@ bird's public API is its machine contract:
 - **Stored state:** the `~/.config/bird/config.toml` format.
 
 Text-mode output, help text, colors, `--verbose` diagnostics, and raw-mode response bodies (X's bytes, passed through)
-are not contract, and neither is the layout of `bird.db`, a cache bird migrates forward itself. The one text-mode
+are not contract, and neither is the layout of the response files, which bird discards each UTC day. The one text-mode
 exception is the plain `bird --version` line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable
 output reads a structured format. The token store belongs to xdk-rs.
 

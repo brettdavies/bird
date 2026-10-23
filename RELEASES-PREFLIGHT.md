@@ -18,8 +18,9 @@ checklist covers what CI structurally can't:
 - Distribution paths that only exercise on real artifacts (cross-compile binaries, `cargo install` from a clean machine,
   `cargo-binstall` against a published GitHub Release, `brew install` once the Homebrew dispatch finishes).
 - Local state correctness on a fresh machine: bird does NOT store auth tokens itself (xurl owns the token store), but it
-  does write `~/.config/bird/config.toml` (0644) for watchlist and preferences, and `~/.config/bird/bird.db` (0600) for
-  the SQLite entity cache. Permissions and round-trip behavior need confirmation on a fresh `XDG_CONFIG_HOME`.
+  does write `~/.config/bird/config.toml` (0644) for watchlist and preferences, and the file store (archive, response
+  files, spend ledger; 0600 files, 0700 directories). Permissions and round-trip behavior need confirmation on a fresh
+  home directory.
 
 Post-tag verification (`release.yml` → homebrew-tap → `finalize-release.yml` → crates.io publish) lives in
 [`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md). The tag push happens AFTER the release-branch cut and the
@@ -133,8 +134,8 @@ bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, 
 `delete`), the `completions` generator, and the embedded xurl-rs client surface that owns auth and HTTP.
 
 - [ ] `bird help` lists the same shortcut commands as the previous release plus any net additions or removals. Diff
-  `$LAST_TAG`'s `bird help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a `###
-  Breaking changes` bullet in the release changelog.
+  `$LAST_TAG`'s `bird help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a
+  `### Breaking changes` bullet in the release changelog.
 - [ ] Per-command `--help` shape unchanged for stable commands. Spot-check `bird me --help`, `bird bookmarks --help`,
   `bird search --help`, `bird raw --help`; flag changes (renames, defaults, types) are user-facing and must show up in
   the changelog.
@@ -149,9 +150,9 @@ configured in the embedded xurl-rs token store and the live X API. Pick fresh ta
 
 - [ ] `bird --version` returns the new `vX.Y.Z` value (post-bump).
 - [ ] `bird doctor` exits 0 on a healthy machine, 78 on bad config, and reports the linked xurl-rs crate version under
-  the `xurl` section. Spot-check `bird doctor <cmd>` for at least one shortcut command (e.g. `bird doctor me`) and
+  the `xdk` section. Spot-check `bird doctor <cmd>` for at least one shortcut command (e.g. `bird doctor me`) and
   confirm it reports the correct accepted / credentialed schemes.
-- [ ] `bird me --pretty`, `bird me --output json`, `bird me -q` round-trip via the entity store on a logged-in account.
+- [ ] `bird me --pretty`, `bird me --output json`, `bird me -q` round-trip via the file store on a logged-in account.
   The `--pretty` form shows ANSI color and hyperlinks on a TTY.
 - [ ] `bird bookmarks` paginates and streams (does not collect into memory before printing).
 - [ ] `bird search "rust" --sort likes --min-likes 100 --pages 2 --output json` returns sorted JSON.
@@ -162,15 +163,15 @@ configured in the embedded xurl-rs token store and the live X API. Pick fresh ta
 - [ ] `bird usage --local`, `bird usage --sync` exercise the usage subsystem; both respect `--pretty`.
 - [ ] `bird cache stats --pretty` shows store path, size, tweet/user/raw counts; `bird cache clear` drops counts to
   zero.
-- [ ] Write commands round-trip via the embedded `execute_embedded_write` dispatcher: `bird tweet "..."`, `bird reply
-  <id> "..."`, `bird like <id>`, `bird unlike <id>`, `bird repost <id>`, `bird unrepost <id>`, `bird follow <user>`,
-  `bird unfollow <user>`, `bird dm <user> "..."`, `bird block`, `bird unblock`, `bird mute`, `bird unmute`. Each must
-  reject `--cache-only` with a Command error (exit code 1).
+- [ ] Write commands round-trip via the embedded `execute_embedded_write` dispatcher: `bird tweet "..."`,
+  `bird reply <id> "..."`, `bird like <id>`, `bird unlike <id>`, `bird repost <id>`, `bird unrepost <id>`,
+  `bird follow <user>`, `bird unfollow <user>`, `bird dm <user> "..."`, `bird block`, `bird unblock`, `bird mute`,
+  `bird unmute`. Each must reject `--cache-only` with a Command error (exit code 1).
 - [ ] Raw passthrough: `bird get /2/users/me -p id=123 -q expansions=author_id --pretty`, plus `bird post`, `bird put`,
   `bird delete` against a safe endpoint (e.g. a test workspace). The `-H/--header` flag flows headers into
   `RequestOptions.headers`.
-- [ ] Completions: `bird completions bash`, `zsh`, `fish`, `powershell`, `elvish` each produce a parseable script (`bash
-  -n`, `zsh -n`, `fish --no-execute`).
+- [ ] Completions: `bird completions bash`, `zsh`, `fish`, `powershell`, `elvish` each produce a parseable script
+  (`bash -n`, `zsh -n`, `fish --no-execute`).
 - [ ] Error paths: drive at least one auth failure (`XurlError::Auth`) and confirm bird exits 77 with the stderr error
   envelope; one config failure (`XurlError::Validation`, bad TOML) and confirm exit 78; one rate-limit failure
   (`XurlError::Api { status: 429 }`) and confirm exit 3; one command failure (e.g. `--cache-only` on a write command)
@@ -204,7 +205,7 @@ specific behavioral fixture.
 
 ### Cache modes
 
-bird's SQLite cache is gated by three mutually-exclusive flags (`--refresh`, `--no-cache`, `--cache-only`). Write
+bird's response files are gated by three mutually-exclusive flags (`--refresh`, `--no-cache`, `--cache-only`). Write
 commands reject `--cache-only`.
 
 - [ ] `bird search "rust" --refresh` bypasses store, refreshes store.
@@ -217,8 +218,10 @@ commands reject `--cache-only`.
 bird does not store tokens itself (xurl-rs's token store does), but it owns the local config and cache files.
 
 - [ ] `~/.config/bird/config.toml` is created at `0644` on first watchlist or preference write.
-- [ ] `~/.config/bird/bird.db` (SQLite entity cache) is created at `0600`.
-- [ ] No bird-managed files end up world-readable that shouldn't be (audit with `find ~/.config/bird -ls`).
+- [ ] The archive, response files, and `spend.jsonl` are created at `0600` in `0700` directories, and a 0.2.0
+  `~/.config/bird/bird.db` is removed on the first run.
+- [ ] No bird-managed files end up world-readable that shouldn't be (audit with
+  `find ~/.config/bird ~/.local/share/bird ~/.cache/bird -ls`).
 
 ### Exit-code contract
 
@@ -233,17 +236,18 @@ via `XurlError`-to-`BirdError` translation; 77 / 78 are bird-side overrides.
 - [ ] `4` on not-found (`XurlError::Api { status: 404 }` or `XurlError::Http("404 …")`).
 - [ ] `5` on network errors (`XurlError::Io`).
 - [ ] `1` on everything else (other API errors, write-command-with-`--cache-only`, etc.).
-- [ ] Stderr JSON envelope on `--output json`: `{"error":..., "kind":"config"|"auth"|"command", "exit_code":<N>,
-  "command":..., "status":...}`. Verify shape on at least one error from each kind.
+- [ ] Stderr JSON envelope on `--output json`:
+  `{"error":..., "kind":"config"|"auth"|"command", "exit_code":<N>, "command":..., "status":...}`. Verify shape on at
+  least one error from each kind.
 
 ### Distribution and install paths
 
-The release builds cross-compiled binaries and the homebrew tap dispatches downstream. None of this runs in `cargo
-test`.
+The release builds cross-compiled binaries and the homebrew tap dispatches downstream. None of this runs in
+`cargo test`.
 
 - [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all five targets listed in
-  `RELEASES.md` § Tagging and publishing. If the workflow has changed since, dry-run with `cargo build --release
-  --target <target>` for each.
+  `RELEASES.md` § Tagging and publishing. If the workflow has changed since, dry-run with
+  `cargo build --release --target <target>` for each.
 - [ ] In a clean container or fresh machine: download a **prior** release archive (`bird-<target>.tar.gz` or `.zip` for
   Windows), run `bird --version` and one read-only shortcut. Confirms the archive layout (binary + completions +
   licenses) still works without the project's toolchain. Install of the **newly** published artifact happens post-tag in
@@ -300,8 +304,8 @@ These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensi
 
 Moved to [`RELEASES-POSTFLIGHT.md`](./RELEASES-POSTFLIGHT.md) because tagging happens **after** the release-branch cut
 and PR-to-main merge, so verification of the tag-triggered pipeline (release.yml → homebrew-tap → finalize-release →
-crates.io publish → fresh-machine install smokes) is post-flight, not pre-flight. Run `scripts/release/postflight.sh
-all` immediately after `git push origin vX.Y.Z`.
+crates.io publish → fresh-machine install smokes) is post-flight, not pre-flight. Run
+`scripts/release/postflight.sh all` immediately after `git push origin vX.Y.Z`.
 
 ## Related docs
 
