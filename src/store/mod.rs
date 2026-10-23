@@ -1,6 +1,7 @@
 //! bird's file store: a Markdown archive, per-account JSON response files,
 //! and a JSONL spend ledger.
 
+pub mod archive;
 pub mod atomic;
 pub mod paths;
 pub mod responses;
