@@ -18,8 +18,8 @@ Options:
     --tag vX.Y.Z   Override version tag (default: extracted from branch name).
     --print-tag    Print the resolved version tag and exit (no git-cliff run).
     --from-dev-prs Build the version section from the PRs merged into the
-                   integration branch since the previous release, instead of
-                   from the release branch's commits. This is the mode for an
+                   integration branch that no earlier release carried, instead
+                   of from the release branch's commits. This is the mode for an
                    overlay-built release branch, whose single commit carries no
                    per-PR history. No git-cliff run.
     --dev-branch   Integration branch --from-dev-prs reads (default: dev).
@@ -696,14 +696,8 @@ def binary_tag_beside(tag: str) -> str | None:
     return None
 
 
-def merged_pr_numbers(base: str, prev_tag: str | None) -> list[int]:
-    """PR numbers this release carries, read from the integration branch's history.
-
-    Read from git rather than `gh pr list --base <branch>`, because a stacked PR
-    targets the branch below it rather than the integration branch and that query
-    never returns one. The squash-merge subject carries `(#N)` whatever the PR
-    targeted, so the history is the complete list.
-    """
+def release_anchor(base: str, prev_tag: str | None) -> str | None:
+    """The boundary on BASE where this release's window opens, or None for the start."""
     anchor_tag = prev_tag
     if prev_tag and not re.match(r"^v\d", prev_tag):
         # A member's tag sits on main, which shares no recent history with the
@@ -717,7 +711,17 @@ def merged_pr_numbers(base: str, prev_tag: str | None) -> list[int]:
         # inside the current release train, so the repository's own anchor
         # bounds it. Without this the candidate list is every PR ever merged.
         anchor = dev_release_anchor(base, previous_tag("", ""))
-    span = f"{anchor}..origin/{base}" if anchor else f"origin/{base}"
+    return anchor
+
+
+def pr_numbers_in(span: str) -> list[int]:
+    """The `(#N)` PR numbers of SPAN's commit subjects, bookkeeping left out.
+
+    Read from git rather than `gh pr list --base <branch>`, because a stacked PR
+    targets the branch below it rather than the integration branch and that query
+    never returns one. The squash-merge subject carries `(#N)` whatever the PR
+    targeted, so the history is the complete list.
+    """
     proc = run(["git", "log", span, "--format=%s"])
     if proc.returncode != 0:
         fail(f"git log {span} failed: {proc.stderr.strip()}")
@@ -729,6 +733,86 @@ def merged_pr_numbers(base: str, prev_tag: str | None) -> list[int]:
         if found:
             numbers[int(found.group(1))] = None
     return sorted(numbers)
+
+
+def merged_pr_numbers(base: str, prev_tag: str | None) -> list[int]:
+    """PR numbers merged into BASE after the previous release's boundary."""
+    anchor = release_anchor(base, prev_tag)
+    return pr_numbers_in(f"{anchor}..origin/{base}" if anchor else f"origin/{base}")
+
+
+BOUNDARY_RE = re.compile(r"^chore\(release\): (?:sync dev after|backport) (\S+)")
+
+
+def carried_over_pr_numbers(
+    base: str, prev_tag: str | None, cited: set[int] | None = None
+) -> list[int]:
+    """PR numbers merged before the previous release's backport that it may not carry.
+
+    A release is cut from the integration branch and backported once its tag is
+    out, so a PR merged in between ships in neither window that opens at a
+    backport. These are the PRs between the backport before the previous one on
+    the same release line and the previous one. The caller drops every one the
+    changelog already lists, which leaves the PRs the previous release did not
+    carry. With no earlier backport, the previous release was cut after the
+    newest PR its section cites (CITED), so these are the PRs after that one.
+    The newest rather than the oldest, because a window opened earlier would
+    read back PRs an older generator left out on purpose. A section that cites
+    no PR, such as a first release's hand-written notes, carries nothing over;
+    nor does a boundary that is no backport commit, such as a tag.
+    """
+    anchor = release_anchor(base, prev_tag)
+    if not anchor:
+        return []
+    line: str | None = None
+    start: str | None = None
+    newest_cited: str | None = None
+    proc = run(["git", "log", f"origin/{base}", "--format=%H %s"])
+    for entry in proc.stdout.splitlines():
+        sha, _, subject = entry.partition(" ")
+        found = BOUNDARY_RE.match(subject)
+        if line is None:
+            if sha == anchor:
+                if not found:
+                    return []
+                line = release_line(found.group(1))
+        elif found and release_line(found.group(1)) == line:
+            start = sha
+            break
+        elif cited and newest_cited is None and not BOOKKEEPING_RE.match(subject):
+            number = re.search(r"\(#(\d+)\)", subject)
+            if number and int(number.group(1)) in cited:
+                newest_cited = sha
+    start = start or newest_cited
+    if not start:
+        return []
+    return pr_numbers_in(f"{start}..{anchor}")
+
+
+def release_line(tag: str) -> str:
+    """The prefix naming TAG's release line: empty for the binary, `name-` for a member."""
+    return re.sub(r"v?\d.*$", "", tag)
+
+
+def listed_before(content: str, version: str | None) -> set[int]:
+    """PR numbers a changelog lists outside VERSION's section: what earlier releases carried."""
+    this_section = extract_version_section(content, version) if version else ""
+    return set(pr_numbers_from_section(content)) - set(pr_numbers_from_section(this_section))
+
+
+def unreleased_pr_numbers(
+    base: str, prev_tag: str | None, content: str, version: str | None, prefix: str = ""
+) -> list[int]:
+    """The PRs this release carries: merged since the previous release's backport,
+    or before it and carried by no release, leaving out every PR the changelog
+    CONTENT lists outside VERSION's section."""
+    cited: set[int] = set()
+    if prev_tag:
+        previous = extract_version_section(content, version_from_tag(prev_tag, prefix))
+        cited = set(pr_numbers_from_section(previous))
+    numbers = carried_over_pr_numbers(base, prev_tag, cited) + merged_pr_numbers(base, prev_tag)
+    listed = listed_before(content, version)
+    return sorted({n for n in numbers if n not in listed})
 
 
 def seed_version_section(changelog: Path, version: str) -> None:
@@ -867,14 +951,19 @@ def member_pr_numbers(
 
 
 def audit_sections_mode(
-    args, cliff_toml: Path, prefix: str = "", crate_config: dict | None = None
+    args,
+    cliff_toml: Path,
+    changelog: Path,
+    prefix: str = "",
+    crate_config: dict | None = None,
 ) -> int:
     """Name the PRs whose changelog entry would be their title for want of a section.
 
-    The PRs are the ones --from-dev-prs reads for the same changelog: the
-    integration branch's history since the previous release on this tag line,
-    so a stacked PR is among them, narrowed to the member's own for --crate. A
-    body is judged by classify_body, the rule collect_entries writes from.
+    The PRs are the ones --from-dev-prs reads for the same changelog: those
+    merged into the integration branch that no release on this tag line
+    carried, so a stacked PR is among them, narrowed to the member's own for
+    --crate. A body is judged by classify_body, the rule collect_entries
+    writes from.
     """
     owner, repo_name = read_remote_github(cliff_toml)
     if not (owner and repo_name):
@@ -885,7 +974,9 @@ def audit_sections_mode(
 
     tag = args.tag or release_branch_tag()[1]
     prev = previous_tag(tag or "", prefix)
-    pr_nums = merged_pr_numbers(args.dev_branch, prev)
+    content = changelog.read_text() if changelog.exists() else ""
+    version = version_from_tag(tag, prefix) if tag else None
+    pr_nums = unreleased_pr_numbers(args.dev_branch, prev, content, version, prefix)
     prefetch_prs(owner, repo_name, pr_nums)
     label = crate_config["heading"] if crate_config else "Changelog"
     heading = rf"^## {re.escape(label)}\s*$"
@@ -945,14 +1036,7 @@ def from_dev_prs_mode(
         prev = previous_tag(tag, prefix)
         seed_version_section(changelog, version)
         content = changelog.read_text()
-        this_section = extract_version_section(content, version)
-        already_listed = set(pr_numbers_from_section(content)) - set(
-            pr_numbers_from_section(this_section)
-        )
-        pr_nums = [
-            n for n in merged_pr_numbers(args.dev_branch, prev)
-            if n not in already_listed
-        ]
+        pr_nums = unreleased_pr_numbers(args.dev_branch, prev, content, version, prefix)
         prefetch_prs(owner, repo_name, pr_nums)
         if crate_config and pr_nums:
             total = len(pr_nums)
@@ -1077,7 +1161,7 @@ def main() -> int:
         return check_mode(changelog)
 
     if args.audit_sections:
-        return audit_sections_mode(args, cliff_toml, prefix, crate_config)
+        return audit_sections_mode(args, cliff_toml, changelog, prefix, crate_config)
 
     if args.print_tag:
         print(args.tag or detect_tag_from_branch())

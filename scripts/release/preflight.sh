@@ -109,7 +109,9 @@ ensure_smoke_home() {
 # without one). Every release squash-merges into main, so its tag shares no
 # recent history with dev, and a log from the tag counts dev's whole past. When
 # the tag is not an ancestor, the window opens at the commit that synced the tag
-# back into dev instead, the boundary generate-changelog.py reads.
+# back into dev instead. A PR merged after the previous cut and before that
+# commit sits outside this window; generate-changelog.py reads those PRs too, so
+# its section, not this count, is the complete list.
 
 # The commit on REF whose subject syncs TAG back, the way generate-changelog.py
 # finds it: `chore(release): sync dev after <tag>`, or `backport <tag>` from
