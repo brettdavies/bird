@@ -27,9 +27,11 @@
 #                       _lib.sh's delegate_to_subscript; suppresses the summary
 #
 # Gates:
-#   0. The anchor release itself reached base: the version carriers and
-#      CHANGELOG.md at the anchor match base's copies (a release whose
-#      backport never ran is invisible to gate 1, which only looks past it).
+#   0. The anchor release itself reached base: for each version carrier and
+#      CHANGELOG.md the anchor changed, every line the release added is in
+#      base's copy or was held by base at some commit, and every line it
+#      removed is gone from base's copy (a release whose backport never ran is
+#      invisible to gate 1, which only looks past it).
 #   1. Every commit on head since the anchor, and every file those commits
 #      touched that base does not already contain. A file base has moved
 #      further on its own is not drift: head's change (anchor to head) is
@@ -172,8 +174,20 @@ resolve_anchor() {
 # Gate 1 only looks past the anchor, so a release whose backport never ran
 # is invisible to it. Compare the version carriers and CHANGELOG.md at the
 # anchor against base: base must already hold every change the release made
-# to them (three-way containment, same as gate 1), or the next overlay cut
-# reverts the release's own bookkeeping.
+# to them, or the next overlay cut reverts the release's own bookkeeping.
+#
+# The release's diff mixes two kinds of line: those the cut wrote itself (the
+# version bump, the new changelog section) and content the overlay carried
+# over from base. Base may later edit or delete the second kind on its own, so
+# an added line counts as held when base's copy has it or base held it at any
+# commit; a line base once held and then dropped is base's own edit, not a
+# missing backport. The lines the cut wrote were never on base before the
+# backport, so a skipped backport still fails, and a version bump fails twice:
+# its new line was never held and its old line is still in base's copy.
+#
+# A line that repeats within a file, such as a changelog's "### Fixed",
+# counts as present wherever it appears. The version line and the release
+# heading are unique to the release, and those keep the check sound.
 
 gate_anchor_backported() {
   header "Anchor release backported to $BASE_REF"
@@ -195,7 +209,7 @@ gate_anchor_backported() {
       [[ -n "$(blob_at "$BASE_REF" "$path")" ]] || flagged+=("missing $path")
       continue
     fi
-    verdict=$(classify_file_at "$ANCHOR" "$prev" "$path")
+    verdict=$(classify_file_at "$ANCHOR" "$prev" "$path" history)
     [[ "$verdict" == contained ]] || flagged+=("$verdict $path")
   done
   if [[ ${#flagged[@]} -eq 0 ]]; then
@@ -229,9 +243,12 @@ classify_file() {
 }
 
 # Same as classify_file, for an explicit head ref and anchor ref (an empty
-# anchor means "no prior state", so any difference from base is drift).
+# anchor means "no prior state", so any difference from base is drift). With
+# a fourth argument, the line check also counts an added line as present when
+# base held PATH with that line at any commit (gate 0's rule).
 classify_file_at() {
-  local head_ref="$1" anchor_ref="$2" path="$3" anchor_blob head_blob base_blob tmp merged status
+  local head_ref="$1" anchor_ref="$2" path="$3" history="${4:-}"
+  local anchor_blob head_blob base_blob tmp merged status held=""
   head_blob=$(blob_at "$head_ref" "$path")
   base_blob=$(blob_at "$BASE_REF" "$path")
   anchor_blob=""
@@ -266,12 +283,35 @@ classify_file_at() {
   set -e
   if [[ $status -eq 0 && "$merged" == "$(<"$tmp/base")" ]]; then
     echo contained
-  elif lines_contained "$tmp/anchor" "$tmp/head" "$tmp/base" "$path"; then
+    rm -rf "$tmp"
+    return
+  fi
+  if [[ -n "$history" ]]; then
+    held="$tmp/held"
+    base_history_lines "$path" "$held"
+  fi
+  if lines_contained "$tmp/anchor" "$tmp/head" "$tmp/base" "$path" "$held"; then
     echo contained
   else
     echo differs
   fi
   rm -rf "$tmp"
+}
+
+# Writes to OUT every line PATH held at any commit on BASE_REF that touched it,
+# each once. A package.json copy is qualified first, as lines_contained
+# qualifies the copies it compares.
+base_history_lines() {
+  local path="$1" out="$2" commit
+  : >"$out.all"
+  while IFS= read -r commit; do
+    git cat-file -p "$commit:$path" >"$out.rev" 2>/dev/null || continue
+    if [[ "${path##*/}" == package.json ]]; then
+      qualify_dependency_entries "$out.rev"
+    fi
+    cat "$out.rev" >>"$out.all"
+  done < <(git rev-list "$BASE_REF" -- "$path")
+  sort -u "$out.all" >"$out"
 }
 
 # Lines on one side of a diff between two files, marker stripped. `+` gives the
@@ -297,8 +337,9 @@ diff_side() {
 # by qualify_dependency_entries, and an added dependency entry base does not
 # hold verbatim still counts as present when dependency_covered finds base's
 # range at or past it, since a range base has bumped since still carries it.
+# With HELD_FILE, an added line found there counts as present too.
 lines_contained() {
-  local anchor_file="$1" head_file="$2" base_file="$3" path="${4:-}" manifest=0 line
+  local anchor_file="$1" head_file="$2" base_file="$3" path="${4:-}" held_file="${5:-}" manifest=0 line
   if [[ "${path##*/}" == package.json ]]; then
     manifest=1
     qualify_dependency_entries "$anchor_file" "$head_file" "$base_file"
@@ -306,6 +347,7 @@ lines_contained() {
   while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:][:punct:]]*$ ]] && continue
     grep -qxF -- "$line" "$base_file" && continue
+    [[ -n "$held_file" ]] && grep -qxF -- "$line" "$held_file" && continue
     [[ $manifest -eq 1 ]] && dependency_covered "$line" "$base_file" && continue
     return 1
   done < <(diff_side + "$anchor_file" "$head_file")
