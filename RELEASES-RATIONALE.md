@@ -130,6 +130,13 @@ output: text is for a person and may improve release to release, while the JSON 
 `exit_code` are what an agent branches on. bird's library target is `#[doc(hidden)]` test infrastructure, so its Rust
 API is no part of the contract.
 
+### Why a break moves the middle number before 1.0
+
+SemVer reserves major version zero for initial development, where "anything MAY change at any time", so a `0.y.z`
+release carries no promise SemVer itself enforces. Cargo fills that gap with a convention: it treats `y` as the breaking
+position and resolves `^0.2.0` to any `0.2.z`. bird follows the same convention as xdk-rs, the library it embeds, so a
+break before 1.0 moves the middle number instead of declaring a `1.0.0` that would claim the contract is settled.
+
 ### Why a patch carries nothing new
 
 SemVer reserves a patch for "only backward compatible bug fixes", and states: "A bug fix is defined as an internal

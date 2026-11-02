@@ -124,6 +124,13 @@ minor to its section. It runs `scripts/check-surface-bump.sh`, which compares th
 grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`.
 Environment variables, exit codes, and the config format have no generated artifact, so review covers them.
 
+### bird before 1.0
+
+bird's version is `0.y.z`, and before `1.0.0` the middle number is the breaking position, the way Cargo reads a `0.y.z`
+version: `^0.2.0` accepts `0.2.1`, never `0.3.0`. A release whose changelog calls for a major ships as `0.(y+1).0`, and
+one that calls for a minor or a patch ships as `0.y.(z+1)`. The sections below still classify each change; before 1.0
+only the number they move differs. From `1.0.0` bird follows the three bumps above.
+
 ### X API changes
 
 X ships additive API changes often and does not version them.
