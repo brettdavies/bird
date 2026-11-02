@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.10.22 (generic) -->
 # Releasing `bird`
 
 Operational runbook. Rationale lives in [`RELEASES-RATIONALE.md`](./RELEASES-RATIONALE.md). Pre-cut go/no-go checklist
@@ -69,10 +70,10 @@ optional: fill `## Breaking Changes` on a major, delete the rest when they do no
 - **Zero verification artifacts in the body.** No triple-diff stats, leak-check output ("`guard-main-docs` runs clean"),
   patch-id cherry-check counts, pre-push gate results, CI status, or prose-scrub findings. Anomalies get fixed before
   push, not audit-trailed.
-- **Changelog** subsections (`### Added` / `### Changed` / `### Fixed` / `### Documentation` from the template, plus
-  `### Breaking changes` or `### Deprecated` when a change needs one; the generator orders all six): 1-5 bullets each,
-  delete empty subsections, each bullet starts with a verb. A `## Changelog` heading left standing with no bullets under
-  it says the PR ships nothing user-facing, and `generate-changelog.py` adds nothing for it, whatever the PR title says.
+- **Changelog** subsections (`### Breaking changes` / `### Added` / `### Changed` / `### Deprecated` / `### Removed` /
+  `### Fixed` / `### Documentation`): 1-5 bullets each, delete empty subsections, each bullet starts with a verb. A
+  `## Changelog` heading left standing with no bullets under it says the PR ships nothing user-facing, and
+  `generate-changelog.py` adds nothing for it, whatever the PR title says.
 - **Type of Change**: one checkbox. Prefer `feat`/`fix` over `chore` for any user-observable change.
 - **Related Issues/Stories**: four labels (`Story:` / `Issue:` / `Architecture:` / `Related PRs:`). All four required
   even when empty (`- None.` / `n/a`).
@@ -326,14 +327,16 @@ git push origin main --tags
 Always use annotated tags (`-a -m`). The tag push triggers `.github/workflows/release.yml`, which calls the reusable
 `brettdavies/.github/.github/workflows/rust-release.yml` and runs:
 
-| Step            | What                                                                                                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `check-version` | Verify the tag matches `Cargo.toml` version (gate).                                                                                                                                                                                         |
-| `audit`         | `cargo deny check` (license + advisory + ban).                                                                                                                                                                                              |
-| `build`         | Cross-compile binaries for 5 targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. Each archive includes the `bird` binary, completions, and licenses. |
-| `publish-crate` | `cargo publish` to crates.io via Trusted Publishing (OIDC, no static token after first publish).                                                                                                                                            |
-| `release`       | Create a **non-draft** GitHub Release with `make_latest: false`. Includes all 5 archives + `sha256sum.txt`.                                                                                                                                 |
-| `homebrew`      | Dispatch `update-formula` to `brettdavies/homebrew-tap` (formula name: `bird`).                                                                                                                                                             |
+| Step                  | What                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `check-version`       | Verify the tag matches `Cargo.toml` version (gate).                                                                                                                                                                                                                                                    |
+| `audit`               | `cargo deny check` (license + advisory + ban).                                                                                                                                                                                                                                                         |
+| `build`               | Cross-compile binaries for 7 targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. Each archive includes the `bird` binary, completions, and licenses. |
+| `sbom`, `attest`      | Attest build provenance for every archive and `sha256sum.txt`, and a CycloneDX SBOM of `bird` against the archives. A failed attestation publishes nothing.                                                                                                                                            |
+| `publish-crate`       | `cargo publish` to crates.io via Trusted Publishing (OIDC, no static token after first publish).                                                                                                                                                                                                       |
+| `release`             | Create a **non-draft** GitHub Release with `make_latest: false`. Includes all 7 archives + `sha256sum.txt`.                                                                                                                                                                                            |
+| `verify-attestations` | Download every published file and verify it against its attestation; a failure withholds the Homebrew dispatch.                                                                                                                                                                                        |
+| `homebrew`            | Dispatch `update-formula` to `brettdavies/homebrew-tap` (formula name: `bird`).                                                                                                                                                                                                                        |
 
 After the homebrew-tap workflow uploads bottles to this repo's release assets, it dispatches `finalize-release` back to
 this repo, which idempotently flips `make_latest: true`. Run
@@ -530,9 +533,10 @@ changelog check that reads a PR's files, and uses no extra secrets.
 
 ### Cross-compile target matrix
 
-Five targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing). No musl rows yet:
-[`RELEASES-RATIONALE.md` § Cross-compile target matrix](./RELEASES-RATIONALE.md#cross-compile-target-matrix) says when
-to add them.
+Seven targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing). `release.yml` passes
+`linux_musl_required: true`, so a musl failure blocks the release, and `release-matrix-check.yml` builds all seven before
+a tag exists:
+[`RELEASES-RATIONALE.md` § Cross-compile target matrix](./RELEASES-RATIONALE.md#cross-compile-target-matrix).
 
 ### First-time publish (one-time)
 

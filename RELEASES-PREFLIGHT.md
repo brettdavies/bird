@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.11.02 (generic) -->
 # Pre-release verification: `bird`
 
 Operational pre-flight checklist. Walk it before step 1 of
@@ -259,7 +260,7 @@ via `XurlError`-to-`BirdError` translation; 77 / 78 are bird-side overrides.
 The release builds cross-compiled binaries and the homebrew tap dispatches downstream. None of this runs in
 `cargo test`.
 
-- [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all five targets listed in
+- [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all seven targets listed in
   `RELEASES.md` § Tagging and publishing. If the workflow has changed since, dry-run with
   `cargo build --release --target <target>` for each.
 - [ ] In a clean container or fresh machine: download a **prior** release archive (`bird-<target>.tar.gz` or `.zip` for
@@ -285,6 +286,14 @@ These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensi
   or revert it before tagging.
 - [ ] No unmerged dependency advisories from `cargo deny check advisories`. The full local pre-push check
   (`scripts/hooks/pre-push`) mirrors CI; run it explicitly before pushing the release branch.
+- [ ] The `Release matrix check` run of the newest pull request merged to `dev` that ran the check is green.
+  `gh run list --workflow release-matrix-check.yml --event pull_request --limit 10 --json headBranch,conclusion,createdAt`
+  lists each run with its branch; read the newest whose branch `gh pr list --base dev --state merged --limit 20` shows
+  merged. A run on a branch that has not merged says nothing about the tree `dev` will tag. The tag's build is the
+  release's one build of the cross-compiled targets, and nothing builds them for the release branch. No ruleset requires
+  the check, because it is path-filtered and a required context that never reports leaves a PR pending, so a dependency
+  or toolchain PR can merge with it red. `gh workflow run release-matrix-check.yml --ref release/v<version>` rehearses
+  the matrix on the release branch when the release wants one.
 - [ ] `scripts/release/cut-release-branch.sh` exited 0, so its check A held: the staged tree equals `origin/dev`'s apart
   from the version carriers and the guarded paths. A cherry-pick release runs the triple diff in `RELEASES.md` §
   Exception: cherry-pick instead, with `HEAD..origin/dev` filtered by the guarded set (not all of `docs/`, since

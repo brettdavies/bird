@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.10.22 (generic) -->
 # Post-release verification: `bird`
 
 Operational post-flight checklist. Runs **after** the `release/v<version> → main` PR merges and you push the tag (`git
@@ -30,7 +31,7 @@ Sub-commands let you re-run one verification in isolation:
 | Sub-command     | What it checks                                                                                                   | Source of truth                           |
 | --------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | `release`       | `release.yml` on the tag push: `gh run view ... --json conclusion` is `"success"`                                | `gh run view`                             |
-| `tap`           | `brettdavies/homebrew-tap` `update-formula` (repository_dispatch) + `Publish bottles` (workflow_run) ran SUCCESS | `gh run list -R brettdavies/homebrew-tap` |
+| `tap`           | `brettdavies/homebrew-tap` `update-formula` (repository_dispatch) + `Publish formula` (workflow_run) ran SUCCESS | `gh run list -R brettdavies/homebrew-tap` |
 | `finalize`      | `finalize-release.yml` callback ran in this repo (cross-repo dispatch loop closed)                               | `gh run list -e repository_dispatch`      |
 | `make-latest`   | GitHub Release `vX.Y.Z` is non-draft, non-prerelease, and `releases/latest` resolves to it                       | `gh api /releases/latest`                 |
 | `crates`        | `crates.io` shows `bird vX.Y.Z` published (`cargo search bird` returns the tag)                                  | `crates.io` index API                     |
@@ -59,14 +60,14 @@ Run immediately after the tag push triggers `release.yml`.
 
 - [ ] **`release.yml` green end-to-end.** `gh run watch <id> --exit-status` then verify with `gh run view <id> --json
   conclusion --jq .conclusion` because the watcher exit code alone is not authoritative (a completed watcher is not a
-  green watcher). Builds the five cross-compile targets, publishes to crates.io via OIDC Trusted Publishing, and
+  green watcher). Builds the seven cross-compile targets, publishes to crates.io via OIDC Trusted Publishing, and
   dispatches `update-formula` into the homebrew-tap. Run `scripts/release/postflight.sh release` for the automated
   check.
 - [ ] **Homebrew-tap dispatch landed.** `gh run list -R brettdavies/homebrew-tap --limit 5` should show a recent
-  `update-formula` (event=repository_dispatch) and a `Publish bottles` (event=workflow_run) both SUCCESS. The bottles
-  workflow auto-merges the formula bump PR and pushes a `bird: add <version> bottle.` commit to tap `main`. Run
-  `scripts/release/postflight.sh tap` for the automated check.
-- [ ] **`finalize-release.yml` callback ran.** After the bottles publish, the tap dispatches back to this repo and the
+  `update-formula` (event=repository_dispatch) and a `Publish formula` (event=workflow_run) both SUCCESS. The publish
+  workflow pushes the formula bump to tap `main`. bird's formula builds from source, so a `bird: add <version> bottle.`
+  commit follows it. Run `scripts/release/postflight.sh tap` for the automated check.
+- [ ] **`finalize-release.yml` callback ran.** After the formula lands, the tap dispatches back to this repo and the
   callback flips the GitHub Release `make_latest: true`. Check `gh run list -e repository_dispatch --limit 3`; expect a
   `finalize-release` SUCCESS. Run `scripts/release/postflight.sh finalize` for the automated check.
 - [ ] **GitHub Release marked latest.** `gh api repos/brettdavies/bird/releases/latest --jq .tag_name` returns `vX.Y.Z`,
@@ -81,9 +82,26 @@ Run immediately after the tag push triggers `release.yml`.
   --version` reports the new tag. Drive on a throwaway prefix (`HOMEBREW_PREFIX=/tmp/brew-postflight-X brew ...`).
   Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly and the published bottle SHA matches the
   formula.
+- [ ] **Every Homebrew bottle verifies against its attestation.** `brew verify --os=all --arch=all brettdavies/tap/bird`
+  reports `has a valid attestation` for each bottle. The tap signs the bottles in its `publish.yml`; this is the check
+  Homebrew runs for a user who sets `HOMEBREW_VERIFY_ATTESTATIONS`, and a failure means that user cannot install the
+  formula.
 - [ ] **`cargo binstall bird`** (without `--version`) resolves to the new tag and installs the matching prebuilt binary.
   Confirms the GitHub Release asset layout (binary + completions + licenses, `bird-<target>.tar.gz` naming per
   `[package.metadata.binstall]`) matches binstall's asset-resolution rules. Drive on a clean container.
+- [ ] **A release archive verifies against its attestation.** `release.yml` verifies every published file in its
+  `verify-attestations` job and withholds the Homebrew dispatch when one fails; this is the same check from outside CI.
+  Download one archive of the release and run the command below. The reusable workflow is the signer, so `--repo` alone
+  fails; the `--signer-workflow` flag names it. Expect `Verification succeeded`. A failure with a green `release.yml`
+  means the attestation jobs were skipped: check that `release.yml` still passes `attest: true` and grants
+  `attestations: write`.
+
+  ```bash
+  gh release download v<X.Y.Z> --repo brettdavies/bird --pattern 'bird-x86_64-unknown-linux-gnu.tar.gz'
+  gh attestation verify bird-x86_64-unknown-linux-gnu.tar.gz --repo brettdavies/bird \
+    --signer-workflow brettdavies/.github/.github/workflows/rust-release.yml
+  ```
+
 - [ ] **Last-good identifier recorded.** Before the release goes live, note the three identifiers a rollback needs
   somewhere reachable under incident pressure: the previous crate version on crates.io (`cargo search bird`), the
   previous GitHub Release tag (`gh api repos/brettdavies/bird/releases/latest --jq .tag_name`), and the formula bump and

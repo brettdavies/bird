@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.11.02 (generic) -->
 # Releases rationale
 
 Companion to [`RELEASES.md`](./RELEASES.md). RELEASES.md is the runbook (commands, paths, decision tables). This file
@@ -30,13 +31,13 @@ forces a 3-way merge across that divergence: `add/add` collisions on files both 
 git cannot auto-resolve. The conflict pile is an artifact of the lineage, not of the content shipping.
 
 Always cut the release branch from `origin/main` and bring `dev`'s content onto it as a forward diff, never by
-reconciling histories. The default is the whole-tree overlay (`git checkout origin/dev -- .`, then strip the guarded
-set): `main` ships `dev`'s tree minus a small, known exclusion set, so asserting that end-state directly is simpler and
-safer than hand-resolving a merge. The overlay commit carries no per-PR history, so the changelog is built from the PRs
-merged into `dev` since the previous release (`generate-changelog.py --from-dev-prs`) rather than from the branch's
-commits; the result is the same per-PR section a cherry-picked branch would yield. Cherry-picking the dev squash-commits
-is kept only as an exception for a repo with a stated reason it cannot overlay, at the cost of guarded-path conflict
-handling.
+reconciling histories. The default is the whole-tree overlay (`dev`'s tree asserted onto the base with
+`git read-tree -u --reset`, then the guarded set stripped): `main` ships `dev`'s tree minus a small, known exclusion
+set, so asserting that end-state directly is simpler and safer than hand-resolving a merge. The overlay commit carries
+no per-PR history, so the changelog is built from the PRs merged into `dev` since the previous release
+(`generate-changelog.py --from-dev-prs`) rather than from the branch's commits; the result is the same per-PR section a
+cherry-picked branch would yield. Cherry-picking the dev squash-commits is kept only as an exception for a repo with a
+stated reason it cannot overlay, at the cost of guarded-path conflict handling.
 
 Either way, the release must start from a `main` that `dev` fully contains. Security PRs, hotfixes, and config edits
 land on `main` first, and both constructions take `dev`'s content for the files they touch, so anything `main` holds
@@ -169,11 +170,12 @@ the mistake review misses most easily, because nothing in the diff reads as wron
 
 ## Triple-diff verification
 
-The overlay recipe screens the staged release tree twice before the commit (A: release→dev for paths outside the guarded
-set and the version files, B: no guarded path in release→main) and enumerates what the release adds (D). The cherry-pick
-exception runs three diffs (A: main→release, B: release→dev for paths outside the guarded set, C: dev→main) plus a
-patch-id cherry check. This is belt-and-suspenders because missed cherry-picks have shipped to `main` on this and
-sibling repos before, and the file-level diff in B alone doesn't catch the patch-id false-negative class.
+`cut-release-branch.sh` screens the staged release tree twice before the commit (A: release→dev for paths outside the
+guarded set and the version carriers, B: no guarded path added or modified in release→main) and enumerates what the
+release adds (D). The cherry-pick exception runs three diffs (A: main→release, B: release→dev for paths outside the
+guarded set, C: dev→main) plus a patch-id cherry check. This is belt-and-suspenders because missed cherry-picks have
+shipped to `main` on this and sibling repos before, and the file-level diff in B alone doesn't catch the patch-id
+false-negative class.
 
 B excludes only the guarded set, not all of `docs/`. `docs/CLI_DESIGN.md`, `docs/DEVELOPER.md`, and `docs/SECRETS.md`
 ship to `main`, so a wholesale `docs/` exclusion hides a missed change there.
@@ -228,9 +230,9 @@ prior squash, it's a false positive (no action). Otherwise cherry-pick the commi
 `scripts/generate-changelog.py` (vendored from the `github-repo-setup` skill, with the repo-local `cliff.toml`) is the
 only sanctioned way to update `CHANGELOG.md`. On an overlay-built release branch it runs as `--from-dev-prs`: the PRs
 merged into `dev` since the previous release are the entries, and each PR's body supplies its
-`## Changelog → ### Breaking changes / Added / Changed / Deprecated / Fixed / Documentation` subsections (with author
-and PR-link attribution). On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from the
-branch's commits, then expands the same way.
+`## Changelog → ### Breaking changes / Added / Changed / Deprecated / Removed / Fixed / Documentation` subsections (with
+author and PR-link attribution). On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from
+the branch's commits, then expands the same way.
 
 If a PR's body offers no changelog section at all, its title becomes a bullet under the group `cliff.toml` gives the
 same commit (`type!:` under Breaking changes, `feat` under Added, `fix` under Fixed, `docs` under Documentation,
@@ -286,11 +288,12 @@ exist first; that token has since been removed.
 
 ### Why `make_latest: false` then `finalize-release`
 
-The GitHub Release is created visible-but-not-latest (`make_latest: false`) so `cargo-binstall` and `/releases/latest`
-don't 404 during the bottle-build window, but the release isn't yet promoted to "Latest" while bottles upload. After the
-homebrew-tap workflow uploads bottles to this repo's release assets, it dispatches `finalize-release` back to this repo,
-which idempotently flips `make_latest: true`. End result: crate on crates.io, GitHub Release marked latest, Homebrew
-formula updated with bottles, all atomically advertised.
+The GitHub Release is created visible-but-not-latest (`make_latest: false`): visible, so `cargo-binstall` and the
+release's asset URLs resolve while the tap works; not latest, so `/releases/latest` does not point at a version Homebrew
+cannot install yet. bird's formula builds from source, so after the homebrew-tap workflow lands the formula bump it
+uploads bottles to this repo's release assets, then dispatches `finalize-release` back to this repo, which idempotently
+flips `make_latest: true`. End result: crate on crates.io, GitHub Release marked latest, Homebrew formula updated with
+bottles, all atomically advertised.
 
 ### Why backport `main` → `dev` after publish
 
@@ -327,10 +330,14 @@ pressure.
 
 The shared release workflow builds seven targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`,
-`x86_64-pc-windows-msvc`. bird does not set `linux_musl_required`, so the two musl rows soft-fail: a musl build failure
-omits those two archives from the release instead of blocking it. `aws-lc-sys`, under reqwest's rustls backend, compiles
-C for every target, so `release-matrix-check.yml` builds all seven on every pull request that changes `Cargo.toml`,
-`Cargo.lock`, or `rust-toolchain.toml`, and on every `release/**` push.
+`x86_64-pc-windows-msvc`. The musl rows serve Alpine and other glibc-free hosts. bird's `release.yml` passes
+`linux_musl_required: true`, so a musl build failure blocks the release instead of omitting those two archives from it.
+`aws-lc-sys`, under reqwest's rustls backend, compiles C for every target, so a change to the dependency graph or the
+toolchain pin is what breaks a row: `release-matrix-check.yml` builds the same seven rows on a pull request to `dev` that
+changes `Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml`, so a broken row surfaces before the tag and not in a failed
+release. A release compiles its binaries once, at the tag: the release branch, the release pull request, and the
+backport of its version bump build nothing, and `workflow_dispatch` rehearses the matrix on a release branch that wants
+it.
 
 The Windows row is `x86_64-pc-windows-msvc`, the shared workflow's only Windows target. CI also runs a separate
 `ci / Windows check` job on every PR (not just at release) so MSVC build failures surface immediately, not at tag time.
