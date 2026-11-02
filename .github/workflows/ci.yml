@@ -1,8 +1,14 @@
-# Source repo CI wrapper: calls the centralized reusable workflows.
+# Canonical version: 2026.11.02 (rust)
 #
+# Source repo CI wrapper: calls the centralized reusable workflows.
+# Copy to .github/workflows/ci.yml in the tool repo.
+#
+# rust-change-scope.yml decides whether the change can reach cargo at all, by
+# the repo's scripts/cargo-inputs.sh (copy it verbatim from rust-tool-release).
+# Without that script the scope job fails, and every Rust job runs.
 # rust-ci.yml runs fmt, clippy, test, cargo-deny check, package check, Windows
-# check, tests on Windows and macOS, shellcheck, and changelog verification (on
-# PRs to main).
+# check, and changelog verification (on PRs to main), plus each job an input
+# below turns on.
 # lint-basics.yml runs actionlint and markdownlint.
 # No secrets required: only contents: read and pull-requests: read.
 #
@@ -41,6 +47,21 @@ jobs:
     needs: scope
     if: ${{ !cancelled() }}
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+    # Every rust-ci input, one line each. The reusable's
+    # on.workflow_call.inputs holds each one's full description and default.
+    #   advisories_blocking         an advisory fails the run (set below)
+    #   windows_nasm                install NASM on the Windows jobs, for a dependency that assembles there
+    #   docs_only                   skip every job (set below, from the scope job)
+    #   cross_os_tests              run cargo test on Windows and macOS too
+    #   docs                        cargo doc with warnings denied (set below)
+    #   msrv                        cargo check on the root Cargo.toml's rust-version (set below)
+    #   completions                 scripts/generate-completions.sh --check (rust-tool-release)
+    #   lint_stdio                  scripts/lint-stdio.sh (rust-tool-release skeleton)
+    #   workflow_concurrency        scripts/check-workflow-concurrency.sh (github-repo-setup)
+    #   anc_version, anc_bin        the agent-native audit at an exact anc release, on the named binary
+    #   anc_score_floor             the lowest badge score that audit accepts
+    #   anc_blocking_tiers          which failing audit rows block: `must` or `any`
+    #   release_size_ceiling_bytes  with anc_version set, the largest release binary allowed
     with:
       # An advisory turns this run red rather than leaving it green with one
       # failed job, so the run's colour matches what a human scanning the
@@ -65,8 +86,9 @@ jobs:
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that
   # ships is linted. CHANGELOG.md is generated and wraps where the generator
-  # wraps.
-  # .claude/ is a gitignored symlink, absent from this checkout.
+  # wraps. .claude/ is a gitignored symlink, absent from this checkout.
+  # A repo whose own lint.yml already calls lint-basics drops this job: both
+  # report as `lint / <job>`, so the same checks would run twice under one name.
   lint:
     uses: brettdavies/.github/.github/workflows/lint-basics.yml@main
     permissions:

@@ -1,3 +1,5 @@
+# Canonical version: 2026.10.02 (generic)
+#
 # Dependabot configuration.
 #
 # Two ecosystems: cargo for Rust dependencies, github-actions for workflow
