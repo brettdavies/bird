@@ -290,10 +290,10 @@ exist first; that token has since been removed.
 
 The GitHub Release is created visible-but-not-latest (`make_latest: false`): visible, so `cargo-binstall` and the
 release's asset URLs resolve while the tap works; not latest, so `/releases/latest` does not point at a version Homebrew
-cannot install yet. bird's formula builds from source, so after the homebrew-tap workflow lands the formula bump it
-uploads bottles to this repo's release assets, then dispatches `finalize-release` back to this repo, which idempotently
-flips `make_latest: true`. End result: crate on crates.io, GitHub Release marked latest, Homebrew formula updated with
-bottles, all atomically advertised.
+cannot install yet. After the homebrew-tap workflow lands the formula bump, pinned to this release's archives, it
+dispatches `finalize-release` back to this repo, which idempotently flips `make_latest: true`. End result: crate on
+crates.io, GitHub Release marked latest, Homebrew formula installing this release's archives, all atomically
+advertised.
 
 ### Why backport `main` → `dev` after publish
 
@@ -333,11 +333,20 @@ The shared release workflow builds seven targets: `x86_64-unknown-linux-gnu`, `a
 `x86_64-pc-windows-msvc`. The musl rows serve Alpine and other glibc-free hosts. bird's `release.yml` passes
 `linux_musl_required: true`, so a musl build failure blocks the release instead of omitting those two archives from it.
 `aws-lc-sys`, under reqwest's rustls backend, compiles C for every target, so a change to the dependency graph or the
-toolchain pin is what breaks a row: `release-matrix-check.yml` builds the same seven rows on a pull request to `dev` that
-changes `Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml`, so a broken row surfaces before the tag and not in a failed
-release. A release compiles its binaries once, at the tag: the release branch, the release pull request, and the
+toolchain pin is what breaks a row: `release-matrix-check.yml` builds the same seven rows on a pull request to `dev`
+that changes `Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml`, so a broken row surfaces before the tag and not in a
+failed release. A release compiles its binaries once, at the tag: the release branch, the release pull request, and the
 backport of its version bump build nothing, and `workflow_dispatch` rehearses the matrix on a release branch that wants
 it.
+
+Four of those archives are also what Homebrew installs. bird's formula in `brettdavies/homebrew-tap` names
+`bird-aarch64-apple-darwin.tar.gz`, `bird-x86_64-apple-darwin.tar.gz`, `bird-aarch64-unknown-linux-musl.tar.gz`, and
+`bird-x86_64-unknown-linux-musl.tar.gz`, and installs the `bird` at the top of each archive's single directory. The musl
+builds are the Linux ones because they are static and run against any glibc, Homebrew's included. An archive name, the
+place of `bird` inside it, and those four targets are therefore a contract with the formula: change one and the tap's
+bump for the next release fails, so the formula changes in the same step. The formula also needs `attest: true` and
+`linux_musl_required: true` on `release.yml`, because the tap pins only an archive that verifies against its
+attestation, and a soft-failed musl row publishes no archive to pin.
 
 The Windows row is `x86_64-pc-windows-msvc`, the shared workflow's only Windows target. CI also runs a separate
 `ci / Windows check` job on every PR (not just at release) so MSVC build failures surface immediately, not at tag time.

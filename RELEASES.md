@@ -338,9 +338,13 @@ Always use annotated tags (`-a -m`). The tag push triggers `.github/workflows/re
 | `verify-attestations` | Download every published file and verify it against its attestation; a failure withholds the Homebrew dispatch.                                                                                                                                                                                        |
 | `homebrew`            | Dispatch `update-formula` to `brettdavies/homebrew-tap` (formula name: `bird`).                                                                                                                                                                                                                        |
 
-After the homebrew-tap workflow uploads bottles to this repo's release assets, it dispatches `finalize-release` back to
-this repo, which idempotently flips `make_latest: true`. Run
-[`scripts/release/postflight.sh all`](./RELEASES-POSTFLIGHT.md) to verify the chain.
+bird's formula installs this release's archives, not a build of the tagged source. The tap's `update-formula` workflow
+downloads the four the formula names (the two `apple-darwin` and the two `linux-musl` archives), verifies each against
+its attestation, and pins its checksum. An archive with no attestation stops the bump, so `attest: true` in
+`release.yml` is what lets a release reach Homebrew. The tap then installs and tests the formula from those archives on
+four platforms, lands the bump, and dispatches `finalize-release` back to this repo, which idempotently flips
+`make_latest: true`. It builds no bottle: the binaries are compiled once, by `release.yml`, and `brew install` downloads
+the archive. Run [`scripts/release/postflight.sh all`](./RELEASES-POSTFLIGHT.md) to verify the chain.
 
 → Rationale (`make_latest` flow, target matrix, annotated-tag gotcha):
 [`RELEASES-RATIONALE.md` § Release pipeline](./RELEASES-RATIONALE.md#release-pipeline).
@@ -411,10 +415,10 @@ cargo yank --version "${BAD#v}" bird
 # GitHub Release: re-point /releases/latest (and cargo-binstall) at the last-good tag.
 gh release edit "$PREV" --latest
 
-# Homebrew: revert the tap's two commits for the bad release (`chore(bird): bump to
-# vX.Y.Z`, then `bird: add X.Y.Z bottle.`) so `brew install` resolves the previous
-# bottle, whose assets are still attached to the previous GitHub Release.
-git -C ~/dev/homebrew-tap revert <bottle-sha> <bump-sha>
+# Homebrew: revert the tap's bump commit for the bad release (`chore(bird): bump to
+# vX.Y.Z`) so `brew install` resolves the previous version, whose archives are still
+# attached to the previous GitHub Release.
+git -C ~/dev/homebrew-tap revert <bump-sha>
 ```
 
 `cargo yank --undo --version <version> bird` reverses a wrong yank. A yanked version cannot be published again, so the
@@ -533,7 +537,8 @@ changelog check that reads a PR's files, and uses no extra secrets.
 
 ### Cross-compile target matrix
 
-Seven targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing). `release.yml` passes
+Seven targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing); the Homebrew formula
+installs four of them (the two `apple-darwin` and the two `linux-musl` archives). `release.yml` passes
 `linux_musl_required: true`, so a musl failure blocks the release, and `release-matrix-check.yml` builds all seven before
 a tag exists:
 [`RELEASES-RATIONALE.md` § Cross-compile target matrix](./RELEASES-RATIONALE.md#cross-compile-target-matrix).

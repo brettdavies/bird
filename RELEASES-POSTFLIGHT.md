@@ -65,8 +65,8 @@ Run immediately after the tag push triggers `release.yml`.
   check.
 - [ ] **Homebrew-tap dispatch landed.** `gh run list -R brettdavies/homebrew-tap --limit 5` should show a recent
   `update-formula` (event=repository_dispatch) and a `Publish formula` (event=workflow_run) both SUCCESS. The publish
-  workflow pushes the formula bump to tap `main`. bird's formula builds from source, so a `bird: add <version> bottle.`
-  commit follows it. Run `scripts/release/postflight.sh tap` for the automated check.
+  workflow pushes the formula bump to tap `main` as one commit with no bottle, since bird's formula installs this
+  release's archives. Run `scripts/release/postflight.sh tap` for the automated check.
 - [ ] **`finalize-release.yml` callback ran.** After the formula lands, the tap dispatches back to this repo and the
   callback flips the GitHub Release `make_latest: true`. Check `gh run list -e repository_dispatch --limit 3`; expect a
   `finalize-release` SUCCESS. Run `scripts/release/postflight.sh finalize` for the automated check.
@@ -78,14 +78,11 @@ Run immediately after the tag push triggers `release.yml`.
 - [ ] **`cargo install bird --version <new>`** on a clean environment resolves and runs. Drive on a fresh container or a
   sibling machine so the local `~/.cargo/bin` isn't polluted. Confirms the crates.io publish landed all package data and
   `cargo install` can reconstruct the binary from source.
-- [ ] **`brew update && brew install brettdavies/tap/bird`** on a fresh prefix resolves the new bottle and `bird
+- [ ] **`brew update && brew install brettdavies/tap/bird`** on a fresh prefix resolves the new version and `bird
   --version` reports the new tag. Drive on a throwaway prefix (`HOMEBREW_PREFIX=/tmp/brew-postflight-X brew ...`).
-  Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly and the published bottle SHA matches the
-  formula.
-- [ ] **Every Homebrew bottle verifies against its attestation.** `brew verify --os=all --arch=all brettdavies/tap/bird`
-  reports `has a valid attestation` for each bottle. The tap signs the bottles in its `publish.yml`; this is the check
-  Homebrew runs for a user who sets `HOMEBREW_VERIFY_ATTESTATIONS`, and a failure means that user cannot install the
-  formula.
+  Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly and the downloaded archive matches the
+  checksum the formula pins. There is no bottle to check: the tap verified each archive against this repo's attestation
+  before it pinned the checksum, and the archive check below repeats that from outside CI.
 - [ ] **`cargo binstall bird`** (without `--version`) resolves to the new tag and installs the matching prebuilt binary.
   Confirms the GitHub Release asset layout (binary + completions + licenses, `bird-<target>.tar.gz` naming per
   `[package.metadata.binstall]`) matches binstall's asset-resolution rules. Drive on a clean container.
@@ -104,8 +101,8 @@ Run immediately after the tag push triggers `release.yml`.
 
 - [ ] **Last-good identifier recorded.** Before the release goes live, note the three identifiers a rollback needs
   somewhere reachable under incident pressure: the previous crate version on crates.io (`cargo search bird`), the
-  previous GitHub Release tag (`gh api repos/brettdavies/bird/releases/latest --jq .tag_name`), and the formula bump and
-  bottle commits on `brettdavies/homebrew-tap` `main` (`git log -2 --format=%H -- Formula/bird.rb`). Commands are in
+  previous GitHub Release tag (`gh api repos/brettdavies/bird/releases/latest --jq .tag_name`), and the formula bump
+  commit on `brettdavies/homebrew-tap` `main` (`git log -1 --format=%H -- Formula/bird.rb`). Commands are in
   [`RELEASES.md` § Rollback](./RELEASES.md#rollback).
 - [ ] **Rollback path confirmed.** If this release is bad, roll back at the surface first (`cargo yank`, re-point
   `releases/latest`, revert the formula bump), then land a `fix` or `revert` through the normal `dev` to `release/*` to

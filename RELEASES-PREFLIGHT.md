@@ -296,6 +296,17 @@ These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensi
   the check, because it is path-filtered and a required context that never reports leaves a PR pending, so a dependency
   or toolchain PR can merge with it red. `gh workflow run release-matrix-check.yml --ref release/v<version>` rehearses
   the matrix on the release branch when the release wants one.
+- [ ] The tap's `main` installs bird from the release archives, and the release attests them. The first command prints
+  `4`, one `url` line per archive the formula names (the line `scripts/formula-form.sh` reads as `prebuilt`); the second
+  lists `attest: true` and `linux_musl_required: true`. With a source-built formula on the tap's `main`, the tap bumps
+  the wrong form; without attestations, it stops the bump at the first archive and the release is never finalized.
+
+  ```bash
+  gh api repos/brettdavies/homebrew-tap/contents/Formula/bird.rb -H 'Accept: application/vnd.github.raw' \
+    | grep -cE '^ *url "https://github\.com/[^/]+/[^/]+/releases/download/'
+  git show HEAD:.github/workflows/release.yml | grep -E 'attest: true|linux_musl_required: true'
+  ```
+
 - [ ] `scripts/release/cut-release-branch.sh` exited 0, so its check A held: the staged tree equals `origin/dev`'s apart
   from the version carriers and the guarded paths. A cherry-pick release runs the triple diff in `RELEASES.md` §
   Exception: cherry-pick instead, with `HEAD..origin/dev` filtered by the guarded set (not all of `docs/`, since
