@@ -203,7 +203,7 @@ and `meta`; a single record puts its fields beside `status`; a message-shaped re
 Under `--dry-run` a write prints
 `{"status": "dry_run", "would_succeed": true, "exit_code": 0, "command", "method", "url"}`, with `body` when the request
 has one and `confirmation_required: true` without `--force`. The reads that print X's response body (`me`, `profile`,
-`bookmarks`, `search`, `get`) keep that body as their document.
+`bookmarks`, `search`) keep that body as their document.
 
 Stderr error envelope under a structured output mode, the one `xr` prints:
 
