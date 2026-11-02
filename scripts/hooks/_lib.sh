@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.01 (generic)
+#
 # Shared helpers for the git hook pair. Sourced by scripts/hooks/pre-commit and
 # scripts/hooks/pre-push, never executed directly.
 #
@@ -173,6 +175,82 @@ without_git_repo_env() (
     GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
   "$@"
 )
+
+# ---------------------------------------------------------------------------
+# Push scope
+# ---------------------------------------------------------------------------
+
+# push_only_deletes: true when every ref line git hands pre-push on stdin,
+# `<local ref> <local sha> <remote ref> <remote sha>`, deletes a remote ref.
+# A delete carries an all-zero local sha (40 zeros, or 64 in a SHA-256
+# repository) and delivers no commit for any check to read.
+#
+# False, so the checks run, when stdin is a terminal (the hook run by hand),
+# when it carries no ref lines, and when it stays open for
+# HOOK_STDIN_WAIT_SECONDS (default 5) with no next line. Git writes its lines
+# and closes stdin at once, so a real push never waits.
+#
+# Stdin can be read only once, so every line read is left in HOOK_PUSH_REFS
+# for a later step that needs the refs too.
+push_only_deletes() {
+  local wait_s="${HOOK_STDIN_WAIT_SECONDS:-5}" line local_ref local_sha rc deletes=0 others=0
+  HOOK_PUSH_REFS=''
+  [ -t 0 ] && return 1
+  while :; do
+    rc=0
+    IFS= read -r -t "$wait_s" line || rc=$?
+    # At end of input read returns 1 but still fills line with a last line
+    # that has no newline, which counts like any other.
+    [ "$rc" -eq 0 ] || { [ "$rc" -le 128 ] && [ -n "$line" ]; } || break
+    HOOK_PUSH_REFS+="$line"$'\n'
+    read -r local_ref local_sha _ <<<"$line"
+    [ -n "$local_ref" ] || continue
+    if [[ "$local_sha" =~ ^0+$ ]]; then
+      deletes=$((deletes + 1))
+    else
+      others=$((others + 1))
+    fi
+  done
+  # read returns above 128 on a timeout and 1 at end of input.
+  [ "$rc" -le 128 ] && [ "$deletes" -gt 0 ] && [ "$others" -eq 0 ]
+}
+
+# pushed_paths: prints each path the pushed commits change, one per line, from
+# the ref lines push_only_deletes keeps in HOOK_PUSH_REFS. A delete carries no
+# content. A new branch compares against its merge base with HOOK_PUSH_BASE
+# (default origin/dev). Returns 1, so the caller checks everything, when there
+# are no ref lines (the hook run by hand), when a new branch has no base to
+# compare with, or when a range cannot be read.
+pushed_paths() {
+  local base="${HOOK_PUSH_BASE:-origin/dev}" local_sha remote_sha range files out=''
+  [ -n "${HOOK_PUSH_REFS:-}" ] || return 1
+  while read -r _ local_sha _ remote_sha; do
+    [ -n "${local_sha:-}" ] || continue
+    [[ "$local_sha" =~ ^0+$ ]] && continue
+    if [[ "${remote_sha:-}" =~ ^0+$ ]]; then
+      git rev-parse --verify --quiet "$base^{commit}" >/dev/null || return 1
+      range="$base...$local_sha"
+    else
+      range="$remote_sha..$local_sha"
+    fi
+    files=$(git diff --name-only "$range" 2>/dev/null) || return 1
+    out+="$files"$'\n'
+  done <<<"$HOOK_PUSH_REFS"
+  printf '%s' "$out" | grep -v '^$' | sort -u
+  return 0
+}
+
+# needs_cargo: true when the paths in $1 (one per line) can change what cargo
+# builds, tests, documents or packages, by the repo's scripts/cargo-inputs.sh
+# (vendored from the rust-tool-release skill, the classifier CI's change-scope
+# job runs). Without the classifier, or when it fails, the answer is true, so
+# the cargo steps run.
+needs_cargo() {
+  local inputs
+  [ -f scripts/cargo-inputs.sh ] || return 0
+  inputs=$(bash scripts/cargo-inputs.sh <<<"$1") || return 0
+  [ -n "$inputs" ]
+}
 
 # ---------------------------------------------------------------------------
 # File selection
@@ -360,10 +438,10 @@ check_actionlint_all() {
   check_actionlint "${files[@]}"
 }
 
-# Concurrency-group namespacing. The file list gates whether it runs; the script
-# reads every workflow itself, because the rule is a property of the set. Its
-# success line goes to stdout and its findings to stderr, so dropping stdout
-# keeps a pass as quiet as every other check and leaves a failure loud.
+# Concurrency-group namespacing across the workflow set. The file list decides
+# whether it runs; the script reads every workflow itself, because the rule is
+# a property of the set. Its success line goes to stdout and its findings to
+# stderr, so dropping stdout keeps a pass as quiet as every other check.
 check_workflow_concurrency() {
   [ "$#" -gt 0 ] || return "$HOOK_SKIPPED"
   [ -x scripts/check-workflow-concurrency.sh ] \

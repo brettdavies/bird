@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.01 (generic)
+#
 # Pre-commit hook: fast, staged-file-scoped checks that catch the cheap
 # mistakes before they reach a commit. The whole-repo CI mirror lives in the
 # pre-push hook (scripts/hooks/pre-push); keep this hook fast enough that it
@@ -32,6 +34,18 @@ if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); 
   done
   echo "ERROR: needs bash >= 4.4 (running $BASH_VERSION); install it with: brew install bash" >&2
   exit 1
+fi
+
+# A linked worktree can find core.hooksPath set to the main checkout's
+# absolute path (worktree tooling writes it), and git then runs the main
+# checkout's copy of this hook with the worktree as its working directory.
+# Hand off to the copy that worktree has checked out, so a push or commit is
+# gated by the hook its own branch carries.
+hook_self_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+hook_worktree_root=$(pwd -P)
+hook_own_copy="$hook_worktree_root/scripts/hooks/$(basename "${BASH_SOURCE[0]}")"
+if [[ "$hook_worktree_root" != "$hook_self_root" && -x "$hook_own_copy" ]]; then
+  exec "$hook_own_copy" "$@"
 fi
 
 set -uo pipefail
@@ -72,8 +86,7 @@ step_bg "shfmt" "shfmt -i 2 -ci -bn -d" check_shfmt "${sh[@]}"
 mapfile -t tests < <(staged '*.bats' '*.bash' '*tests/*.sh' '*test/*.sh')
 step_bg "core-env guard" "scripts/hooks/core-env-guard.sh" check_core_env "${tests[@]}"
 
-# Workflows: lint the staged workflow files, and check group namespacing when
-# one is staged.
+# Workflows: lint the staged workflow files.
 mapfile -t wf < <(staged '.github/workflows/*.yml' '.github/workflows/*.yaml')
 step_bg "actionlint" "actionlint" check_actionlint "${wf[@]}"
 step_bg "concurrency namespacing" "scripts/check-workflow-concurrency.sh" check_workflow_concurrency "${wf[@]}"
