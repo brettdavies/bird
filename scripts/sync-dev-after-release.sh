@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.01 (generic)
+#
 # Backport release artifacts from main to dev after a release tag publishes.
 #
 # Writes the released version into every version carrier the repo has and
@@ -35,7 +37,8 @@
 #
 # Run AFTER:
 #   1. The release/v* -> main PR has merged.
-#   2. `git tag -a vX.Y.Z` has been pushed to origin.
+#   2. `git tag -a vX.Y.Z` (or a bare CalVer `YYYY.MM.DD[.N]` tag) has been pushed to
+#      origin.
 #   3. The GitHub Release has been created.
 #
 # Usage:
@@ -86,11 +89,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$VERSION" ]]; then
-  echo "usage: $0 vX.Y.Z [--include-contested] [--only PATH]... [--dry-run]" >&2
-  exit 64
-fi
-if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: version must match vMAJOR.MINOR.PATCH (got: $VERSION)" >&2
+  echo "usage: $0 vX.Y.Z|YYYY.MM.DD[.N] [--include-contested] [--only PATH]... [--dry-run]" >&2
   exit 64
 fi
 VERSION_NO_V="${VERSION#v}"
@@ -104,6 +103,11 @@ cd "$REPO_ROOT"
 # the binary crate moves.
 # shellcheck disable=SC1091  # sibling release lib, always vendored alongside
 . scripts/release/_lib.sh
+
+if [[ ! "$VERSION" =~ $RELEASE_TAG_RE ]]; then
+  echo "error: version must be a vMAJOR.MINOR.PATCH or bare CalVer YYYY.MM.DD[.N] tag (got: $VERSION); for example: $0 v1.2.3" >&2
+  exit 64
+fi
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "error: working tree not clean -- commit or stash first" >&2
@@ -123,7 +127,7 @@ fi
 # Peeled, since an annotated tag names a tag object, not the released commit.
 TAG_SHA="$(git rev-parse "$VERSION^{commit}")"
 if ! git merge-base --is-ancestor "$TAG_SHA" origin/main; then
-  echo "error: tag $VERSION is not reachable from origin/main -- wait for release/v* to merge" >&2
+  echo "error: tag $VERSION is not reachable from origin/main -- wait for the release PR to merge" >&2
   exit 66
 fi
 
@@ -289,7 +293,7 @@ fi
 
 # The previous release tag is the last commit where the branches agreed, which
 # is what makes it the reference for "did dev move this file too?".
-PREV_TAG="$(git tag --list 'v[0-9]*' --sort=-version:refname \
+PREV_TAG="$(git tag --list "${RELEASE_TAG_GLOBS[@]}" --sort=-version:refname \
   | awk -v cur="$VERSION" '$0 != cur { print; exit }')"
 
 blob_at() {
@@ -491,8 +495,8 @@ done)"
 cat >"$PR_BODY_FILE" <<EOF
 ## Summary
 
-Backports the v${VERSION_NO_V} release-prep state from \`main\` so dev's version carriers match the released
-number and the v${VERSION_NO_V} CHANGELOG section sits at the top of dev's \`CHANGELOG.md\` going forward.
+Backports the ${VERSION} release-prep state from \`main\` so dev's version carriers match the released
+number and the ${VERSION} CHANGELOG section sits at the top of dev's \`CHANGELOG.md\` going forward.
 
 Source: tag \`${VERSION}\` at \`${TAG_SHORT}\` on \`main\`. Files synced: ${SYNC_LIST}.
 

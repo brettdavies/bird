@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.09.14 (generic)
+#
 # Concurrency-group namespacing guard.
 #
 # Fails when a workflow's `concurrency.group` begins with an expression rather

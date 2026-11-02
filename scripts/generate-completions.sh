@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.06.22 (rust)
+#
 # generate-completions.sh — Generate or verify shell completions for a Rust CLI.
 #
 # Usage:

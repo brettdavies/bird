@@ -1,31 +1,38 @@
 #!/usr/bin/env bash
-# Filter changed paths down to the ones that can change what cargo builds,
-# tests, documents, or packages. Reads paths on stdin, one per line, and
-# prints the cargo inputs among them in their input order; prints nothing for
-# a change that is documentation only.
+# Canonical version: 2026.11.01 (rust)
 #
-# A path is documentation only when it is markdown and its file name is
-# neither named in a string literal by a tracked Rust source (a test that
-# reads a document, an `include_str!`) nor a README, which cargo packages
-# from a package root even when the manifest names none. The names are
-# collected on every run, so a test that starts reading a document is
-# covered the day it lands. Matching is by file name, so `../AGENTS.md`
-# covers every AGENTS.md.
+# Filter changed paths down to the ones that can change what cargo builds,
+# tests, documents, or packages. Reads paths on stdin, one per line, and prints
+# the cargo inputs among them in their input order; prints nothing for a change
+# that is documentation only.
+#
+# A markdown file is documentation only when it sits outside crates/, its file
+# name is not a README (cargo packages one from a package root even when the
+# manifest names none), and no tracked Rust source names that file name in a
+# string literal (a test that reads a document, an `include_str!`). The names
+# are collected on every run, so a test that starts reading a document is
+# covered the day it lands. Matching is by file name, so `../AGENTS.md` covers
+# every AGENTS.md. Every path under crates/ is an input, markdown included,
+# because cargo packages a workspace member's files.
 #
 # A few other paths no build, test, or package step reads are documentation
 # too: the gitignored .context/, the license texts, and the .github files no
 # test reads (issue forms, rulesets, the Dependabot config). Workflows stay
-# cargo inputs because tests/hook_ci_parity.rs reads them.
+# inputs, since a repo's tests may read them.
 #
-# Every other path is a cargo input, including one this script has never
-# seen. CI's `Change scope` job and the pre-push hook skip the Rust battery on
-# this verdict, and a wrong skip costs more than a wrong run.
+# Every other path is a cargo input, including one this script has never seen.
+# The pre-push hook and CI's change-scope job skip the Rust battery on this
+# verdict, and a wrong skip costs more than a wrong run.
 #
 # Exit codes: 0 = filtered (the output may be empty), 2 = not in a git work
 # tree.
 set -euo pipefail
 
-cd "$(git rev-parse --show-toplevel)" || exit 2
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "cargo-inputs: not inside a git work tree" >&2
+  exit 2
+}
+cd "$root"
 
 read_by_cargo=$(
   {
@@ -37,6 +44,7 @@ read_by_cargo=$(
 while IFS= read -r path; do
   [ -n "$path" ] || continue
   case "$path" in
+    crates/*) ;;
     *.md) grep -qxF -- "${path##*/}" <<<"$read_by_cargo" || continue ;;
     .context/* | LICENSE-* | .github/ISSUE_TEMPLATE/* | .github/rulesets/* | .github/dependabot.yml) continue ;;
   esac

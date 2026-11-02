@@ -1,3 +1,5 @@
+# Canonical version: 2026.11.02 (generic)
+# canonical:begin shared-config
 # git-cliff configuration.
 #
 # Two-stage pipeline driven by `scripts/generate-changelog.py`:
@@ -75,5 +77,6 @@ commit_parsers = [
 ]
 
 [remote.github]
+# canonical:end shared-config
 owner = "brettdavies"
 repo = "bird"

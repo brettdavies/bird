@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.01 (generic)
+#
 # Build the release branch: a clean descendant of main carrying dev's tree.
 #
 # Usage:
@@ -45,9 +47,11 @@ set -euo pipefail
 # shellcheck disable=SC1091  # sibling _lib.sh, always vendored alongside
 . "$(dirname "$0")/_lib.sh"
 
+# usage [CODE]: prints the header and exits CODE, 2 (a usage error) by default;
+# --help passes 0.
 usage() {
   print_usage_header
-  exit 2
+  exit "${1:-2}"
 }
 
 DRY_RUN=""
@@ -85,7 +89,7 @@ while [[ $# -gt 0 ]]; do
       RUN_CHANGELOG=0
       shift
       ;;
-    -h | --help) usage ;;
+    -h | --help) usage 0 ;;
     -*)
       echo "unknown flag: $1" >&2
       usage

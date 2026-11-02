@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.01 (generic)
+#
 # Verify the vX.Y.Z tag's downstream pipeline landed cleanly. Also reusable
 # for verifying a deployed env (staging or prod) when the project ships
 # multi-env deploys; --env staging|prod selects the target.
@@ -75,9 +77,11 @@ STAGING_URL=""
 PROD_URL=""
 SUBCMD=""
 
+# usage [CODE]: prints the header and exits CODE, 2 (a usage error) by default;
+# --help passes 0.
 usage() {
   print_usage_header
-  exit 2
+  exit "${1:-2}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -110,7 +114,7 @@ while [[ $# -gt 0 ]]; do
       PROD_URL="$2"
       shift 2
       ;;
-    -h | --help) usage ;;
+    -h | --help) usage 0 ;;
     release | tap | finalize | make-latest | crates | tags | backport | surface-smoke | all)
       SUBCMD="$1"
       shift
