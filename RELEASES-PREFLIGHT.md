@@ -1,4 +1,4 @@
-<!-- Canonical version: 2026.11.02 (generic) -->
+<!-- Canonical version: 2026.11.03 (generic) -->
 # Pre-release verification: `bird`
 
 Operational pre-flight checklist. Walk it before step 1 of
@@ -95,7 +95,9 @@ and a breaking PR merged in that gap appears in its `### Breaking changes` rathe
 PR the previous release left out of its notes on purpose either, so it comes back in this section; leave it out the same
 way.
 
-Every `!:` commit drives the major-version decision and gets a row in the release's `### Breaking changes` section.
+A `!:` commit is a cross-check hint only: the PRs' changelog sections set the bump
+([`RELEASES.md` § Versioning](./RELEASES.md#versioning)). A `!:` commit whose PR filed no `### Breaking changes` bullet
+is a question for its author, not a major on its own.
 
 ## Checklist
 
@@ -109,18 +111,27 @@ Dependabot raises the same fix again.
 
 <!-- canonical:begin drift-gate -->
 
-- [ ] The previous release's own bookkeeping reached `dev` (gate 0: the version carriers and `CHANGELOG.md` as the
-  release left them). It fails when a backport never ran; run `scripts/sync-dev-after-release.sh v<previous>`, merge its
-  PR, and rerun.
-- [ ] Every commit on `main` since the last release has its changes on `dev` (gate 1 lists the ones that do not, as
-  `differs` or `missing`). Backport them by PR into `dev` first, merge, and rerun.
-- [ ] Nothing under `.github/` on `main` is missing from `dev` (gate 2). `.github/` reaches `main` through the release,
-  so config that has reached `dev` and not `main` is what this release delivers, and the gate counts it. The gate fails
-  on the other direction, where `main` holds workflow or ruleset config `dev` never received, and names each path as
-  `missing` or `differs`.
-- [ ] No lockfile package resolves newer on `main` than on `dev` (gate 3, which reads `package-lock.json`, `bun.lock`,
-  and `Cargo.lock`). The one benign case is a version still inside the local package manager's release-age window when
-  the advisory is already patched at `dev`'s version.
+- [ ] The previous release's own bookkeeping reached `dev` (gate 0).
+
+  Gate 0 checks the version carriers and `CHANGELOG.md` as the release left them. It fails when a backport never ran;
+  run `scripts/sync-dev-after-release.sh v<previous>`, merge its PR, and rerun.
+
+- [ ] Every commit on `main` since the last release has its changes on `dev` (gate 1).
+
+  Gate 1 lists each commit that does not, as `differs` or `missing`. Backport them by PR into `dev` first, merge, and
+  rerun.
+
+- [ ] Nothing under `.github/` on `main` is missing from `dev` (gate 2).
+
+  `.github/` reaches `main` through the release, so config that has reached `dev` and not `main` is what this release
+  delivers, and the gate counts it. The gate fails on the other direction, where `main` holds workflow or ruleset
+  config `dev` never received, and names each path as `missing` or `differs`.
+
+- [ ] No lockfile package resolves newer on `main` than on `dev` (gate 3).
+
+  Gate 3 reads `package-lock.json`, `bun.lock`, and `Cargo.lock`. The one benign case is a version still inside the
+  local package manager's release-age window when the advisory is already patched at `dev`'s version.
+
 - [ ] `dev`-newer packages are the routine updates this release ships; the gate counts them and does not list them.
 
 <!-- canonical:end drift-gate -->
@@ -149,8 +160,8 @@ commands, `login`, `doctor`, `cache`, `completions`, `skill`, `schema`), the glo
 the exit codes, and the JSON documents `bird schema` prints. HTTP and auth belong to the embedded xdk-rs client.
 
 - [ ] `bird --help` lists the same commands as the previous release plus any net additions or removals. Diff
-  `$LAST_TAG`'s `bird --help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a
-  `### Breaking changes` bullet in the release changelog.
+  `$LAST_TAG`'s `bird --help` against `dev`'s and confirm every removed or renamed command has a `### Breaking changes`
+  bullet starting "Remove" in the release changelog.
 - [ ] Per-command `--help` shape unchanged for stable commands. Spot-check `bird me --help`, `bird bookmarks --help`,
   `bird search --help`, `bird spend --help`; flag changes (renames, defaults, types) are user-facing and must show up in
   the changelog.

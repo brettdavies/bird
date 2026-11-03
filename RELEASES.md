@@ -1,4 +1,5 @@
-<!-- Canonical version: 2026.10.22 (generic) -->
+<!-- Canonical version: 2026.11.03 (generic) -->
+<!-- canonical: version-scheme semver -->
 # Releasing `bird`
 
 Operational runbook. Rationale lives in [`RELEASES-RATIONALE.md`](./RELEASES-RATIONALE.md). Pre-cut go/no-go checklist
@@ -70,10 +71,10 @@ optional: fill `## Breaking Changes` on a major, delete the rest when they do no
 - **Zero verification artifacts in the body.** No triple-diff stats, leak-check output ("`guard-main-docs` runs clean"),
   patch-id cherry-check counts, pre-push gate results, CI status, or prose-scrub findings. Anomalies get fixed before
   push, not audit-trailed.
-- **Changelog** subsections (`### Breaking changes` / `### Added` / `### Changed` / `### Deprecated` / `### Removed` /
-  `### Fixed` / `### Documentation`): 1-5 bullets each, delete empty subsections, each bullet starts with a verb. A
-  `## Changelog` heading left standing with no bullets under it says the PR ships nothing user-facing, and
-  `generate-changelog.py` adds nothing for it, whatever the PR title says.
+- **Changelog** subsections (`### Breaking changes` / `### Added` / `### Changed` / `### Deprecated` / `### Fixed` /
+  `### Documentation`, the six headings of [§ Versioning](#versioning)): 1-5 bullets each, delete empty subsections,
+  each bullet starts with a verb. A `## Changelog` heading left standing with no bullets under it says the PR ships
+  nothing user-facing, and `generate-changelog.py` adds nothing for it, whatever the PR title says.
 - **Type of Change**: one checkbox. Prefer `feat`/`fix` over `chore` for any user-observable change.
 - **Related Issues/Stories**: four labels (`Story:` / `Issue:` / `Architecture:` / `Related PRs:`). All four required
   even when empty (`- None.` / `n/a`).
@@ -86,80 +87,102 @@ optional: fill `## Breaking Changes` on a major, delete the rest when they do no
 
 ## Versioning
 
-bird follows [SemVer 2.0.0](https://semver.org/). A release's version comes from its changelog: each merged PR's
-`## Changelog` section classifies its change, and the release takes the highest bump any of its PRs calls for.
+The marked lines below are github-repo-setup's SemVer section of `references/versioning.md`, which the drift check
+compares, and line 2 declares the scheme. A site, a CalVer repo, or one that ships no version changes the declaration
+and copies that scheme's section in their place.
+
+<!-- canonical:begin versioning-semver -->
+
+This repo follows [SemVer 2.0.0](https://semver.org/). Its version comes from its changelog: every PR files each
+user-facing change under one of the six headings below, and a release takes the highest bump any of its PRs calls for.
+The rules cover only the surfaces § What the contract is names.
 
 ### What the contract is
+
+<!-- canonical:repo-begin contract -->
 
 bird's public API is its machine contract:
 
 - **Invocation:** command names and aliases, flags, positional forms, and every environment variable `bird --help`
   lists.
 - **Exit codes:** the table in [`AGENTS.md`](./AGENTS.md#exit-codes).
-- **Structured output:** every shape `--output json|jsonl|ndjson` prints, meaning the success envelope and the
-  per-command documents `bird schema` prints from `schema/`, and the error envelope in
-  `schema/error-envelope.schema.json`, including its `error` id and `kind` sets.
+- **Structured output:** every shape `--output json|jsonl|ndjson` prints, meaning the `ok`, `dry_run`, and `error`
+  envelopes in `schema/envelope.schema.json`, including the error envelope's `reason` and `next_step.action` sets, and
+  the per-command documents `bird schema` prints from `schema/`.
 - **Stored state:** the `~/.config/bird/config.toml` format.
 
-Text-mode output, help text, colors, `--verbose` diagnostics, and raw-mode response bodies (X's bytes, passed through)
-are not contract, and neither is the layout of the response files, which bird discards each UTC day. The one text-mode
-exception is the plain `bird --version` line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable
-output reads a structured format. The token store belongs to xdk-rs.
+Text-mode output, help text, colors, and `--verbose` diagnostics are not contract, and neither is the layout of the file
+store's response files, which bird discards each UTC day. The one text-mode exception is the plain `bird --version`
+line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable output reads a structured format. The
+token store belongs to xdk-rs.
 
-### The three bumps
+<!-- canonical:repo-end -->
 
-- **Patch:** only fixes. Behavior brought back to the documented contract or to how the X API behaves, even when an exit
-  code or a JSON key changes as a result. Documentation, text-mode changes, and dependency or security updates that
-  leave the contract alone. Nothing new.
-- **Minor:** anything new that breaks nothing. A command, flag, environment variable, output field, output format, or
-  error id; a deprecation; an MSRV bump.
-- **Major:** anything in the contract removed, renamed, or retyped, or its documented meaning changed.
+### The six headings
 
-A minor can carry fixes, and a major can carry both. A new xdk-rs requirement moves bird's version only by what it
-changes in bird's own contract.
+| Heading            | Holds                                                                   | Bump  |
+| ------------------ | ----------------------------------------------------------------------- | ----- |
+| `Breaking changes` | a contract surface removed, renamed, or retyped, or its meaning changed | major |
+| `Added`            | a new contract surface                                                  | minor |
+| `Changed`          | a visible change outside the contract                                   | patch |
+| `Deprecated`       | a contract surface marked for removal                                   | minor |
+| `Fixed`            | behavior brought back to the documented contract                        | patch |
+| `Documentation`    | documentation only                                                      | patch |
 
-On every PR except a release PR to `main`, the `changelog-bump / Surface growth needs a minor section` check holds a
-minor to its section. It runs `scripts/check-surface-bump.sh`, which compares the commands, flags, and flag values in
-`completions/bird.bash` and the schema leaves under `schema/` between the base and the head, and fails when the surface
-grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`.
-Environment variables, exit codes, and the config format have no generated artifact, so review covers them.
+`generate-changelog.py` writes them in this order and any other heading after them. A contract removal is a
+`Breaking changes` bullet that starts with "Remove"; a removal outside the contract goes under `Changed`, or is left
+out. Removals ship when they are ready, with no deprecation schedule. A `type!:` commit is a prompt to check the PR's
+sections, never the bump itself.
 
-### bird before 1.0
+### The bump
 
-bird's version is `0.y.z`, and before `1.0.0` the middle number is the breaking position, the way Cargo reads a `0.y.z`
-version: `^0.2.0` accepts `0.2.1`, never `0.3.0`. A release whose changelog calls for a major ships as `0.(y+1).0`, and
-one that calls for a minor or a patch ships as `0.y.(z+1)`. The sections below still classify each change; before 1.0
-only the number they move differs. From `1.0.0` bird follows the three bumps above.
+`scripts/generate-changelog.py --bump` prints the next version from the PRs merged since the last release, and
+`cut-release-branch.sh` prints it beside the version the cut is given:
 
-### X API changes
+- The highest heading among their sections sets the bump.
+- A `rust-version` raised since the last tag is a minor-level change, so it lifts a patch to a minor. A Rust repo's
+  `rust-version` equals the toolchain `rust-toolchain.toml` pins, and CI's MSRV job builds on exactly that version.
+- Before 1.0, a major or a minor moves the middle number and a patch moves the last: `0.4.2` becomes `0.5.0` or `0.4.3`.
+- From 1.0, when the sections call for a major, the release agent asks the maintainer: a major, or a minor under the
+  small-break exception. A minor ships `docs/migrating/v<version>.md`, whose first line names the exception, and
+  preflight fails a 1.0+ release that keeps its major and carries `### Breaking changes` without that guide.
+
+### Overrides
+
+<!-- canonical:repo-begin overrides -->
+
+None. A repo that departs from the bump, the pre-1.0 rule, or the MSRV rule states the rule it follows here.
+
+<!-- canonical:repo-end -->
+
+<!-- canonical:end versioning-semver -->
+
+### The surface check
+
+On every PR except a release PR to `main`, the `changelog-bump / Surface growth needs a minor section` check holds the
+sections to the surface. It runs `scripts/check-surface-bump.sh`, which compares the commands, flags, and flag values in
+`completions/bird.bash` and the schema leaves under `schema/` between the base and the head. It fails when the surface
+grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`, and
+when the surface shrinks while it has none under `### Breaking changes` or `### Fixed`. Environment variables, exit
+codes, and the config format have no generated artifact, so review covers them.
+
+### Dependencies and the X API
+
+A new xdk-rs requirement moves bird's version only by what it changes in bird's own contract.
 
 X ships additive API changes often and does not version them.
 
-- X adds an endpoint or a field: bird adds a command or a field, a minor.
+- X adds an endpoint or a field: bird adds a command or a field, under `### Added`.
 - X renames or drops something the contract names: read both spellings and keep emitting the contract's name. When the
-  contract's own name has to change, add the new name in a minor, deprecate the old one, and remove it in a major that
-  batches removals.
-- X changes behavior in a way that makes bird wrong: the fix is a patch.
+  contract's own name has to change, add the new name under `### Added`, mark the old one under `### Deprecated`, and
+  remove it under `### Breaking changes` once it is ready to go.
+- X changes behavior in a way that makes bird wrong: the fix goes under `### Fixed`.
 
 ### Closed sets
 
-The error envelope's `error` id and `kind` are closed sets an agent branches on. A new member ships in a minor, and a
-consumer treats a value it does not recognize as its default branch. Removing or renaming a member is a major.
-
-### The changelog section decides
-
-- `### Breaking changes`, `### Removed`: major.
-- `### Added`, `### Deprecated`: minor.
-- `### Changed`, `### Fixed`, `### Documentation`: patch.
-
-`### Changed` holds a visible change outside the contract, or a change back to conformance with it. A change to the
-contract belongs under `### Added`, `### Deprecated`, `### Removed`, or `### Breaking changes`. An MSRV bump is a minor
-wherever it is filed. The section is checked when the PR is reviewed, and a maintainer-tooling PR carries no entry.
-
-At release time, list the entries with `scripts/generate-changelog.py --from-dev-prs --tag <tag> --dry-run` and set the
-version from the highest section present. The script emits the sections in the PR template's order
-(`### Breaking changes`, `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Documentation`)
-and any other heading after them.
+The error envelope's `reason` and its `next_step.action` are closed sets an agent branches on. A new member goes under
+`### Added`, and a consumer treats a value it does not recognize as its default branch. Removing or renaming a member
+goes under `### Breaking changes`.
 
 → Rationale: [`RELEASES-RATIONALE.md` § Versioning](./RELEASES-RATIONALE.md#versioning).
 
@@ -369,9 +392,9 @@ scripts/sync-dev-after-release.sh v0.3.0
 ```
 
 The script cuts a `chore/sync-dev-after-v0.3.0` branch, writes the released version into `Cargo.toml` in place, copies
-`CHANGELOG.md` from `main`, adopts the release-prep paths it discovers, and opens a PR against `dev` with the version in
-its title; merge it once CI is green. `scripts/release/postflight.sh backport` gates on that merged PR. A `dev` already
-in sync exits 0 with nothing committed.
+`CHANGELOG.md` from `main`, adopts the release-prep paths it discovers, and opens a PR against `dev` titled
+`chore(release): sync dev after v0.3.0`; merge it once CI is green. `scripts/release/postflight.sh backport` looks for
+that subject on `dev`. A `dev` already in sync exits 0 with nothing committed.
 
 Once the manifest is synced, the script refreshes the crate's `Cargo.lock` entry with
 `cargo update --workspace --offline`, against the local registry cache, and exits 70 with nothing committed if the lock

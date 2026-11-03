@@ -1,4 +1,4 @@
-<!-- Canonical version: 2026.11.02 (generic) -->
+<!-- Canonical version: 2026.11.03 (generic) -->
 # Releases rationale
 
 Companion to [`RELEASES.md`](./RELEASES.md). RELEASES.md is the runbook (commands, paths, decision tables). This file
@@ -126,16 +126,18 @@ SemVer's first rule is that software using it "MUST declare a public API". A CLI
 what a program reads back, not its source. [clig.dev](https://clig.dev/#future-proofing) lists "Subcommands, arguments,
 flags, configuration files, environment variables" as interfaces a CLI commits to, and says "Changing output for humans
 is usually OK" as long as scripts are steered to `--plain` or `--json`. That is bird's split between text and structured
-output: text is for a person and may improve release to release, while the JSON envelope's `error`, `kind`, and
-`exit_code` are what an agent branches on. bird's library target is `#[doc(hidden)]` test infrastructure, so its Rust
-API is no part of the contract.
+output: text is for a person and may improve release to release, while the JSON envelope's `reason`, `exit_code`, and
+`next_step.action` are what an agent branches on. bird's library target is `#[doc(hidden)]` test infrastructure, so its
+Rust API is no part of the contract.
 
-### Why a break moves the middle number before 1.0
+### Why a break or an addition moves the middle number before 1.0
 
 SemVer reserves major version zero for initial development, where "anything MAY change at any time", so a `0.y.z`
 release carries no promise SemVer itself enforces. Cargo fills that gap with a convention: it treats `y` as the breaking
-position and resolves `^0.2.0` to any `0.2.z`. bird follows the same convention as xdk-rs, the library it embeds, so a
-break before 1.0 moves the middle number instead of declaring a `1.0.0` that would claim the contract is settled.
+position and resolves `^0.2.0` to any `0.2.z`, which leaves a `0.y.z` version two positions where a `1.0.0` line has
+three. A break takes the middle one, so it never lands as a `1.0.0` that would claim the contract is settled. An
+addition takes it too, so the last number keeps the meaning [§ Why a patch carries nothing new](#why-a-patch-carries-nothing-new)
+gives it: a `0.y.(z+1)` release only fixes.
 
 ### Why a patch carries nothing new
 
@@ -163,17 +165,17 @@ it, "if you're putting out a major version bump every month, it's meaningless."
 
 ### Why a closed set can grow in a minor
 
-The error envelope's `error` id and `kind` are closed so an agent can branch on them without parsing prose. Growth stays
-backward compatible only when a consumer treats an unrecognized value as its default branch, which is the same contract
-`#[non_exhaustive]` gives a Rust enum. Removing or renaming a member breaks a consumer that matched on it, so that
-remains a major.
+The error envelope's `reason` and `next_step.action` are closed so an agent can branch on them without parsing prose.
+Growth stays backward compatible only when a consumer treats an unrecognized value as its default branch, which is the
+same contract `#[non_exhaustive]` gives a Rust enum. Removing or renaming a member breaks a consumer that matched on it,
+so that remains a major.
 
-### Why the changelog section decides the version
+### Why a check holds the sections to the surface
 
-The person who wrote the change classifies it once, when the PR is reviewed, and the release reads that classification
-instead of re-deriving it from commit subjects. The preflight's `surface` gate, which diffs `src/` and `schema/` against
-the last tag, puts a mis-filed break in front of whoever cuts the release. An addition filed under a patch section is
-the mistake review misses most easily, because nothing in the diff reads as wrong.
+An addition filed under a patch section is the mistake review misses most easily, because nothing in the diff reads as
+wrong, so the `changelog-bump` check compares the surface the completions and schemas describe on every PR. The
+preflight's `surface` gate, which diffs `src/` and `schema/` against the last tag, puts a mis-filed break in front of
+whoever cuts the release.
 
 ## Triple-diff verification
 
@@ -236,10 +238,11 @@ prior squash, it's a false positive (no action). Otherwise cherry-pick the commi
 
 `scripts/generate-changelog.py` (vendored from the `github-repo-setup` skill, with the repo-local `cliff.toml`) is the
 only sanctioned way to update `CHANGELOG.md`. On an overlay-built release branch it runs as `--from-dev-prs`: the PRs
-merged into `dev` since the previous release are the entries, and each PR's body supplies its
-`## Changelog → ### Breaking changes / Added / Changed / Deprecated / Removed / Fixed / Documentation` subsections (with
-author and PR-link attribution). On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from
-the branch's commits, then expands the same way.
+merged into `dev` since the previous release are the entries, and each PR's body supplies its `## Changelog` subsections
+under the six headings of [`RELEASES.md` § Versioning](./RELEASES.md#versioning) (`Breaking changes`, `Added`,
+`Changed`, `Deprecated`, `Fixed`, `Documentation`), with author and PR-link attribution. A heading outside the six still
+renders, after them. On a cherry-picked branch it runs `git-cliff` first to prepend a versioned entry from the branch's
+commits, then expands the same way.
 
 If a PR's body offers no changelog section at all, its title becomes a bullet under the group `cliff.toml` gives the
 same commit (`type!:` under Breaking changes, `feat` under Added, `fix` under Fixed, `docs` under Documentation,
@@ -260,6 +263,15 @@ beside it did not (a member that keeps none is held to the root's); `publish = f
 `preflight.sh mechanics` checks that the release changelog opens on the release version with no `[Unreleased]`
 placeholder. The release workflow cuts the GitHub Release body from the section whose heading names the tag's version,
 and falls back to generated notes, with a warning, when there is none.
+
+### Why the changelog sections set the version
+
+A SemVer release's bump comes from the headings its PRs filed, not from commit markers or a judgment made at the cut:
+the author of a change knows best whether it adds, fixes, or breaks a contract surface, and the heading records that
+answer where review sees it. `generate-changelog.py --bump` reads the same sections the release notes are built from, so
+the version and the notes cannot disagree. A `!:` commit stays a cross-check: a PR can break the contract with no
+marker, and a marker can sit on a change outside the contract. The rules, the pre-1.0 shift, the MSRV rule, and the
+small-break exception are in [`RELEASES.md` § Versioning](./RELEASES.md#versioning).
 
 ### Why `cliff.toml` skips chore/style/test/ci/build
 
@@ -312,8 +324,9 @@ The backport is a PR opened by `scripts/sync-dev-after-release.sh`, never a merg
 direct push. The two branches share no history, so a merge conflicts on every file both sides touched, and a direct push
 to `dev` bypasses its required status checks. The script writes the released version into `Cargo.toml`, copies
 `CHANGELOG.md` from `main`, refreshes the crate's `Cargo.lock` entry from the synced manifest, and opens the PR; the
-postflight backport gate treats that merged PR as the durable signal that the backport ran. The lock is refreshed rather
-than copied because `main`'s copy would revert every dependency update `dev` merged after the release.
+postflight backport gate treats the backport's own subject on `dev` as the durable signal that the backport ran. The
+lock is refreshed rather than copied because `main`'s copy would revert every dependency update `dev` merged after the
+release.
 
 A release branch also takes edits nobody predicts (a doc fix, a reverted payload, a deleted config). Each is made
 against `main`'s base, so it reaches `dev` only through the backport; left behind, the next release's overlay restores

@@ -50,8 +50,8 @@ code only through a release PR. [`RELEASES.md`](RELEASES.md) is the full runbook
 
 Text output is written for humans and the structured formats for agents, and the two need not match word for word: text
 carries prose and a help pointer, structured output carries stable fields to branch on. Every structured error carries a
-kebab-case `error` id from a closed set, an `exit_code`, and a human `message`; the ids and codes xdk-rs classifies come
-from `xdk::Error` unchanged. Prefer additive envelope changes: add keys rather than renaming or retyping existing ones,
+kebab-case `reason` from a closed set, an `exit_code`, and a human `message`; the reasons and codes xdk-rs classifies
+come from `xdk::Error` unchanged. Prefer additive envelope changes: add keys rather than renaming or retyping existing ones,
 and update the matching document under `schema/` in the same PR, which `tests/schema_parity.rs` enforces.
 
 ## Filing issues
