@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.01 (generic)
+# Canonical version: 2026.11.02 (generic)
 #
 # Shared helpers for the git hook pair. Sourced by scripts/hooks/pre-commit and
 # scripts/hooks/pre-push, never executed directly.
@@ -215,29 +215,79 @@ push_only_deletes() {
   [ "$rc" -le 128 ] && [ "$deletes" -gt 0 ] && [ "$others" -eq 0 ]
 }
 
-# pushed_paths: prints each path the pushed commits change, one per line, from
-# the ref lines push_only_deletes keeps in HOOK_PUSH_REFS. A delete carries no
-# content. A new branch compares against its merge base with HOOK_PUSH_BASE
-# (default origin/dev). Returns 1, so the caller checks everything, when there
-# are no ref lines (the hook run by hand), when a new branch has no base to
-# compare with, or when a range cannot be read.
+# push_only_known_commits REMOTE: true when every ref line push_only_deletes
+# kept in HOOK_PUSH_REFS deletes or names a commit a REMOTE remote-tracking
+# branch already reaches, as a tag or a new branch at a pushed commit does, and
+# at least one line names a commit. rev-list peels an annotated tag to its
+# commit. False, so the checks run, with no REMOTE (the hook run by hand) and
+# with no line that names a commit. A push to a URL instead of a remote name
+# matches no remote-tracking branch, so every commit it carries counts as new.
+push_only_known_commits() {
+  local remote="${1:-}" local_sha known=0
+  [ -n "$remote" ] || return 1
+  while read -r _ local_sha _; do
+    [ -n "${local_sha:-}" ] || continue
+    [[ "$local_sha" =~ ^0+$ ]] && continue
+    brings_new_commits "$remote" "$local_sha" && return 1
+    known=$((known + 1))
+  done <<<"${HOOK_PUSH_REFS:-}"
+  [ "$known" -gt 0 ]
+}
+
+# brings_new_commits REMOTE SHA: true when SHA reaches a commit no REMOTE
+# remote-tracking branch reaches, and when git cannot read SHA.
+brings_new_commits() {
+  local out
+  out=$(git rev-list -n 1 "$2" --not --remotes="$1" 2>/dev/null) || return 0
+  [ -n "$out" ]
+}
+
+# pushed_paths [REMOTE]: prints each path the pushed commits change, one per
+# line, from the ref lines push_only_deletes keeps in HOOK_PUSH_REFS. A delete
+# carries no content, and with REMOTE neither does a ref that brings it no new
+# commit, so a tag pushed beside a branch leaves the scope to the branch. A ref
+# the remote has compares remote..local; a new ref prints what new_ref_paths
+# finds. Returns 1, so the caller checks everything, when there are no ref
+# lines (the hook run by hand), when new_ref_paths finds nothing to read a new
+# ref against, or when a range cannot be read.
 pushed_paths() {
-  local base="${HOOK_PUSH_BASE:-origin/dev}" local_sha remote_sha range files out=''
+  local remote="${1:-}" local_sha remote_sha files out=''
   [ -n "${HOOK_PUSH_REFS:-}" ] || return 1
   while read -r _ local_sha _ remote_sha; do
     [ -n "${local_sha:-}" ] || continue
     [[ "$local_sha" =~ ^0+$ ]] && continue
-    if [[ "${remote_sha:-}" =~ ^0+$ ]]; then
-      git rev-parse --verify --quiet "$base^{commit}" >/dev/null || return 1
-      range="$base...$local_sha"
-    else
-      range="$remote_sha..$local_sha"
+    if [ -n "$remote" ] && ! brings_new_commits "$remote" "$local_sha"; then
+      continue
     fi
-    files=$(git diff --name-only "$range" 2>/dev/null) || return 1
+    if [[ "${remote_sha:-}" =~ ^0+$ ]]; then
+      files=$(new_ref_paths "$remote" "$local_sha") || return 1
+    else
+      files=$(git diff --name-only "$remote_sha..$local_sha" 2>/dev/null) || return 1
+    fi
     out+="$files"$'\n'
   done <<<"$HOOK_PUSH_REFS"
   printf '%s' "$out" | grep -v '^$' | sort -u
   return 0
+}
+
+# new_ref_paths REMOTE SHA: prints what each commit SHA reaches changes, for
+# the commits no REMOTE remote-tracking branch reaches, or none HOOK_PUSH_BASE
+# reaches when it is set, so a hotfix branch cut from a squash-merged main is
+# read by its own commits alone. A merge prints what it changes on its first
+# parent: two known lines merged make a tree no check has read.
+# Returns 1 with no REMOTE, with a REMOTE that has no remote-tracking branch (a
+# push to a URL, a first push), and with a HOOK_PUSH_BASE that names no commit.
+new_ref_paths() {
+  local remote=$1 sha=$2 base="${HOOK_PUSH_BASE:-}" known
+  if [ -n "$base" ]; then
+    git rev-parse --verify --quiet "$base^{commit}" >/dev/null || return 1
+    known=("$base")
+  else
+    [ -n "$remote" ] || return 1
+    [ -n "$(git for-each-ref --count=1 "refs/remotes/$remote/")" ] || return 1
+    known=(--remotes="$remote")
+  fi
+  git log --format= --name-only --diff-merges=first-parent "$sha" --not "${known[@]}" 2>/dev/null
 }
 
 # needs_cargo: true when the paths in $1 (one per line) can change what cargo
@@ -283,18 +333,15 @@ cargo_ready() {
   [ -f Cargo.toml ] || skip "$1" "no Cargo.toml in the repo root" || return
 }
 
-# Format-check specific files. `cargo fmt --check` is whole-crate, so a
-# staged-scoped hook drives rustfmt directly. Reports every offending file
-# rather than stopping at the first.
+# Format check, run when a staged .rs file is passed. Through `cargo fmt`, not
+# rustfmt per file: cargo formats each workspace member under its own edition
+# and rustfmt.toml, and never reaches a .rs file no target builds, such as a
+# test fixture. rustfmt alone parses every file under one edition, so an
+# edition-2024 let chain fails it. Like CI's fmt job, it checks the whole
+# working tree, not only the staged files.
 check_rustfmt() {
   [ "$#" -gt 0 ] || return "$HOOK_SKIPPED"
-  have rustfmt || skip "rustfmt" "install via \`rustup component add rustfmt\`" || return
-  local f rc=0
-  for f in "$@"; do
-    [ -f "$f" ] || continue
-    rustfmt --edition 2024 --check "$f" || rc=1
-  done
-  return "$rc"
+  check_cargo_fmt
 }
 
 # Whole-crate format check, the pre-push mirror of check_rustfmt.
@@ -455,22 +502,32 @@ check_workflow_concurrency_all() {
   check_workflow_concurrency "${files[@]}"
 }
 
-# Markdown syntax. Refuses to run when the repo's markdownlint config sets
-# `fix: true`, because markdownlint-cli2 then rewrites every file it reads, with
-# or without --fix. A gate that mutates the tree mid-commit stages content
-# nobody reviewed, and it corrupts any file whose bytes are load-bearing: a
-# vendored upstream copy, a fixture, anything with a recorded checksum. A repo
-# that wants the edit-time auto-fix ergonomic keeps `fix: true` and loses this
-# check, which is the trade the notice states out loud.
+# Markdown syntax, judged on the staged content in a scratch tree.
+# markdownlint-cli2 rewrites every file it reads when any config on the path
+# sets `fix: true` (the canonical config does), with or without --fix, and a
+# --config base cannot turn that off because a directory config overrides it.
+# So the tree holds each passed file's staged blob and every tracked
+# markdownlint config at its own relative path with `fix` flipped off: the
+# root ignores and any nested config apply exactly as they do in CI, and
+# nothing in the checkout is written. `git show :path` reads the index git
+# names in GIT_INDEX_FILE, which is the temporary one during `commit -a` and
+# `commit <paths>`.
 check_markdown() {
   [ "$#" -gt 0 ] || return "$HOOK_SKIPPED"
   have markdownlint-cli2 || skip "markdownlint" "install via \`brew install markdownlint-cli2\`" || return
-  local cfg
-  for cfg in .markdownlint-cli2.yaml .markdownlint-cli2.yml .markdownlint-cli2.jsonc .markdownlint-cli2.json; do
-    [ -f "$cfg" ] || continue
-    if grep -Eq '^[[:space:]]*"?fix"?[[:space:]]*:[[:space:]]*true' "$cfg"; then
-      skip "markdownlint" "$cfg sets fix: true, which would rewrite files mid-commit" || return
-    fi
+  local tree f rc=0
+  tree="$(mktemp -d)" || return 1
+  while IFS= read -r f; do
+    mkdir -p "$tree/$(dirname "$f")"
+    git show ":$f" | sed -E 's/^([[:space:]]*"?fix"?[[:space:]]*:[[:space:]]*)true/\1false/' >"$tree/$f"
+  done < <(git ls-files -- ':(glob)**/.markdownlint*')
+  for f in "$@"; do
+    mkdir -p "$tree/$(dirname "$f")"
+    git show ":$f" >"$tree/$f" || rc=1
   done
-  markdownlint-cli2 "$@"
+  if [ "$rc" -eq 0 ]; then
+    (cd "$tree" && markdownlint-cli2 "$@") || rc=$?
+  fi
+  rm -rf "$tree"
+  return "$rc"
 }

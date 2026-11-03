@@ -79,7 +79,8 @@ set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root" || exit 1
-# shellcheck source=scripts/hooks/_lib.sh
+# A CI action that checks one file at a time without -x reports SC1091 here.
+# shellcheck source=scripts/hooks/_lib.sh disable=SC1091
 . ./scripts/hooks/_lib.sh || exit 1
 
 if push_only_deletes; then
@@ -95,13 +96,20 @@ if [ "$#" -ge 2 ] && [ -z "${HOOK_PUSH_REFS:-}" ]; then
   exit 0
 fi
 
+# A tag, or a new branch, at a commit the remote already has brings no commit
+# for any check to read.
+if push_only_known_commits "${1:-}"; then
+  echo "Nothing to check: every pushed commit is already on $1."
+  exit 0
+fi
+
 fail=0
 
 # The cargo steps run unless the pushed paths are known and the repo's
 # cargo-inputs.sh classifier finds no cargo input among them (see needs_cargo).
 run_cargo=true
 scoped=false
-if changed=$(pushed_paths); then
+if changed=$(pushed_paths "${1:-}"); then
   scoped=true
   needs_cargo "$changed" || run_cargo=false
 fi
@@ -239,7 +247,7 @@ if $run_cargo; then
 fi
 
 [ "$fail" -eq 0 ] || {
-  echo "pre-push checks failed; rerun the command each failure names." >&2
+  echo "pre-push checks failed: rerun the command each failing line names (checks: scripts/hooks/pre-push)." >&2
   exit 1
 }
 
