@@ -395,6 +395,9 @@ only when the push reaches a cargo input. `tests/hook_ci_parity.rs` names the CI
   value can leak into the JSON output.
 - `tests/diag_quiet_lazy_eval_test.rs` regression-locks the R24 zero-allocation `if !quiet` diag guard via a
   `PanicOnWrite` writer backed by `ConstructionStub`.
+- `tests/lint_stdio.rs` runs `scripts/lint-stdio.sh` on planted `src/` trees, once with the ripgrep on `PATH` and once
+  with a shim that lacks PCRE2 as CI's ripgrep does: the two allowed files pass, and a std or retired print macro, or a
+  commented one, fails. With no `rg` on `PATH` it prints that it did not run.
 
 Bird tests only the bird/xdk boundary via `MockXurlClient`; xdk-rs owns the X API HTTP shapes upstream. No bird-side
 wiremock; no bird-side real-API integration suite.
