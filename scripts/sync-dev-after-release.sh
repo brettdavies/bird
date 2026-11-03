@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.01 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Backport release artifacts from main to dev after a release tag publishes.
 #
@@ -10,6 +10,11 @@
 #     package's Cargo.toml (the workspace member that builds the binary when
 #     the root manifest is virtual, `RELEASE_MANIFEST`; the root otherwise),
 #     package.json, pyproject.toml, VERSION (plain text, no leading "v").
+#     A repo with none of them gets a VERSION only for a vX.Y.Z tag: a bare
+#     CalVer tag is the version, and a repo that releases on one may forbid a
+#     carrier. A site (SITE_VERSION_BASE set in scripts/release/release.env)
+#     gets neither a package.json version nor a VERSION: its tag, the deploy
+#     stamp site-version.sh computes, is the version.
 #   - Cargo.lock, whose workspace-member entries are refreshed from the synced
 #     manifests once every other path is in, and checked with `--locked`.
 #   - CHANGELOG.md, copied verbatim from origin/main when main carries one.
@@ -37,8 +42,8 @@
 #
 # Run AFTER:
 #   1. The release/v* -> main PR has merged.
-#   2. `git tag -a vX.Y.Z` (or a bare CalVer `YYYY.MM.DD[.N]` tag) has been pushed to
-#      origin.
+#   2. `git tag -a vX.Y.Z` (or a site stamp `v<base>.<epoch>-g<sha7>`, or a bare
+#      CalVer `YYYY.MM.DD[.N]` tag) has been pushed to origin.
 #   3. The GitHub Release has been created.
 #
 # Usage:
@@ -52,6 +57,7 @@
 
 set -euo pipefail
 
+USAGE="usage: $0 vX.Y.Z[-g<sha7>]|YYYY.MM.DD[.N] [--include-contested] [--only PATH]... [--dry-run]"
 VERSION=""
 INCLUDE_CONTESTED=false
 DRY_RUN=false
@@ -70,7 +76,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h | --help)
-      echo "usage: $0 vX.Y.Z [--include-contested] [--only PATH]... [--dry-run]"
+      echo "$USAGE"
       exit 0
       ;;
     -*)
@@ -89,7 +95,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$VERSION" ]]; then
-  echo "usage: $0 vX.Y.Z|YYYY.MM.DD[.N] [--include-contested] [--only PATH]... [--dry-run]" >&2
+  echo "$USAGE" >&2
   exit 64
 fi
 VERSION_NO_V="${VERSION#v}"
@@ -105,7 +111,7 @@ cd "$REPO_ROOT"
 . scripts/release/_lib.sh
 
 if [[ ! "$VERSION" =~ $RELEASE_TAG_RE ]]; then
-  echo "error: version must be a vMAJOR.MINOR.PATCH or bare CalVer YYYY.MM.DD[.N] tag (got: $VERSION); for example: $0 v1.2.3" >&2
+  echo "error: version must be a vMAJOR.MINOR.PATCH, a site stamp vBASE.EPOCH-gSHA7, or bare CalVer YYYY.MM.DD[.N] tag (got: $VERSION); for example: $0 v1.2.3" >&2
   exit 64
 fi
 
@@ -239,7 +245,7 @@ if [[ -f Cargo.toml ]]; then
     SYNC_PATHS+=(Cargo.lock)
   fi
 fi
-if [[ -f package.json ]]; then
+if [[ -f package.json && -z "${SITE_VERSION_BASE:-}" ]]; then
   set_version_line package.json
   SYNC_PATHS+=(package.json)
 fi
@@ -247,7 +253,7 @@ if [[ -f pyproject.toml ]]; then
   set_version_line pyproject.toml
   SYNC_PATHS+=(pyproject.toml)
 fi
-if [[ -f VERSION || ${#SYNC_PATHS[@]} -eq 0 ]]; then
+if [[ -f VERSION ]] || [[ ${#SYNC_PATHS[@]} -eq 0 && "$VERSION" == v* && -z "${SITE_VERSION_BASE:-}" ]]; then
   printf '%s\n' "$VERSION_NO_V" >VERSION
   SYNC_PATHS+=(VERSION)
 fi

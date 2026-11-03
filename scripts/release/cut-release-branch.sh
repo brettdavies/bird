@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.01 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Build the release branch: a clean descendant of main carrying dev's tree.
 #
 # Usage:
 #   scripts/release/cut-release-branch.sh [options] <version>
+#   scripts/release/cut-release-branch.sh [options]      (a site: SITE_VERSION_BASE set)
+#
+# A SemVer repo names the version; the cut prints the one
+# `generate-changelog.py --bump` computes from the changelog sections beside it,
+# and leaves the call to the operator. A site's version is the deploy stamp
+# site-version.sh computes from origin/<head>: given no version the cut takes
+# it, and given another it stops.
 #
 # `main` and `dev` share only an ancient merge-base, because every release
 # squash-merges into main. Merging them, or cutting the release branch from
@@ -105,13 +112,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$VERSION" ]] || usage
+[[ -n "$VERSION" || -n "${SITE_VERSION_BASE:-}" ]] || usage
 VERSION="${VERSION#v}"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || {
+[[ -z "$VERSION" || "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || {
   echo "version must be X.Y.Z (optionally with a -pre or +build suffix), got: $VERSION" >&2
   exit 2
 }
-BRANCH="${BRANCH:-release/v${VERSION}}"
 
 require_bin git
 
@@ -185,6 +191,46 @@ if [[ "$RUN_DRIFT" -eq 1 ]]; then
     gate_skip "drift" "scripts/release/drift.sh not vendored"
   fi
 fi
+
+# Version -------------------------------------------------------------------
+#
+# A site's version is the stamp of the head branch's commit, from the one
+# helper every caller runs. A SemVer repo's is the operator's call, shown beside
+# what the changelog sections compute (references/versioning.md).
+
+header "Version"
+
+read -ra crate_args <<<"$(changelog_crate_args)"
+if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
+  stamp=$("$SCRIPT_DIR/site-version.sh" --commit "origin/$HEAD_BRANCH") || {
+    print_summary
+    exit 2
+  }
+  if [[ -z "$VERSION" ]]; then
+    VERSION="$stamp"
+    gate_pass "$VERSION is the stamp of origin/$HEAD_BRANCH (site-version.sh)"
+  elif [[ "$VERSION" != "$stamp" ]]; then
+    gate_fail "version $VERSION" "is not the stamp of origin/$HEAD_BRANCH, $stamp
+    fix: re-run with no version, or with $stamp"
+    print_summary
+    exit 2
+  else
+    gate_pass "$VERSION is the stamp of origin/$HEAD_BRANCH (site-version.sh)"
+  fi
+elif [[ -x scripts/generate-changelog.py ]]; then
+  if bump=$(scripts/generate-changelog.py --bump --dev-branch "$HEAD_BRANCH" "${crate_args[@]}" 2>&1); then
+    computed=${bump%%$'\n'*}
+    if [[ "$computed" == "$VERSION" ]]; then
+      gate_pass "$VERSION is the version the changelog sections call for"
+    else
+      gate_skip "version $VERSION" "the changelog sections call for $computed; confirm the version before committing (references/versioning.md)
+$(printf '%s\n' "$bump" | sed '1d; s/^/    /')"
+    fi
+  else
+    gate_skip "computed bump" "generate-changelog.py --bump: ${bump##*$'\n'}"
+  fi
+fi
+BRANCH="${BRANCH:-release/v${VERSION}}"
 
 # Build the branch ----------------------------------------------------------
 
@@ -269,7 +315,6 @@ if [[ "$RUN_CHANGELOG" -eq 1 ]]; then
     # --tag explicitly rather than read from the branch name, which --branch
     # lets the caller choose freely. --crate when the release package is a
     # workspace member, so the generator writes that member's changelog.
-    read -ra crate_args <<<"$(changelog_crate_args)"
     changelog_args=(--from-dev-prs --tag "v${VERSION}" "${crate_args[@]}")
     if act scripts/generate-changelog.py "${changelog_args[@]}"; then
       act git add -A

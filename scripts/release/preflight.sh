@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.01 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Run release preflight gates against the current checkout.
 #
@@ -327,10 +327,12 @@ gate_semver() {
 
 # One cargo-semver-checks run for gate_semver: the package to check (empty for a
 # single-package repo), the tag whose version the release type was read
-# against, and that release type.
+# against, and that release type. The tag is the baseline too: without
+# --baseline-rev the tool compares with the crate's newest registry release,
+# which a crate never published lacks and a published one can trail or lead.
 semver_check() {
   local label=$1 package=$2 baseline=$3 release_type=$4
-  local args=(check-release --release-type "$release_type")
+  local args=(check-release --baseline-rev "$baseline" --release-type "$release_type")
   [[ -z "$package" ]] || args+=(--package "$package")
   local out rc
   out=$(cargo semver-checks "${args[@]}" 2>&1) && rc=0 || rc=$?
@@ -400,14 +402,41 @@ gate_changelog_sections() {
   done
 }
 
+# migration_guide_check CHANGELOG VERSION: a 1.0+ release that keeps its major
+# and carries `### Breaking changes` takes the small-break exception of
+# github-repo-setup's references/versioning.md, so it ships
+# docs/migrating/v<VERSION>.md, whose first line names the exception. A 0.x
+# release, a major, and a first release need no guide.
+migration_guide_check() {
+  local changelog=$1 version=$2 major previous guide
+  [[ "$version" =~ ^([0-9]+)\.[0-9]+\.[0-9]+$ ]] || return 0
+  major=${BASH_REMATCH[1]}
+  [[ "$major" -ge 1 ]] || return 0
+  awk '/^## \[/ { if (seen) exit; seen = 1 } seen' "$changelog" | grep -q '^### Breaking changes' || return 0
+  previous=$(git tag --list 'v[0-9]*' --sort=-version:refname | grep -vxF "v$version" | head -n 1 || true)
+  [[ "$previous" =~ ^v([0-9]+)\. && "${BASH_REMATCH[1]}" -eq "$major" ]] || return 0
+  guide="docs/migrating/v$version.md"
+  if [[ -f "$guide" ]] && head -n 1 "$guide" | grep -qi 'small-break exception'; then
+    gate_pass "$guide opens by naming the small-break exception ($version keeps major $major over $previous with ### Breaking changes)"
+  else
+    gate_fail "migration guide" "$version keeps major $major over $previous, its changelog carries ### Breaking changes, and $guide $([[ -f "$guide" ]] && echo "does not name the small-break exception on its first line" || echo "does not exist")
+    fix: release $((major + 1)).0.0, or, when the maintainer takes the small-break exception, write $guide opening with a line that names it (references/versioning.md in github-repo-setup shows one)"
+  fi
+}
+
 gate_mechanics() {
   header "Release mechanics sanity"
-  local project_version changelog_version
+  local project_version changelog_version site=""
 
   # The version a release tag names: the release manifest's for Rust, which a
-  # virtual workspace names in release.env. Non-Rust: swap for the project's
-  # source of truth.
-  if [[ -f Cargo.toml ]]; then
+  # virtual workspace names in release.env. A site's is the deploy stamp its
+  # changelog heading carries, checked below with site-version.sh. Non-Rust:
+  # swap for the project's source of truth.
+  if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
+    site=1
+    project_version=""
+    gate_pass "site version: the deploy stamp at base $SITE_VERSION_BASE (scripts/release/site-version.sh)"
+  elif [[ -f Cargo.toml ]]; then
     project_version=$(project_version)
     gate_pass "$(release_manifest) version = $project_version"
     if [[ -f Cargo.lock ]]; then
@@ -429,7 +458,9 @@ gate_mechanics() {
     project_version=""
   fi
 
-  if [[ -x "$BIN_PATH" && -n "$project_version" ]]; then
+  if [[ -n "$site" ]]; then
+    :
+  elif [[ -x "$BIN_PATH" && -n "$project_version" ]]; then
     local bin_version
     bin_version=$("$BIN_PATH" --version 2>/dev/null | awk '{print $NF}')
     if [[ "$bin_version" == "$project_version" ]]; then
@@ -447,15 +478,27 @@ gate_mechanics() {
   local release_changelog
   release_changelog=$(release_changelog)
   if [[ -f "$release_changelog" ]]; then
-    changelog_version=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' "$release_changelog" | tr -d '[]## ' || true)
-    if [[ -n "$project_version" ]]; then
+    changelog_version=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+(-g[0-9a-f]{7})?\]' "$release_changelog" | tr -d '[]## ' || true)
+    if [[ -n "$site" ]]; then
+      local verified
+      if [[ ! -x scripts/release/site-version.sh ]]; then
+        gate_fail "$release_changelog top section" "scripts/release/site-version.sh is not vendored
+    fix: copy templates/scripts/release/site-version.sh from github-repo-setup to scripts/release/"
+      elif verified=$(scripts/release/site-version.sh --verify "v$changelog_version" 2>&1); then
+        gate_pass "$release_changelog top section = [$changelog_version] (site-version.sh: ${verified#v"$changelog_version" })"
+      else
+        gate_fail "$release_changelog top section = [${changelog_version:-none}]" "$verified"
+      fi
+    elif [[ -n "$project_version" ]]; then
       if [[ "$changelog_version" == "$project_version" ]]; then
         gate_pass "$release_changelog top section = [$changelog_version] (matches project version)"
       else
         gate_fail "$release_changelog mismatch" "changelog=$changelog_version project=$project_version"
       fi
     fi
-    if grep -q '\[Unreleased\]' "$release_changelog"; then
+    migration_guide_check "$release_changelog" "$project_version"
+    # The heading, not the text: a released section may quote `[Unreleased]`.
+    if grep -qE '^## \[Unreleased\]' "$release_changelog"; then
       gate_fail "$release_changelog" "has [Unreleased] placeholder"
     else
       gate_pass "$release_changelog has no [Unreleased] placeholder"
@@ -486,7 +529,7 @@ gate_mechanics() {
     else
       gate_fail "$member_changelog" "top section=${member_top:-none} $name=$member_version; a $name release is pending (regenerate with scripts/generate-changelog.py --crate $name --from-dev-prs --tag $prefix$member_version)"
     fi
-    if grep -q '\[Unreleased\]' "$member_changelog"; then
+    if grep -qE '^## \[Unreleased\]' "$member_changelog"; then
       gate_fail "$member_changelog" "has [Unreleased] placeholder"
     fi
   done < <(release_members)
