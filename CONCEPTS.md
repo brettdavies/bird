@@ -61,9 +61,10 @@ its JSON Schema.
 
 ### Writer injection
 
-The rule, enforced by `scripts/lint-stdio.sh` in CI's `Output discipline` job and in the pre-push hook, that every
-user-visible line goes through an injected `&mut dyn Write` or an `OutputConfig` method. Only the binary shim and the
-fatal-error chokepoint write to the process streams directly, which is what lets tests capture every byte bird prints.
+The rule that every user-visible line goes through an injected writer or the output layer, never straight to the process
+streams. Only the binary's entry shim and the fatal-error chokepoint write to stdout or stderr directly, which is what
+lets tests capture every byte bird prints. The output-discipline check enforces it in CI and in the pre-push hook: it
+forbids the standard print macros, and bird's retired output macros, everywhere else.
 
 ## Commands
 
