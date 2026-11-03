@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.11.03 (generic) -->
 # Post-release verification: `bird`
 
 Operational post-flight checklist. Runs **after** the `release/v<version> → main` PR merges and you push the tag (`git
@@ -30,18 +31,19 @@ Sub-commands let you re-run one verification in isolation:
 | Sub-command     | What it checks                                                                                                   | Source of truth                           |
 | --------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | `release`       | `release.yml` on the tag push: `gh run view ... --json conclusion` is `"success"`                                | `gh run view`                             |
-| `tap`           | `brettdavies/homebrew-tap` `update-formula` (repository_dispatch) + `Publish bottles` (workflow_run) ran SUCCESS | `gh run list -R brettdavies/homebrew-tap` |
+| `tap`           | `brettdavies/homebrew-tap` `update-formula` (repository_dispatch) + `Publish formula` (workflow_run) ran SUCCESS | `gh run list -R brettdavies/homebrew-tap` |
 | `finalize`      | `finalize-release.yml` callback ran in this repo (cross-repo dispatch loop closed)                               | `gh run list -e repository_dispatch`      |
 | `make-latest`   | GitHub Release `vX.Y.Z` is non-draft, non-prerelease, and `releases/latest` resolves to it                       | `gh api /releases/latest`                 |
 | `crates`        | `crates.io` shows `bird vX.Y.Z` published (`cargo search bird` returns the tag)                                  | `crates.io` index API                     |
 | `tags`          | Each workspace library's tag sits on the binary tag's commit; SKIPs for bird, which publishes no library         | `git rev-parse`                           |
-| `backport`      | a merged PR to `dev` carrying the released tag in its title (durable signal that the sync ran)                   | `gh pr list --base dev --state merged`    |
+| `backport`      | the backport's subject (`chore(release): sync dev after <tag>`) on `dev` or a merged PR's title                  | `gh pr list --base dev --state merged`    |
 | `surface-smoke` | auto-SKIPs: bird vendors no `surface-smoke.sh`                                                                   | n/a                                       |
 | `all`           | every above                                                                                                      | all of the above                          |
 
 The `tap` and `finalize` gates accept only downstream runs created at or after this tag's `release.yml` run, and SKIP
 until that run exists: the tap repo is shared across every CLI, so a name-only match would return another release's runs
-while this one is still queued.
+while this one is still queued. The `tap` gate also SKIPs when no workflow under `.github/workflows/` calls the
+`rust-release.yml` reusable or sends `update-formula` itself; bird's `release.yml` calls the reusable.
 
 Flags:
 
@@ -59,14 +61,14 @@ Run immediately after the tag push triggers `release.yml`.
 
 - [ ] **`release.yml` green end-to-end.** `gh run watch <id> --exit-status` then verify with `gh run view <id> --json
   conclusion --jq .conclusion` because the watcher exit code alone is not authoritative (a completed watcher is not a
-  green watcher). Builds the five cross-compile targets, publishes to crates.io via OIDC Trusted Publishing, and
+  green watcher). Builds the seven cross-compile targets, publishes to crates.io via OIDC Trusted Publishing, and
   dispatches `update-formula` into the homebrew-tap. Run `scripts/release/postflight.sh release` for the automated
   check.
 - [ ] **Homebrew-tap dispatch landed.** `gh run list -R brettdavies/homebrew-tap --limit 5` should show a recent
-  `update-formula` (event=repository_dispatch) and a `Publish bottles` (event=workflow_run) both SUCCESS. The bottles
-  workflow auto-merges the formula bump PR and pushes a `bird: add <version> bottle.` commit to tap `main`. Run
-  `scripts/release/postflight.sh tap` for the automated check.
-- [ ] **`finalize-release.yml` callback ran.** After the bottles publish, the tap dispatches back to this repo and the
+  `update-formula` (event=repository_dispatch) and a `Publish formula` (event=workflow_run) both SUCCESS. The publish
+  workflow pushes the formula bump to tap `main` as one commit with no bottle, since bird's formula installs this
+  release's archives. Run `scripts/release/postflight.sh tap` for the automated check.
+- [ ] **`finalize-release.yml` callback ran.** After the formula lands, the tap dispatches back to this repo and the
   callback flips the GitHub Release `make_latest: true`. Check `gh run list -e repository_dispatch --limit 3`; expect a
   `finalize-release` SUCCESS. Run `scripts/release/postflight.sh finalize` for the automated check.
 - [ ] **GitHub Release marked latest.** `gh api repos/brettdavies/bird/releases/latest --jq .tag_name` returns `vX.Y.Z`,
@@ -77,22 +79,36 @@ Run immediately after the tag push triggers `release.yml`.
 - [ ] **`cargo install bird --version <new>`** on a clean environment resolves and runs. Drive on a fresh container or a
   sibling machine so the local `~/.cargo/bin` isn't polluted. Confirms the crates.io publish landed all package data and
   `cargo install` can reconstruct the binary from source.
-- [ ] **`brew update && brew install brettdavies/tap/bird`** on a fresh prefix resolves the new bottle and `bird
+- [ ] **`brew update && brew install brettdavies/tap/bird`** on a fresh prefix resolves the new version and `bird
   --version` reports the new tag. Drive on a throwaway prefix (`HOMEBREW_PREFIX=/tmp/brew-postflight-X brew ...`).
-  Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly and the published bottle SHA matches the
-  formula.
+  Confirms the homebrew-tap end of the cross-repo dispatch chain landed cleanly and the downloaded archive matches the
+  checksum the formula pins. There is no bottle to check: the tap verified each archive against this repo's attestation
+  before it pinned the checksum, and the archive check below repeats that from outside CI.
 - [ ] **`cargo binstall bird`** (without `--version`) resolves to the new tag and installs the matching prebuilt binary.
   Confirms the GitHub Release asset layout (binary + completions + licenses, `bird-<target>.tar.gz` naming per
   `[package.metadata.binstall]`) matches binstall's asset-resolution rules. Drive on a clean container.
+- [ ] **A release archive verifies against its attestation.** `release.yml` verifies every published file in its
+  `verify-attestations` job and withholds the Homebrew dispatch when one fails; this is the same check from outside CI.
+  Download one archive of the release and run the command below. The reusable workflow is the signer, so `--repo` alone
+  fails; the `--signer-workflow` flag names it. Expect `Verification succeeded`. A failure with a green `release.yml`
+  means the attestation jobs were skipped: check that `release.yml` still passes `attest: true` and grants
+  `attestations: write`.
+
+  ```bash
+  gh release download v<X.Y.Z> --repo brettdavies/bird --pattern 'bird-x86_64-unknown-linux-gnu.tar.gz'
+  gh attestation verify bird-x86_64-unknown-linux-gnu.tar.gz --repo brettdavies/bird \
+    --signer-workflow brettdavies/.github/.github/workflows/rust-release.yml
+  ```
+
 - [ ] **Last-good identifier recorded.** Before the release goes live, note the three identifiers a rollback needs
   somewhere reachable under incident pressure: the previous crate version on crates.io (`cargo search bird`), the
-  previous GitHub Release tag (`gh api repos/brettdavies/bird/releases/latest --jq .tag_name`), and the formula bump and
-  bottle commits on `brettdavies/homebrew-tap` `main` (`git log -2 --format=%H -- Formula/bird.rb`). Commands are in
+  previous GitHub Release tag (`gh api repos/brettdavies/bird/releases/latest --jq .tag_name`), and the formula bump
+  commit on `brettdavies/homebrew-tap` `main` (`git log -1 --format=%H -- Formula/bird.rb`). Commands are in
   [`RELEASES.md` § Rollback](./RELEASES.md#rollback).
 - [ ] **Rollback path confirmed.** If this release is bad, roll back at the surface first (`cargo yank`, re-point
   `releases/latest`, revert the formula bump), then land a `fix` or `revert` through the normal `dev` to `release/*` to
   `main` flow so `main` reconverges with what is live.
-- [ ] **Sync `dev` with the release** via a **merged PR to `dev` carrying the released tag in its title.**
+- [ ] **Sync `dev` with the release** via the PR `scripts/sync-dev-after-release.sh` opens, merged to `dev`.
   `scripts/sync-dev-after-release.sh v<X.Y.Z>` cuts the branch, writes the released version into `Cargo.toml`, refreshes
   the crate's `Cargo.lock` entry offline, copies `CHANGELOG.md` from `main`, adopts the release-prep edits it discovers
   since the previous tag, and opens the PR; merge it once CI is green. Contested paths (both branches moved them) are
@@ -101,9 +117,11 @@ Run immediately after the tag push triggers `release.yml`.
   [`RELEASES.md` § After publish](./RELEASES.md#after-publish-sync-dev-with-the-release)). Keeps the next release's
   PREFLIGHT `diff-B` step quiet so a real missed change stands out instead of hiding in expected divergence noise.
 
-  The gate (`scripts/release/postflight.sh backport`) is signal-agnostic about which files moved: it searches merged PRs
-  to `dev` by the tag (the search index tokenizes `v0.3.0` as one word, so a bare `0.3.0` misses it) and accepts either
-  spelling in the title. Its SKIP names the sync command to run.
+  The gate (`scripts/release/postflight.sh backport`) is signal-agnostic about which files moved: it looks for the
+  subject the script gives the backport, `chore(release): sync dev after <tag>` (its PR title and squash commit) or
+  `chore(release): backport <tag> artifacts to dev` (its commit), first on `dev`'s first-parent history, so a backport
+  committed without a PR counts, then among merged PRs to `dev`. A feature PR that only mentions the version does not
+  count. Its SKIP and FAIL name the sync command to run.
 
   ```bash
   scripts/sync-dev-after-release.sh v<X.Y.Z>

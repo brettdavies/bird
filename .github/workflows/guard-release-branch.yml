@@ -1,4 +1,8 @@
+# Canonical version: 2026.09.08 (generic)
+#
 # Source-repo caller wrapper for the reusable guard-release-branch workflow.
+# Copy to .github/workflows/guard-release-branch.yml in repos using the
+# forever-dev + release/* flow.
 #
 # Rejects PRs to main whose head branch doesn't start with `release/`.
 # Keeps `dev` off the list of PR heads, which is what makes

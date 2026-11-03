@@ -1,30 +1,37 @@
+# Canonical version: 2026.11.02 (rust)
+#
 # Builds every target the release matrix builds, without releasing anything.
+# Copy to .github/workflows/release-matrix-check.yml in the tool repo.
 #
-# The release build only runs on a `v*` tag push, so a dependency that breaks a
-# cross-compiled target would otherwise surface while cutting the release,
-# after the tag exists. reqwest's rustls backend builds aws-lc-sys, which
-# compiles C and needs a working cross toolchain per target, so a dependency or
-# toolchain change is what breaks a target.
+# A release compiles its binaries once, on the `v*` tag push. What breaks a
+# cross-compiled target is a change to the dependency graph or the toolchain
+# pin, so a pull request to `dev` that makes one pays this matrix, and the tag
+# builds a graph every such change already built.
 #
-# This runs the same seven targets when the dependency graph or toolchain pin
-# changes, and on every release branch, the last point before a tag exists.
+# Nothing here runs for a release. A release pull request targets `main`, and
+# its version bump would match the paths below; the backport of that bump to
+# `dev` matches them too and changes no dependency. `workflow_dispatch` runs
+# the matrix on any ref, a release branch included, when a release wants a
+# rehearsal.
+#
 # The matrix and its build steps live in the shared workflow this calls, beside
-# the release workflow whose matrix they mirror.
+# the release workflow whose matrix they mirror. Every row is hard-fail there,
+# and the release workflow runs with `linux_musl_required: true`, so its musl
+# rows are hard-fail too. A red musl row in this check means the release would
+# fail on the same row.
 name: Release matrix check
 
 on:
   workflow_dispatch:
+  # A workspace adds its members' manifests (`crates/*/Cargo.toml`).
   pull_request:
+    branches:
+      - dev
     paths:
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
       - .github/workflows/release-matrix-check.yml
-  # A release branch carries commits the path filter above may never have seen
-  # together, so it runs the full matrix regardless of what changed.
-  push:
-    branches:
-      - 'release/**'
 
 permissions:
   contents: read
@@ -35,4 +42,6 @@ concurrency:
 
 jobs:
   check:
+    # `scripts/sync-dev-after-release.sh` names the backport's branch.
+    if: ${{ !startsWith(github.head_ref, 'chore/sync-dev') }}
     uses: brettdavies/.github/.github/workflows/rust-release-matrix-check.yml@main

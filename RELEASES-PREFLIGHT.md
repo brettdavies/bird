@@ -1,3 +1,4 @@
+<!-- Canonical version: 2026.11.03 (generic) -->
 # Pre-release verification: `bird`
 
 Operational pre-flight checklist. Walk it before step 1 of
@@ -94,7 +95,9 @@ and a breaking PR merged in that gap appears in its `### Breaking changes` rathe
 PR the previous release left out of its notes on purpose either, so it comes back in this section; leave it out the same
 way.
 
-Every `!:` commit drives the major-version decision and gets a row in the release's `### Breaking changes` section.
+A `!:` commit is a cross-check hint only: the PRs' changelog sections set the bump
+([`RELEASES.md` § Versioning](./RELEASES.md#versioning)). A `!:` commit whose PR filed no `### Breaking changes` bullet
+is a question for its author, not a major on its own.
 
 ## Checklist
 
@@ -106,17 +109,32 @@ Security PRs, hotfixes, and config edits land on `main` first. The release branc
 `dev`'s changes, so anything `main` holds that `dev` never received is reverted by the release or collides with it, and
 Dependabot raises the same fix again.
 
-- [ ] The previous release's bookkeeping (`Cargo.toml` and `CHANGELOG.md`) reached `dev`; gate 0 fails when it never
-  did, and `scripts/sync-dev-after-release.sh v<version>` is the fix.
-- [ ] Every commit on `main` since the last release has its changes on `dev` (gate 1 lists the ones that do not, as
-  `differs` or `missing`). Backport them by PR into `dev` first, merge, and rerun.
-- [ ] Nothing under `.github/` on `main` is missing from `dev` (gate 2). `.github/` reaches `main` through the release,
-  so config that has reached `dev` and not `main` is what this release delivers, and the gate counts it. The gate fails
-  on the other direction, where `main` holds workflow or ruleset config `dev` never received, and names each path as
-  `missing` or `differs`.
-- [ ] No `Cargo.lock` package resolves newer on `main` than on `dev` (gate 3). The one benign case is a version still
-  inside the local package manager's release-age window when the advisory is already patched at `dev`'s version.
+<!-- canonical:begin drift-gate -->
+
+- [ ] The previous release's own bookkeeping reached `dev` (gate 0).
+
+  Gate 0 checks the version carriers and `CHANGELOG.md` as the release left them. It fails when a backport never ran;
+  run `scripts/sync-dev-after-release.sh v<previous>`, merge its PR, and rerun.
+
+- [ ] Every commit on `main` since the last release has its changes on `dev` (gate 1).
+
+  Gate 1 lists each commit that does not, as `differs` or `missing`. Backport them by PR into `dev` first, merge, and
+  rerun.
+
+- [ ] Nothing under `.github/` on `main` is missing from `dev` (gate 2).
+
+  `.github/` reaches `main` through the release, so config that has reached `dev` and not `main` is what this release
+  delivers, and the gate counts it. The gate fails on the other direction, where `main` holds workflow or ruleset
+  config `dev` never received, and names each path as `missing` or `differs`.
+
+- [ ] No lockfile package resolves newer on `main` than on `dev` (gate 3).
+
+  Gate 3 reads `package-lock.json`, `bun.lock`, and `Cargo.lock`. The one benign case is a version still inside the
+  local package manager's release-age window when the advisory is already patched at `dev`'s version.
+
 - [ ] `dev`-newer packages are the routine updates this release ships; the gate counts them and does not list them.
+
+<!-- canonical:end drift-gate -->
 
 ### Dependabot preflight
 
@@ -137,65 +155,67 @@ declined first.
 
 ### Command-surface contract
 
-bird's contract is the union of the typed shortcut commands (`me`, `bookmarks`, `search`, `thread`, `profile`,
-`watchlist`, `usage`, `cache`, write commands, `doctor`), the generic raw-HTTP commands (`get` / `post` / `put` /
-`delete`), the `completions` generator, and the embedded xurl-rs client surface that owns auth and HTTP.
+bird's contract is its command set (`me`, `bookmarks`, `profile`, `search`, `thread`, `watchlist`, `spend`, the write
+commands, `login`, `doctor`, `cache`, `completions`, `skill`, `schema`), the global flags and their `BIRD_*` variables,
+the exit codes, and the JSON documents `bird schema` prints. HTTP and auth belong to the embedded xdk-rs client.
 
-- [ ] `bird help` lists the same shortcut commands as the previous release plus any net additions or removals. Diff
-  `$LAST_TAG`'s `bird help` against `dev`'s and confirm every removed or renamed command has a `!:` commit and a
-  `### Breaking changes` bullet in the release changelog.
+- [ ] `bird --help` lists the same commands as the previous release plus any net additions or removals. Diff
+  `$LAST_TAG`'s `bird --help` against `dev`'s and confirm every removed or renamed command has a `### Breaking changes`
+  bullet starting "Remove" in the release changelog.
 - [ ] Per-command `--help` shape unchanged for stable commands. Spot-check `bird me --help`, `bird bookmarks --help`,
-  `bird search --help`, `bird raw --help`; flag changes (renames, defaults, types) are user-facing and must show up in
+  `bird search --help`, `bird spend --help`; flag changes (renames, defaults, types) are user-facing and must show up in
   the changelog.
 
-### Real-world smoke (live X API, via the embedded xurl-rs client)
+### Real-world smoke (live X API, via the embedded xdk-rs client)
 
 Driven by `scripts/release/preflight.sh smoke` once `gate_smoke` carries these checks; until then this section is the
 manual recipe.
 
-The in-repo tests mock the bird/xurl boundary. The following exercises only fire end-to-end against credentials
-configured in the embedded xurl-rs token store and the live X API. Pick fresh targets each release.
+The in-repo tests mock the bird/xdk-rs boundary. The following exercises only fire end-to-end against credentials in
+the token store (`~/.xurl/auth.yml`, or `XURL_TOKEN_STORE`) and the live X API. Every live read is billed per object
+returned, so run each once with a small `--limit`. Pick fresh targets each release.
 
 - [ ] `bird --version` returns the new `vX.Y.Z` value (post-bump).
-- [ ] `bird doctor` exits 0 on a healthy machine, 78 on bad config, and reports the linked xurl-rs crate version under
-  the `xdk` section. Spot-check `bird doctor <cmd>` for at least one shortcut command (e.g. `bird doctor me`) and
-  confirm it reports the correct accepted / credentialed schemes.
-- [ ] `bird me --pretty`, `bird me --output json`, `bird me -q` round-trip via the file store on a logged-in account.
-  The `--pretty` form shows ANSI color and hyperlinks on a TTY.
-- [ ] `bird bookmarks` paginates and streams (does not collect into memory before printing).
-- [ ] `bird search "rust" --sort likes --min-likes 100 --pages 2 --output json` returns sorted JSON.
-- [ ] `bird thread <tweet_id>` reconstructs a multi-page thread.
-- [ ] `bird profile <handle>` resolves via `schema::validate_username` (strips `@`, enforces charset).
-- [ ] `bird watchlist add @x`, `bird watchlist list`, `bird watchlist check`, `bird watchlist remove @x` round-trip via
-  the local config (`~/.config/bird/config.toml`).
-- [ ] `bird usage --local`, `bird usage --sync` exercise the usage subsystem; both respect `--pretty`.
-- [ ] `bird cache stats --pretty` shows store path, size, tweet/user/raw counts; `bird cache clear` drops counts to
-  zero.
-- [ ] Write commands round-trip via the embedded `execute_embedded_write` dispatcher: `bird tweet "..."`,
+- [ ] `bird doctor` exits 0 on a healthy machine and 78 on a bad `config.toml`, and `bird doctor --output json`
+  reports the linked xdk-rs version as `linked_xdk_version`. Spot-check `bird doctor <cmd>` for at least one command
+  (e.g. `bird doctor me`) and confirm it reports the correct accepted and credentialed schemes.
+- [ ] `bird me --pretty`, `bird me --output json`, `bird me -q` on a logged-in account; a second `bird me` the same UTC
+  day is answered from its response file. The `--pretty` form shows ANSI color and hyperlinks on a TTY.
+- [ ] `bird bookmarks --limit 10` paginates and streams (does not collect into memory before printing).
+- [ ] `bird search "rust" --sort likes --limit 10 --output json` returns sorted JSON.
+- [ ] `bird thread <post_id>` reconstructs a multi-page thread.
+- [ ] `bird profile <handle>` resolves through `schema::validate_username` (strips `@`, enforces charset).
+- [ ] `bird watchlist add @x`, `bird watchlist list`, `bird watchlist remove @x` round-trip through the local config
+  (`~/.config/bird/config.toml`); `bird watchlist fetch` reads each watched user's recent activity.
+- [ ] `bird spend` reads the local spend ledger with no request; `bird spend --sync` also fetches X's actual usage
+  (`GET /2/usage/tweets`) to set beside the estimates. Both respect `--pretty`.
+- [ ] `bird cache stats --pretty` reports the archive, the stored responses, and the ledger; `bird cache clear` deletes
+  the stored responses and leaves the archive and the ledger.
+- [ ] Write commands round-trip through the embedded `execute_embedded_write` path on a test account: `bird tweet "..."`,
   `bird reply <id> "..."`, `bird like <id>`, `bird unlike <id>`, `bird repost <id>`, `bird unrepost <id>`,
   `bird follow <user>`, `bird unfollow <user>`, `bird dm <user> "..."`, `bird block`, `bird unblock`, `bird mute`,
-  `bird unmute`. Each must reject `--cache-only` with a Command error (exit code 1).
-- [ ] Raw passthrough: `bird get /2/users/me -p id=123 -q expansions=author_id --pretty`, plus `bird post`, `bird put`,
-  `bird delete` against a safe endpoint (e.g. a test workspace). The `-H/--header` flag flows headers into
-  `RequestOptions.headers`.
+  `bird unmute`. `--dry-run` prints the request without sending it; without `--force` under `--no-interactive` each
+  exits 1 with `confirmation-required`; each rejects `--cache-only` with exit code 1.
 - [ ] Completions: `bird completions bash`, `zsh`, `fish`, `powershell`, `elvish` each produce a parseable script
   (`bash -n`, `zsh -n`, `fish --no-execute`).
-- [ ] Error paths: drive at least one auth failure (`XurlError::Auth`) and confirm bird exits 77 with the stderr error
-  envelope; one config failure (`XurlError::Validation`, bad TOML) and confirm exit 78; one rate-limit failure
-  (`XurlError::Api { status: 429 }`) and confirm exit 3; one command failure (e.g. `--cache-only` on a write command)
-  and confirm exit 1.
+- [ ] Error paths: drive one auth failure (no token for the account) and confirm exit 77 with the stderr error
+  envelope; one config failure (bad TOML in `config.toml`) and confirm exit 78 with `config-error`; one command failure
+  (`--cache-only` on a write command) and confirm exit 1. The rate-limit (3), not-found (4), and network (5) codes come
+  from xdk-rs's exit codes, which `src/error/mod.rs`'s tests cover; confirm one live only if it occurs during the
+  smoke.
 
 ### Embedded transport contract
 
-bird embeds xurl-rs as a library. The transport contract has a small set of observable behaviors that only verify on a
-real shell.
+bird embeds xdk-rs, the X API library published from the xurl-rs repository. The transport contract has a small set of
+observable behaviors that only verify on a real shell.
 
 - [ ] App credentials via env: with `CLIENT_ID` + `CLIENT_SECRET` set in the shell, `bird login` runs through the
   embedded OAuth2 flow.
 - [ ] App credentials via token store: with no `CLIENT_ID` in env but an app persisted via `xr auth apps add`, bird
   reads the same store and `bird login` succeeds.
-- [ ] Missing credentials: with no `CLIENT_ID` and no stored app, an API-hitting command exits with the
-  `ConstructionStub` "CLIENT_ID not set" message surfaced on stderr.
+- [ ] Missing credentials: with no `CLIENT_ID` and no stored app, `bird login` exits 2 with
+  `client-credentials-missing`, and `bird doctor` reports the same reason; both name the two ways to supply
+  credentials.
 - [ ] SIGPIPE: `bird bookmarks --output jsonl | head -1` exits cleanly (no broken-pipe panic). The Unix-only
   `libc::signal(SIGPIPE, SIG_DFL)` is `#[cfg(unix)]`-gated; the pre-push hook's libc-grep is the always-on backstop.
 
@@ -205,8 +225,8 @@ bird picks output format and color from a precedence chain (CLI flag > env var >
 specific behavioral fixture.
 
 - [ ] `bird me --pretty` shows ANSI color and hyperlinks on a TTY.
-- [ ] `bird me --plain` strips color and hyperlinks.
-- [ ] `bird me --no-color` or `NO_COLOR=1 bird me` strips color only (hyperlinks remain).
+- [ ] `bird me --raw` prints unstyled, compact output: pipe-safe text, and JSON on one line.
+- [ ] `bird me --pretty --color never` or `NO_COLOR=1 bird me --pretty` strips color.
 - [ ] `bird me 2>/tmp/err 1>/tmp/out` (stderr non-TTY) auto-selects JSON for the stderr error envelope.
 - [ ] `bird me --output json` and `BIRD_OUTPUT=json bird me` both force JSON on stderr errors.
 - [ ] `bird me -q` suppresses informational stderr diagnostics.
@@ -216,14 +236,15 @@ specific behavioral fixture.
 bird's response files are gated by three mutually-exclusive flags (`--refresh`, `--no-cache`, `--cache-only`). Write
 commands reject `--cache-only`.
 
-- [ ] `bird search "rust" --refresh` bypasses store, refreshes store.
-- [ ] `bird search "rust" --no-cache` neither reads nor writes the store.
-- [ ] `bird search "rust" --cache-only` serves from store only and never hits the X API. Write commands reject
-  `--cache-only` with exit code 1.
+- [ ] `bird search "rust" --limit 10 --refresh` bypasses store, refreshes store.
+- [ ] `bird search "rust" --limit 10 --no-cache` neither reads nor writes the store.
+- [ ] `bird search "rust" --limit 10 --cache-only` serves from store only and never hits the X API; with nothing
+  stored today it exits 1 with `cache-miss`. Write commands reject `--cache-only` with exit code 1.
 
 ### Token & file permissions
 
-bird does not store tokens itself (xurl-rs's token store does), but it owns the local config and cache files.
+bird does not store tokens itself (xdk-rs's token store does, the one `xr` shares), but it owns the local config and
+the file store.
 
 - [ ] `~/.config/bird/config.toml` is created at `0644` on first watchlist or preference write.
 - [ ] The archive, response files, and `spend.jsonl` are created at `0600` in `0700` directories, and a 0.2.0
@@ -233,27 +254,26 @@ bird does not store tokens itself (xurl-rs's token store does), but it owns the 
 
 ### Exit-code contract
 
-Six exit codes, stable across releases. The 3 / 4 / 5 codes are inherited verbatim from xurl-rs's `exit_code_for_error`
-via `XurlError`-to-`BirdError` translation; 77 / 78 are bird-side overrides.
+The codes in [`AGENTS.md` § Exit codes](./AGENTS.md#exit-codes), stable across releases. Every code xdk-rs classifies
+(1, 2 for an auth-scheme mismatch, 3, 4, 5, 77) is `xdk::Error::exit_code`; 78, 130, and 143 are bird's own.
 
 - [ ] `0` on success.
-- [ ] `77` on auth failures (`XurlError::Auth`, `XurlError::TokenStore`, `XurlError::Api { status: 401 }`,
-  `XurlError::AuthMethodMismatch`).
-- [ ] `78` on config failures (`XurlError::Validation`, invalid `config.toml`, broken `XDG_CONFIG_HOME`).
-- [ ] `3` on rate-limit (`XurlError::Api { status: 429 }` or `XurlError::Http("429 …")`).
-- [ ] `4` on not-found (`XurlError::Api { status: 404 }` or `XurlError::Http("404 …")`).
-- [ ] `5` on network errors (`XurlError::Io`).
-- [ ] `1` on everything else (other API errors, write-command-with-`--cache-only`, etc.).
-- [ ] Stderr JSON envelope on `--output json`:
-  `{"error":..., "kind":"config"|"auth"|"command", "exit_code":<N>, "command":..., "status":...}`. Verify shape on at
-  least one error from each kind.
+- [ ] `1` on a command error: an API status with no code of its own, a refused value, or a write without `--force`
+  under `--no-interactive`.
+- [ ] `2` on a usage error (`invalid-args`, `unknown-command`) or an auth-scheme mismatch.
+- [ ] `3` on a rate limit, `4` on not-found, `5` on a network or filesystem failure.
+- [ ] `77` on a missing or refused credential, or a token store that cannot be read.
+- [ ] `78` on bird's own config file or paths (`config-error`).
+- [ ] Stderr JSON envelope on `--output json`: `{"status": "error", "reason", "exit_code", "message"}`, plus
+  `next_step` when a recovery step exists. `bird schema envelope` prints its schema; check one error of each class
+  against it.
 
 ### Distribution and install paths
 
 The release builds cross-compiled binaries and the homebrew tap dispatches downstream. None of this runs in
 `cargo test`.
 
-- [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all five targets listed in
+- [ ] Last green run of `release.yml` (on this branch or a sibling) cross-compiled all seven targets listed in
   `RELEASES.md` § Tagging and publishing. If the workflow has changed since, dry-run with
   `cargo build --release --target <target>` for each.
 - [ ] In a clean container or fresh machine: download a **prior** release archive (`bird-<target>.tar.gz` or `.zip` for
@@ -279,6 +299,25 @@ These items duplicate steps in `RELEASES.md` deliberately: easy to skip, expensi
   or revert it before tagging.
 - [ ] No unmerged dependency advisories from `cargo deny check advisories`. The full local pre-push check
   (`scripts/hooks/pre-push`) mirrors CI; run it explicitly before pushing the release branch.
+- [ ] The `Release matrix check` run of the newest pull request merged to `dev` that ran the check is green.
+  `gh run list --workflow release-matrix-check.yml --event pull_request --limit 10 --json headBranch,conclusion,createdAt`
+  lists each run with its branch; read the newest whose branch `gh pr list --base dev --state merged --limit 20` shows
+  merged. A run on a branch that has not merged says nothing about the tree `dev` will tag. The tag's build is the
+  release's one build of the cross-compiled targets, and nothing builds them for the release branch. No ruleset requires
+  the check, because it is path-filtered and a required context that never reports leaves a PR pending, so a dependency
+  or toolchain PR can merge with it red. `gh workflow run release-matrix-check.yml --ref release/v<version>` rehearses
+  the matrix on the release branch when the release wants one.
+- [ ] The tap's `main` installs bird from the release archives, and the release attests them. The first command prints
+  `4`, one `url` line per archive the formula names (the line `scripts/formula-form.sh` reads as `prebuilt`); the second
+  lists `attest: true` and `linux_musl_required: true`. With a source-built formula on the tap's `main`, the tap bumps
+  the wrong form; without attestations, it stops the bump at the first archive and the release is never finalized.
+
+  ```bash
+  gh api repos/brettdavies/homebrew-tap/contents/Formula/bird.rb -H 'Accept: application/vnd.github.raw' \
+    | grep -cE '^ *url "https://github\.com/[^/]+/[^/]+/releases/download/'
+  git show HEAD:.github/workflows/release.yml | grep -E 'attest: true|linux_musl_required: true'
+  ```
+
 - [ ] `scripts/release/cut-release-branch.sh` exited 0, so its check A held: the staged tree equals `origin/dev`'s apart
   from the version carriers and the guarded paths. A cherry-pick release runs the triple diff in `RELEASES.md` §
   Exception: cherry-pick instead, with `HEAD..origin/dev` filtered by the guarded set (not all of `docs/`, since

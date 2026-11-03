@@ -1,34 +1,51 @@
 #!/usr/bin/env bash
-# Fail a pull request whose `bird` surface grows while its `## Changelog`
-# block names no minor-or-higher section.
+# Canonical version: 2026.11.03 (rust)
 #
-# Each PR's changelog sections decide the release's version bump, and an
-# addition to the contract is a minor. An addition filed under `### Changed`
+# Fail a pull request whose CLI surface grows while its changelog block names
+# no minor-or-higher section, or shrinks while it names neither
+# `### Breaking changes` nor `### Fixed`.
+#
+# Each PR's changelog sections decide the release's version bump
+# (github-repo-setup's references/versioning.md), and an addition to the
+# contract is a minor. An addition filed under `### Changed`
 # reads as a patch and nothing in review makes it stand out, so this compares
 # the surface two trees describe:
 #
 #   - every command, subcommand, flag, and enumerated flag value, read from
-#     completions/bird.bash, which the `Completions freshness` job holds equal
-#     to the clap definition;
-#   - every leaf of every schema under schema/ except `description` and
-#     `title`, so a new envelope key, `reason`, `action`, or response field
-#     counts and reworded prose does not.
+#     completions/<BIN>.bash, which the repo's completions freshness check
+#     holds equal to the clap definition;
+#   - every leaf of every JSON schema under SCHEMA_DIR except `description`
+#     and `title`, so a new envelope key, `reason`, `action`, or response field
+#     counts and reworded prose does not. A repo without the directory
+#     compares the CLI alone.
 #
 # Growth passes when the block has a bullet under `### Added`, `### Deprecated`,
-# or `### Breaking changes`. A removal only warns: a change back to the
-# documented contract can ship as a patch, and the release preflight diffs
-# every removal against the last tag. Env vars, exit codes, and the store
-# format have no generated artifact and are not compared.
+# or `### Breaking changes`. A removal passes with a bullet under
+# `### Breaking changes`, a contract removal and a major, or `### Fixed`, a
+# change back to the documented contract and a patch. Env vars, exit codes, and
+# the store format have no generated artifact and are not compared.
 #
 # Usage:
 #   check-surface-bump.sh surface <tree>
 #   check-surface-bump.sh check <base-tree> <head-tree> <pr-body-file>
 #
-# Exit codes: 0 = pass, 1 = the surface grew and the block lacks the section,
-# 2 = a usage error or a tree the parser cannot read.
+# Skeleton: set the CUSTOMIZE values below for this repository. The changelog
+# block is the one generate-changelog.py reads: `## Changelog`, or the heading
+# MANIFEST's [package.metadata.changelog] table names.
+#
+# Exit codes: 0 = pass, 1 = the surface grew or shrank and the block lacks the
+# section that change needs, 2 = a usage error or a tree the parser cannot
+# read. Each failure lists the entries and ends on a `fix:` line.
 set -euo pipefail
 
+# CUSTOMIZE: the binary whose completions/<BIN>.bash describes the CLI, the
+# manifest that names the PR body's changelog heading, and the schema directory.
+readonly BIN="${SURFACE_BIN:-bird}"
+readonly MANIFEST="${SURFACE_MANIFEST:-Cargo.toml}"
+readonly SCHEMA_DIR="${SURFACE_SCHEMA_DIR:-schema}"
+
 readonly MINOR_OR_HIGHER='Added|Deprecated|Breaking changes'
+readonly REMOVAL_SECTIONS='Breaking changes|Fixed'
 readonly LISTED=20
 
 die() {
@@ -47,9 +64,8 @@ annotate() {
 
 # surface <tree> — one line per contract element, unsorted.
 surface() {
-  local tree="$1" completions="$1/completions/bird.bash" cli file
-  [ -f "$completions" ] || die "no completions/bird.bash under $tree"
-  [ -d "$tree/schema" ] || die "no schema/ under $tree"
+  local tree="$1" completions="$1/completions/$BIN.bash" cli file
+  [ -f "$completions" ] || die "no completions/$BIN.bash under $tree; set BIN in this script"
 
   # clap_complete writes one `case "${cmd}"` arm per command path, labelled
   # with the words joined by `__subcmd__`; each arm lists its words in
@@ -86,17 +102,17 @@ surface() {
             | select($p[-1] != "description" and $p[-1] != "title")
             | "schema\t\($file)\t\($p | map(if type == "number" then "[]" else . end) | join("."))=\(getpath($p) | tojson)"
         ' "$tree/$file" || die "cannot read $tree/$file as JSON"
-  done < <(cd "$tree" && find schema -type f -name '*.json' | LC_ALL=C sort)
+  done < <([ -d "$tree/$SCHEMA_DIR" ] && cd "$tree" && find "$SCHEMA_DIR" -type f -name '*.json' | LC_ALL=C sort)
 }
 
-# filled_sections <head-tree> <body-file> — each `###` heading in the bird
+# filled_sections <head-tree> <body-file> — each `###` heading in the
 # changelog block that holds at least one bullet. The block is read by the
 # release's own parser, `extract_changelog_sections` in generate-changelog.py,
 # under `## Changelog` or the heading a `[package.metadata.changelog]` table in
 # Cargo.toml names, so this check and the release notes cannot disagree about
 # which sections a PR filled.
 filled_sections() {
-  python3 -B - "$1" "$2" <<'PY'
+  python3 -B - "$1" "$2" "$MANIFEST" <<'PY'
 import importlib.util
 import re
 import sys
@@ -130,7 +146,7 @@ def table_value(manifest: str, table: str, key: str) -> str | None:
     return value.group(1) if value else None
 
 
-manifest = (tree / "Cargo.toml").read_text(encoding="utf-8")
+manifest = (tree / sys.argv[3]).read_text(encoding="utf-8")
 label = table_value(manifest, "package.metadata.changelog", "heading") or "Changelog"
 sections = generator.extract_changelog_sections(
     body.read_text(encoding="utf-8"), rf"^## {re.escape(label)}\s*$"
@@ -152,34 +168,42 @@ list() {
 }
 
 check() {
-  local base="$1" head="$2" body="$3" base_surface head_surface added removed
+  local base="$1" head="$2" body="$3" base_surface head_surface added removed sections rc=0
   [ -f "$body" ] || die "no PR body at $body"
   base_surface=$(surface "$base" | LC_ALL=C sort -u)
   head_surface=$(surface "$head" | LC_ALL=C sort -u)
   added=$(LC_ALL=C comm -13 <(printf '%s\n' "$base_surface") <(printf '%s\n' "$head_surface"))
   removed=$(LC_ALL=C comm -23 <(printf '%s\n' "$base_surface") <(printf '%s\n' "$head_surface"))
 
-  if [ -n "$removed" ]; then
-    annotate warning "the bird surface lost entries; a removal or rename belongs under ### Breaking changes unless it restores the documented contract"
-    list "$removed"
-  fi
-
-  if [ -z "$added" ]; then
-    echo "check-surface-bump: the bird surface did not grow"
+  if [ -z "$added$removed" ]; then
+    echo "check-surface-bump: the $BIN surface did not grow or shrink"
     return 0
   fi
-
-  local sections
   sections=$(filled_sections "$head" "$body") \
     || die "could not read the changelog block with $head/scripts/generate-changelog.py"
-  if grep -qxE "$MINOR_OR_HIGHER" <<<"$sections"; then
-    echo "check-surface-bump: the bird surface grew and the changelog block names a minor-or-higher section"
-    return 0
+
+  if [ -n "$removed" ]; then
+    if grep -qxE "$REMOVAL_SECTIONS" <<<"$sections"; then
+      echo "check-surface-bump: the $BIN surface lost entries and the changelog block names ### Breaking changes or ### Fixed"
+    else
+      annotate error "the $BIN surface lost entries, and the changelog block has no bullet under ### Breaking changes or ### Fixed"
+      list "$removed"
+      echo "fix: file the removal under ### Breaking changes, a bullet starting \"Remove\" (a major), or under ### Fixed when it restores the documented contract (a patch)" >&2
+      rc=1
+    fi
   fi
 
-  annotate error "the bird surface grew, so the changelog block needs a bullet under ### Added (or ### Deprecated or ### Breaking changes); an addition is a minor"
-  list "$added"
-  return 1
+  if [ -n "$added" ]; then
+    if grep -qxE "$MINOR_OR_HIGHER" <<<"$sections"; then
+      echo "check-surface-bump: the $BIN surface grew and the changelog block names a minor-or-higher section"
+    else
+      annotate error "the $BIN surface grew, so the changelog block needs a bullet under ### Added (or ### Deprecated or ### Breaking changes); an addition is a minor"
+      list "$added"
+      echo "fix: file the addition under ### Added, ### Deprecated, or ### Breaking changes" >&2
+      rc=1
+    fi
+  fi
+  return "$rc"
 }
 
 command -v jq >/dev/null || die "jq is not installed"

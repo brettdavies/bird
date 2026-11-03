@@ -12,7 +12,7 @@ bird (CLI + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
 
 ## Building from source
 
-**Requirements:** Rust 1.94+ and a C compiler (`aws-lc-sys`, under reqwest's rustls backend, compiles C). xdk-rs is
+**Requirements:** Rust 1.96.0+ and a C compiler (`aws-lc-sys`, under reqwest's rustls backend, compiles C). xdk-rs is
 pulled in as a Cargo dep; the bird binary ships standalone.
 
 ```bash
@@ -83,8 +83,9 @@ After cloning, activate local hooks:
 git config core.hooksPath scripts/hooks
 ```
 
-**`pre-commit`** checks the staged files: rustfmt, shellcheck, shfmt, actionlint, concurrency-group namespacing, and the
-core-env guard.
+**`pre-commit`** checks the staged files: `cargo fmt --check` when a `.rs` file is staged, shellcheck, shfmt,
+actionlint, concurrency-group namespacing, markdownlint on staged docs other than `CHANGELOG.md`, and the core-env
+guard.
 
 **`pre-push`** mirrors CI: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`, `cargo test`, MSRV
 verification, rustdoc-as-warnings, `cargo deny check`, the output-discipline check (`scripts/lint-stdio.sh`), and the

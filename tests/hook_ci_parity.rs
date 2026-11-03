@@ -179,19 +179,29 @@ fn every_reusable_ci_calls_has_a_hook_step() {
 }
 
 /// CI's `Change scope` job and the hook's push-range scoping skip the Rust
-/// battery on the same verdict only when both run the same classifier.
+/// battery on the same verdict only when both run the same classifier. The
+/// hook scopes through `needs_cargo`, which the hook library defines.
 #[test]
 fn change_scope_and_hook_share_one_classifier() {
     let ci = read(".github/workflows/ci.yml");
     let hook = read("scripts/hooks/pre-push");
+    let lib = read("scripts/hooks/_lib.sh");
     if ci
         .lines()
         .map(str::trim)
         .any(|line| line.starts_with(CHANGE_SCOPE))
     {
         assert!(
-            hook.contains(&format!("bash {CARGO_INPUTS}")),
-            "pre-push does not scope its Rust battery with {CARGO_INPUTS}"
+            hook.contains("needs_cargo \"$changed\""),
+            "pre-push does not scope its Rust battery with needs_cargo"
+        );
+        let needs_cargo = lib
+            .split_once("\nneeds_cargo() {")
+            .map(|(_, body)| body.split("\n}\n").next().unwrap_or_default())
+            .unwrap_or_else(|| panic!("scripts/hooks/_lib.sh defines no needs_cargo"));
+        assert!(
+            needs_cargo.contains(&format!("bash {CARGO_INPUTS}")),
+            "needs_cargo does not run {CARGO_INPUTS}"
         );
     }
 }

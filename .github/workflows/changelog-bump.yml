@@ -1,6 +1,9 @@
-# Fails a pull request whose bird surface grows while its `## Changelog` block
-# names no minor-or-higher section; scripts/check-surface-bump.sh names what it
-# compares and what it leaves to review.
+# Canonical version: 2026.11.01 (rust)
+#
+# Fails a pull request whose CLI surface grows while its changelog block names
+# no minor-or-higher section; scripts/check-surface-bump.sh names what it
+# compares and what it leaves to review. Copy to
+# .github/workflows/changelog-bump.yml beside that script.
 #
 # `edited` is a trigger because the verdict depends on the PR body: fixing the
 # section re-runs the check without a push. PRs to main are release PRs, whose

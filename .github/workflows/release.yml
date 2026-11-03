@@ -1,14 +1,27 @@
+# Canonical version: 2026.11.03 (rust)
+#
 # Source repo release wrapper — calls the centralized reusable workflow.
+# Copy to .github/workflows/release.yml in the tool repo.
+#
+# Template parameters:
+#   <CRATE> -- crate name
+#   <BIN>   -- binary name
 #
 # Pipeline: check-version -> build (7 targets) -> attest (build provenance, and a
-# CycloneDX SBOM of the binary) -> crates.io -> release (non-draft) -> verify the
-# published files against their attestations -> homebrew dispatch ->
-# finalize-release marks the release final.
+# CycloneDX SBOM of the binary) -> crates.io -> release (visible, not latest) ->
+# verify the published files against their attestations -> homebrew-tap tests the
+# formula bump and lands it -> finalize-release marks the release latest.
+#
+# The `build` job is the only place a release compiles its binaries. With a
+# prebuilt formula (homebrew-tap-publish's formula-prebuilt.rb), the tap
+# installs the published archives and builds no bottle; a source-built formula
+# is built and bottled in the tap's own CI instead.
 name: Release
 
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
@@ -22,12 +35,16 @@ jobs:
     with:
       crate: bird
       bin: bird
-      # Both musl rows build clean (verified by release-matrix-check), so a
-      # musl failure blocks the release instead of silently omitting two
-      # artifacts from it.
+      # A musl failure blocks the release instead of silently omitting two
+      # archives from it. release-matrix-check.yml builds both rows before a
+      # tag exists.
       linux_musl_required: true
-      # The tap verifies each prebuilt archive against its attestation before
-      # it pins the archive's checksum in the formula.
+      # Exec the x86_64-musl binary inside alpine:latest after the build, to
+      # catch dlopen/NSS/locale surprises a static-link assertion passes.
+      linux_musl_verify_alpine: true
+      # A Homebrew formula that installs release archives needs this: the tap
+      # verifies each archive against its attestation before it pins the
+      # checksum, so a release without attestations never reaches Homebrew.
       attest: true
     secrets:
       CI_RELEASE_TOKEN: ${{ secrets.CI_RELEASE_TOKEN }}

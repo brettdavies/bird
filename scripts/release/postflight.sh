@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.03 (generic)
+#
 # Verify the vX.Y.Z tag's downstream pipeline landed cleanly. Also reusable
 # for verifying a deployed env (staging or prod) when the project ships
 # multi-env deploys; --env staging|prod selects the target.
@@ -22,7 +24,8 @@
 #
 # Subcommands:
 #   release        release.yml (release-lib.yml on a library tag) on the tag push (conclusion=success)
-#   tap            homebrew-tap update-formula + Publish formula SUCCESS (SKIPs on a library tag)
+#   tap            homebrew-tap update-formula + Publish formula SUCCESS (SKIPs on a library tag, and in a
+#                  repo whose workflows dispatch nothing to the tap)
 #   finalize       finalize-release.yml callback ran (cross-repo dispatch loop closed; SKIPs on a library tag)
 #   make-latest    GitHub Release is non-draft, non-prerelease, and releases/latest matches.
 #                  On a library tag the check inverts: latest must NOT be it (make_latest: false)
@@ -36,7 +39,8 @@
 #   --env staging|prod      Target environment (default: prod). Single-env repos can ignore this.
 #   --repo OWNER/REPO       Override the auto-detected nameWithOwner
 #   --tap-repo OWNER/REPO   Override the homebrew-tap repo (default: brettdavies/homebrew-tap)
-#   --tag vX.Y.Z            Override the tag (default: derived from Cargo.toml; falls back to latest git tag).
+#   --tag vX.Y.Z            Override the tag (default: derived from Cargo.toml; falls back to latest git tag,
+#                           which a site, with SITE_VERSION_BASE set, always uses: its stamp tag is its version).
 #                           Pass it explicitly for a library release: <crate>-vX.Y.Z
 #   --crate NAME            Override the crate name for the `crates` gate. Default: the root Cargo.toml
 #                           [package].name, or the sole workspace default member when the root is virtual
@@ -75,9 +79,11 @@ STAGING_URL=""
 PROD_URL=""
 SUBCMD=""
 
+# usage [CODE]: prints the header and exits CODE, 2 (a usage error) by default;
+# --help passes 0.
 usage() {
   print_usage_header
-  exit 2
+  exit "${1:-2}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -110,7 +116,7 @@ while [[ $# -gt 0 ]]; do
       PROD_URL="$2"
       shift 2
       ;;
-    -h | --help) usage ;;
+    -h | --help) usage 0 ;;
     release | tap | finalize | make-latest | crates | tags | backport | surface-smoke | all)
       SUBCMD="$1"
       shift
@@ -154,9 +160,12 @@ resolve_tag() {
     return
   fi
   # The project version, in the same order the preflight mechanics gate
-  # detects it: Cargo.toml, package.json, pyproject.toml, VERSION.
+  # detects it: Cargo.toml, package.json, pyproject.toml, VERSION. A site's
+  # version is its newest stamp tag, so it reads none of them.
   local version=""
-  if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
+  if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
+    :
+  elif [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
     # Through the shared reader, so a workspace whose root is a virtual manifest
     # reads the version from RELEASE_MANIFEST. Falling through to the newest tag
     # instead picks a library tag whenever the library's name sorts after `v`.
@@ -322,10 +331,27 @@ gate_release() {
 
 # Gate: homebrew-tap ---------------------------------------------------------
 
+# True when a workflow in this checkout dispatches to the tap: one that calls
+# the rust-release.yml reusable, whose homebrew job always sends the dispatch,
+# or one that sends `event_type=update-formula` itself (the homebrew-tap-publish
+# snippet). The tap's runs carry no sign of which repo dispatched them, so in a
+# repo that sends nothing another CLI's formula bump would read as this
+# release's.
+dispatches_to_tap() {
+  local wf_dir="$REPO_ROOT/.github/workflows"
+  [[ -d "$wf_dir" ]] || return 1
+  grep -Eq -- '/rust-release\.yml@|event_type=update-formula' \
+    "$wf_dir"/*.yml "$wf_dir"/*.yaml 2>/dev/null
+}
+
 gate_tap() {
   header "homebrew-tap dispatch + formula publish"
   if [[ "$(release_line)" == "library" ]]; then
     gate_skip "tap chain" "library release ($(resolve_tag)): rust-lib-release.yml dispatches no Homebrew update"
+    return
+  fi
+  if ! dispatches_to_tap; then
+    gate_skip "tap chain" "no workflow in .github/workflows calls rust-release.yml or sends update-formula to $TAP_REPO"
     return
   fi
   require_bin gh
@@ -473,11 +499,18 @@ gate_make_latest() {
     return
   fi
 
-  # /releases/latest must resolve to this tag (set by finalize-release flipping make_latest)
+  # /releases/latest must resolve to this tag. A repo with a finalize step
+  # publishes the release as not-latest and finalize-release.yml flips it once
+  # the Homebrew chain lands; a single-channel repo publishes it as latest.
+  local flipped_by="published as latest" pending="the release may still be publishing"
+  if [[ -f "$REPO_ROOT/.github/workflows/finalize-release.yml" ]]; then
+    flipped_by="finalize-release flipped make_latest=true"
+    pending="homebrew dispatch chain may still be running"
+  fi
   if [[ "$latest" == "$tag" ]]; then
-    gate_pass "releases/latest = $tag (finalize-release flipped make_latest=true)"
+    gate_pass "releases/latest = $tag ($flipped_by)"
   elif [[ -n "$latest" ]]; then
-    gate_skip "releases/latest" "currently $latest, expected $tag (homebrew dispatch chain may still be running)"
+    gate_skip "releases/latest" "currently $latest, expected $tag ($pending)"
   else
     gate_skip "releases/latest" "no latest release found"
   fi
@@ -501,27 +534,40 @@ gate_backport() {
   tag=$(resolve_tag)
   version="${tag#v}"
 
-  # Look for a merged PR to dev with the version in the title. The backport
-  # carries more than CHANGELOG.md (cliff.toml, README polish, RELEASES.md
-  # meta-edits, etc.: anything the release-branch flow touched on main that
-  # didn't round-trip to dev), so checking a single file's content can lie
-  # both ways. The merged PR is the durable signal that the backport
-  # operation ran, regardless of which files it included.
-  # `gh pr list --search` is GitHub Search API syntax; "<text> in:title" silently
-  # returns an empty result. Pass the tag for server-side filtering (the search
-  # index tokenizes `v3.0.0` as one word, so a bare `3.0.0` misses it), then
-  # jaq-filter the title for precision (`v?` accepts either spelling) and sort
-  # by mergedAt descending so
-  # the BACKPORT PR beats the FEATURE PR when both carry the version in their
-  # titles (e.g., a "feat(api)!: vX.Y.Z ..." PR would otherwise be returned by
-  # `--jq '.[0]'` without sort and falsely pass the gate).
+  # The backport is recognized by the subject sync-dev-after-release.sh gives
+  # it: `chore(release): sync dev after <tag>` on its PR (and the squash
+  # commit), `chore(release): backport <tag> artifacts to dev` on its commit.
+  # A version string anywhere else in a title proves nothing: a feature PR
+  # that mentions the version would pass. The backport carries more than
+  # CHANGELOG.md (anything the release branch touched on main), so the
+  # subject, not one file's content, is the signal. Dev's first-parent
+  # history answers whether or not the backport came through a PR; the PR
+  # query covers a checkout whose origin/dev is not fetched.
+  local tag_re subject_re hit
+  # shellcheck disable=SC2016  # a sed bracket expression; `$` is a literal to escape
+  tag_re=$(printf '%s' "$tag" | sed 's/[][\\.*^$()+?{}|]/\\&/g')
+  subject_re="^chore\\(release\\): (sync dev after ${tag_re}([[:space:]]|\$)|backport ${tag_re} artifacts to dev)"
+  hit=""
+  if git -C "$REPO_ROOT" rev-parse --verify --quiet origin/dev >/dev/null; then
+    hit=$(git -C "$REPO_ROOT" log --first-parent --format='%s%x09%h' origin/dev \
+      | grep -E -m 1 -- "$subject_re" || true)
+  fi
+  if [[ -n "$hit" ]]; then
+    gate_pass "backport of $tag on dev: ${hit%$'\t'*} (${hit##*$'\t'})"
+    return
+  fi
+
+  # `gh pr list --search` is GitHub Search API syntax; the tag narrows the
+  # list server-side (the index tokenizes `v3.0.0` as one word) and the
+  # subject pattern picks the backport out of it.
   local pr=""
   pr=$(gh pr list --repo "$repo" --base dev --state merged --limit 20 \
     --search "$tag" \
-    --json number,title,mergedAt,headRefName \
-    --jq "[.[] | select(.title | test(\"v?$version\"))] | sort_by(.mergedAt) | reverse | .[0]" \
-    2>/dev/null || true)
-  [[ "$pr" == "null" ]] && pr=""
+    --json number,title,mergedAt,headRefName 2>/dev/null || true)
+  # shellcheck disable=SC2016  # a jaq program; `$re` is a jaq variable
+  pr=$(jaq -c --arg re "$subject_re" \
+    '[.[] | select(.title | test($re))] | sort_by(.mergedAt) | reverse | .[0] // empty' \
+    <<<"${pr:-[]}" 2>/dev/null || true)
 
   if [[ -n "$pr" ]]; then
     local pr_num pr_title pr_head
@@ -557,7 +603,7 @@ gate_backport() {
   fi
 
   gate_skip "main → dev backport" \
-    "no PR carrying $tag merged to dev; run scripts/sync-dev-after-release.sh $tag (RELEASES-POSTFLIGHT.md § backport)"
+    "no backport of $tag on dev; run scripts/sync-dev-after-release.sh $tag (RELEASES-POSTFLIGHT.md § backport)"
 }
 
 # The workspace member that releases on TAG's line, matched on the tag_prefix

@@ -2,6 +2,7 @@
 # from the distribution manifest (the "lockfile" for a toolchain release).
 # Trailing comment documents the commit SHA for audit.
 # Bump via reviewed PR only after a new stable has aged ≥7 days.
+# Cargo.toml's rust-version equals this channel; raise both in the same PR.
 [toolchain]
 channel = "1.96.0" # rustc ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96, released 2026-05-28
 components = ["rustfmt", "clippy"]

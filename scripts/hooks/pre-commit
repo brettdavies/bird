@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.03 (generic)
+#
 # Pre-commit hook: fast, staged-file-scoped checks that catch the cheap
 # mistakes before they reach a commit. The whole-repo CI mirror lives in the
 # pre-push hook (scripts/hooks/pre-push); keep this hook fast enough that it
@@ -34,32 +36,46 @@ if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); 
   exit 1
 fi
 
+# A linked worktree can find core.hooksPath set to the main checkout's
+# absolute path (worktree tooling writes it), and git then runs the main
+# checkout's copy of this hook with the worktree as its working directory.
+# Hand off to the copy that worktree has checked out, so a push or commit is
+# gated by the hook its own branch carries.
+hook_self_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+hook_worktree_root=$(pwd -P)
+hook_own_copy="$hook_worktree_root/scripts/hooks/$(basename "${BASH_SOURCE[0]}")"
+if [[ "$hook_worktree_root" != "$hook_self_root" && -x "$hook_own_copy" ]]; then
+  exec "$hook_own_copy" "$@"
+fi
+
 set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root" || exit 1
-# shellcheck source=scripts/hooks/_lib.sh
+# A CI action that checks one file at a time without -x reports SC1091 here.
+# shellcheck source=scripts/hooks/_lib.sh disable=SC1091
 . ./scripts/hooks/_lib.sh || exit 1
 
 fail=0
 
 # Git's repository variables stay set in this hook: during `commit -a` and
 # `commit <paths>`, GIT_INDEX_FILE names the temporary index the commit is built
-# from, and `staged` has to read it. None of the checks below runs git. A check
-# whose tool does (a test suite that builds scratch repositories, cargo
-# resolving a git dependency) runs through without_git_repo_env, so the tool's
-# git calls find its own repository rather than this one:
+# from, and `staged` has to read it. So does check_markdown, whose `git show
+# :<path>` and `git ls-files` read the staged blobs and the tracked lint
+# configs from that index; no other check below runs git. A check whose tool
+# does (a test suite that builds scratch repositories, cargo resolving a git
+# dependency) runs through without_git_repo_env, so the tool's git calls find
+# its own repository rather than this one:
 #
 #   step "test" "bun test" without_git_repo_env bun test || fail=1
 
-# Every check here is a file-scoped linter over a disjoint set of paths: none
-# writes, none takes a build lock, so they all run together and the slowest one
-# sets the wall-clock. step_wait replays them in the order queued below.
-#
-# rustfmt runs per file rather than through `cargo fmt`, so it takes no build
-# lock either and belongs in the queue with the rest.
+# Every check here reads files and none writes, so they all run together and
+# the slowest one sets the wall-clock. step_wait replays them in the order
+# queued below. `cargo fmt` compiles nothing, so it takes no build lock and
+# belongs in the queue with the rest.
 
-# Rust: format-check the staged .rs files.
+# Rust: format check when a .rs file is staged, each crate under its own
+# edition.
 mapfile -t rs < <(staged '*.rs')
 step_bg "rustfmt" "cargo fmt" check_rustfmt "${rs[@]}"
 
@@ -72,14 +88,13 @@ step_bg "shfmt" "shfmt -i 2 -ci -bn -d" check_shfmt "${sh[@]}"
 mapfile -t tests < <(staged '*.bats' '*.bash' '*tests/*.sh' '*test/*.sh')
 step_bg "core-env guard" "scripts/hooks/core-env-guard.sh" check_core_env "${tests[@]}"
 
-# Workflows: lint the staged workflow files, and check group namespacing when
-# one is staged.
+# Workflows: lint the staged workflow files.
 mapfile -t wf < <(staged '.github/workflows/*.yml' '.github/workflows/*.yaml')
 step_bg "actionlint" "actionlint" check_actionlint "${wf[@]}"
 step_bg "concurrency namespacing" "scripts/check-workflow-concurrency.sh" check_workflow_concurrency "${wf[@]}"
 
-# Markdown: lint the staged docs. check_markdown refuses to run when the repo's
-# markdownlint config sets `fix: true`, which would rewrite files mid-commit.
+# Markdown: lint the staged docs. check_markdown lints their staged blobs in a
+# scratch tree, so a config's `fix: true` cannot rewrite the checkout.
 #
 # CHANGELOG.md is excluded because generate-changelog.py writes it with one
 # logical line per bullet, so MD013 reports hundreds of characters no author
@@ -91,7 +106,7 @@ step_bg "markdownlint" "markdownlint-cli2" check_markdown "${md[@]}"
 step_wait || fail=1
 
 [ "$fail" -eq 0 ] || {
-  echo "pre-commit checks failed; rerun the command each failure names." >&2
+  echo "pre-commit checks failed: rerun the command each failing line names (checks: scripts/hooks/pre-commit)." >&2
   exit 1
 }
 

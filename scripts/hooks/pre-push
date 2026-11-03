@@ -1,36 +1,47 @@
 #!/usr/bin/env bash
+# Canonical version: 2026.11.03 (generic)
+#
 # Local CI mirror: the whole-repo pre-push gate. Runs the same checks as the
 # GitHub Actions CI pipeline, so a push that survives the hook passes CI and a
-# push that fails the hook would have failed CI anyway, just slower. CI runs on
-# pull_request only, so this is the compensating control for every push, and
-# the only remote-equivalent check for code that never opens a PR. Its fast,
-# staged-file-scoped companion is scripts/hooks/pre-commit.
+# push that fails the hook would have failed CI anyway, just slower. This is
+# the compensating control for CI trigger topology thinned to one run per
+# change (pull_request-only): it reproduces CI's verdict before the network
+# round-trip, and it is the only remote-equivalent check for any code that
+# never opens a PR. Its fast, staged-file-scoped companion is
+# scripts/hooks/pre-commit.
 #
 # Every shared check comes from scripts/hooks/_lib.sh, which both hooks source.
 # The two hooks differ in scope, not in what a check means: pre-push passes the
-# tracked set, pre-commit passes the staged set. The output-discipline and
-# Windows steps stay inline because pre-commit has no use for them and each
-# carries a bird-specific rule. tests/hook_ci_parity.rs holds every step here against
-# the CI job that runs the same check.
-#
-# Scoped by what the push changes: the Rust battery runs only when a pushed
-# path can reach cargo. The scoping fails open: an unrecognized path, a range
-# git cannot diff, or a hand-run hook with no ref lines on stdin runs
-# everything. The file-level linters always sweep the tracked set; they take
-# seconds.
+# tracked set, pre-commit passes the staged set. Steps 9 to 11 stay inline
+# because pre-commit has no use for them and each carries a bird-specific rule.
+# tests/hook_ci_parity.rs holds every step here against the CI job that runs
+# the same check.
 #
 # Activate per clone via: git config core.hooksPath scripts/hooks
 # core.hooksPath is machine-local git config: it does NOT travel with the
-# clone and is not enforced by cloning. Run the command above once per fresh
-# clone; CONTRIBUTING.md states it as a setup step.
+# clone and is not enforced by cloning. An unset core.hooksPath is the single
+# most common reason a tracked hook never fires (a fleet audit found it unset
+# in 9 of 11 checkouts). Run the command above once per fresh clone, and state
+# it as a setup step in README/CONTRIBUTING next to the clone instructions.
 #
 # Defensive no-ops, but never silent: each optional step guards on its tool
 # being present and skips cleanly when absent, so the hook never blocks a push
 # on a machine without the full toolchain. The library announces every such
-# skip, and a skipped check never prints a pass line.
+# skip, and a skipped check never prints a pass line: a silent skip is
+# indistinguishable from a passing check. Never gate a step on `ls file1 file2`
+# (fails closed when any one file is absent, silently disabling the step); test
+# each file with `[ -f "$f" ]` or enumerate with `git ls-files`, which is what
+# the library's `tracked` helper does.
 #
 # Failures aggregate. One run reports every failing step rather than stopping
-# at the first, so a push is fixed in one pass.
+# at the first, so a push is fixed in one pass instead of one step at a time.
+#
+# A commit any remote-tracking branch of the pushed remote reaches counts as
+# already checked, so a tag or new branch at one runs nothing.
+#
+# Heavy suites (browser e2e, full package builds) stay CI-only by design; when
+# one is omitted here, say so in a comment rather than leaving the gap for a
+# reader to infer.
 #
 # Exit codes: 0 = all pass, 1 = failure
 #
@@ -43,6 +54,18 @@ if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); 
   done
   echo "ERROR: needs bash >= 4.4 (running $BASH_VERSION); install it with: brew install bash" >&2
   exit 1
+fi
+
+# A linked worktree can find core.hooksPath set to the main checkout's
+# absolute path (worktree tooling writes it), and git then runs the main
+# checkout's copy of this hook with the worktree as its working directory.
+# Hand off to the copy that worktree has checked out, so a push or commit is
+# gated by the hook its own branch carries.
+hook_self_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+hook_worktree_root=$(pwd -P)
+hook_own_copy="$hook_worktree_root/scripts/hooks/$(basename "${BASH_SOURCE[0]}")"
+if [[ "$hook_worktree_root" != "$hook_self_root" && -x "$hook_own_copy" ]]; then
+  exec "$hook_own_copy" "$@"
 fi
 
 # From a linked worktree git exports GIT_DIR, which sends a tool's git calls in
@@ -59,111 +82,123 @@ set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root" || exit 1
-# shellcheck source=scripts/hooks/_lib.sh
+# A CI action that checks one file at a time without -x reports SC1091 here.
+# shellcheck source=scripts/hooks/_lib.sh disable=SC1091
 . ./scripts/hooks/_lib.sh || exit 1
+
+if push_only_deletes; then
+  echo "Nothing to check: the push only deletes."
+  exit 0
+fi
+
+# A real push passes the remote's name and URL. With no ref lines after them,
+# no ref would update, so there is nothing to check. A hand run passes neither
+# and checks everything.
+if [ "$#" -ge 2 ] && [ -z "${HOOK_PUSH_REFS:-}" ]; then
+  echo "pre-push: nothing to push"
+  exit 0
+fi
+
+# A tag, or a new branch, at a commit the remote already has brings no commit
+# for any check to read.
+if push_only_known_commits "${1:-}"; then
+  echo "Nothing to check: every pushed commit is already on $1."
+  exit 0
+fi
 
 fail=0
 
-# ── What this push changes ────────────────────────────────────────────────
-#
-# git gives a pre-push hook one line per pushed ref on stdin:
-#   <local ref> <local sha> <remote ref> <remote sha>
-# `remote_sha..local_sha` is exactly what the remote does not yet have. A new
-# branch arrives with an all-zero remote sha, where the useful comparison is
-# against the integration branch instead.
-ZERO="0000000000000000000000000000000000000000"
-scope_all=false
-changed=""
-
-# git writes its ref lines and closes stdin at once, so a real push never
-# waits. A plain `$(cat)` would park forever on a stdin nobody closes (a
-# background job, a wrapper holding the pipe), so the read is bounded and a
-# timeout sweeps.
-readonly STDIN_WAIT_SECONDS=10
-
-if [ -t 0 ]; then
-  scope_all=true
-else
-  push_refs=""
-  stdin_timed_out=false
-  while true; do
-    if IFS= read -r -t "$STDIN_WAIT_SECONDS" _line; then
-      push_refs+="$_line"$'\n'
-    else
-      [ $? -gt 128 ] && stdin_timed_out=true
-      break
-    fi
-  done
-
-  if [ "$stdin_timed_out" = true ]; then
-    echo "pre-push: stdin stayed open for ${STDIN_WAIT_SECONDS}s with no ref lines; sweeping" >&2
-    scope_all=true
-    push_refs=""
-  fi
-
-  if [ "$scope_all" != true ] && [ -z "$push_refs" ]; then
-    # git passes the remote name and URL as arguments. No ref lines while they
-    # are present means the remote already has every ref; no arguments at all
-    # is a hand-run, which sweeps.
-    if [ "$#" -ge 2 ]; then
-      echo "pre-push: nothing to push"
-      exit 0
-    fi
-    scope_all=true
-  elif [ -n "$push_refs" ]; then
-    while read -r _local_ref local_sha _remote_ref remote_sha; do
-      [ -z "${local_sha:-}" ] && continue
-      # A deletion pushes an all-zero local sha and carries no content.
-      [ "$local_sha" = "$ZERO" ] && continue
-      if [ "$remote_sha" = "$ZERO" ]; then
-        if git rev-parse --verify --quiet origin/dev >/dev/null 2>&1; then
-          range="origin/dev...$local_sha"
-        else
-          scope_all=true
-          break
-        fi
-      else
-        range="$remote_sha..$local_sha"
-      fi
-      if ! range_files=$(git diff --name-only "$range" 2>/dev/null); then
-        scope_all=true
-        break
-      fi
-      changed+="$range_files"$'\n'
-    done <<<"$push_refs"
-  fi
+# The cargo steps run unless the pushed paths are known and the repo's
+# cargo-inputs.sh classifier finds no cargo input among them (see needs_cargo).
+run_cargo=true
+scoped=false
+if changed=$(pushed_paths "${1:-}"); then
+  scoped=true
+  needs_cargo "$changed" || run_cargo=false
 fi
-
-# The paths that can change what cargo builds, tests, documents, or packages,
-# by scripts/cargo-inputs.sh: the classifier CI's `Change scope` job runs, so
-# the hook and CI skip the Rust battery on the same changes. A classifier that
-# fails runs the battery.
-cargo_changed=""
-if ! $scope_all; then
-  cargo_changed=$(bash scripts/cargo-inputs.sh <<<"$changed") || scope_all=true
-fi
-
-# code_touched: true unless every changed path is inert.
-code_touched() {
-  $scope_all && return 0
-  [ -n "$cargo_changed" ]
-}
 
 banner "Running local CI checks..."
-if ! $scope_all; then
+if $scoped; then
   note "scope: $(grep -cv '^$' <<<"$changed") changed path(s) in this push"
 fi
 
-# Output discipline: the writer-injection rule in scripts/lint-stdio.sh, the
-# script CI's `Output discipline` job runs.
+if $run_cargo; then
+  # Toolchain banner: surface the resolved version before any cargo step, so a
+  # stale machine sees it at the top of the run. rust-toolchain.toml pins it, and
+  # CI reads the same file; rustup verifies component SHA256s from the
+  # distribution manifest, so the pin works as a SHA pin. No `rustup update`
+  # here: a toolchain bump is a reviewed PR that edits rust-toolchain.toml.
+  show_toolchain
+
+  # 1. Format check
+  step "fmt" "cargo fmt -- --check" check_cargo_fmt || fail=1
+
+  # 2. Clippy with warnings-as-errors: CI's RUSTFLAGS=-Dwarnings as a clippy
+  # argument, since cargo keys every dependency build on RUSTFLAGS.
+  step "clippy" "cargo clippy --all-targets -- -D warnings" check_clippy --all-targets || fail=1
+
+  # 3. Tests
+  step "test" "cargo test" check_tests || fail=1
+
+  # 4. MSRV check: compile against the rust-version declared in Cargo.toml.
+  # Library crates declare a lower MSRV than the rust-toolchain.toml pin; this
+  # validates the declared promise so consumers on the MSRV still see a working
+  # crate. Requires the MSRV toolchain installed; the library skips with a hint
+  # otherwise. The version is read here so both the pass line and the rerun hint
+  # name it.
+  msrv=$(msrv_version)
+  step "msrv${msrv:+ ($msrv)}" "cargo +${msrv:-MSRV} check" check_msrv || fail=1
+
+  # 5. Doc build: catch doc-comment breakage (broken intra-doc links, missing
+  # code-fence markers) that would render badly on docs.rs.
+  step "doc" "cargo doc --no-deps (RUSTDOCFLAGS=-D warnings)" check_doc || fail=1
+
+  # 6. Security audit (licenses + advisories)
+  step "deny" "cargo deny check" check_deny || fail=1
+else
+  note "cargo steps (nothing in this push reaches cargo)"
+fi
+
+# Steps 1-6 above stay serial: every one of them takes the cargo build lock, so
+# running them together would serialize on the lock anyway and interleave their
+# output while doing it. Steps 7 and 8 and the core-env guard take no lock and
+# only read files, so they run together and the slowest sets their wall-clock.
+
+# 7. Shell correctness and layout over every tracked script, the hooks included.
+step_bg "shellcheck" "shellcheck --severity=warning" check_shell_all
+step_bg "shfmt" "shfmt -i 2 -ci -bn -d" check_shfmt_all
+
+# 8. Workflow lint over every tracked workflow file.
+step_bg "actionlint" "actionlint" check_actionlint_all
+step_bg "concurrency namespacing" "scripts/check-workflow-concurrency.sh" check_workflow_concurrency_all
+
+# No tracked test resets a core environment variable, and no allowlist entry has
+# gone stale.
+step_bg "core-env guard" "scripts/hooks/core-env-guard.sh" check_core_env_all
+
+step_wait || fail=1
+
+# 9. Output discipline: the writer-injection rule in scripts/lint-stdio.sh, the
+# script CI's `Output discipline` job runs. Inline rather than in the library:
+# pre-commit has no use for it, and the rule is bird's own.
 check_output_discipline() {
   have rg || skip "output discipline" "install via \`brew install ripgrep\`" || return
   bash scripts/lint-stdio.sh
 }
+if $run_cargo; then
+  step "output discipline" "scripts/lint-stdio.sh" check_output_discipline || fail=1
+fi
 
-# Windows cross-check (fast): no unconditional use of unix-only libc APIs.
-# Catches the libc::SIGPIPE class of issue without a Windows toolchain; the
-# cross-target clippy below is the comprehensive backstop.
+# 10. Windows cross-check (fast): verify no unconditional use of unix-only APIs.
+# Catches the libc::SIGPIPE class of issue without invoking a Windows toolchain
+#: runs in milliseconds. Step 11 is the comprehensive backstop. Inline rather
+# than in the library: pre-commit has no use for it, and the pattern is
+# per-project.
+#
+# CUSTOMIZE: the libc pattern below assumes the project's only unix-only
+# entry points are libc::SIGPIPE / SIG_DFL / signal. If the project pulls in
+# other unix-only APIs (e.g. `nix::*`, `std::os::unix::*`), add them to the
+# grep alternation.
 check_windows_libc() {
   have rg || skip "windows compat (libc grep)" "install via \`brew install ripgrep\`" || return
   local violations file lineno before rc=0
@@ -175,7 +210,8 @@ check_windows_libc() {
     before=$(sed -n "$((lineno > 3 ? lineno - 3 : 1)),${lineno}p" "$file")
     # Here-string, not a pipe: `rg -q` exits at its first match, and under
     # `pipefail` that kills the producer and makes a *matching* pipeline
-    # non-zero, which this `!` would read as "no cfg(unix) found".
+    # non-zero, which this `!` would read as "no cfg(unix) found" and fail a
+    # correctly-gated call site.
     if ! rg -q 'cfg\(unix\)' <<<"$before"; then
       step_failed "libc unix-only API used without #[cfg(unix)] at $file:$lineno"
       rc=1
@@ -183,12 +219,24 @@ check_windows_libc() {
   done <<<"$violations"
   return "$rc"
 }
+if $run_cargo; then
+  step "windows compat (libc grep)" "unix-only libc API outside #[cfg(unix)]" check_windows_libc || fail=1
+fi
 
-# Windows cross-clippy: a full type-check as if compiling for
-# x86_64-pc-windows-gnu, which surfaces the cfg-gated unused imports and dead
-# code Linux clippy filters out. Needs `mingw-w64` and
-# `rustup target add x86_64-pc-windows-gnu`; without them CI's Windows job is
-# the only backstop.
+# 11. Windows cross-clippy: full type-check of the codebase as if compiling for
+# x86_64-pc-windows-gnu. Catches cfg-gated unused imports, conditional dead
+# code, and any other warning class that only surfaces on Windows. Linux
+# clippy alone misses these because `#[cfg(unix)]` filters out their usage
+# sites locally: the warning only fires on the platform where the gate
+# excludes them. Inline for the same reason as step 10.
+#
+# Requirements (one-time setup):
+#   sudo apt install mingw-w64                          # the C linker
+#   rustup target add x86_64-pc-windows-gnu             # the Windows std library
+#
+# If either is missing the step is skipped with a one-line note rather than
+# failing: but local Windows coverage is then absent, and CI's Windows job
+# becomes the only backstop. Install both to close that gap.
 check_windows_clippy() {
   have x86_64-w64-mingw32-gcc \
     && grep -q '^x86_64-pc-windows-gnu$' <<<"$(rustup target list --installed 2>/dev/null)" \
@@ -196,40 +244,13 @@ check_windows_clippy() {
       "install \`mingw-w64\` + \`rustup target add x86_64-pc-windows-gnu\`" || return
   cargo clippy --target x86_64-pc-windows-gnu --all-targets --quiet -- -D warnings 2>&1
 }
-
-# ── Rust battery ──────────────────────────────────────────────────────────
-if code_touched; then
-  show_toolchain
-
-  # Steps that take the cargo build lock run serially: together they would
-  # serialize on the lock anyway and interleave their output.
-  step "fmt" "cargo fmt -- --check" check_cargo_fmt || fail=1
-  step "clippy" "cargo clippy --all-targets -- -D warnings" check_clippy --all-targets || fail=1
-  step "test" "cargo test" check_tests || fail=1
-  msrv=$(msrv_version)
-  step "msrv${msrv:+ ($msrv)}" "cargo +${msrv:-MSRV} check" check_msrv || fail=1
-  step "doc" "cargo doc --no-deps (RUSTDOCFLAGS=-D warnings)" check_doc || fail=1
-  step "deny" "cargo deny check" check_deny || fail=1
-  step "output discipline" "scripts/lint-stdio.sh" check_output_discipline || fail=1
-  step "windows compat (libc grep)" "unix-only libc API outside #[cfg(unix)]" check_windows_libc || fail=1
+if $run_cargo; then
   step "windows clippy (cross-target)" "cargo clippy --target x86_64-pc-windows-gnu -- -D warnings" \
     check_windows_clippy || fail=1
-else
-  note "rust battery (nothing in this push reaches cargo)"
 fi
 
-# ── File-level linters, over the tracked set ──────────────────────────────
-# None takes a lock and each only reads files, so they run together and the
-# slowest sets their wall-clock.
-step_bg "shellcheck" "shellcheck --severity=warning" check_shell_all
-step_bg "shfmt" "shfmt -i 2 -ci -bn -d" check_shfmt_all
-step_bg "actionlint" "actionlint" check_actionlint_all
-step_bg "concurrency namespacing" "scripts/check-workflow-concurrency.sh" check_workflow_concurrency_all
-step_bg "core-env guard" "scripts/hooks/core-env-guard.sh" check_core_env_all
-step_wait || fail=1
-
 [ "$fail" -eq 0 ] || {
-  echo "pre-push checks failed; rerun the command each failure names." >&2
+  echo "pre-push checks failed: rerun the command each failing line names (checks: scripts/hooks/pre-push)." >&2
   exit 1
 }
 

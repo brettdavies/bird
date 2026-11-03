@@ -1,30 +1,60 @@
+# Canonical version: 2026.11.03 (generic)
+#
 # Dependabot configuration.
 #
 # Two ecosystems: cargo for Rust dependencies, github-actions for workflow
-# actions. Both scan weekly on Monday mornings against `dev`, with a seven
-# day cooldown so a release is at least a week old before it is proposed.
-# Every minor and patch update batches into one PR per ecosystem per week;
-# majors are ignored here and land through a deliberate bump on dev.
+# actions. Both scan weekly on Monday mornings. Cargo minor + patch updates
+# group into one PR per week (so a typical week is one PR, not 12). Both
+# version-update blocks ignore semver-major, so no major version update opens
+# a PR: a major is a reviewed bump a maintainer makes by hand. A security fix
+# that needs a major is the exception (see the security block below).
+#
+# For non-Rust projects, swap `cargo` for `npm`, `pip`, `gomod`, etc. A Bun
+# project (bun.lock) uses `bun`, never `npm`, and takes no security block;
+# see references/dependabot.md § "Bun projects".
+#
+# npm projects that run Playwright need one more block. Browser binaries are
+# provisioned machine-wide into $PLAYWRIGHT_BROWSERS_PATH rather than
+# downloaded per repo, so a client ahead of the provisioned set fails e2e.
+# Exact-pin @playwright/test in package.json (a caret leaves Dependabot
+# in-range room, which is the hole the pin closes) and freeze the family on
+# the npm ecosystem block:
+#
+#     ignore:
+#       - dependency-name: "@playwright/*"
+#       - dependency-name: "playwright"
+#       - dependency-name: "playwright-core"
+#
+# Those entries carry no `update-types`, which suppresses every version update
+# rather than majors alone, since an exact pin has no "in range" update
+# Dependabot would otherwise leave alone. All three names are required:
+# @playwright/test is the direct dependency, playwright and playwright-core
+# arrive transitively at the same version, and an unpinned transitive pair can
+# still desync from the provisioned browsers. Bumping Playwright means bumping
+# the dotfiles provisioning script first, then the repos.
 #
 # `target-branch: dev` is non-negotiable on every version-update block.
-# Without it, Dependabot defaults to `main` and the PR fails the dev ->
-# release/* -> main flow that guard-release-branch.yml enforces. Retargeting
-# after the fact orphans-and-closes the PR irreversibly.
+# Without it, Dependabot defaults to `main` and the PR fails the dev →
+# release/* → main flow that guard-release-branch.yml enforces. Retargeting
+# after the fact orphans-and-closes the PR irreversibly (see
+# references/dependabot.md § "Why target-branch: dev is non-negotiable").
 #
 # Security updates are the exception: Dependabot raises them against the
 # default branch and ignores every option on a block that carries
 # `target-branch`, so without a block of their own each advisory becomes its
-# own ungrouped PR on main. The trailing block has no target-branch,
-# `open-pull-requests-limit: 0` so it never opens version updates there, and
-# a group with `applies-to: security-updates` that batches minor and patch
-# fixes per run. A fix that needs a major stays its own PR. Cooldown, the
-# majors ignore, and lockfile pinning are deliberately absent from it:
-# cooldown is a version-update option, and the other two would suppress a
-# fix that resolves outside the current range.
+# own ungrouped PR on main. The trailing block for the primary ecosystem has
+# no target-branch, `open-pull-requests-limit: 0` so it never opens version
+# updates there, and a group with `applies-to: security-updates` that batches
+# minor and patch fixes per run. A fix that needs a major stays its own PR.
+# Cooldown, the majors ignore, and lockfile pinning are deliberately absent
+# from it: cooldown is a version-update option, and the other two would
+# suppress a fix that resolves outside the current range.
 #
-# The github-actions group uses `patterns` rather than `update-types`
-# because a SHA pin's SemVer level comes from a trailing comment and an
-# unclassifiable action would otherwise fall out of the group and open alone.
+# Both version-update blocks batch every minor and patch into one PR per
+# week and ignore semver-major. The github-actions group uses `patterns`
+# rather than `update-types` because a SHA pin's SemVer level comes from a
+# trailing comment and an unclassifiable action would otherwise fall out of
+# the group and open alone.
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -38,8 +68,6 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 1
-    reviewers:
-      - brettdavies
     labels:
       - dependencies
       - rust
@@ -63,8 +91,6 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 3
-    reviewers:
-      - brettdavies
     labels:
       - dependencies
       - github-actions

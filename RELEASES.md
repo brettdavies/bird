@@ -1,3 +1,5 @@
+<!-- Canonical version: 2026.11.03 (generic) -->
+<!-- canonical: version-scheme semver -->
 # Releasing `bird`
 
 Operational runbook. Rationale lives in [`RELEASES-RATIONALE.md`](./RELEASES-RATIONALE.md). Pre-cut go/no-go checklist
@@ -69,10 +71,10 @@ optional: fill `## Breaking Changes` on a major, delete the rest when they do no
 - **Zero verification artifacts in the body.** No triple-diff stats, leak-check output ("`guard-main-docs` runs clean"),
   patch-id cherry-check counts, pre-push gate results, CI status, or prose-scrub findings. Anomalies get fixed before
   push, not audit-trailed.
-- **Changelog** subsections (`### Added` / `### Changed` / `### Fixed` / `### Documentation` from the template, plus
-  `### Breaking changes` or `### Deprecated` when a change needs one; the generator orders all six): 1-5 bullets each,
-  delete empty subsections, each bullet starts with a verb. A `## Changelog` heading left standing with no bullets under
-  it says the PR ships nothing user-facing, and `generate-changelog.py` adds nothing for it, whatever the PR title says.
+- **Changelog** subsections (`### Breaking changes` / `### Added` / `### Changed` / `### Deprecated` / `### Fixed` /
+  `### Documentation`, the six headings of [§ Versioning](#versioning)): 1-5 bullets each, delete empty subsections,
+  each bullet starts with a verb. A `## Changelog` heading left standing with no bullets under it says the PR ships
+  nothing user-facing, and `generate-changelog.py` adds nothing for it, whatever the PR title says.
 - **Type of Change**: one checkbox. Prefer `feat`/`fix` over `chore` for any user-observable change.
 - **Related Issues/Stories**: four labels (`Story:` / `Issue:` / `Architecture:` / `Related PRs:`). All four required
   even when empty (`- None.` / `n/a`).
@@ -85,73 +87,104 @@ optional: fill `## Breaking Changes` on a major, delete the rest when they do no
 
 ## Versioning
 
-bird follows [SemVer 2.0.0](https://semver.org/). A release's version comes from its changelog: each merged PR's
-`## Changelog` section classifies its change, and the release takes the highest bump any of its PRs calls for.
+The marked lines below are github-repo-setup's SemVer section of `references/versioning.md`, which the drift check
+compares, and line 2 declares the scheme. A site, a CalVer repo, or one that ships no version changes the declaration
+and copies that scheme's section in their place.
+
+<!-- canonical:begin versioning-semver -->
+
+This repo follows [SemVer 2.0.0](https://semver.org/). Its version comes from its changelog: every PR files each
+user-facing change under one of the six headings below, and a release takes the highest bump any of its PRs calls for.
+The rules cover only the surfaces § What the contract is names.
 
 ### What the contract is
+
+<!-- canonical:repo-begin contract -->
 
 bird's public API is its machine contract:
 
 - **Invocation:** command names and aliases, flags, positional forms, and every environment variable `bird --help`
   lists.
 - **Exit codes:** the table in [`AGENTS.md`](./AGENTS.md#exit-codes).
-- **Structured output:** every shape `--output json|jsonl|ndjson` prints, meaning the success envelope and the
-  per-command documents `bird schema` prints from `schema/`, and the error envelope in
-  `schema/error-envelope.schema.json`, including its `error` id and `kind` sets.
+- **Structured output:** every shape `--output json|jsonl|ndjson` prints, meaning the `ok`, `dry_run`, and `error`
+  envelopes in `schema/envelope.schema.json`, including the error envelope's `reason` and `next_step.action` sets, and
+  the per-command documents `bird schema` prints from `schema/`.
 - **Stored state:** the `~/.config/bird/config.toml` format.
 
-Text-mode output, help text, colors, `--verbose` diagnostics, and raw-mode response bodies (X's bytes, passed through)
-are not contract, and neither is the layout of the response files, which bird discards each UTC day. The one text-mode
-exception is the plain `bird --version` line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable
-output reads a structured format. The token store belongs to xdk-rs.
+Text-mode output, help text, colors, and `--verbose` diagnostics are not contract, and neither is the layout of the file
+store's response files, which bird discards each UTC day. The one text-mode exception is the plain `bird --version`
+line, `bird X.Y.Z`, which scripts parse. A script that needs any other stable output reads a structured format. The
+token store belongs to xdk-rs.
 
-### The three bumps
+<!-- canonical:repo-end -->
 
-- **Patch:** only fixes. Behavior brought back to the documented contract or to how the X API behaves, even when an exit
-  code or a JSON key changes as a result. Documentation, text-mode changes, and dependency or security updates that
-  leave the contract alone. Nothing new.
-- **Minor:** anything new that breaks nothing. A command, flag, environment variable, output field, output format, or
-  error id; a deprecation; an MSRV bump.
-- **Major:** anything in the contract removed, renamed, or retyped, or its documented meaning changed.
+### The six headings
 
-A minor can carry fixes, and a major can carry both. A new xdk-rs requirement moves bird's version only by what it
-changes in bird's own contract.
+| Heading            | Holds                                                                   | Bump  |
+| ------------------ | ----------------------------------------------------------------------- | ----- |
+| `Breaking changes` | a contract surface removed, renamed, or retyped, or its meaning changed | major |
+| `Added`            | a new contract surface                                                  | minor |
+| `Changed`          | a visible change outside the contract                                   | patch |
+| `Deprecated`       | a contract surface marked for removal                                   | minor |
+| `Fixed`            | behavior brought back to the documented contract                        | patch |
+| `Documentation`    | documentation only                                                      | patch |
 
-On every PR except a release PR to `main`, the `changelog-bump / Surface growth needs a minor section` check holds a
-minor to its section. It runs `scripts/check-surface-bump.sh`, which compares the commands, flags, and flag values in
-`completions/bird.bash` and the schema leaves under `schema/` between the base and the head, and fails when the surface
-grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`.
-Environment variables, exit codes, and the config format have no generated artifact, so review covers them.
+`generate-changelog.py` writes them in this order and any other heading after them. A contract removal is a
+`Breaking changes` bullet that starts with "Remove"; a removal outside the contract goes under `Changed`, or is left
+out. Removals ship when they are ready, with no deprecation schedule. A `type!:` commit is a prompt to check the PR's
+sections, never the bump itself.
 
-### X API changes
+### The bump
+
+`scripts/generate-changelog.py --bump` prints the next version from the PRs merged since the last release, and
+`cut-release-branch.sh` prints it beside the version the cut is given:
+
+- The highest heading among their sections sets the bump.
+- A `rust-version` raised since the last tag is a minor-level change, so it lifts a patch to a minor. A Rust repo's
+  `rust-version` equals the toolchain `rust-toolchain.toml` pins, and CI's MSRV job builds on exactly that version.
+- Before 1.0, a major or a minor moves the middle number and a patch moves the last: `0.4.2` becomes `0.5.0` or `0.4.3`.
+  This is stricter than Cargo's convention on purpose: an addition never ships as a last-number bump, so a `^0.y`
+  dependent receives only fixes until it opts in.
+- From 1.0, when the sections call for a major, the release agent asks the maintainer: a major, or a minor under the
+  small-break exception. A minor ships `docs/migrating/v<version>.md`, whose first line names the exception, and
+  preflight fails a 1.0+ release that keeps its major and carries `### Breaking changes` without that guide.
+
+### Overrides
+
+<!-- canonical:repo-begin overrides -->
+
+None. A repo that departs from the bump, the pre-1.0 rule, or the MSRV rule states the rule it follows here.
+
+<!-- canonical:repo-end -->
+
+<!-- canonical:end versioning-semver -->
+
+### The surface check
+
+On every PR except a release PR to `main`, the `changelog-bump / Surface growth needs a minor section` check holds the
+sections to the surface. It runs `scripts/check-surface-bump.sh`, which compares the commands, flags, and flag values in
+`completions/bird.bash` and the schema leaves under `schema/` between the base and the head. It fails when the surface
+grows while the PR's `## Changelog` has no bullet under `### Added`, `### Deprecated`, or `### Breaking changes`, and
+when the surface shrinks while it has none under `### Breaking changes` or `### Fixed`. Environment variables, exit
+codes, and the config format have no generated artifact, so review covers them.
+
+### Dependencies and the X API
+
+A new xdk-rs requirement moves bird's version only by what it changes in bird's own contract.
 
 X ships additive API changes often and does not version them.
 
-- X adds an endpoint or a field: bird adds a command or a field, a minor.
+- X adds an endpoint or a field: bird adds a command or a field, under `### Added`.
 - X renames or drops something the contract names: read both spellings and keep emitting the contract's name. When the
-  contract's own name has to change, add the new name in a minor, deprecate the old one, and remove it in a major that
-  batches removals.
-- X changes behavior in a way that makes bird wrong: the fix is a patch.
+  contract's own name has to change, add the new name under `### Added`, mark the old one under `### Deprecated`, and
+  remove it under `### Breaking changes` once it is ready to go.
+- X changes behavior in a way that makes bird wrong: the fix goes under `### Fixed`.
 
 ### Closed sets
 
-The error envelope's `error` id and `kind` are closed sets an agent branches on. A new member ships in a minor, and a
-consumer treats a value it does not recognize as its default branch. Removing or renaming a member is a major.
-
-### The changelog section decides
-
-- `### Breaking changes`, `### Removed`: major.
-- `### Added`, `### Deprecated`: minor.
-- `### Changed`, `### Fixed`, `### Documentation`: patch.
-
-`### Changed` holds a visible change outside the contract, or a change back to conformance with it. A change to the
-contract belongs under `### Added`, `### Deprecated`, `### Removed`, or `### Breaking changes`. An MSRV bump is a minor
-wherever it is filed. The section is checked when the PR is reviewed, and a maintainer-tooling PR carries no entry.
-
-At release time, list the entries with `scripts/generate-changelog.py --from-dev-prs --tag <tag> --dry-run` and set the
-version from the highest section present. The script emits the sections in the PR template's order
-(`### Breaking changes`, `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Documentation`)
-and any other heading after them.
+The error envelope's `reason` and its `next_step.action` are closed sets an agent branches on. A new member goes under
+`### Added`, and a consumer treats a value it does not recognize as its default branch. Removing or renaming a member
+goes under `### Breaking changes`.
 
 → Rationale: [`RELEASES-RATIONALE.md` § Versioning](./RELEASES-RATIONALE.md#versioning).
 
@@ -326,18 +359,24 @@ git push origin main --tags
 Always use annotated tags (`-a -m`). The tag push triggers `.github/workflows/release.yml`, which calls the reusable
 `brettdavies/.github/.github/workflows/rust-release.yml` and runs:
 
-| Step            | What                                                                                                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `check-version` | Verify the tag matches `Cargo.toml` version (gate).                                                                                                                                                                                         |
-| `audit`         | `cargo deny check` (license + advisory + ban).                                                                                                                                                                                              |
-| `build`         | Cross-compile binaries for 5 targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. Each archive includes the `bird` binary, completions, and licenses. |
-| `publish-crate` | `cargo publish` to crates.io via Trusted Publishing (OIDC, no static token after first publish).                                                                                                                                            |
-| `release`       | Create a **non-draft** GitHub Release with `make_latest: false`. Includes all 5 archives + `sha256sum.txt`.                                                                                                                                 |
-| `homebrew`      | Dispatch `update-formula` to `brettdavies/homebrew-tap` (formula name: `bird`).                                                                                                                                                             |
+| Step                  | What                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `check-version`       | Verify the tag matches `Cargo.toml` version (gate).                                                                                                                                                                                                                                                    |
+| `audit`               | `cargo deny check` (license + advisory + ban).                                                                                                                                                                                                                                                         |
+| `build`               | Cross-compile binaries for 7 targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`. Each archive includes the `bird` binary, completions, and licenses. |
+| `sbom`, `attest`      | Attest build provenance for every archive and `sha256sum.txt`, and a CycloneDX SBOM of `bird` against the archives. A failed attestation publishes nothing.                                                                                                                                            |
+| `publish-crate`       | `cargo publish` to crates.io via Trusted Publishing (OIDC, no static token after first publish).                                                                                                                                                                                                       |
+| `release`             | Create a **non-draft** GitHub Release with `make_latest: false`. Includes all 7 archives + `sha256sum.txt`.                                                                                                                                                                                            |
+| `verify-attestations` | Download every published file and verify it against its attestation; a failure withholds the Homebrew dispatch.                                                                                                                                                                                        |
+| `homebrew`            | Dispatch `update-formula` to `brettdavies/homebrew-tap` (formula name: `bird`).                                                                                                                                                                                                                        |
 
-After the homebrew-tap workflow uploads bottles to this repo's release assets, it dispatches `finalize-release` back to
-this repo, which idempotently flips `make_latest: true`. Run
-[`scripts/release/postflight.sh all`](./RELEASES-POSTFLIGHT.md) to verify the chain.
+bird's formula installs this release's archives, not a build of the tagged source. The tap's `update-formula` workflow
+downloads the four the formula names (the two `apple-darwin` and the two `linux-musl` archives), verifies each against
+its attestation, and pins its checksum. An archive with no attestation stops the bump, so `attest: true` in
+`release.yml` is what lets a release reach Homebrew. The tap then installs and tests the formula from those archives on
+four platforms, lands the bump, and dispatches `finalize-release` back to this repo, which idempotently flips
+`make_latest: true`. It builds no bottle: the binaries are compiled once, by `release.yml`, and `brew install` downloads
+the archive. Run [`scripts/release/postflight.sh all`](./RELEASES-POSTFLIGHT.md) to verify the chain.
 
 → Rationale (`make_latest` flow, target matrix, annotated-tag gotcha):
 [`RELEASES-RATIONALE.md` § Release pipeline](./RELEASES-RATIONALE.md#release-pipeline).
@@ -355,9 +394,9 @@ scripts/sync-dev-after-release.sh v0.3.0
 ```
 
 The script cuts a `chore/sync-dev-after-v0.3.0` branch, writes the released version into `Cargo.toml` in place, copies
-`CHANGELOG.md` from `main`, adopts the release-prep paths it discovers, and opens a PR against `dev` with the version in
-its title; merge it once CI is green. `scripts/release/postflight.sh backport` gates on that merged PR. A `dev` already
-in sync exits 0 with nothing committed.
+`CHANGELOG.md` from `main`, adopts the release-prep paths it discovers, and opens a PR against `dev` titled
+`chore(release): sync dev after v0.3.0`; merge it once CI is green. `scripts/release/postflight.sh backport` looks for
+that subject on `dev`. A `dev` already in sync exits 0 with nothing committed.
 
 Once the manifest is synced, the script refreshes the crate's `Cargo.lock` entry with
 `cargo update --workspace --offline`, against the local registry cache, and exits 70 with nothing committed if the lock
@@ -408,10 +447,10 @@ cargo yank --version "${BAD#v}" bird
 # GitHub Release: re-point /releases/latest (and cargo-binstall) at the last-good tag.
 gh release edit "$PREV" --latest
 
-# Homebrew: revert the tap's two commits for the bad release (`chore(bird): bump to
-# vX.Y.Z`, then `bird: add X.Y.Z bottle.`) so `brew install` resolves the previous
-# bottle, whose assets are still attached to the previous GitHub Release.
-git -C ~/dev/homebrew-tap revert <bottle-sha> <bump-sha>
+# Homebrew: revert the tap's bump commit for the bad release (`chore(bird): bump to
+# vX.Y.Z`) so `brew install` resolves the previous version, whose archives are still
+# attached to the previous GitHub Release.
+git -C ~/dev/homebrew-tap revert <bump-sha>
 ```
 
 `cargo yank --undo --version <version> bird` reverses a wrong yank. A yanked version cannot be published again, so the
@@ -530,9 +569,11 @@ changelog check that reads a PR's files, and uses no extra secrets.
 
 ### Cross-compile target matrix
 
-Five targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing). No musl rows yet:
-[`RELEASES-RATIONALE.md` § Cross-compile target matrix](./RELEASES-RATIONALE.md#cross-compile-target-matrix) says when
-to add them.
+Seven targets, listed in the `build` row of [§ Tagging and publishing](#tagging-and-publishing); the Homebrew formula
+installs four of them (the two `apple-darwin` and the two `linux-musl` archives). `release.yml` passes
+`linux_musl_required: true`, so a musl failure blocks the release, and `release-matrix-check.yml` builds all seven before
+a tag exists:
+[`RELEASES-RATIONALE.md` § Cross-compile target matrix](./RELEASES-RATIONALE.md#cross-compile-target-matrix).
 
 ### First-time publish (one-time)
 
