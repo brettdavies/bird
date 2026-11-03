@@ -15,17 +15,20 @@ cargo test                                 # unit + integration
 git config core.hooksPath scripts/hooks    # activate the hook pair
 ```
 
-That one command activates both hooks, which share `scripts/hooks/_lib.sh`. `pre-commit` is staged-file-scoped and fast:
-rustfmt on staged `.rs`, shellcheck and `shfmt -i 2 -ci -bn` on staged shell, actionlint and the concurrency-group check
-on a staged workflow, and the core-env guard on a staged test script.
+That one command activates both hooks, which share `scripts/hooks/_lib.sh`. `pre-commit` runs only the checks the staged
+files call for, and fast: `cargo fmt --check` when a `.rs` file is staged, shellcheck and `shfmt -i 2 -ci -bn` on staged
+shell, actionlint and the concurrency-group check on a staged workflow, markdownlint on staged docs other than
+`CHANGELOG.md`, and the core-env guard on a staged test script. markdownlint reads the staged copies in a scratch tree,
+so the config's `fix: true` never rewrites the checkout.
 
 `pre-push` mirrors CI: `cargo fmt`, `cargo clippy --all-targets` with warnings denied, `cargo test`, the MSRV check, the
 doc build with `-D warnings`, and `cargo deny check`; then shellcheck, shfmt, actionlint, and the guards over every
 tracked file; then the output-discipline check (`scripts/lint-stdio.sh`), a Windows compatibility scan, and the Windows
 cross-target clippy. It runs the Rust battery only when the push reaches a cargo input, so a markdown-only push finishes
-in seconds, and a push that only deletes refs, or carries no ref to update, checks nothing. The scoping fails open: an
-unrecognized path runs everything, and running the hook by hand sweeps the whole repo. A step whose tool is missing says
-so on its own line, so a skip never reads as a pass. `tests/hook_ci_parity.rs` names the CI job behind every step.
+in seconds. A push that only deletes refs, carries no ref to update, or brings no commit the remote lacks (a tag on a
+pushed commit) checks nothing. The scoping fails open: an unrecognized path runs everything, and running the hook by
+hand sweeps the whole repo. A step whose tool is missing says so on its own line, so a skip never reads as a pass.
+`tests/hook_ci_parity.rs` names the CI job behind every step.
 
 The package check (`cargo publish --dry-run`) and the markdownlint job run in CI only. The live-API checks stay manual
 by design; [`RELEASES-PREFLIGHT.md`](RELEASES-PREFLIGHT.md) lists them, and every live call is billed per object, so
@@ -51,8 +54,8 @@ code only through a release PR. [`RELEASES.md`](RELEASES.md) is the full runbook
 Text output is written for humans and the structured formats for agents, and the two need not match word for word: text
 carries prose and a help pointer, structured output carries stable fields to branch on. Every structured error carries a
 kebab-case `reason` from a closed set, an `exit_code`, and a human `message`; the reasons and codes xdk-rs classifies
-come from `xdk::Error` unchanged. Prefer additive envelope changes: add keys rather than renaming or retyping existing ones,
-and update the matching document under `schema/` in the same PR, which `tests/schema_parity.rs` enforces.
+come from `xdk::Error` unchanged. Prefer additive envelope changes: add keys rather than renaming or retyping existing
+ones, and update the matching document under `schema/` in the same PR, which `tests/schema_parity.rs` enforces.
 
 ## Filing issues
 

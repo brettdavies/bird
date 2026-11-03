@@ -375,11 +375,12 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
   `src/error/fatal.rs`; output goes to an injected writer.
 - `bash scripts/check-workflow-concurrency.sh` — every workflow concurrency group leads with a literal token.
 
-The hook pair at `scripts/hooks/` shares one library (`_lib.sh`). `pre-commit` checks the staged files: rustfmt,
-shellcheck, `shfmt -i 2 -ci -bn`, actionlint, concurrency-group namespacing, and the core-env guard. `pre-push` mirrors
-CI over the tracked set: fmt, clippy, test, MSRV, rustdoc with `-D warnings`, deny, the output-discipline check
-(`scripts/lint-stdio.sh`), the Windows libc grep and cross-clippy, plus the same file linters. It runs the Rust battery
-only when the push reaches a cargo input. `tests/hook_ci_parity.rs` names the CI job behind every pre-push step. Set
+The hook pair at `scripts/hooks/` shares one library (`_lib.sh`). `pre-commit` checks the staged files:
+`cargo fmt --check` when a `.rs` file is staged, shellcheck, `shfmt -i 2 -ci -bn`, actionlint, concurrency-group
+namespacing, markdownlint on staged docs, and the core-env guard. `pre-push` mirrors CI over the tracked set: fmt,
+clippy, test, MSRV, rustdoc with `-D warnings`, deny, the output-discipline check (`scripts/lint-stdio.sh`), the Windows
+libc grep and cross-clippy, plus the same file linters. It runs the Rust battery only when the push reaches a cargo
+input. `tests/hook_ci_parity.rs` names the CI job behind every pre-push step. Set
 `git config core.hooksPath scripts/hooks` once per clone.
 
 ## Testing
