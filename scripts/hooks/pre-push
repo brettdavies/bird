@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.02 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Local CI mirror: the whole-repo pre-push gate. Runs the same checks as the
 # GitHub Actions CI pipeline, so a push that survives the hook passes CI and a
@@ -35,6 +35,9 @@
 #
 # Failures aggregate. One run reports every failing step rather than stopping
 # at the first, so a push is fixed in one pass instead of one step at a time.
+#
+# A commit any remote-tracking branch of the pushed remote reaches counts as
+# already checked, so a tag or new branch at one runs nothing.
 #
 # Heavy suites (browser e2e, full package builds) stay CI-only by design; when
 # one is omitted here, say so in a comment rather than leaving the gap for a

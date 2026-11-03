@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.02 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Pre-commit hook: fast, staged-file-scoped checks that catch the cheap
 # mistakes before they reach a commit. The whole-repo CI mirror lives in the
@@ -60,10 +60,12 @@ fail=0
 
 # Git's repository variables stay set in this hook: during `commit -a` and
 # `commit <paths>`, GIT_INDEX_FILE names the temporary index the commit is built
-# from, and `staged` has to read it. None of the checks below runs git. A check
-# whose tool does (a test suite that builds scratch repositories, cargo
-# resolving a git dependency) runs through without_git_repo_env, so the tool's
-# git calls find its own repository rather than this one:
+# from, and `staged` has to read it. So does check_markdown, whose `git show
+# :<path>` and `git ls-files` read the staged blobs and the tracked lint
+# configs from that index; no other check below runs git. A check whose tool
+# does (a test suite that builds scratch repositories, cargo resolving a git
+# dependency) runs through without_git_repo_env, so the tool's git calls find
+# its own repository rather than this one:
 #
 #   step "test" "bun test" without_git_repo_env bun test || fail=1
 

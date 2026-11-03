@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.02 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Shared helpers for the git hook pair. Sourced by scripts/hooks/pre-commit and
 # scripts/hooks/pre-push, never executed directly.
