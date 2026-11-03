@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.02 (rust)
+# Canonical version: 2026.11.03 (rust)
 #
 # Filter changed paths down to the ones that can change what cargo builds,
 # tests, documents, or packages. Reads paths on stdin, one per line, and prints
@@ -17,7 +17,10 @@
 #        root even when the manifest names none.
 #      - a string literal holding a `/` names the path itself, a directory
 #        above it, or a trailing part of it, so a build script that walks
-#        `src/spec/` through `fs::read_dir` covers every file under it.
+#        `src/spec/` through `fs::read_dir` covers every file under it. The
+#        slash is read before normalizing, so a one-part literal such as
+#        `"/docs"` (from `concat!(env!("CARGO_MANIFEST_DIR"), "/docs")`),
+#        `"spec/"`, or `"./tools"` names its directory.
 #      - an entry of scripts/cargo-inputs.paths does the same. The file is the
 #        repository's own: one path or directory per line, `#` comments and
 #        blank lines ignored, for an input no literal names (a path assembled
@@ -53,9 +56,9 @@ normalize() {
   sed -E -e ':a' -e 's#^\.{0,2}/##' -e 'ta' -e 's#/+$##' | grep -v '^$' || true
 }
 
-literals=$(
-  git ls-files -z -- '*.rs' | xargs -0 -r grep -hoE '"[A-Za-z0-9_./-]+"' | tr -d '"' | normalize
-) || true
+raw=$(git ls-files -z -- '*.rs' | xargs -0 -r grep -hoE '"[A-Za-z0-9_./-]+"' | tr -d '"') || true
+literals=$(printf '%s\n' "$raw" | normalize)
+paths=$({ printf '%s\n' "$raw" | grep / || true; } | normalize)
 
 declared=''
 if [ -f scripts/cargo-inputs.paths ]; then
@@ -69,7 +72,7 @@ fi
 read_set() {
   printf 'N README.md\n'
   printf '%s\n' "$literals" | sed -e 's#.*/##' -e 's/^/N /'
-  { printf '%s\n' "$literals" | grep / || true; } | LC_ALL=C sort -u | sed 's/^/P /'
+  printf '%s\n' "$paths" | LC_ALL=C sort -u | sed 's/^/P /'
   printf '%s\n' "$declared" | sed 's/^/P /'
 }
 

@@ -202,10 +202,17 @@ header "Version"
 
 read -ra crate_args <<<"$(changelog_crate_args)"
 if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
-  stamp=$("$SCRIPT_DIR/site-version.sh" --commit "origin/$HEAD_BRANCH") || {
+  if [[ ! -x "$SCRIPT_DIR/site-version.sh" ]]; then
+    gate_fail "site version" "scripts/release/site-version.sh is not vendored
+    fix: copy templates/scripts/release/site-version.sh from github-repo-setup to scripts/release/"
     print_summary
     exit 2
-  }
+  fi
+  if ! stamp=$("$SCRIPT_DIR/site-version.sh" --commit "origin/$HEAD_BRANCH" 2>&1); then
+    gate_fail "site version" "$(sed '2,$s/^/    /' <<<"$stamp")"
+    print_summary
+    exit 2
+  fi
   if [[ -z "$VERSION" ]]; then
     VERSION="$stamp"
     gate_pass "$VERSION is the stamp of origin/$HEAD_BRANCH (site-version.sh)"
@@ -220,6 +227,11 @@ if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
 elif [[ -x scripts/generate-changelog.py ]]; then
   if bump=$(scripts/generate-changelog.py --bump --dev-branch "$HEAD_BRANCH" "${crate_args[@]}" 2>&1); then
     computed=${bump%%$'\n'*}
+    outside=$(grep -m1 '^  outside the six headings:' <<<"$bump" || true)
+    if [[ -n "$outside" ]]; then
+      gate_skip "changelog headings" "${outside#  }
+    fix: re-file under ### Breaking changes or ### Changed, or confirm the bump"
+    fi
     if [[ "$computed" == "$VERSION" ]]; then
       gate_pass "$VERSION is the version the changelog sections call for"
     else
@@ -391,11 +403,18 @@ if [[ "$FAIL_COUNT" -ne 0 ]]; then
   exit 1
 fi
 
+# A site's tag is its version, so it has no carrier to bump.
+if [[ -n "${SITE_VERSION_BASE:-}" ]]; then
+  carriers_step="Nothing to bump: the tag v$VERSION is the site's version."
+else
+  carriers_step="Bump the version carriers to $VERSION (see RELEASES.md § Project specifics)."
+fi
+
 cat <<NEXT
 
 Staged, not committed, on $BRANCH. Next:
 
-  1. Bump the version carriers to $VERSION (see RELEASES.md § Project specifics).
+  1. $carriers_step
   2. git add -A && git commit
   3. scripts/release/preflight.sh all
   4. git push -u origin $BRANCH

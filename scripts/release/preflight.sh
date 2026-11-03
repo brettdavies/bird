@@ -164,10 +164,12 @@ gate_surface() {
   # set: dev carries engineering docs that never ship.
   local guarded
   guarded=$("$(dirname "$0")/guarded-paths.sh" 2>/dev/null) || guarded='^$'
-  commits=$(git log "$window" --oneline | wc -l)
-  files=$(git diff "$last_tag" "$head_ref" --name-only | { grep -Ev "$guarded" || true; } | wc -l)
+  # BSD wc pads its count to eight columns, so each count drops its whitespace
+  # before it reaches the pass line.
+  commits=$(git log "$window" --oneline | wc -l | tr -d '[:space:]')
+  files=$(git diff "$last_tag" "$head_ref" --name-only | { grep -Ev "$guarded" || true; } | wc -l | tr -d '[:space:]')
   # Scoped markers count too: `feat(api)!:` is breaking as much as `feat!:`.
-  breaking=$(git log "$window" --grep '^[a-z]\+\(([^)]*)\)\?!:' --oneline | wc -l)
+  breaking=$(git log "$window" --grep '^[a-z]\+\(([^)]*)\)\?!:' --oneline | wc -l | tr -d '[:space:]')
   gate_pass "LAST_TAG = $last_tag  ($commits commits, $files files, $breaking breaking${anchor:+, counted from its backport ${anchor:0:12} on $head_ref})"
 }
 
@@ -412,7 +414,11 @@ migration_guide_check() {
   [[ "$version" =~ ^([0-9]+)\.[0-9]+\.[0-9]+$ ]] || return 0
   major=${BASH_REMATCH[1]}
   [[ "$major" -ge 1 ]] || return 0
-  awk '/^## \[/ { if (seen) exit; seen = 1 } seen' "$changelog" | grep -q '^### Breaking changes' || return 0
+  # The match runs inside awk: a `grep -q` after a pipe would stop reading at the
+  # first match, and under pipefail the writer's SIGPIPE on a large section
+  # would read as no breaking changes.
+  awk '/^## \[/ { if (seen) exit; seen = 1 } seen && /^### Breaking changes/ { found = 1; exit } END { exit !found }' \
+    "$changelog" || return 0
   previous=$(git tag --list 'v[0-9]*' --sort=-version:refname | grep -vxF "v$version" | head -n 1 || true)
   [[ "$previous" =~ ^v([0-9]+)\. && "${BASH_REMATCH[1]}" -eq "$major" ]] || return 0
   guide="docs/migrating/v$version.md"
@@ -484,6 +490,9 @@ gate_mechanics() {
       if [[ ! -x scripts/release/site-version.sh ]]; then
         gate_fail "$release_changelog top section" "scripts/release/site-version.sh is not vendored
     fix: copy templates/scripts/release/site-version.sh from github-repo-setup to scripts/release/"
+      elif git rev-parse --verify --quiet "refs/tags/v$changelog_version" >/dev/null; then
+        gate_fail "$release_changelog top section = [$changelog_version]" "v$changelog_version is already tagged, so this is a released section, not this release's
+    fix: re-cut the release with scripts/release/cut-release-branch.sh, which writes the section for the next stamp"
       elif verified=$(scripts/release/site-version.sh --verify "v$changelog_version" 2>&1); then
         gate_pass "$release_changelog top section = [$changelog_version] (site-version.sh: ${verified#v"$changelog_version" })"
       else

@@ -34,7 +34,8 @@ Options:
                    call for, on the first line, and why below it: the highest
                    heading among their sections, raised to a minor when
                    rust-version rose since the previous tag, with a major or a
-                   minor moving the middle number before 1.0. The rules are
+                   minor moving the middle number before 1.0, naming any
+                   heading outside the six, which counts as a patch. The rules are
                    references/versioning.md in github-repo-setup. With --tag,
                    that release's own section stays in the window. Writes
                    nothing.
@@ -119,14 +120,17 @@ def have(cmd: str) -> bool:
     return run(["bash", "-c", f"command -v {cmd}"]).returncode == 0
 
 
-SEMVER_BRANCH_RE = re.compile(r"^release/v(\d+\.\d+\.\d+)")
+# A site's deploy stamp keeps its `-g<sha7>`; any other suffix, such as
+# `-ci-migration`, names the branch and not the version.
+SEMVER_BRANCH_RE = re.compile(r"^release/v(\d+\.\d+\.\d+(?:-g[0-9a-f]{7})?)")
 CALVER_BRANCH_RE = re.compile(r"^release/(\d{4}\.\d{2}\.\d{2}(?:\.\d+)?)")
 
 
 def release_branch_tag() -> tuple[str, str | None]:
     """The current branch, and the tag its release-branch name carries or None.
 
-    `release/vX.Y.Z` yields `vX.Y.Z`; a CalVer branch `release/YYYY.MM.DD`
+    `release/vX.Y.Z` yields `vX.Y.Z`, and a site's `release/v<base>.<epoch>-g<sha7>`
+    the whole stamp; a CalVer branch `release/YYYY.MM.DD`
     (optionally `.N`) yields the bare date, since CalVer repos tag without
     a `v` prefix.
     """
@@ -1138,7 +1142,10 @@ def rust_version_at(ref: str, manifest: str) -> tuple[int, ...] | None:
         value = ((data.get("workspace") or {}).get("package") or {}).get("rust-version")
     if not isinstance(value, str) or not re.fullmatch(r"\d+(\.\d+){0,2}", value):
         return None
-    return tuple(int(part) for part in value.split("."))
+    # Padded to three parts, as Cargo reads a short rust-version, so "1.91" and
+    # "1.91.0" compare equal.
+    parts = [int(part) for part in value.split(".")]
+    return tuple(parts + [0] * (3 - len(parts)))
 
 
 def dotted(version: tuple[int, ...] | None) -> str:
@@ -1212,6 +1219,9 @@ def bump_mode(
     print(next_version(previous, bump))
     print(f"  {bump} bump over {prev or 'no earlier release (from 0.0.0)'}")
     print(f"  headings {window}: {', '.join(headings)} -> {by_headings}")
+    outside = [cat for cat in headings if cat not in CATEGORIES]
+    if outside:
+        print(f"  outside the six headings: {', '.join(outside)}; each counts as a patch")
     if msrv_then or msrv_now:
         verdict = "raised, a minor" if msrv_raised else "not raised"
         print(

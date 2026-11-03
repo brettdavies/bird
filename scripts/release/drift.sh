@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical version: 2026.11.02 (generic)
+# Canonical version: 2026.11.03 (generic)
 #
 # Release drift gate: what does the release branch's base carry that the
 # integration branch never received?
