@@ -10,11 +10,12 @@
 # Pipeline: check-version -> build (7 targets) -> attest (build provenance, and a
 # CycloneDX SBOM of the binary) -> crates.io -> release (visible, not latest) ->
 # verify the published files against their attestations -> homebrew-tap tests the
-# formula bump from the archives and lands it -> finalize-release marks the
-# release latest.
+# formula bump and lands it -> finalize-release marks the release latest.
 #
-# The `build` job is the only place a release compiles its binaries. The tap
-# installs the published archives and builds no bottle.
+# The `build` job is the only place a release compiles its binaries. With a
+# prebuilt formula (homebrew-tap-publish's formula-prebuilt.rb), the tap
+# installs the published archives and builds no bottle; a source-built formula
+# is built and bottled in the tap's own CI instead.
 name: Release
 
 on:

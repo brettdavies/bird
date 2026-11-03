@@ -1,4 +1,4 @@
-# Canonical version: 2026.11.02 (rust)
+# Canonical version: 2026.11.03 (rust)
 #
 # Source repo CI wrapper: calls the centralized reusable workflows.
 # Copy to .github/workflows/ci.yml in the tool repo.
@@ -54,7 +54,8 @@ jobs:
     #   docs_only                   skip every job (set below, from the scope job)
     #   cross_os_tests              run cargo test on Windows and macOS too
     #   docs                        cargo doc with warnings denied (set below)
-    #   msrv                        cargo check on the root Cargo.toml's rust-version (set below)
+    #   msrv                        cargo check on the root Cargo.toml's rust-version (set below), which
+    #                               equals rust-toolchain.toml's channel, so it builds on the pinned toolchain
     #   completions                 scripts/generate-completions.sh --check (rust-tool-release)
     #   lint_stdio                  scripts/lint-stdio.sh (rust-tool-release skeleton)
     #   workflow_concurrency        scripts/check-workflow-concurrency.sh (github-repo-setup)
