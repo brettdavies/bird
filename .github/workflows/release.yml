@@ -1,4 +1,4 @@
-# Canonical version: 2026.11.02 (rust)
+# Canonical version: 2026.11.03 (rust)
 #
 # Source repo release wrapper — calls the centralized reusable workflow.
 # Copy to .github/workflows/release.yml in the tool repo.

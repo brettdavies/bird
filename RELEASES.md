@@ -143,6 +143,8 @@ sections, never the bump itself.
 - A `rust-version` raised since the last tag is a minor-level change, so it lifts a patch to a minor. A Rust repo's
   `rust-version` equals the toolchain `rust-toolchain.toml` pins, and CI's MSRV job builds on exactly that version.
 - Before 1.0, a major or a minor moves the middle number and a patch moves the last: `0.4.2` becomes `0.5.0` or `0.4.3`.
+  This is stricter than Cargo's convention on purpose: an addition never ships as a last-number bump, so a `^0.y`
+  dependent receives only fixes until it opts in.
 - From 1.0, when the sections call for a major, the release agent asks the maintainer: a major, or a minor under the
   small-break exception. A minor ships `docs/migrating/v<version>.md`, whose first line names the exception, and
   preflight fails a 1.0+ release that keeps its major and carries `### Breaking changes` without that guide.
