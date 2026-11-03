@@ -544,6 +544,7 @@ gate_backport() {
   # history answers whether or not the backport came through a PR; the PR
   # query covers a checkout whose origin/dev is not fetched.
   local tag_re subject_re hit
+  # shellcheck disable=SC2016  # a sed bracket expression; `$` is a literal to escape
   tag_re=$(printf '%s' "$tag" | sed 's/[][\\.*^$()+?{}|]/\\&/g')
   subject_re="^chore\\(release\\): (sync dev after ${tag_re}([[:space:]]|\$)|backport ${tag_re} artifacts to dev)"
   hit=""
@@ -563,6 +564,7 @@ gate_backport() {
   pr=$(gh pr list --repo "$repo" --base dev --state merged --limit 20 \
     --search "$tag" \
     --json number,title,mergedAt,headRefName 2>/dev/null || true)
+  # shellcheck disable=SC2016  # a jaq program; `$re` is a jaq variable
   pr=$(jaq -c --arg re "$subject_re" \
     '[.[] | select(.title | test($re))] | sort_by(.mergedAt) | reverse | .[0] // empty' \
     <<<"${pr:-[]}" 2>/dev/null || true)
