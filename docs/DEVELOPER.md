@@ -12,7 +12,7 @@ bird (CLI + intelligence) --> xdk-rs (embedded library: auth + HTTP) --> X API
 
 ## Building from source
 
-**Requirements:** Rust 1.94+ and a C compiler (`aws-lc-sys`, under reqwest's rustls backend, compiles C). xdk-rs is
+**Requirements:** Rust 1.96.0+ and a C compiler (`aws-lc-sys`, under reqwest's rustls backend, compiles C). xdk-rs is
 pulled in as a Cargo dep; the bird binary ships standalone.
 
 ```bash

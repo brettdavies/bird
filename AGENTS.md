@@ -367,8 +367,9 @@ The clone is hardened: `credential.helper=`, `core.askPass=`, `protocol.allow=ne
 - `cargo test --all` — full unit + CLI smoke + transport integration suites green.
 - `cargo deny check` — advisories, licenses, bans, sources all clean.
 - `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` — clean.
-- MSRV: **1.94**. The toolchain channel pinned in `rust-toolchain.toml` is the supply-chain anchor; rustup verifies
-  component SHA256s from the distribution manifest, making the pin effectively a SHA pin.
+- MSRV: **1.96.0**, the toolchain channel pinned in `rust-toolchain.toml`, which CI's MSRV job builds on. That pin is
+  the supply-chain anchor: rustup verifies component SHA256s from the distribution manifest, making the pin effectively
+  a SHA pin.
 - No `unwrap()` in production code paths.
 - `bash scripts/lint-stdio.sh` — no output macro (`println!`, `eprintln!`, and kin) in `src/` outside `src/main.rs` and
   `src/error/fatal.rs`; output goes to an injected writer.
