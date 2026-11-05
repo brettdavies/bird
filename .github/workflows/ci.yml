@@ -50,7 +50,6 @@ jobs:
     # Every rust-ci input, one line each. The reusable's
     # on.workflow_call.inputs holds each one's full description and default.
     #   advisories_blocking         an advisory fails the run (set below)
-    #   windows_nasm                install NASM on the Windows jobs, for a dependency that assembles there
     #   docs_only                   skip every job (set below, from the scope job)
     #   cross_os_tests              run cargo test on Windows and macOS too
     #   docs                        cargo doc with warnings denied (set below)
