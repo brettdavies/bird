@@ -23,9 +23,11 @@
 # Homebrew, finalize, and make-latest gates adjust rather than fail.
 #
 # Subcommands:
-#   release        release.yml (release-lib.yml on a library tag) on the tag push (conclusion=success)
-#   tap            homebrew-tap update-formula + Publish formula SUCCESS (SKIPs on a library tag, and in a
-#                  repo whose workflows dispatch nothing to the tap)
+#   release        the release.yml run for the tag (release-lib.yml on a library tag) concluded success: the
+#                  run titled `Release <tag>` when the tag's run dispatches it, else the tag push's own run
+#   tap            homebrew-tap's update-formula run titled `Update <crate> to v<X.Y.Z>` concluded success,
+#                  which lands the bump on the tap's main (SKIPs on a library tag, and in a repo whose
+#                  workflows dispatch nothing to the tap)
 #   finalize       finalize-release.yml callback ran (cross-repo dispatch loop closed; SKIPs on a library tag)
 #   make-latest    GitHub Release is non-draft, non-prerelease, and releases/latest matches.
 #                  On a library tag the check inverts: latest must NOT be it (make_latest: false)
@@ -260,12 +262,6 @@ resolve_env_url() {
 
 # Gate: release.yml ----------------------------------------------------------
 
-# Every downstream run (tap update-formula, Publish formula, finalize-release)
-# is matched by name and start time against the release.yml run for this tag.
-# Matching by name alone returns the previous release's runs when this
-# release's are still queued, which reads as a false pass; the tap repo is
-# shared across every CLI, so another repo's release can satisfy a name-only
-# match too. Prints nothing when release.yml has not started for the tag.
 # Which release line the tag belongs to. rust-lib-release.yml namespaces a
 # library member's tag as `<crate>-v<version>` precisely so it can never match
 # the binary caller's `v[0-9]+.[0-9]+.[0-9]+` filter, which makes the tag shape
@@ -288,28 +284,62 @@ release_workflow() {
   fi
 }
 
-release_started_at() {
-  local repo tag
+# The run that releases the tag, as JSON with the fields named. A caller that
+# dispatches its release onto the default branch titles that run
+# `Release <tag>`, and its tag push's run, which builds nothing, `Dispatch <tag>`;
+# the dispatched run's branch is the default branch, so it is found by title. A
+# caller that releases on the tag push runs on the tag's own ref. Prints
+# nothing when no such run has started.
+release_run() {
+  local fields="$1" repo tag wf run
   repo=$(resolve_repo)
   tag=$(resolve_tag)
-  gh run list --repo "$repo" --workflow "$(release_workflow)" --branch "$tag" --limit 1 \
-    --json createdAt --jq '.[0].createdAt // empty' 2>/dev/null || true
+  wf=$(release_workflow)
+  run=$(gh run list --repo "$repo" --workflow "$wf" --event workflow_dispatch --limit 20 \
+    --json "displayTitle,$fields" \
+    --jq "[.[] | select(.displayTitle == \"Release $tag\")][0] // empty | del(.displayTitle)" 2>/dev/null || true)
+  if [[ -z "$run" ]]; then
+    run=$(gh run list --repo "$repo" --workflow "$wf" --branch "$tag" --limit 5 \
+      --json "displayTitle,$fields" \
+      --jq "[.[] | select(.displayTitle != \"Dispatch $tag\")][0] // empty | del(.displayTitle)" 2>/dev/null || true)
+  fi
+  printf '%s' "$run"
+}
+
+# Every downstream run (tap update-formula, finalize-release) is matched
+# by name and start time against the release.yml run for this tag.
+# Matching by name alone returns the previous release's runs when this
+# release's are still queued, which reads as a false pass; the tap repo is
+# shared across every CLI, so another repo's release can satisfy a name-only
+# match too. Prints nothing when release.yml has not started for the tag.
+release_started_at() {
+  release_run createdAt | jaq -r '.createdAt // empty' 2>/dev/null || true
 }
 
 gate_release() {
   local wf
   wf=$(release_workflow)
-  header "$wf on tag push"
+  header "$wf run for the tag"
   require_bin gh
   require_bin jaq
   local repo tag run
   repo=$(resolve_repo)
   tag=$(resolve_tag)
 
-  run=$(gh run list --repo "$repo" --branch "$tag" --workflow "$wf" --limit 1 \
-    --json databaseId,status,conclusion --jq '.[0]' 2>/dev/null || true)
-  if [[ -z "$run" || "$run" == "null" ]]; then
-    gate_skip "$wf run for $tag" "no run found on tag $tag yet (push the tag?)"
+  run=$(release_run databaseId,status,conclusion)
+  if [[ -z "$run" ]]; then
+    local dispatch run_id
+    dispatch=$(gh run list --repo "$repo" --workflow "$wf" --branch "$tag" --limit 5 \
+      --json displayTitle,databaseId,status,conclusion \
+      --jq "[.[] | select(.displayTitle == \"Dispatch $tag\")][0] // empty" 2>/dev/null || true)
+    if [[ -z "$dispatch" ]]; then
+      gate_skip "$wf run for $tag" "no run found for tag $tag yet (push the tag?)"
+    elif [[ "$(jaq -r .status <<<"$dispatch")" == "completed" && "$(jaq -r .conclusion <<<"$dispatch")" != "success" ]]; then
+      run_id=$(jaq -r .databaseId <<<"$dispatch")
+      gate_fail "$wf run $run_id" "Dispatch $tag concluded $(jaq -r .conclusion <<<"$dispatch") and no run titled Release $tag exists (see RELEASES.md#when-the-dispatch-job-fails)"
+    else
+      gate_skip "$wf run for $tag" "the tag's run dispatches the release, and no run titled Release $tag has started yet"
+    fi
     return
   fi
 
@@ -345,69 +375,52 @@ dispatches_to_tap() {
 }
 
 gate_tap() {
-  header "homebrew-tap dispatch + formula publish"
+  header "homebrew-tap update-formula"
   if [[ "$(release_line)" == "library" ]]; then
-    gate_skip "tap chain" "library release ($(resolve_tag)): rust-lib-release.yml dispatches no Homebrew update"
+    gate_skip "tap update-formula" "library release ($(resolve_tag)): rust-lib-release.yml dispatches no Homebrew update"
     return
   fi
   if ! dispatches_to_tap; then
-    gate_skip "tap chain" "no workflow in .github/workflows calls rust-release.yml or sends update-formula to $TAP_REPO"
+    gate_skip "tap update-formula" "no workflow in .github/workflows calls rust-release.yml or sends update-formula to $TAP_REPO"
     return
   fi
   require_bin gh
   require_bin jaq
-  local tap=$TAP_REPO tag since
+  local tap=$TAP_REPO tag since formula title
   tag=$(resolve_tag)
   since=$(release_started_at)
   if [[ -z "$since" ]]; then
-    gate_skip "tap chain" "no release.yml run for $tag yet"
+    gate_skip "tap update-formula" "no release.yml run for $tag yet"
     return
   fi
+  # The tap titles each run `Update <formula> to v<version>`, adding
+  # ` (dry run)` to a rehearsal, so an exact match leaves out a rehearsal and
+  # another formula's bump. The run lands the bump on the tap's main, and a
+  # recovery dispatched by hand carries the same title.
+  formula=$(resolve_crate) || {
+    gate_fail "tap update-formula" "no crate name to find the formula by; pass --crate"
+    return
+  }
+  title="Update $formula to v$(tag_version "$tag")"
 
-  # update-formula = repository_dispatch from release.yml
   local uf
-  uf=$(gh run list --repo "$tap" --event repository_dispatch --limit 10 \
+  uf=$(gh run list --repo "$tap" --workflow update-formula.yml --limit 20 \
     --json databaseId,status,conclusion,displayTitle,createdAt \
-    --jq "[.[] | select(.displayTitle == \"update-formula\" and .createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
-  if [[ -z "$uf" || "$uf" == "null" ]]; then
-    gate_skip "tap update-formula dispatch" "no run on $tap since release.yml started ($since)"
-  else
-    local uf_status uf_conclusion uf_id
-    uf_status=$(printf '%s' "$uf" | jaq -r .status)
-    uf_conclusion=$(printf '%s' "$uf" | jaq -r .conclusion)
-    uf_id=$(printf '%s' "$uf" | jaq -r .databaseId)
-    if [[ "$uf_status" == "completed" && "$uf_conclusion" == "success" ]]; then
-      gate_pass "tap update-formula run $uf_id (dispatch from release.yml) success"
-    elif [[ "$uf_status" == "completed" ]]; then
-      gate_fail "tap update-formula run $uf_id" "conclusion=$uf_conclusion (see gh run view $uf_id -R $tap --log-failed)"
-    else
-      gate_skip "tap update-formula run $uf_id" "status=$uf_status"
-    fi
-  fi
-
-  # The tap's publish workflow = workflow_run triggered by the CI completion on
-  # the formula-bump PR. It is named `Publish formula`; a tap that carries the
-  # workflow under the name `Publish bottles` is matched too, and the gate
-  # reports the run under the name it has.
-  local pb
-  pb=$(gh run list --repo "$tap" --event workflow_run --limit 10 \
-    --json databaseId,status,conclusion,displayTitle,createdAt \
-    --jq "[.[] | select((.displayTitle == \"Publish formula\" or .displayTitle == \"Publish bottles\") and .createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
-  if [[ -z "$pb" || "$pb" == "null" ]]; then
-    gate_skip "tap Publish formula" "no run since release.yml started ($since); CI on the formula PR may still be running"
+    --jq "[.[] | select(.displayTitle == \"$title\" and .createdAt >= \"$since\")] | .[0] // empty" 2>/dev/null || true)
+  if [[ -z "$uf" ]]; then
+    gate_skip "tap update-formula" "no run titled \"$title\" on $tap since release.yml started ($since)"
     return
   fi
-  local pb_status pb_conclusion pb_id pb_title
-  pb_status=$(printf '%s' "$pb" | jaq -r .status)
-  pb_conclusion=$(printf '%s' "$pb" | jaq -r .conclusion)
-  pb_id=$(printf '%s' "$pb" | jaq -r .databaseId)
-  pb_title=$(printf '%s' "$pb" | jaq -r .displayTitle)
-  if [[ "$pb_status" == "completed" && "$pb_conclusion" == "success" ]]; then
-    gate_pass "tap $pb_title run $pb_id success (formula bump pushed to $tap main)"
-  elif [[ "$pb_status" == "completed" ]]; then
-    gate_fail "tap $pb_title run $pb_id" "conclusion=$pb_conclusion"
+  local uf_status uf_conclusion uf_id
+  uf_status=$(printf '%s' "$uf" | jaq -r .status)
+  uf_conclusion=$(printf '%s' "$uf" | jaq -r .conclusion)
+  uf_id=$(printf '%s' "$uf" | jaq -r .databaseId)
+  if [[ "$uf_status" == "completed" && "$uf_conclusion" == "success" ]]; then
+    gate_pass "tap update-formula run $uf_id success (bump landed on $tap main)"
+  elif [[ "$uf_status" == "completed" ]]; then
+    gate_fail "tap update-formula run $uf_id" "conclusion=$uf_conclusion (see gh run view $uf_id -R $tap --log-failed)"
   else
-    gate_skip "tap $pb_title run $pb_id" "status=$pb_status"
+    gate_skip "tap update-formula run $uf_id" "status=$uf_status"
   fi
 }
 
@@ -434,7 +447,7 @@ gate_finalize() {
     --json databaseId,status,conclusion,createdAt \
     --jq "[.[] | select(.createdAt >= \"$since\")] | .[0]" 2>/dev/null || true)
   if [[ -z "$fr" || "$fr" == "null" ]]; then
-    gate_skip "finalize-release.yml run" "no callback since release.yml started ($since); the tap's publish run may still be running on $TAP_REPO"
+    gate_skip "finalize-release.yml run" "no callback since release.yml started ($since); the tap's update-formula run may still be running on $TAP_REPO"
     return
   fi
   local fr_status fr_conclusion fr_id
