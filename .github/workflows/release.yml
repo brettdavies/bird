@@ -12,16 +12,29 @@
 # verify the published files against their attestations -> homebrew-tap tests the
 # formula bump and lands it -> finalize-release marks the release latest.
 #
+# The tag push compiles nothing: its run dispatches the release onto `main`.
+# Actions scopes each cache to the ref of the run that saved it, so a release
+# run on its tag saves where no later release reads, and a run on `main`
+# restores the caches the previous release saved there.
+# The reusable holds the dispatched run to the tagged commit.
+#
 # The `build` job is the only place a release compiles its binaries. With a
 # prebuilt formula (homebrew-tap-publish's formula-prebuilt.rb), the tap
 # installs the published archives and builds no bottle; a source-built formula
 # is built and bottled in the tap's own CI instead.
 name: Release
+run-name: ${{ github.event_name == 'push' && 'Dispatch' || 'Release' }} ${{ inputs.tag || github.ref_name }}
 
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The release tag, v<major>.<minor>.<patch>'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -30,9 +43,40 @@ permissions:
   attestations: write
 
 jobs:
+  dispatch:
+    name: Dispatch the release onto main
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the release onto main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          runs="gh run list --repo ${GITHUB_REPOSITORY} --workflow release.yml --branch main --event workflow_dispatch --limit 3 --json displayTitle,status,url"
+          runs_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/release.yml?query=event%3Aworkflow_dispatch"
+          docs="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/RELEASES.md#when-the-dispatch-job-fails"
+          if ! gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"; then
+            echo "::error title=release-dispatch-failed::Release ${TAG} was not dispatched onto main, and nothing was built. GitHub can accept a dispatch and still fail this step, so list the runs first: ${runs}. Only when none is titled Release ${TAG}, run: gh workflow run release.yml --repo ${GITHUB_REPOSITORY} --ref main -f tag=${TAG}. See ${docs}"
+            exit 1
+          fi
+          echo "::notice title=release-dispatched::Release ${TAG} runs on main: ${runs}"
+          {
+            echo "Release ${TAG} was dispatched onto main. Its run is titled \`Release ${TAG}\`, listed at ${runs_url}, or by:"
+            echo
+            echo "\`\`\`sh"
+            echo "${runs}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   pipeline:
+    if: github.event_name == 'workflow_dispatch'
     uses: brettdavies/.github/.github/workflows/rust-release.yml@main
     with:
+      tag: ${{ inputs.tag }}
       crate: bird
       bin: bird
       # A musl failure blocks the release instead of silently omitting two
