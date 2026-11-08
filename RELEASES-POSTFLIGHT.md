@@ -28,17 +28,17 @@ the flag can be ignored; the `surface-smoke` gate auto-SKIPs because no `scripts
 
 Sub-commands let you re-run one verification in isolation:
 
-| Sub-command     | What it checks                                                                                                   | Source of truth                           |
-| --------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `release`       | `release.yml` on the tag push: `gh run view ... --json conclusion` is `"success"`                                | `gh run view`                             |
-| `tap`           | `brettdavies/homebrew-tap` `update-formula` (repository_dispatch) + `Publish formula` (workflow_run) ran SUCCESS | `gh run list -R brettdavies/homebrew-tap` |
-| `finalize`      | `finalize-release.yml` callback ran in this repo (cross-repo dispatch loop closed)                               | `gh run list -e repository_dispatch`      |
-| `make-latest`   | GitHub Release `vX.Y.Z` is non-draft, non-prerelease, and `releases/latest` resolves to it                       | `gh api /releases/latest`                 |
-| `crates`        | `crates.io` shows `bird vX.Y.Z` published (`cargo search bird` returns the tag)                                  | `crates.io` index API                     |
-| `tags`          | Each workspace library's tag sits on the binary tag's commit; SKIPs for bird, which publishes no library         | `git rev-parse`                           |
-| `backport`      | the backport's subject (`chore(release): sync dev after <tag>`) on `dev` or a merged PR's title                  | `gh pr list --base dev --state merged`    |
-| `surface-smoke` | auto-SKIPs: bird vendors no `surface-smoke.sh`                                                                   | n/a                                       |
-| `all`           | every above                                                                                                      | all of the above                          |
+| Sub-command     | What it checks                                                                                                                      | Source of truth                           |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `release`       | the `release.yml` run titled `Release vX.Y.Z`, which the tag's push dispatches onto `main`, concluded `"success"`                   | `gh run view`                             |
+| `tap`           | `brettdavies/homebrew-tap`'s `update-formula` run titled `Update bird to vX.Y.Z` ran SUCCESS; it lands the bump on the tap's `main` | `gh run list -R brettdavies/homebrew-tap` |
+| `finalize`      | `finalize-release.yml` callback ran in this repo (cross-repo dispatch loop closed)                                                  | `gh run list -e repository_dispatch`      |
+| `make-latest`   | GitHub Release `vX.Y.Z` is non-draft, non-prerelease, and `releases/latest` resolves to it                                          | `gh api /releases/latest`                 |
+| `crates`        | `crates.io` shows `bird vX.Y.Z` published (`cargo search bird` returns the tag)                                                     | `crates.io` index API                     |
+| `tags`          | Each workspace library's tag sits on the binary tag's commit; SKIPs for bird, which publishes no library                            | `git rev-parse`                           |
+| `backport`      | the backport's subject (`chore(release): sync dev after <tag>`) on `dev` or a merged PR's title                                     | `gh pr list --base dev --state merged`    |
+| `surface-smoke` | auto-SKIPs: bird vendors no `surface-smoke.sh`                                                                                      | n/a                                       |
+| `all`           | every above                                                                                                                         | all of the above                          |
 
 The `tap` and `finalize` gates accept only downstream runs created at or after this tag's `release.yml` run, and SKIP
 until that run exists: the tap repo is shared across every CLI, so a name-only match would return another release's runs
@@ -57,17 +57,18 @@ Flags:
 
 ## Checklist
 
-Run immediately after the tag push triggers `release.yml`.
+Run once the tag is pushed.
 
-- [ ] **`release.yml` green end-to-end.** `gh run watch <id> --exit-status` then verify with `gh run view <id> --json
-  conclusion --jq .conclusion` because the watcher exit code alone is not authoritative (a completed watcher is not a
-  green watcher). Builds the seven cross-compile targets, publishes to crates.io via OIDC Trusted Publishing, and
-  dispatches `update-formula` into the homebrew-tap. Run `scripts/release/postflight.sh release` for the automated
+- [ ] **`release.yml` green end-to-end.** The run is the one titled `Release vX.Y.Z`, which `gh run list --workflow
+  release.yml --event workflow_dispatch --limit 3` lists. `gh run watch <id> --exit-status` then verify with `gh run
+  view <id> --json conclusion --jq .conclusion` because the watcher exit code alone is not authoritative (a completed
+  watcher is not a green watcher). Builds the seven cross-compile targets, publishes to crates.io via OIDC Trusted
+  Publishing, and dispatches `update-formula` into the homebrew-tap. Run `scripts/release/postflight.sh release` for the
+  automated check.
+- [ ] **Homebrew-tap dispatch landed.** `gh run list -R brettdavies/homebrew-tap --limit 5` should show a recent `Update
+  bird to v<version>` run SUCCESS. Its `land` job pushes the formula bump to tap `main` as one commit with no bottle,
+  since bird's formula installs this release's archives. Run `scripts/release/postflight.sh tap` for the automated
   check.
-- [ ] **Homebrew-tap dispatch landed.** `gh run list -R brettdavies/homebrew-tap --limit 5` should show a recent
-  `update-formula` (event=repository_dispatch) and a `Publish formula` (event=workflow_run) both SUCCESS. The publish
-  workflow pushes the formula bump to tap `main` as one commit with no bottle, since bird's formula installs this
-  release's archives. Run `scripts/release/postflight.sh tap` for the automated check.
 - [ ] **`finalize-release.yml` callback ran.** After the formula lands, the tap dispatches back to this repo and the
   callback flips the GitHub Release `make_latest: true`. Check `gh run list -e repository_dispatch --limit 3`; expect a
   `finalize-release` SUCCESS. Run `scripts/release/postflight.sh finalize` for the automated check.
