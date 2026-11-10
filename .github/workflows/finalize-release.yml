@@ -27,6 +27,6 @@ jobs:
     needs: finalize
     permissions:
       actions: write
-    uses: brettdavies/.github/.github/workflows/warm-dispatch.yml@main
+    uses: brettdavies/.github/.github/workflows/warm-dispatch.yml@feat/cache-prune-warm-dispatch
     with:
       workflows: ci.yml build-examples.yml

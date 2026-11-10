@@ -127,7 +127,7 @@ jobs:
     permissions:
       actions: write
       contents: read
-    uses: brettdavies/.github/.github/workflows/rust-cache-prune.yml@main
+    uses: brettdavies/.github/.github/workflows/rust-cache-prune.yml@feat/rust-cache-prune
 
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that
