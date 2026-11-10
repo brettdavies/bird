@@ -1,7 +1,7 @@
 //! bird — X API CLI binary entrypoint.
 //!
 //! Restores default SIGPIPE handling (Rust masks it by default), installs the
-//! SIGTERM/SIGINT handler that cancels an in-flight X API call, initializes
+//! SIGTERM/SIGINT handler that cancels an in-flight X API call, sets up
 //! tracing (library consumers manage their own), then delegates to the
 //! library's `run_argv`. The library returns `ExitCode`; Rust converts it to
 //! a process exit on return.
