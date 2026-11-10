@@ -12,15 +12,28 @@
 # lint-basics.yml runs actionlint and markdownlint.
 # No secrets required: only contents: read and pull-requests: read.
 #
-# pull_request only: merges to main and dev are squash merges, so the merge
-# commit's tree equals the PR head this workflow already verified, and a push
-# run would re-check an identical tree for no new signal. The compensating
-# local gate is the hook pair at scripts/hooks/, which mirrors these jobs
-# before the push leaves the machine.
+# Checks run on pull requests only: merges to main and dev are squash merges,
+# so the merge commit's tree equals the PR head this workflow already verified,
+# and a push run would re-check an identical tree for no new signal. The
+# compensating local gate is the hook pair at scripts/hooks/, which mirrors
+# these jobs before the push leaves the machine.
+#
+# A push to dev, or a manual dispatch, is a warm run: it builds what each check
+# compiles, runs no test, lint, or audit, and fills the caches pull requests
+# restore. A check that only compiles runs as it is, so a compile error still
+# fails a warm run. A pull request restores from its own ref, its base branch,
+# and the default branch, and only a run outside a pull request can write those
+# two branches' scopes, so without warm runs every new pull request builds its
+# dependencies cold. finalize-release.yml dispatches a
+# warm run on main once a release is marked latest, so the release merge starts
+# no run beside the release's own.
 name: CI
 
 on:
   pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -41,11 +54,12 @@ jobs:
   # success, so required checks still pass. The `ci` job runs unless this
   # answered `false`, so a scope job that fails runs the full battery.
   scope:
+    if: github.event_name == 'pull_request'
     uses: brettdavies/.github/.github/workflows/rust-change-scope.yml@main
 
   ci:
     needs: scope
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
     # Every rust-ci input, one line each. The reusable's
     # on.workflow_call.inputs holds each one's full description and default.
@@ -78,10 +92,28 @@ jobs:
       workflow_concurrency: true
       # Every `fail` row blocks, source rows included, not only MUST-tier ones.
       # The floor is the score this tree reports; raise it when the score does.
-      anc_version: "0.6.0"
-      anc_bin: bird
+      anc_version: &anc-version "0.6.0"
+      anc_bin: &anc-bin bird
       anc_blocking_tiers: any
       anc_score_floor: 99
+
+  # Builds what each `ci` job compiles with execution off, and saves each job's
+  # cache only when the job succeeds. Its checks report as `warm / <job>`, never
+  # under a required `ci / <job>` name, and rust-cache keys on the reusable's job
+  # ids, not this caller's, so a pull request's keys match the ones saved here.
+  # Each input that turns on a job keeping a cache is set here as in `ci`, or that
+  # job's cache stays cold; the jobs that keep none skip in a warm run.
+  warm:
+    if: github.event_name != 'pull_request'
+    uses: brettdavies/.github/.github/workflows/rust-ci.yml@main
+    with:
+      warm_cache: true
+      cross_os_tests: true
+      docs: true
+      msrv: true
+      completions: true
+      anc_version: *anc-version
+      anc_bin: *anc-bin
 
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that
@@ -90,6 +122,7 @@ jobs:
   # A repo whose own lint.yml already calls lint-basics drops this job: both
   # report as `lint / <job>`, so the same checks would run twice under one name.
   lint:
+    if: github.event_name == 'pull_request'
     uses: brettdavies/.github/.github/workflows/lint-basics.yml@main
     permissions:
       contents: read

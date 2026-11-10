@@ -5,12 +5,19 @@
 # the snippet. Mirrors the per-repo wrapper pattern used by the other
 # guard workflows.
 #
-# pull_request only, as in ci.yml: merges to main and dev are squash merges, so
-# the merged tree equals the PR head this workflow already built.
+# The check runs on pull requests, as in ci.yml: merges to main and dev are
+# squash merges, so the merged tree equals the PR head this workflow already
+# built. A push to dev, or a manual dispatch, runs the same build to save the
+# cache pull requests restore, since only a run outside a pull request can write
+# the dev and main scopes they read. finalize-release.yml dispatches one on main
+# once a release is marked latest.
 name: Build examples
 
 on:
   pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -32,7 +39,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      # A pull request run saves even when the build fails, so its next push
+      # starts warm. A push run saves only on success: a partial entry under the
+      # exact key would never be refilled, since rust-cache saves nothing after an
+      # exact-key restore.
       - name: Cache cargo
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: ${{ github.event_name == 'pull_request' }}
       - name: cargo build --examples
         run: cargo build --workspace --examples --locked

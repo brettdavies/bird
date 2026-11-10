@@ -4,7 +4,12 @@
 # Copy to .github/workflows/finalize-release.yml in the tool repo.
 #
 # Triggered by repository_dispatch from homebrew-tap's publish workflow
-# once the formula bump lands. Marks the GitHub Release latest.
+# once the formula bump lands. Marks the GitHub Release latest, then starts
+# the warm runs of CI and Build examples on `main`.
+#
+# The release merge starts no CI run, so the release has the account's runners
+# to itself; `main`'s caches, which release pull requests restore, fill here
+# instead, once the release is out.
 name: Finalize Release
 
 on:
@@ -17,3 +22,18 @@ permissions:
 jobs:
   finalize:
     uses: brettdavies/.github/.github/workflows/rust-finalize-release.yml@main
+
+  warm-main:
+    name: Warm main's CI caches
+    needs: finalize
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the warm runs on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run build-examples.yml --repo "$GITHUB_REPOSITORY" --ref main

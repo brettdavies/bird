@@ -381,6 +381,10 @@ four platforms, lands the bump, and dispatches `finalize-release` back to this r
 `make_latest: true`. It builds no bottle: the binaries are compiled once, by `release.yml`, and `brew install` downloads
 the archive. Run [`scripts/release/postflight.sh all`](./RELEASES-POSTFLIGHT.md) to verify the chain.
 
+`finalize-release` then dispatches the warm runs of `ci.yml` and `build-examples.yml` on `main`, which build what each
+check compiles and save the caches release pull requests restore. The release merge starts no CI run of its own, so
+these are what fill `main`'s CI caches. A push to `dev` starts the same warm runs there.
+
 Each coded stop in the reusable is an error annotation titled with its code, which links the heading in
 [`brettdavies/.github`'s README](https://github.com/brettdavies/.github/blob/main/README.md) that gives the recovery.
 `release-tag-moved` means `main` moved past the tag before the dispatched run checked it out; the annotation gives the
