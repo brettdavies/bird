@@ -18,11 +18,13 @@
 # compensating local gate is the hook pair at scripts/hooks/, which mirrors
 # these jobs before the push leaves the machine.
 #
-# A push to dev, or a manual dispatch, is a warm run: it runs no check and
-# fills the caches pull requests restore. A pull request restores from its own
-# ref, its base branch, and the default branch, and only a run outside a pull
-# request can write those two branches' scopes, so without warm runs every new
-# pull request builds its dependencies cold. finalize-release.yml dispatches a
+# A push to dev, or a manual dispatch, is a warm run: it builds what each check
+# compiles, runs no test, lint, or audit, and fills the caches pull requests
+# restore. A check that only compiles runs as it is, so a compile error still
+# fails a warm run. A pull request restores from its own ref, its base branch,
+# and the default branch, and only a run outside a pull request can write those
+# two branches' scopes, so without warm runs every new pull request builds its
+# dependencies cold. finalize-release.yml dispatches a
 # warm run on main once a release is marked latest, so the release merge starts
 # no run beside the release's own.
 name: CI
