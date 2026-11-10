@@ -1,0 +1,17 @@
+# Deletes a pull request's Actions caches when it closes. Only that pull
+# request's runs can read them, and they would otherwise outlast the dev and main
+# entries every new pull request restores from. The reusable's header gives the
+# detail; a fork's pull request is skipped, and its entries leave by eviction.
+name: PR cache cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  cleanup:
+    permissions:
+      actions: write
+    uses: brettdavies/.github/.github/workflows/pr-cache-cleanup.yml@main
