@@ -11,5 +11,7 @@ jobs:
       actions: write
     uses: brettdavies/.github/.github/workflows/warm-dispatch.yml@feat/cache-prune-warm-dispatch
     with:
-      workflows: build-examples.yml ci.yml
+      workflows: |
+        build-examples.yml
+        ci.yml
       ref: test/probe-warm-dispatch
