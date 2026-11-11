@@ -24,9 +24,9 @@
 # fails a warm run. A pull request restores from its own ref, its base branch,
 # and the default branch, and only a run outside a pull request can write those
 # two branches' scopes, so without warm runs every new pull request builds its
-# dependencies cold. finalize-release.yml dispatches a
-# warm run on main once a release is marked latest, so the release merge starts
-# no run beside the release's own.
+# dependencies cold. finalize-release.yml dispatches a warm run on main once a
+# release is marked latest, so the release merge starts no run beside the
+# release's own. Pull requests' caches are pr-cache-cleanup.yml's.
 name: CI
 
 on:
@@ -114,6 +114,20 @@ jobs:
       completions: true
       anc_version: *anc-version
       anc_bin: *anc-bin
+
+  # A warm run after a dependency change saves each cache under a new key and
+  # leaves the one it replaced on the ref, which GitHub's 10 GB limit then
+  # evicts least recently used first: the release's caches on main go before
+  # the superseded ones. This deletes those once every warm job has saved.
+  # Build examples saves under the same ref from its own workflow; an entry it
+  # saves after this run starts is kept.
+  prune-caches:
+    needs: [warm]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    permissions:
+      actions: write
+      contents: read
+    uses: brettdavies/.github/.github/workflows/rust-cache-prune.yml@main
 
   # The planning archives (docs/plans, docs/brainstorms) never ship to main and
   # carry long lines and unaligned tables the rules reject; every document that

@@ -78,6 +78,9 @@ const GATES: &[(&str, Mirror)] = &[
 const RUST_CI: &str = "uses: brettdavies/.github/.github/workflows/rust-ci.yml@";
 const LINT_BASICS: &str = "uses: brettdavies/.github/.github/workflows/lint-basics.yml@";
 const CHANGE_SCOPE: &str = "uses: brettdavies/.github/.github/workflows/rust-change-scope.yml@";
+/// Deletes a branch's superseded caches after a warm run and checks no code,
+/// so there is nothing for a pre-push step to mirror.
+const CACHE_PRUNE: &str = "uses: brettdavies/.github/.github/workflows/rust-cache-prune.yml@";
 /// The classifier `rust-change-scope.yml` runs when the caller names none.
 const CARGO_INPUTS: &str = "scripts/cargo-inputs.sh";
 
@@ -163,7 +166,7 @@ fn every_reusable_ci_calls_has_a_hook_step() {
         .filter(|line| line.starts_with("uses: "))
         .collect();
     for uses in called {
-        if uses.starts_with(CHANGE_SCOPE) {
+        if uses.starts_with(CHANGE_SCOPE) || uses.starts_with(CACHE_PRUNE) {
             continue;
         }
         let mirrored = GATES.iter().any(|(_, gate)| match gate {
