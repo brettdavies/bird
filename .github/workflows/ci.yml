@@ -24,7 +24,7 @@
 # fails a warm run. A pull request restores from its own ref, its base branch,
 # and the default branch, and only a run outside a pull request can write those
 # two branches' scopes, so without warm runs every new pull request builds its
-# dependencies cold. finalize-release.yml dispatches a
+# dependencies cold. The finalize-release.yml workflow dispatches a
 # warm run on main once a release is marked latest, so the release merge starts
 # no run beside the release's own.
 name: CI
